@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="accounting/accounting.csproj" />
+  <Project Path="blazordeployservice/blazordeployservice.csproj" />
+  <Project Path="central-client/central-client.csproj" />
+  <Project Path="share/share.csproj" />
+  <Project Path="webapi/webapi.csproj" />
+</Solution>

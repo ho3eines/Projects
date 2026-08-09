@@ -1,0 +1,15 @@
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+*.log
+appsettings.Development.json
+*.nupkg
+project.lock.json
+artifacts/
