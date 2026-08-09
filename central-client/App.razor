@@ -1,12 +1,12 @@
-@namespace WebApi
+@namespace CentralClient
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Components.Layout.MainLayout)" />
+        <RouteView RouteData="routeData" DefaultLayout="typeof(CentralClient.Shared.Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>
-        <LayoutView Layout="typeof(Components.Layout.MainLayout)">
+        <LayoutView Layout="typeof(CentralClient.Shared.Layout.MainLayout)">
             <h1 class="text-danger">صفحه یافت نشد</h1>
         </LayoutView>
     </NotFound>

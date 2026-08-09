@@ -1,0 +1,299 @@
+﻿@using System.Globalization
+@using BlazorDeployService.Services
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Web
+
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject ISqlService _sqlService
+
+<div @ref="RootElement" class="persian-date-picker-wrapper position-relative">
+    <input type="text"
+           class="@CssClass"
+           @bind="inputText"
+           @onfocus="OpenDropdown"
+           @onclick="OpenDropdown"
+           placeholder="@Placeholder"
+           readonly />
+
+    @if (isDropdownOpen)
+    {
+        <div class="dropdown-menu d-block p-3 shadow" style="min-width: 280px;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="GoToPreviousMonth">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-right" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708" />
+                    </svg>
+                </button>
+                <h6 class="mb-0">@GetMonthName() @GetYear()</h6>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="GoToNextMonth">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-left" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0" />
+                    </svg>
+                </button>
+            </div>
+
+            <table class="table table-sm table-borderless text-center">
+                <thead>
+                    <tr>
+                        <th>شنبه</th>
+                        <th>1شنبه</th>
+                        <th>2شنبه</th>
+                        <th>3شنبه</th>
+                        <th>4شنبه</th>
+                        <th>5شنبه</th>
+                        <th>جمعه</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var week in GetCalendarWeeks())
+                    {
+                        <tr>
+                            @foreach (var dayTimestamp in week)
+                            {
+                                <td>
+                                    @if (dayTimestamp.HasValue)
+                                    {
+                                        var dayDateTime = GetLocalDateTime(dayTimestamp.Value);
+                                        var persianDay = pc.GetDayOfMonth(dayDateTime);
+
+                                        var isSelected = IsDateSelected(dayTimestamp.Value);
+                                        var isToday = IsDateToday(dayTimestamp.Value);
+
+                                        <button type="button"
+                                                class="btn btn-sm @(isSelected ? "btn-primary" : "btn-light") @(isToday ? "border border-info" : "")"
+                                                style="width: 32px; height: 32px; padding: 0;"
+                                                @onclick="() => SelectDate(dayTimestamp.Value)">
+                                            @persianDay
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <div style="width: 32px; height: 32px;"></div>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <hr class="my-2" />
+            <button class="btn btn-sm btn-secondary w-100" @onclick="SelectToday">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar-event" viewBox="0 0 16 16">
+                    <path d="M11 6.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5z" />
+                    <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5M1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z" />
+                </svg>
+                امروز
+            </button>
+        </div>
+    }
+</div>
+
+<style>
+    .persian-date-picker-wrapper .dropdown-menu {
+        z-index: 1050;
+        position: absolute;
+        background: white;
+        border: 1px solid #dee2e6;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public long? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<long?> ValueChanged { get; set; }
+
+    [Parameter]
+    public string Placeholder { get; set; } = "انتخاب تاریخ";
+
+    [Parameter]
+    public string CssClass { get; set; } = "form-control";
+
+    private ElementReference RootElement { get; set; }
+    private bool isDropdownOpen = false;
+    private long currentViewTimestamp;
+    private string inputText = string.Empty;
+    private IJSObjectReference? _jsModule;
+    private readonly PersianCalendar pc = new PersianCalendar();
+
+    private DateTime GetLocalDateTime(long timestamp)
+    {
+        return _sqlService.UnixTimeToDateTime(timestamp).ToLocalTime();
+    }
+
+    private long GetUtcTimestamp(DateTime localDateTime)
+    {
+        var utcDateTime = TimeZoneInfo.ConvertTimeToUtc(localDateTime);
+        return _sqlService.DateTimeToUnixTime(utcDateTime);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            currentViewTimestamp = Value ?? GetUtcTimestamp(DateTime.Now);
+            UpdateInputText();
+
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/BlazorDeployService/js/clickOutside.js");
+            await _jsModule.InvokeVoidAsync("addClickListener", RootElement, DotNetObjectReference.Create(this));
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Value.HasValue)
+        {
+            currentViewTimestamp = Value.Value;
+        }
+        UpdateInputText();
+    }
+
+    private void UpdateInputText()
+    {
+        if (Value.HasValue)
+        {
+            var localValue = GetLocalDateTime(Value.Value);
+            inputText = $"{pc.GetYear(localValue)}/{pc.GetMonth(localValue).ToString("D2")}/{pc.GetDayOfMonth(localValue).ToString("D2")}";
+        }
+        else
+        {
+            inputText = string.Empty;
+        }
+    }
+
+    private void OpenDropdown()
+    {
+        isDropdownOpen = true;
+    }
+
+    private async Task SelectDate(long timestamp)
+    {
+        Value = timestamp;
+        UpdateInputText();
+        isDropdownOpen = false;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private async Task SelectToday()
+    {
+        var today = DateTime.Now;
+        Value = GetUtcTimestamp(today);
+        UpdateInputText();
+        currentViewTimestamp = Value.Value;
+        isDropdownOpen = false;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private void GoToNextMonth()
+    {
+        var currentViewDateTime = GetLocalDateTime(currentViewTimestamp);
+        int pYear = pc.GetYear(currentViewDateTime);
+        int pMonth = pc.GetMonth(currentViewDateTime);
+
+        pMonth++;
+        if (pMonth > 12) { pMonth = 1; pYear++; }
+
+        var nextMonthDateTime = pc.ToDateTime(pYear, pMonth, 1, 0, 0, 0, 0);
+        currentViewTimestamp = GetUtcTimestamp(nextMonthDateTime);
+    }
+
+    private void GoToPreviousMonth()
+    {
+        var currentViewDateTime = GetLocalDateTime(currentViewTimestamp);
+        int pYear = pc.GetYear(currentViewDateTime);
+        int pMonth = pc.GetMonth(currentViewDateTime);
+
+        pMonth--;
+        if (pMonth < 1) { pMonth = 12; pYear--; }
+
+        var prevMonthDateTime = pc.ToDateTime(pYear, pMonth, 1, 0, 0, 0, 0);
+        currentViewTimestamp = GetUtcTimestamp(prevMonthDateTime);
+    }
+
+    private string GetMonthName()
+    {
+        string[] months = { "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند" };
+        var currentViewDateTime = GetLocalDateTime(currentViewTimestamp);
+        return months[pc.GetMonth(currentViewDateTime) - 1];
+    }
+
+    private int GetYear()
+    {
+        var currentViewDateTime = GetLocalDateTime(currentViewTimestamp);
+        return pc.GetYear(currentViewDateTime);
+    }
+
+    private List<List<long?>> GetCalendarWeeks()
+    {
+        var weeks = new List<List<long?>>();
+        var currentViewDateTime = GetLocalDateTime(currentViewTimestamp);
+
+        int pYear = pc.GetYear(currentViewDateTime);
+        int pMonth = pc.GetMonth(currentViewDateTime);
+        int daysInMonth = pc.GetDaysInMonth(pYear, pMonth);
+
+        var firstOfMonthDateTime = pc.ToDateTime(pYear, pMonth, 1, 0, 0, 0, 0);
+
+        // اصلاح: روز شروع هفته شنبه (ش)
+        var startDayOfWeek = (int)firstOfMonthDateTime.DayOfWeek; // 0=Sunday, 6=Saturday
+        startDayOfWeek = (startDayOfWeek + 1) % 7; // تبدیل به: 0=Saturday, 6=Friday
+
+        var currentWeek = new List<long?>();
+
+        for (int i = 0; i < startDayOfWeek; i++) { currentWeek.Add(null); }
+
+        for (int day = 1; day <= daysInMonth; day++)
+        {
+            var dayDateTime = pc.ToDateTime(pYear, pMonth, day, 0, 0, 0, 0);
+            long dayTimestamp = GetUtcTimestamp(dayDateTime);
+            currentWeek.Add(dayTimestamp);
+
+            if (currentWeek.Count == 7)
+            {
+                weeks.Add(currentWeek);
+                currentWeek = new List<long?>();
+            }
+        }
+
+        if (currentWeek.Any())
+        {
+            while (currentWeek.Count < 7) { currentWeek.Add(null); }
+            weeks.Add(currentWeek);
+        }
+
+        return weeks;
+    }
+
+    private bool IsDateSelected(long timestamp)
+    {
+        if (!Value.HasValue) return false;
+        var date1 = GetLocalDateTime(timestamp).Date;
+        var date2 = GetLocalDateTime(Value.Value).Date;
+        return date1 == date2;
+    }
+
+    private bool IsDateToday(long timestamp)
+    {
+        var timestampDateTime_local = GetLocalDateTime(timestamp);
+        return timestampDateTime_local.Date == DateTime.Now.Date;
+    }
+
+    [JSInvokable]
+    public void CloseDropdown()
+    {
+        isDropdownOpen = false;
+        StateHasChanged();
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (_jsModule is not null)
+        {
+            await _jsModule.InvokeVoidAsync("removeClickListener");
+            await _jsModule.DisposeAsync();
+        }
+    }
+}

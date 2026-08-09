@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using Share.Models;
+using WebApi.Services;
 
 namespace WebApi.Controllers;
 
@@ -33,10 +34,10 @@ public class SystemController : ControllerBase
         try
         {
             var data = await _executor.QueryAsync(request.ScriptName, request.Parameters, request.Schema);
-            return Ok(new
+            return Ok(new SystemQueryResult<dynamic>
             {
-                request.RequestId,
-                data.Count,
+                RequestId = request.RequestId,
+                TotalCount = data.Count,
                 Data = data
             });
         }

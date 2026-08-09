@@ -1,0 +1,8 @@
+/* app.css - minimal, Bootstrap is primary */
+:root {
+    --bs-body-font-family: 'Segoe UI', Tahoma, sans-serif;
+    --bs-body-bg: #f8f9fa;
+}
+main { min-height: 70vh; }
+.card { border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+html[data-bs-theme="dark"] body { background: #1a1d21; color: #f1f1f1; }

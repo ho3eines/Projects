@@ -1,0 +1,85 @@
+﻿
+@using BlazorDeployService.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+
+@inherits InputTextArea
+@inject IJSRuntime JSRuntime
+@inject IRequestService _req
+
+<textarea @attributes="AdditionalAttributes"
+          id="@Id"
+          class="form-control @CssClass"
+          value="@CurrentValue"></textarea>
+
+@code {
+
+
+    string _id;
+
+    [Parameter]
+    public string Id
+    {
+        get => _id ?? $"CKEditor_{uid}";
+        set => _id = value;
+    }
+
+    [Parameter]
+    public string? UrlToPostImage { get; set; }
+
+    readonly string uid = Guid.NewGuid().ToString().ToLower().Replace("-", "");
+
+    protected override async Task OnInitializedAsync()
+    {
+        UrlToPostImage = $"{_req.BaseUrl}Upload/uploadImage/{_req.APIKey}";
+        await LoadScripts();
+        
+        await base.OnInitializedAsync();
+    }
+
+    private async Task LoadScripts()
+    {
+        await JSRuntime.InvokeVoidAsync("eval", 
+            "new Promise((resolve, reject) => {" +
+            "  if (typeof CKEDITOR !== 'undefined') resolve();" +
+            "  const script = document.createElement('script');" +
+            "  script.src = '/_content/BlazorDeployService/js/ckeditor.js';" +
+            "  script.onload = () => resolve();" +
+            "  script.onerror = () => reject();" +
+            "  document.head.appendChild(script);" +
+            "})");
+
+        Console.WriteLine("ckeditor.js loaded");
+
+        // بارگذاری فایل interop
+        await JSRuntime.InvokeVoidAsync("eval",
+            "new Promise((resolve, reject) => {" +
+            "  if (window.CKEditorInterop) resolve();" +
+            "  const script = document.createElement('script');" +
+            "  script.src = '/_content/BlazorDeployService/js/CKEditorInterop.js';" +
+            "  script.onload = () => resolve();" +
+            "  script.onerror = () => reject();" +
+            "  document.head.appendChild(script);" +
+            "})");
+        Console.WriteLine("CKEditorInterop.js loaded");
+
+        await JSRuntime.InvokeVoidAsync("CKEditorInterop.init", Id, UrlToPostImage, DotNetObjectReference.Create(this));
+
+        Console.WriteLine("Run CKEditorInterop.init ");
+    }
+
+    [JSInvokable]
+    public Task EditorDataChanged(string data)
+    {
+        CurrentValue = data;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        JSRuntime.InvokeVoidAsync("CKEditorInterop.destroy", Id);
+        base.Dispose(disposing);
+    }
+}

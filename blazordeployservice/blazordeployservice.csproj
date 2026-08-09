@@ -1,20 +1,76 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>BlazorDeployService</PackageId>
-    <Version>1.0.99</Version>
-    <Authors>Ho3ein</Authors>
-    <Description>Full service package for Blazor WASM</Description>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
-    <PackageReference Include="Dapper" Version="2.1.66" />
-    <PackageReference Include="System.Text.Json" Version="10.0.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\share\share.csproj" />
-  </ItemGroup>
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+	<PropertyGroup>
+		<TargetFrameworks>
+			net8.0;
+			net9.0;
+			net10.0;
+			net8.0-browser;
+			net9.0-browser;
+			net10.0-browser
+		</TargetFrameworks>
+		<RazorLangVersion>Latest</RazorLangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+		<IncludeBuildOutput>true</IncludeBuildOutput>
+		<EnableDefaultContentItems>false</EnableDefaultContentItems>
+
+		<!-- نسخه در انتها و بعد از تست کامل تعیین می‌شود -->
+		<PackageId>BlazorDeployService</PackageId>
+		<PackageVersion>1.0.100</PackageVersion>
+		<Authors>Hossein Esfandyari nia</Authors>
+		<Description>Services package For BlazorDeploy.ir</Description>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+
+		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+		<PackageIcon>icon.png</PackageIcon>
+	</PropertyGroup>
+
+	<!-- Package versions per target framework -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net8.0-browser'">
+		<PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="8.0.11" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Localization" Version="8.0.11" />
+		<PackageReference Include="Microsoft.JSInterop" Version="8.0.11" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0' Or '$(TargetFramework)' == 'net9.0-browser'">
+		<PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Localization" Version="9.0.0" />
+		<PackageReference Include="Microsoft.JSInterop" Version="9.0.0" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net10.0-browser'">
+		<PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.0" />
+		<PackageReference Include="Microsoft.JSInterop" Version="10.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<RazorComponent Include="Components\**\*.razor" />
+		<Content Include="wwwroot\**\*.*" PackagePath="_content/BlazorDeployService/%(RecursiveDir)%(Filename)%(Extension)" Pack="true" />
+		<None Include="README.md" Pack="true" PackagePath="\" />
+		<None Include="icon.png" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Components\**\*.razor" />
+		<EmbeddedResource Include="Components\**\*.razor.css" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="Components\CKEditorBlazor.razor" />
+	</ItemGroup>
 </Project>
