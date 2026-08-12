@@ -3,6 +3,7 @@ using System.Text;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
+using Share;
 
 namespace WebApi.Services;
 
@@ -94,6 +95,9 @@ public sealed class ProjectSeedInitializer : IHostedService
                 continue;
 
             var apiKey = "api_key_" + p.Name;
+            var clientUrl = string.IsNullOrWhiteSpace(p.ClientUrl)
+                ? HermesApps.ForSchema(p.Schema)
+                : p.ClientUrl.Trim();
             var affected = await conn.ExecuteAsync(@"
 IF NOT EXISTS (SELECT 1 FROM [dbo].[Projects] WHERE ProjectGuid = @Guid)
 BEGIN
@@ -101,11 +105,18 @@ BEGIN
         (ProjectGuid, [Name], [Schema], LoginTokenHash, EncryptionKey, ApiKey,
          SessionTimeoutMinutes, IsActive, ConnectionString, DatabaseName,
          DatabaseProvider, AutoBackupEnabled, AutoBackupIntervalMinutes, MaxBackupRetention,
-         Description, Icon, CreatedAtUtc)
+         Description, Icon, ClientUrl, CreatedAtUtc)
     VALUES
         (@Guid, @Name, @Schema, @LoginTokenHash, @EncryptionKey, @ApiKey,
          @TimeoutMinutes, 1, @ConnStr, N'HermesMaster', N'SqlServer',
-         1, 1440, 7, N'Hermes platform — auto-seeded', N'◈', GETUTCDATE());
+         1, 1440, 7, N'Hermes platform — auto-seeded', N'◈', @ClientUrl, GETUTCDATE());
+END
+ELSE IF EXISTS (
+    SELECT 1 FROM [dbo].[Projects]
+    WHERE ProjectGuid = @Guid AND (ClientUrl IS NULL OR LTRIM(RTRIM(ClientUrl)) = '')
+)
+BEGIN
+    UPDATE [dbo].[Projects] SET ClientUrl = @ClientUrl WHERE ProjectGuid = @Guid;
 END",
                 new
                 {
@@ -116,9 +127,10 @@ END",
                     EncryptionKey = p.SharedKey,
                     ApiKey = apiKey,
                     TimeoutMinutes = _hermes.SessionMinutes,
-                    ConnStr = connectionString
+                    ConnStr = connectionString,
+                    ClientUrl = clientUrl
                 });
-            _log.LogInformation("Project seed {Name}: {Action}", p.Name, affected == 0 ? "already present" : "inserted");
+            _log.LogInformation("Project seed {Name}: {Action} url={Url}", p.Name, affected == 0 ? "already present" : "upserted", clientUrl);
         }
     }
 }

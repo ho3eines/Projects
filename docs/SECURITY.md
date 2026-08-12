@@ -45,6 +45,7 @@ Architecture and wire format live in `.agents/hermes-tsql/SKILL.md`. This file i
 | — | Default admin password | Seeded only when Users is empty. Change `Hermes:BootstrapAdminPassword` and the admin password after first run. |
 | — | SQL down | Sessions stay in memory of that process only |
 | — | API key / HMAC secret / SharedKey / login token are all extractable from WASM | They now only gate **named-script** execution per project. `/api/projects` (admin: create/restore/backup) is still API-key-gated — for production, move this admin surface behind a real server-side session with the user password (backlog). |
+| — | `GET /api/projects/directory` is public | Returns only Name/Schema/Icon/Description/ClientUrl (no keys, no connection strings). Needed so the launcher can open each product. |
 | — | Login token is a fixed `hermes-admin` for every project | The session is not bound to a per-user password in the v1 client transport. For production, bind sessions to `central.Users` + real login (backlog). |
 
 ## Test login (always, upserted on webapi start)

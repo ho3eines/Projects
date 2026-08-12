@@ -15,4 +15,5 @@ public class ProjectCreateDto
     public TimeSpan AutoBackupTimeUtc { get; set; } = new TimeSpan(2, 0, 0);
     public int MaxBackupRetention { get; set; } = 7;
     public string? Description { get; set; }
+    public string ClientUrl { get; set; } = "";
 }

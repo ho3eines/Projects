@@ -54,6 +54,9 @@ public sealed class ProjectDefinition
     public DateTime? LastBackupAtUtc { get; set; }
     public string? Description { get; set; }
     public string? Icon { get; set; }
+
+    /// <summary>آدرس عمومی کلاینت این پروژه (مثلاً https://localhost:65218/). برای ورود به اپ ضروری است.</summary>
+    public string ClientUrl { get; set; } = "";
     
     // === Computed ===
     [JsonIgnore]
@@ -87,6 +90,7 @@ public sealed class CreateProjectDto
     
     public string? Description { get; set; }
     public string? Icon { get; set; }
+    public string ClientUrl { get; set; } = "";
 }
 
 /// <summary>DTO برای آپدیت تنظیمات بکاپ</summary>
@@ -140,6 +144,7 @@ public sealed class ProjectDefinitionDto
     public DateTime? LastBackupAtUtc { get; set; }
     public string? Description { get; set; }
     public string? Icon { get; set; }
+    public string ClientUrl { get; set; } = "";
 }
 
 /// <summary>DTO برای ایجاد/ویرایش از UI</summary>
@@ -162,6 +167,7 @@ public sealed class ProjectEditDto
     public int MaxBackupRetention { get; set; } = 7;
     public string? Description { get; set; }
     public string? Icon { get; set; }
+    public string ClientUrl { get; set; } = "";
 }
 
 /// <summary>پاسخ لیست پروژه‌ها</summary>

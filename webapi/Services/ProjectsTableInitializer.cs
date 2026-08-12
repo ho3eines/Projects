@@ -31,7 +31,8 @@ BEGIN
         [CreatedAtUtc]              DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
         [LastBackupAtUtc]           DATETIME2       NULL,
         [Description]               NVARCHAR(500)   NULL,
-        [Icon]                      NVARCHAR(100)   NULL
+        [Icon]                      NVARCHAR(100)   NULL,
+        [ClientUrl]                 NVARCHAR(500)   NULL
     );
 END
 ";
@@ -46,7 +47,8 @@ END
         ("AutoBackupIntervalMinutes", "INT NOT NULL DEFAULT 1440"),
         ("AutoBackupTimeUtc", "TIME NULL"),
         ("MaxBackupRetention", "INT NOT NULL DEFAULT 7"),
-        ("LastBackupAtUtc", "DATETIME2 NULL")
+        ("LastBackupAtUtc", "DATETIME2 NULL"),
+        ("ClientUrl", "NVARCHAR(500) NULL")
     };
 
     public static async Task EnsureAsync(string connectionString)

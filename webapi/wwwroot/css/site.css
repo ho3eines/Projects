@@ -40,13 +40,18 @@ html, body {
     -webkit-font-smoothing: antialiased;
     font-size: 14px;
     line-height: 1.6;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 /* ── App Shell ── */
 .h-app {
     min-height: 100vh;
-    display: grid;
-    grid-template-columns: var(--h-sidebar) 1fr;
+    width: 100%;
+    max-width: 100%;
+    display: block;
 }
 
 .h-sidebar {
@@ -169,7 +174,15 @@ html, body {
 .h-user-chip .h-user-status { font-size: 0.7rem; color: #64748b; }
 
 /* ── Main Area ── */
-.h-main { min-width: 0; display: flex; flex-direction: column; margin-right: var(--h-sidebar); }
+.h-main {
+    min-width: 0;
+    width: auto;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    margin-right: var(--h-sidebar);
+    box-sizing: border-box;
+}
 
 .h-topbar {
     height: var(--h-top);
@@ -213,7 +226,18 @@ html, body {
 }
 .h-overlay.show { opacity: 1; }
 
-.h-content { padding: 1.5rem 2rem 3rem; flex: 1; }
+.h-content { padding: 1.5rem 2rem 3rem; flex: 1; width: 100%; max-width: 100%; box-sizing: border-box; }
+
+.h-project-url {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    word-break: break-all;
+}
+.h-project-url a { color: var(--h-accent); text-decoration: none; }
+.h-project-url a:hover { text-decoration: underline; }
 
 /* ── Page Elements ── */
 .h-page-header {
@@ -360,8 +384,8 @@ footer hr { opacity: 0.15; }
 
 /* ── Responsive ── */
 @media (max-width: 1024px) {
-    .h-app { grid-template-columns: 1fr; }
-    .h-main { margin-right: 0; }
+    .h-app { display: block; }
+    .h-main { margin-right: 0; width: 100%; }
     .h-sidebar { transform: translateX(100%); }
     .h-sidebar.open { transform: translateX(0); }
     .h-hamburger { display: flex; }
@@ -385,7 +409,7 @@ footer hr { opacity: 0.15; }
 /* ── Print ── */
 @media print {
     .h-sidebar, .h-topbar, .h-hamburger, .h-overlay { display: none !important; }
-    .h-app { grid-template-columns: 1fr; }
-    .h-main { margin-right: 0; }
+    .h-app { display: block; }
+    .h-main { margin-right: 0; width: 100%; }
     .h-content { padding: 0; }
 }
