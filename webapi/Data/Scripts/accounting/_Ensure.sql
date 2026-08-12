@@ -20,12 +20,33 @@ BEGIN
         TotalAmount       DECIMAL(18,2) NOT NULL DEFAULT 0,
         CurrencyCode      NVARCHAR(10) NULL,
         Status            NVARCHAR(50) NOT NULL DEFAULT N'Draft',
-        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTDATETIME(),
         UpdatedAt         DATETIME2 NULL,
         CreatedBy         NVARCHAR(100) NULL,
         UpdatedBy         NVARCHAR(100) NULL,
         IsDeleted         BIT NOT NULL DEFAULT 0
     );
+END
+
+-- Journal lines (double-entry): the debit/credit detail behind each document.
+-- Reports (دفتر روزنامه / دفتر کل / تراز آزمایشی) are computed from these.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'accounting' AND t.name = N'DocumentLines')
+BEGIN
+    CREATE TABLE [accounting].[DocumentLines] (
+        DocumentLineId  INT IDENTITY(1,1) PRIMARY KEY,
+        DocumentId      INT NOT NULL,
+        AccountId       INT NOT NULL,
+        AccountCode     NVARCHAR(30) NOT NULL,
+        Title           NVARCHAR(200) NOT NULL,
+        Description     NVARCHAR(500) NULL,
+        Debit           DECIMAL(18,2) NOT NULL DEFAULT 0,
+        Credit          DECIMAL(18,2) NOT NULL DEFAULT 0,
+        CONSTRAINT FK_DocumentLines_Document FOREIGN KEY (DocumentId) REFERENCES [accounting].[Documents](DocumentId)
+    );
+    CREATE INDEX IX_DocumentLines_Document ON [accounting].[DocumentLines](DocumentId);
 END
 
 -- Contract: ChartOfAccount (owner: accounting).

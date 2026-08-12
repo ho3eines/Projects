@@ -29,6 +29,7 @@ builder.Services.AddSingleton<IAuditService, AuditService>();
 builder.Services.AddSingleton<IContractCatalog, ContractCatalog>();
 builder.Services.AddHostedService<SchemaBootstrap>();
 builder.Services.AddHostedService<OutboxProcessor>();
+builder.Services.AddHostedService<ProjectSeedInitializer>();
 
 // ---- RequestService v2 ----
 builder.Services.Configure<RequestServiceConfig>(builder.Configuration.GetSection("RequestService"));
