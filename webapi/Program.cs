@@ -27,7 +27,8 @@ builder.Services.AddSingleton<IUserTokenService, UserTokenService>();
 builder.Services.AddSingleton<IUserDirectory, UserDirectory>();
 builder.Services.AddSingleton<IAuditService, AuditService>();
 builder.Services.AddSingleton<IContractCatalog, ContractCatalog>();
-builder.Services.AddHostedService<SchemaBootstrap>();
+builder.Services.AddSingleton<SchemaBootstrap>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SchemaBootstrap>());
 builder.Services.AddHostedService<OutboxProcessor>();
 builder.Services.AddHostedService<ProjectSeedInitializer>();
 
