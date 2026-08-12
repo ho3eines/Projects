@@ -27,8 +27,8 @@ public sealed class AuditService
     {
         _catalog = catalog;
         _logger = logger;
-        _connectionString = config.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
+        // همان نقطهٔ واحد خواندن رشتهٔ اتصال که DbService استفاده می‌کند.
+        _connectionString = TarazinConnection.Resolve(config);
     }
 
     /// <summary>

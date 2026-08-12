@@ -26,6 +26,7 @@
     <!-- UI kit + config plumbing for the shared data layer -->
     <PackageReference Include="MudBlazor" Version="9.8.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>

@@ -27,6 +27,27 @@ public static class TarazinDbInitializer
             var db = services.GetRequiredService<DbService>();
             var config = services.GetRequiredService<IConfiguration>();
 
+            // ۰. دیتابیس مقصد را در اولین اجرا بساز (SQL Server تازه/کانتینر خالی).
+            //    این کار با اتصال به master انجام می‌شود، پس اگر خودِ سرور در
+            //    دسترس نباشد همین‌جا با پیام فارسی گویا شکست می‌خورد.
+            try
+            {
+                await db.EnsureDatabaseAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"اتصال به SQL Server برقرار نشد. {DbService.Describe(ex)}{Environment.NewLine}" +
+                    $"رشتهٔ اتصال: {db.MaskedConnectionString}", ex);
+            }
+
+            // ۱. تست نهایی روی خودِ دیتابیس مقصد.
+            var check = await db.TestConnectionAsync();
+            if (!check.Ok)
+                throw new InvalidOperationException(
+                    $"اتصال به دیتابیس مقصد برقرار نشد. {check.Message}{Environment.NewLine}" +
+                    $"رشتهٔ اتصال: {check.MaskedConnectionString}");
+
             await db.EnsureSchemaAsync();
             await db.SeedAsync();
             await EnsureBootstrapAdminAsync(db, config);

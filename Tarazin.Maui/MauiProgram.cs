@@ -20,11 +20,21 @@ public static class MauiProgram
 
         // Load the embedded appsettings.json so the shared layer can read
         // ConnectionStrings:DefaultConnection and Tarazin:* settings.
+        //
+        // اگر این منبع پیدا نشود، برنامه بی‌سروصدا بدون رشتهٔ اتصال بالا می‌آمد
+        // و بعداً خطای گنگ می‌داد؛ حالا همان‌جا با پیام روشن شکست می‌خورد.
         using (var stream = typeof(MauiProgram).Assembly.GetManifestResourceStream("Tarazin.Maui.appsettings.json"))
         {
-            if (stream is not null)
-                builder.Configuration.AddJsonStream(stream);
+            if (stream is null)
+                throw new InvalidOperationException(
+                    "منبع «Tarazin.Maui.appsettings.json» در اسمبلی پیدا نشد. " +
+                    "در Tarazin.Maui.csproj باید EmbeddedResource با همین LogicalName تعریف شده باشد.");
+
+            builder.Configuration.AddJsonStream(stream);
         }
+
+        // متغیرهای محیطی (از جمله TARAZIN_SQL_CONNECTION) بر مقدار فایل اولویت دارند.
+        builder.Configuration.AddEnvironmentVariables();
 
         builder.UseMauiApp<App>();
 
