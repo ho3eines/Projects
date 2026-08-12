@@ -50,8 +50,17 @@ public sealed partial class RequestService
         }
         else
         {
-            _storage.SetLocalAsync("hermes:user-token", _compatUserToken).GetAwaiter().GetResult();
+            // fire-and-forget — مسدود کردن رشته‌ی UI در Blazor WASM با
+            // GetAwaiter().GetResult() می‌توانست کل برنامه را قفل/فریز کند
+            // (continuation روی همان رشته‌ای اجرا می‌شود که بلاک شده است).
+            _ = PersistCompatTokenAsync(_compatUserToken);
         }
+    }
+
+    private async Task PersistCompatTokenAsync(string token)
+    {
+        try { await _storage.SetLocalAsync("hermes:user-token", token); }
+        catch { /* storage در دسترس نیست — توکن در حافظه می‌ماند */ }
     }
 
     /// <summary>

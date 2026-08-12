@@ -72,6 +72,12 @@
                 </div>
             </div>
             <div class="h-topbar-left">
+                @if (IsOffline)
+                {
+                    <span class="h-offline-chip" title="بدون اتصال به سرور — داده‌ها فقط برای نمایش است">
+                        <span class="h-offline-dot"></span> حالت آفلاین
+                    </span>
+                }
                 <ThemeSelector />
                 <a class="btn btn-sm btn-outline-secondary" href="/login">حساب</a>
             </div>
@@ -87,19 +93,28 @@
     string DisplayName = "کاربر";
     string Initial => string.IsNullOrWhiteSpace(DisplayName) ? "ک" : DisplayName[..1];
     bool SidebarOpen = false;
+    bool IsOffline;
 
     void ToggleSidebar() => SidebarOpen = !SidebarOpen;
     void CloseSidebar() => SidebarOpen = false;
 
     protected override async Task OnInitializedAsync()
     {
-        await Theme.InitializeAsync();
-        await ModalService.InitializeAsync();
-        DisplayName = await Storage.GetLocalAsync<string>("hermes_user_name") ?? "کاربر";
+        // خطای JS لایه‌ی تم/مودال نباید جلوی بررسی ورود و نمایش محتوا را بگیرد
+        try { await Theme.InitializeAsync(); } catch { /* تم پیش‌فرض */ }
+        try { await ModalService.InitializeAsync(); } catch { /* بدون مودال */ }
+
+        string? savedToken = null;
+        try { savedToken = await Storage.GetLocalAsync<string>("hermes_user_token"); } catch { /* storage در دسترس نیست */ }
+        try { DisplayName = await Storage.GetLocalAsync<string>("hermes_user_name") ?? "کاربر"; } catch { /* پیش‌فرض */ }
+
+        // توکن از حافظه‌ی سرویس یا از localStorage (ورود آفلاین/رفرش صفحه)
+        var token = !string.IsNullOrEmpty(Request.UserToken) ? Request.UserToken : savedToken;
+        IsOffline = token?.StartsWith("demo-", StringComparison.OrdinalIgnoreCase) == true;
 
         var path = new Uri(Nav.Uri).AbsolutePath.TrimEnd('/').ToLowerInvariant();
-        if (string.IsNullOrEmpty(Request.UserToken) && path != "/login")
-            Nav.NavigateTo("/login");
+        if (string.IsNullOrEmpty(token) && path != "/login")
+            Nav.NavigateTo("/login", replace: true);
     }
 
     async Task Logout()
