@@ -13,6 +13,8 @@
     <!-- UI kit — shared by the web host and the MAUI Blazor Hybrid host -->
     <PackageReference Include="MudBlazor" Version="9.8.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
+    <!-- صفحهٔ /diag منبع رشتهٔ اتصال را از IConfiguration می‌خواند -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,154 @@
+@page "/diag"
+@* DbService عمداً با @inject گرفته نمی‌شود: اگر رشتهٔ اتصال نباشد سازندهٔ آن
+   استثنا می‌دهد و همین صفحه — که قرار است علت را نشان دهد — کرش می‌کند.
+   پس با ServiceProvider و داخل try/catch گرفته می‌شود. *@
+@inject IServiceProvider Services
+@inject ScriptCatalog Catalog
+@inject IConfiguration Config
+
+<PageTitle>عیب‌یابی اتصال — ترازین</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">عیب‌یابی اتصال به دیتابیس</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    این صفحه نشان می‌دهد رشتهٔ اتصال از کجا خوانده شده، چه مقداری دارد (با رمز
+    ماسک‌شده) و آیا SQL Server واقعاً پاسخ می‌دهد یا نه.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6" Class="mb-3">۱. منبع رشتهٔ اتصال</MudText>
+    <MudSimpleTable Dense="true" Striped="true">
+        <tbody>
+            <tr>
+                <td style="width:220px">منبع</td>
+                <td>
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(_found ? Color.Success : Color.Error)">@_source</MudChip>
+                </td>
+            </tr>
+            <tr>
+                <td>مقدار (ماسک‌شده)</td>
+                <td style="direction:ltr; font-family:monospace; font-size:.8rem">@_masked</td>
+            </tr>
+            <tr>
+                <td>متغیر محیطی TARAZIN_SQL_CONNECTION</td>
+                <td>@(_hasEnv ? "تنظیم شده (اولویت دارد)" : "تنظیم نشده")</td>
+            </tr>
+        </tbody>
+    </MudSimpleTable>
+
+    @if (!_found)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-3">
+            رشتهٔ اتصال اصلاً خوانده نشده است. یعنی نه <code>ConnectionStrings:DefaultConnection</code>
+            در <code>appsettings.json</code> در دسترس برنامه است و نه متغیر محیطی
+            <code>TARAZIN_SQL_CONNECTION</code> مقدار دارد.
+        </MudAlert>
+    }
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6" Class="mb-3">۲. تست اتصال زنده</MudText>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || !_found)"
+               StartIcon="@Icons.Material.Filled.NetworkCheck" OnClick="TestAsync">
+        @(_busy ? "در حال تست..." : "تست اتصال")
+    </MudButton>
+
+    @if (!string.IsNullOrEmpty(_fatal))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mt-4">@_fatal</MudAlert>
+    }
+
+    @if (_result is not null)
+    {
+        <MudAlert Severity="@(_result.Ok ? Severity.Success : Severity.Error)"
+                  Variant="Variant.Filled" Class="mt-4">
+            @_result.Message
+        </MudAlert>
+
+        <MudSimpleTable Dense="true" Striped="true" Class="mt-3">
+            <tbody>
+                <tr><td style="width:220px">سرور</td><td style="direction:ltr">@(_result.Server ?? "—")</td></tr>
+                <tr><td>دیتابیس</td><td style="direction:ltr">@(_result.Database ?? "—")</td></tr>
+                <tr><td>نسخهٔ SQL Server</td><td style="direction:ltr; font-size:.75rem">@(_result.ServerVersion ?? "—")</td></tr>
+                <tr><td>زمان پاسخ</td><td>@_result.Elapsed.TotalMilliseconds.ToString("0") میلی‌ثانیه</td></tr>
+            </tbody>
+        </MudSimpleTable>
+
+        @if (!_result.Ok)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">راهنمای رفع:</MudText>
+                <ul style="padding-inline-start:1.2rem">
+                    <li>کانتینر SQL بالا باشد: <code>docker compose up -d</code></li>
+                    <li>پورت باز باشد: <code>1433</code> روی <code>localhost</code></li>
+                    <li>رمز <code>sa</code> با <code>MSSQL_SA_PASSWORD</code> در <code>docker-compose.yml</code> یکی باشد</li>
+                    <li>اگر رمز شامل <code>;</code> یا <code>=</code> است، داخل <code>{}</code> بگذارید</li>
+                    <li>برای اتصال بدون TLS معتبر: <code>TrustServerCertificate=True;Encrypt=False</code></li>
+                </ul>
+            </MudAlert>
+        }
+    }
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudText Typo="Typo.h6" Class="mb-3">۳. کاتالوگ اسکریپت‌ها</MudText>
+    <MudText Typo="Typo.body2">
+        @Catalog.Count اسکریپت نامدار در @Catalog.Schemas.Count اسکیمه بارگذاری شده است:
+        <span style="direction:ltr">@string.Join(", ", Catalog.Schemas)</span>
+    </MudText>
+    @if (Catalog.Count == 0)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-3">
+            هیچ اسکریپتی بارگذاری نشده — یعنی EmbeddedResource های
+            <code>Tarazin.Data/Scripts/**/*.sql</code> در اسمبلی نیستند.
+        </MudAlert>
+    }
+</MudPaper>
+
+@code {
+    private bool _busy;
+    private bool _found;
+    private bool _hasEnv;
+    private string _source = "";
+    private string _masked = "";
+    private string _fatal = "";
+    private ConnectionCheckResult? _result;
+
+    protected override void OnInitialized()
+    {
+        var (value, source) = TarazinConnection.ResolveRaw(Config);
+        _found = !string.IsNullOrWhiteSpace(value);
+        _source = source;
+        _masked = TarazinConnection.Mask(value);
+        _hasEnv = !string.IsNullOrWhiteSpace(
+            Environment.GetEnvironmentVariable(TarazinConnection.EnvVariable));
+    }
+
+    private async Task TestAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        _fatal = "";
+        try
+        {
+            var db = (DbService?)Services.GetService(typeof(DbService));
+            if (db is null)
+            {
+                _fatal = "سرویس DbService در DI ثبت نشده است.";
+                return;
+            }
+
+            _result = await db.TestConnectionAsync();
+        }
+        catch (Exception ex)
+        {
+            // مثلاً خطای سازندهٔ DbService وقتی رشتهٔ اتصال نامعتبر است.
+            _fatal = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

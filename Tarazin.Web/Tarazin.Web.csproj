@@ -14,6 +14,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      صریح و نه ضمنی: appsettings.json باید همیشه کنار خروجی برنامه باشد،
+      وگرنه ConnectionStrings:DefaultConnection خوانده نمی‌شود و برنامه با
+      «رشتهٔ اتصال پیدا نشد» بالا نمی‌آید.
+    -->
+    <Content Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="appsettings.*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" DependentUpon="appsettings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Shared core: modules, models, services, scripts, layout -->
     <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
   </ItemGroup>

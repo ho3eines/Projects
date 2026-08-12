@@ -16,10 +16,29 @@ builder.Services.AddTarazinUiServices();
 
 var app = builder.Build();
 
-// ── Startup: ensure schemas/tables, seed idempotently, bootstrap admin ────
+// ── Startup: ensure database/schemas, seed idempotently, bootstrap admin ──
+// اگر SQL در دسترس نباشد، برنامه به‌جای crash با پیام گنگ، بالا می‌آید و
+// صفحهٔ /diag علت دقیق را نشان می‌دهد (مگر اینکه TARAZIN_FAIL_FAST=1 باشد).
 using (var scope = app.Services.CreateScope())
 {
-    await TarazinDbInitializer.EnsureInitializedAsync(scope.ServiceProvider);
+    var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Tarazin.Startup");
+    var (raw, source) = TarazinConnection.ResolveRaw(app.Configuration);
+
+    logger.LogInformation("رشتهٔ اتصال — منبع: {Source} | مقدار: {Value}",
+        source, TarazinConnection.Mask(raw));
+
+    try
+    {
+        await TarazinDbInitializer.EnsureInitializedAsync(scope.ServiceProvider);
+        logger.LogInformation("راه‌اندازی دیتابیس با موفقیت انجام شد.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "راه‌اندازی دیتابیس ناموفق بود. برای جزئیات به /diag بروید.");
+
+        if (Environment.GetEnvironmentVariable("TARAZIN_FAIL_FAST") == "1")
+            throw;
+    }
 }
 
 if (!app.Environment.IsDevelopment())

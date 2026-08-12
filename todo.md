@@ -31,10 +31,10 @@
 |---|-----|----------|
 | B1 | `dotnet build Tarazin.Web/Tarazin.Web.csproj` — تأیید build پنج‌پروژه (MudBlazor 9.8.0 روی net10.0) | محیط با SDK |
 | B2 | `dotnet workload install maui` + build MAUI (ویندوز) | محیط با SDK/ویندوز |
-| B3 | `docker compose up -d` + تست E2E در وب و MAUI (admin/admin، ثبت داده، گزارش، ممیزی) | SQL Server |
+| B3 | `docker compose up -d` + تست E2E در وب و MAUI (admin/admin، ثبت داده، گزارش، ممیزی). عیب‌یابی اتصال: `bash tools/test-connection.sh` و صفحهٔ `/diag` — نگاه کنید به `docs/CONNECTION_TROUBLESHOOTING.md` | SQL Server |
 | B4 | لایهٔ داده برای اندروید/iOS در MAUI (SQLite/EF Core یا سرویس جدید) | تصمیم معماری |
 | B5 | انتقال `ci/ci.yml` به `.github/workflows/ci.yml` و سبز شدن | دسترسی workflows |
-| B6 | تغییر رمز bootstrap و انتقال اعتبارنامهٔ SQL به secret store | تولید |
+| B6 | تغییر رمز bootstrap و انتقال اعتبارنامهٔ SQL به secret store (زیرساختش آماده است: `TARAZIN_SQL_CONNECTION`) | تولید |
 | B7 | پاک‌سازی جدول‌های Outbox خواب (ADR-002) | اختیاری |
 
 ## Status Legend
