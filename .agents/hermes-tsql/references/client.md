@@ -17,6 +17,10 @@ await Request.Request<Row>("DailyDocuments", param);
 await Request.Request<object>("DocumentInsert", param, isExec: true);
 ```
 
+## Test login
+
+`admin` / `admin` — upserted every webapi start.
+
 ## User token
 
 ```csharp

@@ -81,7 +81,7 @@ User              central-client                 webapi
       "http://localhost:65220",
       "http://localhost:65221"
     ],
-    "BootstrapAdminPassword": "ChangeMe.Hermes.2026",
+    "BootstrapAdminPassword": "admin",
     "Projects": [ ]
   },
   "Auth": {
@@ -108,7 +108,7 @@ User              central-client                 webapi
 | `CryptoJsService` | AES-256-CBC matching `interop.js` |
 | `UserTokenService` | HMAC-JWT for humans |
 | `PasswordHasher` | PBKDF2 |
-| `SchemaBootstrap` | ensure `[central]` tables + seed admin |
+| `SchemaBootstrap` | `_Ensure` + upsert `admin`/`admin` + `_Seed` per schema |
 | `SystemQueryExecutor` | run named `.sql` |
 | `NamedScriptRules` | reject raw SQL |
 

@@ -7,19 +7,24 @@ namespace WebApi.Services;
 public sealed class SchemaBootstrap : IHostedService
 {
     private readonly ISystemQueryExecutor _executor;
+    private readonly IProjectCatalog _projects;
     private readonly string? _cs;
     private readonly string _adminPassword;
     private readonly ILogger<SchemaBootstrap> _log;
 
     public SchemaBootstrap(
         ISystemQueryExecutor executor,
+        IProjectCatalog projects,
         IOptions<ConnectionStringsOptions> cs,
         IOptions<HermesProjectsOptions> hermes,
         ILogger<SchemaBootstrap> log)
     {
         _executor = executor;
+        _projects = projects;
         _cs = cs.Value.DefaultConnection;
-        _adminPassword = hermes.Value.BootstrapAdminPassword;
+        _adminPassword = string.IsNullOrWhiteSpace(hermes.Value.BootstrapAdminPassword)
+            ? "admin"
+            : hermes.Value.BootstrapAdminPassword;
         _log = log;
     }
 
@@ -31,37 +36,66 @@ public sealed class SchemaBootstrap : IHostedService
             return;
         }
 
-        try
+        await TryScript("_Ensure", "central");
+
+        foreach (var project in _projects.AllActive())
         {
-            await _executor.ExecuteAsync("_Ensure", null, "central");
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Could not run central/_Ensure — DB may be offline");
-            return;
+            if (string.Equals(project.Schema, "central", StringComparison.OrdinalIgnoreCase))
+                continue;
+            await TryScript("_Ensure", project.Schema);
         }
 
-        try
+        await UpsertAdminAsync(cancellationToken);
+
+        await TryScript("_Seed", "central");
+        foreach (var project in _projects.AllActive())
         {
-            await using var conn = new SqlConnection(_cs);
-            await conn.OpenAsync(cancellationToken);
-            var count = await conn.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM [central].[Users] WHERE IsDeleted = 0");
-            if (count == 0)
-            {
-                var hash = PasswordHasher.Hash(_adminPassword);
-                await conn.ExecuteAsync(@"
-INSERT INTO [central].[Users] (Username, PasswordHash, DisplayName, Role, IsActive, CreatedBy)
-VALUES (N'admin', @hash, N'Administrator', N'Admin', 1, N'seed');",
-                    new { hash });
-                _log.LogWarning("Seeded admin user. Change Hermes:BootstrapAdminPassword after first login.");
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Could not seed admin user");
+            if (string.Equals(project.Schema, "central", StringComparison.OrdinalIgnoreCase))
+                continue;
+            await TryScript("_Seed", project.Schema);
         }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task TryScript(string name, string schema)
+    {
+        try
+        {
+            await _executor.ExecuteAsync(name, null, schema);
+            _log.LogInformation("Ran {Schema}/{Name}", schema, name);
+        }
+        catch (FileNotFoundException)
+        {
+            _log.LogDebug("No {Schema}/{Name}.sql — skip", schema, name);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not run {Schema}/{Name}", schema, name);
+        }
+    }
+
+    private async Task UpsertAdminAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var conn = new SqlConnection(_cs);
+            await conn.OpenAsync(cancellationToken);
+            var hash = PasswordHasher.Hash(_adminPassword);
+            await conn.ExecuteAsync(@"
+IF EXISTS (SELECT 1 FROM [central].[Users] WHERE Username = N'admin')
+    UPDATE [central].[Users]
+    SET PasswordHash = @hash, IsActive = 1, IsDeleted = 0, DisplayName = N'Administrator', Role = N'Admin'
+    WHERE Username = N'admin';
+ELSE
+    INSERT INTO [central].[Users] (Username, PasswordHash, DisplayName, Role, IsActive, CreatedBy)
+    VALUES (N'admin', @hash, N'Administrator', N'Admin', 1, N'seed');",
+                new { hash });
+            _log.LogInformation("Test login ready: admin / {Password}", _adminPassword);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not upsert admin user");
+        }
+    }
 }

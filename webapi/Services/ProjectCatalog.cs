@@ -17,7 +17,7 @@ public sealed class HermesProjectsOptions
     public int HandshakeWindowSeconds { get; set; } = 90;
     public int SessionMinutes { get; set; } = 15;
     public bool RequireUser { get; set; } = true;
-    public string BootstrapAdminPassword { get; set; } = "ChangeMe.Hermes.2026";
+    public string BootstrapAdminPassword { get; set; } = "admin";
     public List<string> CorsOrigins { get; set; } = new();
 }
 

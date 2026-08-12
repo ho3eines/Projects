@@ -39,10 +39,10 @@ Architecture and wire format live in `.agents/hermes-tsql/SKILL.md`. This file i
 | — | Default admin password | Seeded only when Users is empty. Change `Hermes:BootstrapAdminPassword` and the admin password after first run. |
 | — | SQL down | Sessions stay in memory of that process only |
 
-## Default seed (first boot with empty Users)
+## Test login (always, upserted on webapi start)
 
 - user: `admin`  
-- password: value of `Hermes:BootstrapAdminPassword` (default `ChangeMe.Hermes.2026`)
+- pass: `admin` (`Hermes:BootstrapAdminPassword`)
 
 ## Production checklist
 

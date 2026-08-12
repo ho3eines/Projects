@@ -225,10 +225,23 @@ Details: `docs/SECURITY.md`.
 
 1. Reports first (if new module)
 2. DTO in `share` or `{project}/Models` — names = SQL aliases; audit via `BaseEntity`
-3. `.sql` files under the **product schema**
+3. `.sql` files under the **product schema** (`_Ensure` for tables)
 4. Page in Entry / Reports / Settings / SpecialOperations
 5. Call `Request.Request<T>("ScriptName", param)`
 6. UI: Modal-first CRUD; skeleton loaders; `PersianDatePicker` / `SearchableList` / `IAlertService`
+7. **Seed — mandatory before you stop.** After that part works, add/update  
+   `webapi/Data/Scripts/{schema}/_Seed.sql`  
+   with enough sample rows that the UI is testable (today’s documents, a few accounts, …).  
+   Use `IF NOT EXISTS` so re-run is safe. Startup already executes `_Ensure` then `_Seed` per schema.
+
+### Test login (always)
+
+| | |
+|--|--|
+| user | `admin` |
+| pass | `admin` |
+
+Seeded/upserted on webapi start (`Hermes:BootstrapAdminPassword`). Login page: `/login` on central-client.
 
 ---
 

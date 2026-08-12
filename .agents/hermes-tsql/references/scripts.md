@@ -122,6 +122,30 @@ END
 
 Never emit `CREATE TABLE` from the WASM client via `ISqlService.InitializeAsync`.
 
+## Seed (mandatory after every finished part)
+
+File: `webapi/Data/Scripts/{schema}/_Seed.sql`  
+Startup runs `_Ensure` then `_Seed` for every active schema.
+
+Rules:
+
+- `IF NOT EXISTS` so it is safe to run on every boot
+- Enough rows to click through the UI (today’s date for home-grid scripts)
+- No secrets except the documented test user (`admin` / `admin` is created in C#, not in SQL)
+
+```sql
+-- _Seed.sql  (execute)
+IF NOT EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE DocumentNumber = N'SEED-001')
+BEGIN
+    INSERT INTO [accounting].[Documents]
+        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy)
+    VALUES
+        (N'SEED-001', CAST(SYSUTCDATETIME() AS DATE), N'Journal', N'شرکت نمونه', 1500000, N'IRR', N'Draft', N'seed');
+END
+```
+
+After you finish Entry / Reports / Settings / any new table: update `_Seed.sql` in the same turn. Do not leave the user with empty grids.
+
 ## Security in SQL
 
 - Parameterize everything.
