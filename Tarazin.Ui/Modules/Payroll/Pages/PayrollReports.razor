@@ -25,11 +25,11 @@
                     <MudTd DataLabel="تعداد کارمند">@context.EmployeeCount</MudTd>
                     <MudTd DataLabel="خالص کل">@context.NetTotal.ToString("N0")</MudTd>
                     <MudTd DataLabel="وضعیت">
-                        <MudChip Size="Size.Small" Color="@(context.Status == "Finalized" ? Color.Success : Color.Default)">@context.Status</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Finalized" ? Color.Success : Color.Default)">@context.Status</MudChip>
                     </MudTd>
                     <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></NoRecordsContent>
             </MudTable>
             <MudText Typo="Typo.body2" Class="mt-4">
                 جمع خالص دوره‌های نمایش‌داده‌شده: <b>@_runs.Sum(r => r.NetTotal).ToString("N0")</b>
@@ -65,7 +65,7 @@
                     <MudTd DataLabel="نام">@context.EmployeeName</MudTd>
                     <MudTd DataLabel="خالص پرداخت">@context.NetPay.ToString("N0")</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">دوره‌ای انتخاب نشده یا فیشی نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای انتخاب نشده یا فیشی نیست.</MudText></NoRecordsContent>
             </MudTable>
             @if (_slips.Count > 0)
             {

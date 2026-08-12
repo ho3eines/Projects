@@ -46,7 +46,7 @@
             <MudTd DataLabel="مالیات">@context.Tax.ToString("N0")</MudTd>
             <MudTd DataLabel="جمع">@context.TotalAmount.ToString("N0")</MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

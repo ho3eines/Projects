@@ -37,12 +37,12 @@
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                     <MudTd DataLabel="قیمت">@context.Price.ToString("N0")</MudTd>
                     <MudTd DataLabel="وضعیت">
-                        <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                             @(context.IsActive ? "فعال" : "غیرفعال")
                         </MudChip>
                     </MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">محصولی نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">محصولی نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -75,12 +75,12 @@
                     <MudTd DataLabel="تلفن">@context.Phone</MudTd>
                     <MudTd DataLabel="ایمیل">@context.Email</MudTd>
                     <MudTd DataLabel="وضعیت">
-                        <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                             @(context.IsActive ? "فعال" : "غیرفعال")
                         </MudChip>
                     </MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">مشتری‌ای نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">مشتری‌ای نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

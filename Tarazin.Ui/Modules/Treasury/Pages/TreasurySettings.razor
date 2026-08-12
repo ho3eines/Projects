@@ -38,7 +38,7 @@
                     <MudTd DataLabel="نرخ">@context.RateToIRR.ToString("N0")</MudTd>
                     <MudTd DataLabel="تاریخ">@context.RateDate.ToString("yyyy/MM/dd")</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">نرخی ثبت نشده است.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">نرخی ثبت نشده است.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -53,7 +53,7 @@
                     <MudTd DataLabel="کد">@context.BankCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">بانکی نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">بانکی نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -69,7 +69,7 @@
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                     <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">صندوقی نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">صندوقی نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

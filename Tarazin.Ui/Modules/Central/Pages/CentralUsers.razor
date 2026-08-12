@@ -47,12 +47,12 @@
             <MudTd DataLabel="نام نمایشی">@context.DisplayName</MudTd>
             <MudTd DataLabel="نقش">@context.Role</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">کاربری نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">کاربری نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

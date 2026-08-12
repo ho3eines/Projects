@@ -37,12 +37,12 @@
             <MudTd DataLabel="عنوان">@context.Title</MudTd>
             <MudTd DataLabel="عیار">@(context.Purity?.ToString("N2") ?? "—")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">جنسی تعریف نشده است.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">جنسی تعریف نشده است.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

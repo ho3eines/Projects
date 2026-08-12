@@ -39,7 +39,7 @@
             <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
             <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
             <MudTd DataLabel="جهت">
-                <MudChip Size="Size.Small" Color="@(context.Direction == "In" ? Color.Success : Color.Error)">
+                <MudChip T="string" Size="Size.Small" Color="@(context.Direction == "In" ? Color.Success : Color.Error)">
                     @(context.Direction == "In" ? "دریافت" : "پرداخت")
                 </MudChip>
             </MudTd>
@@ -49,7 +49,7 @@
             <MudTd DataLabel="شرح">@context.Description</MudTd>
             <MudTd DataLabel="وضعیت">@context.Status</MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

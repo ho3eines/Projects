@@ -44,10 +44,10 @@
             <MudTd DataLabel="تعداد">@context.Qty.ToString("N0")</MudTd>
             <MudTd DataLabel="ارزش">@context.TotalValue.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.Status == "Posted" ? Color.Success : Color.Default)">@context.Status</MudChip>
+                <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Posted" ? Color.Success : Color.Default)">@context.Status</MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

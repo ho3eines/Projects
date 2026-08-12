@@ -41,12 +41,12 @@
             <MudTd DataLabel="دپارتمان">@context.Department</MudTd>
             <MudTd DataLabel="حقوق پایه">@context.BaseSalary.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">کارمندی ثبت نشده است.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">کارمندی ثبت نشده است.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

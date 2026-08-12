@@ -42,10 +42,10 @@
             <MudTd DataLabel="تعداد اقلام">@context.ItemCount</MudTd>
             <MudTd DataLabel="مبلغ">@context.TotalAmount.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">سفارشی در این بازه نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">سفارشی در این بازه نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

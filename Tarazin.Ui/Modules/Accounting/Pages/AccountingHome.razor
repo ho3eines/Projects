@@ -47,11 +47,11 @@
             <MudTd DataLabel="نوع">@context.DocumentType</MudTd>
             <MudTd DataLabel="طرف حساب">@context.CounterPartyName</MudTd>
             <MudTd DataLabel="مبلغ">@context.TotalAmount.ToString("N0")</MudTd>
-            <MudTd DataLabel="وضعیت"><MudChip Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip></MudTd>
+            <MudTd DataLabel="وضعیت"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip></MudTd>
         </RowTemplate>
-        <EmptyContent>
+        <NoRecordsContent>
             <MudText Color="Color.Secondary">سندی در این بازه نیست.</MudText>
-        </EmptyContent>
+        </NoRecordsContent>
     </MudTable>
 </MudPaper>
 
