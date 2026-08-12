@@ -1,3 +1,1 @@
-html, body { font-family: Tahoma, "Segoe UI", sans-serif; }
-#blazor-error-ui { display: none; }
-#blazor-error-ui.display { display: block; }
+/* overrides — shared chrome is hermes.css */

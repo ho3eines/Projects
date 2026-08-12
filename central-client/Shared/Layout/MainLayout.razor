@@ -1,28 +1,79 @@
 @inherits LayoutComponentBase
+@inject IRequestService Request
+@inject IThemeService Theme
+@inject IModalService ModalService
+@inject IClientStorageService Storage
+@inject NavigationManager Nav
 
-<header class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="/">🏢 Hermes Co</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="nav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="/">خانه</a></li>
-                <li class="nav-item"><a class="nav-link" href="/news">اخبار</a></li>
-                <li class="nav-item"><a class="nav-link" href="/blog">وبلاگ</a></li>
-                <li class="nav-item"><a class="nav-link" href="/gallery">گالری</a></li>
-                <li class="nav-item"><a class="nav-link" href="/users">کاربران</a></li>
-                <li class="nav-item"><a class="nav-link" href="/login">ورود</a></li>
-            </ul>
+<div class="h-app">
+    <aside class="h-sidebar">
+        <a class="h-brand" href="/">
+            <div class="h-brand-mark">H</div>
+            <div>
+                <strong>Hermes</strong>
+                <small>هوشمند مرکزی</small>
+            </div>
+        </a>
+
+        <div class="h-nav-label">منو</div>
+        <nav class="h-nav">
+            <NavLink href="/" Match="NavLinkMatch.All">داشبورد پروژه‌ها</NavLink>
+            <NavLink href="/users">کاربران و دسترسی</NavLink>
+            <NavLink href="/news">اخبار شرکت</NavLink>
+            <NavLink href="/blog">وبلاگ</NavLink>
+            <NavLink href="/gallery">گالری</NavLink>
+        </nav>
+
+        <div class="h-sidebar-foot">
+            <div class="h-user-chip">
+                <div class="h-avatar">@Initial</div>
+                <div>
+                    <div style="font-weight:600">@DisplayName</div>
+                    <small style="color:#9bb0c3">مدیر سیستم</small>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-outline-light w-100 mt-2" @onclick="Logout">خروج</button>
         </div>
+    </aside>
+
+    <div class="h-main">
+        <header class="h-topbar">
+            <div>
+                <div class="h-page-title" style="font-size:1.05rem">مرکز مدیریت Hermes</div>
+                <div class="h-lead" style="font-size:.8rem">ورود یک‌بار → باز کردن همه پروژه‌ها با توکن</div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <ThemeSelector />
+                <a class="btn btn-sm btn-outline-secondary" href="/login">حساب</a>
+            </div>
+        </header>
+        <main class="h-content">
+            @Body
+        </main>
     </div>
-</header>
+</div>
+<Modal />
 
-<main class="container-fluid">
-    @Body
-</main>
+@code {
+    string DisplayName = "کاربر";
+    string Initial => string.IsNullOrWhiteSpace(DisplayName) ? "ک" : DisplayName[..1];
 
-<footer class="text-center text-muted py-3">
-    © @DateTime.Now.Year Hermes Co — تمامی حقوق محفوظ است
-</footer>
+    protected override async Task OnInitializedAsync()
+    {
+        await Theme.InitializeAsync();
+        await ModalService.InitializeAsync();
+        DisplayName = await Storage.GetLocalAsync<string>("hermes_user_name") ?? "کاربر";
+
+        var path = new Uri(Nav.Uri).AbsolutePath.TrimEnd('/').ToLowerInvariant();
+        if (string.IsNullOrEmpty(Request.UserToken) && path != "/login")
+            Nav.NavigateTo("/login");
+    }
+
+    async Task Logout()
+    {
+        Request.SetUserToken(null);
+        await Storage.RemoveLocalAsync("hermes_user_token");
+        await Storage.RemoveLocalAsync("hermes_user_name");
+        Nav.NavigateTo("/login");
+    }
+}

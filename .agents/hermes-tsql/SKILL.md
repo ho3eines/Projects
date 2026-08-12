@@ -146,6 +146,21 @@ New product checklist:
 
 ---
 
+## 3b. ورود کاربر و رفتن به پروژه‌ها
+
+1. کاربر `central-client` را باز می‌کند (`:65219`).
+2. اگر توکن نباشد → `/login` (layout خالی، برند Hermes).
+3. `admin` / `admin` → `Request.LoginAsync` → JWT در `localStorage` + `SetUserToken`.
+4. داشبورد مرکزی کارت پروژه‌ها را نشان می‌دهد.
+5. «ورود به حسابداری» لینک می‌دهد به  
+   `https://localhost:65218/?token={userToken}`
+6. `accounting` در `App.razor` توکن را می‌گیرد و روی `IRequestService` می‌گذارد.
+7. هر `Request()` اول handshake با Guid همان اپ، بعد Data با `X-User-Token`.
+
+UI مشترک: `_content/BlazorDeployService/css/hermes.css` (سایدبار راست، کارت پروژه، جدول اسناد).
+
+---
+
 ## 4. Directory law
 
 ```

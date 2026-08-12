@@ -1,0 +1,54 @@
+@page "/dashboard"
+@inject IRequestService Request
+
+<PageTitle>داشبورد — حسابداری</PageTitle>
+
+<h1 class="h-page-title mb-1">نمای کلی</h1>
+<p class="h-lead mb-4">خلاصه بخش‌های ورود عملیات، گزارشات و امکانات.</p>
+
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">اسناد امروز</div><div class="v">@TodayCount</div></div>
+            <div class="h-stat-ico">☰</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">جمع مبلغ</div><div class="v" style="font-size:1.15rem;padding-top:.4rem">@Sum.ToString("N0")</div></div>
+            <div class="h-stat-ico">﷼</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <a href="/entry" class="h-card h-stat text-decoration-none">
+            <div><div class="k">ورود عملیات</div><div class="v" style="font-size:1.1rem;padding-top:.35rem">ثبت سند</div></div>
+            <div class="h-stat-ico">＋</div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="/reports" class="h-card h-stat text-decoration-none">
+            <div><div class="k">گزارشات</div><div class="v" style="font-size:1.1rem;padding-top:.35rem">مرور</div></div>
+            <div class="h-stat-ico">▣</div>
+        </a>
+    </div>
+</div>
+
+@code {
+    int TodayCount;
+    decimal Sum;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var rows = await Request.Request<DailyDocumentRow>("DailyDocuments", new
+        {
+            FromDate = DateTime.Today,
+            ToDate = DateTime.Today,
+            SearchText = "",
+            DocumentType = (string?)null,
+            SkipRows = 0,
+            TakeSize = 200
+        }) ?? new();
+        TodayCount = rows.Count;
+        Sum = rows.Sum(r => r.TotalAmount);
+    }
+}

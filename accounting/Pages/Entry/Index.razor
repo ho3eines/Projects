@@ -1,0 +1,29 @@
+@page "/entry"
+@page "/entry/{Id:int}"
+
+<PageTitle>ورود عملیات</PageTitle>
+
+<h1 class="h-page-title">ورود عملیات</h1>
+<p class="h-lead mb-4">ثبت و ویرایش سند. @(Id.HasValue ? $"سند #{Id}" : "سند جدید")</p>
+
+<div class="h-card h-card-pad">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label" for="num">شماره سند</label>
+            <input id="num" class="form-control" value="SEED-001" readonly />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="type">نوع</label>
+            <input id="type" class="form-control" value="Journal" readonly />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="party">طرف حساب</label>
+            <input id="party" class="form-control" value="شرکت نمونه" readonly />
+        </div>
+    </div>
+    <p class="text-muted mt-3 mb-0">فرم کامل ثبت سند در گام بعد به `DocumentInsert` وصل می‌شود.</p>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+}
