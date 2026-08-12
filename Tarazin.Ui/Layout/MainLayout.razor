@@ -4,11 +4,16 @@
 @inject ISnackbar Snackbar
 
 <MudLayout>
-    <MudAppBar Elevation="1" Class="app-bar">
+    <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="ToggleDrawer" aria-label="منو" />
-        <MudText Typo="Typo.h6" Class="ms-2 d-none d-sm-block">ترازین</MudText>
-        <MudText Typo="Typo.subtitle2" Class="d-none d-md-block" Color="Color.Default">مدیریت هوشمند کسب‌وکار</MudText>
+        @* Responsive display: MudHidden replaces Bootstrap's d-none d-sm-block *@
+        <MudHidden Breakpoint="Breakpoint.Sm">
+            <MudText Typo="Typo.h6" Class="ms-2">ترازین</MudText>
+        </MudHidden>
+        <MudHidden Breakpoint="Breakpoint.Md">
+            <MudText Typo="Typo.subtitle2" Color="Color.Default">مدیریت هوشمند کسب‌وکار</MudText>
+        </MudHidden>
         <MudSpacer />
         @if (Session.IsAuthenticated)
         {
