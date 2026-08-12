@@ -38,6 +38,9 @@ if (user is not null) { Session.SignIn(user.UserId, user.Username, user.DisplayN
 
 ## Audit
 
+Automatic: `DbService.ExecuteAsync(...)` writes an audit row (success/error)
+to `[central].[AuditLog]` with a SHA-256 hash chain. No manual call needed.
+
 ```csharp
-await Audit.RecordAsync(schema, scriptName, parameters, Session.UserName);
+await Db.ExecuteAsync("accounting", "DocumentInsert", new { ... }); // ← audited automatically
 ```

@@ -1,7 +1,7 @@
 -- =============================================
 -- HermesApp/Data/Scripts/central/AuditSearch.sql
 -- Schema: central
--- Query. Audit trail viewer for central-client.
+-- Query. Audit trail viewer (صفحهٔ /central/audit).
 -- =============================================
 SELECT
     a.AuditId,
@@ -10,6 +10,7 @@ SELECT
     a.UserTokenId,
     a.RequestId,
     a.Outcome,
+    a.RowHash,
     a.CreatedAt
 FROM [central].[AuditLog] a
 WHERE (@SchemaName IS NULL OR a.SchemaName = @SchemaName)

@@ -2,7 +2,7 @@
 # ============================================================
 # Cross-schema static analysis (PRD AC #3 / ADR-003)
 #
-# Every .sql script under webapi/Data/Scripts/{schema}/ may only
+# Every .sql script under HermesApp/Data/Scripts/{schema}/ may only
 # reference its own schema — unless the reference is declared in a
 # header comment:
 #

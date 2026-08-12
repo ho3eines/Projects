@@ -107,8 +107,11 @@ tools/cross-schema-scan.sh       ← بررسی مرز اسکیمه‌ها
 - الگوی صفحات: inject `DbService` + `ISnackbar`؛ بارگذاری در `OnInitializedAsync`
 
 ## 🕵️ Audit
-- `AuditService.RecordAsync(schema, script, params, user, isExec, outcome, error)`
+- **خودکار**: هر `DbService.ExecuteAsync(...)` یک ردیف ممیزی ثبت می‌کند
+  (موفقیت یا خطا) — صفحات نیازی به فراخوانی دستی ندارند.
 - ذخیره در `[central].[AuditLog]` با `PrevHash`/`RowHash` (SHA-256) — مشاهده در `/central/audit`
+- پارامترها ذخیره نمی‌شوند (ممکن است دادهٔ حساس داشته باشند)؛ فقط
+  schema/script/user/outcome/error.
 
 ## ❌ Explicit Bans
 - ❌ پروژه/کلاس‌کتابخانه/پکیج جدید خارج از `HermesApp`

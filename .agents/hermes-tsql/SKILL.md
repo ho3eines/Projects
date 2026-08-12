@@ -78,15 +78,17 @@ var count = await Db.ScalarAsync("central", "UserCount");
 
 ## 5. Audit
 
-Every mutating script should be recorded:
+**Automatic** — every `DbService.ExecuteAsync(...)` records an audit row
+(success or failure) into `[central].[AuditLog]` with a SHA-256
+`PrevHash`/`RowHash` chain. No manual call needed in pages.
 
 ```csharp
-await Audit.RecordAsync(schema, scriptName, parameters, Session.UserName,
-    isExec: true, outcome: "Success");
+// happens automatically inside DbService.ExecuteAsync:
+//   _audit.RecordAsync(schema, scriptName, user, "Success"|"Error", error)
 ```
 
-Stored in `[central].[AuditLog]` with SHA-256 `PrevHash`/`RowHash` chain; view at
-`/central/audit`. Failures are logged, never thrown.
+View at `/central/audit`. Parameters are never stored (they may contain
+sensitive data). Audit failures are logged, never thrown.
 
 ## 6. Startup order
 

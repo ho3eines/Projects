@@ -17,13 +17,18 @@ public sealed class DbService
 {
     private readonly IConfiguration _config;
     private readonly ScriptCatalog _catalog;
+    private readonly AuditService _audit;
+    private readonly UserSession _session;
     private readonly ILogger<DbService> _logger;
     private readonly string _connectionString;
 
-    public DbService(IConfiguration config, ScriptCatalog catalog, ILogger<DbService> logger)
+    public DbService(IConfiguration config, ScriptCatalog catalog, AuditService audit,
+        UserSession session, ILogger<DbService> logger)
     {
         _config = config;
         _catalog = catalog;
+        _audit = audit;
+        _session = session;
         _logger = logger;
         _connectionString = config.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
@@ -46,12 +51,27 @@ public sealed class DbService
         return await conn.QueryFirstOrDefaultAsync<T>(new CommandDefinition(sql, parameters, cancellationToken: ct));
     }
 
+    /// <summary>
+    /// Executes a mutating script and **auto-records an audit row** for it
+    /// (PRD §5 / ADR-002: every mutating operation is hash-chained in
+    /// [central].[AuditLog]). Audit failures never break the business call.
+    /// </summary>
     public async Task<int> ExecuteAsync(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
     {
         var sql = Resolve(schema, scriptName);
         await using var conn = Open();
-        return await conn.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: ct));
+        try
+        {
+            var affected = await conn.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: ct));
+            await _audit.RecordAsync(schema, scriptName, _session.UserName, "Success", null, ct);
+            return affected;
+        }
+        catch (Exception ex)
+        {
+            await _audit.RecordAsync(schema, scriptName, _session.UserName, "Error", ex.Message, ct);
+            throw;
+        }
     }
 
     public async Task<object?> ScalarAsync(

@@ -1,37 +1,46 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Dapper;
 using HermesApp.Models;
+using Microsoft.Data.SqlClient;
 
 namespace HermesApp.Services;
 
 /// <summary>
 /// Tamper-evident audit trail (hash chain) written to <c>[central].[AuditLog]</c>.
-/// Every mutating script execution is recorded; the hash chain makes past rows
-/// detectable if they were edited.
+///
+/// Self-contained on purpose: it opens its own connection and resolves its own
+/// scripts so it never depends on <see cref="DbService"/> — that would create a
+/// circular dependency and recursion, because <see cref="DbService"/> auto-audits
+/// every execute through this service.
 /// </summary>
 public sealed class AuditService
 {
-    private readonly DbService _db;
+    private readonly string _connectionString;
+    private readonly ScriptCatalog _catalog;
     private readonly ILogger<AuditService> _logger;
 
-    public AuditService(DbService db, ILogger<AuditService> logger)
+    public AuditService(IConfiguration config, ScriptCatalog catalog, ILogger<AuditService> logger)
     {
-        _db = db;
+        _catalog = catalog;
         _logger = logger;
+        _connectionString = config.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
     }
 
     /// <summary>
     /// Records one script execution. <paramref name="userName"/> is the signed-in
     /// user (empty when anonymous/startup). Failures are logged, never thrown,
     /// so auditing can never break the business call it wraps.
+    ///
+    /// Parameters are deliberately NOT stored (they may contain sensitive data
+    /// such as password hashes) — only schema/script/user/outcome/error.
     /// </summary>
     public async Task RecordAsync(
         string schema,
         string scriptName,
-        object? parameters = null,
         string? userName = null,
-        bool isExec = true,
         string outcome = "Success",
         string? error = null,
         CancellationToken ct = default)
@@ -43,7 +52,6 @@ public sealed class AuditService
             {
                 SchemaName = schema,
                 ScriptName = scriptName,
-                Parameters = parameters,
                 UserName = userName,
                 Outcome = outcome,
                 Error = error,
@@ -51,7 +59,12 @@ public sealed class AuditService
             });
             var rowHash = Sha256(payload);
 
-            await _db.ExecuteAsync("central", "AuditInsert", new
+            if (!_catalog.TryGet("central", "AuditInsert", out var sql))
+                throw new InvalidOperationException("Named script 'central/AuditInsert' not found.");
+
+            await using var conn = new SqlConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            await conn.ExecuteAsync(new CommandDefinition(sql, new
             {
                 PrevHash = prevHash,
                 RowHash = rowHash,
@@ -60,7 +73,7 @@ public sealed class AuditService
                 UserName = userName,
                 Outcome = outcome,
                 Error = error
-            }, ct);
+            }, cancellationToken: ct));
         }
         catch (Exception ex)
         {
@@ -70,8 +83,13 @@ public sealed class AuditService
 
     private async Task<string> LastRowHashAsync(CancellationToken ct)
     {
-        var last = await _db.QueryFirstOrDefaultAsync<AuditRow>(
-            "central", "AuditLastRowHash", null, ct);
+        if (!_catalog.TryGet("central", "AuditLastRowHash", out var sql))
+            return Sha256("genesis");
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        var last = await conn.QueryFirstOrDefaultAsync<AuditRow>(
+            new CommandDefinition(sql, cancellationToken: ct));
         return last?.RowHash ?? Sha256("genesis");
     }
 
