@@ -65,20 +65,7 @@ public class SystemQueryExecutor : ISystemQueryExecutor
         if (parameters is JsonElement je && je.ValueKind == JsonValueKind.Object)
         {
             foreach (var prop in je.EnumerateObject())
-            {
-                if (prop.Value.ValueKind == JsonValueKind.Null) { dp.Add(prop.Name, null); continue; }
-                switch (prop.Value.ValueKind)
-                {
-                    case JsonValueKind.String: dp.Add(prop.Name, prop.Value.GetString()); break;
-                    case JsonValueKind.Number:
-                        if (prop.Value.TryGetInt64(out var l)) dp.Add(prop.Name, l);
-                        else if (prop.Value.TryGetDouble(out var d)) dp.Add(prop.Name, d);
-                        else dp.Add(prop.Name, prop.Value.GetRawText());
-                        break;
-                    case JsonValueKind.True: case JsonValueKind.False: dp.Add(prop.Name, prop.Value.GetBoolean()); break;
-                    default: dp.Add(prop.Name, prop.Value.GetRawText()); break;
-                }
-            }
+                dp.Add(prop.Name, SqlParameterValueNormalizer.Normalize(prop.Value));
         }
         else if (parameters is not null)
         {
