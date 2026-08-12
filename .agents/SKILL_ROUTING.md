@@ -1,29 +1,16 @@
 # Hermes Agent — Skill Routing
 
-Project law: `docs/PROJECT.md` + `docs/SECURITY.md`.
-**Data skill: `.agents/hermes-tsql/` only.**
-`server-client-comm` is **disabled**. Do not load it.
-
----
-
-## Data path (non-negotiable)
+**Data + architecture: `.agents/hermes-tsql/SKILL.md`**  
+`server-client-comm` is disabled.
 
 ```
-IRequestService.Request("DailyDocuments", param)   // Protocol=Hermes
-  → POST /api/auth/handshake   (ProjectGuid, cached session)
-  → POST /api/Data/            (AES + named script only)
+IRequestService (Protocol=Hermes)
+  → POST /api/auth/handshake   ProjectGuid
+  → POST /api/auth/login       user JWT (central-client)
+  → POST /api/Data/            AES + named script + X-User-Token
   → Data/Scripts/{schema-from-guid}/{Name}.sql
 ```
 
-Forbidden: WebSocket, `{Entity}Controller`, raw SQL in `SqlStr`, `ISqlService` CRUD, plaintext `ISystemApi`.
+Forbidden: WebSocket, per-project controllers, raw SQL, `ISystemApi`, `/api/system`.
 
----
-
-## Always-on
-
-| Skill | When |
-|-------|------|
-| **`hermes-tsql`** | Any entity, CRUD, report, TSQL, handshake, ProjectGuid |
-| `convert-prompts-to-blazor` | UI conversion — data calls become `IRequestService.Request(scriptName)` |
-| `blazor-motion` | Animations |
-| `ui-ux-pro-max` | Visual design, Bootstrap not Tailwind |
+Security: `docs/SECURITY.md`

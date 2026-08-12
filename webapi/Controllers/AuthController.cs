@@ -108,6 +108,62 @@ public class AuthController : ControllerBase
         });
     }
 
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] HandshakeEnvelope? body)
+    {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        if (!_guard.TryConsumeRate("login:" + ip))
+            return StatusCode(429, new { code = 429, message = "Too many login attempts" });
+
+        if (!Request.Headers.TryGetValue("X-API-Key", out var apiKey))
+            return Unauthorized(new { code = 401, message = "Handshake required before login" });
+
+        var session = _sessions.Validate(apiKey.ToString());
+        if (session is null)
+            return Unauthorized(new { code = 401, message = "Handshake required before login" });
+
+        if (string.IsNullOrWhiteSpace(body?.Data))
+            return BadRequest(new { code = 400, message = "Encrypted login payload required" });
+
+        string plain;
+        try { plain = _crypto.Decrypt(session.EncryptionKey, body.Data); }
+        catch { return Unauthorized(new { code = 401, message = "Decrypt failed" }); }
+
+        using var doc = JsonDocument.Parse(plain);
+        var username = doc.RootElement.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var password = doc.RootElement.TryGetProperty("password", out var p) ? p.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            return BadRequest(new { code = 400, message = "username/password required" });
+
+        var user = await _users.FindByUsernameAsync(username);
+        if (user is null || !user.IsActive || !PasswordHasher.Verify(password, user.PasswordHash))
+        {
+            _logger.LogWarning("Failed login for {User} from {IP}", username, ip);
+            return Unauthorized(new { code = 401, message = "Invalid credentials" });
+        }
+
+        var hermesUser = new HermesUser
+        {
+            UserId = user.UserId,
+            Username = user.Username,
+            DisplayName = user.DisplayName,
+            Role = user.Role
+        };
+        _sessions.AttachUser(apiKey.ToString(), hermesUser);
+        var jwt = _userTokens.Issue(hermesUser);
+
+        var inner = JsonSerializer.Serialize(new
+        {
+            userToken = jwt,
+            userId = user.UserId,
+            displayName = user.DisplayName,
+            role = user.Role,
+            username = user.Username
+        });
+
+        return Ok(new { code = 200, data = _crypto.Encrypt(session.EncryptionKey, inner) });
+    }
+
     private bool TryReadProjectGuid(out Guid guid)
     {
         guid = Guid.Empty;

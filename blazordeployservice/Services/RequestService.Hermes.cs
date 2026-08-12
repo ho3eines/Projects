@@ -37,6 +37,8 @@ public partial class RequestService
         _http.DefaultRequestHeaders.Clear();
         _http.DefaultRequestHeaders.Add("X-API-Key", session.Value.Token);
         _http.DefaultRequestHeaders.Add("X-Project-Guid", _projectGuid);
+        if (!string.IsNullOrEmpty(_userToken))
+            _http.DefaultRequestHeaders.Add("X-User-Token", _userToken);
 
         var response = await _http.PostAsJsonAsync(BaseUrl + "Data/", enc);
         var responseData = await response.Content.ReadAsStringAsync();

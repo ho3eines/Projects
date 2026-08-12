@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using WebApi.Services;
 
 namespace WebApi.Controllers;
@@ -18,17 +19,23 @@ public class DataController : ControllerBase
     private readonly ISessionStore _sessions;
     private readonly ISystemQueryExecutor _executor;
     private readonly CryptoJsService _crypto;
+    private readonly IUserTokenService _users;
+    private readonly bool _requireUser;
     private readonly ILogger<DataController> _logger;
 
     public DataController(
         ISessionStore sessions,
         ISystemQueryExecutor executor,
         CryptoJsService crypto,
+        IUserTokenService users,
+        IOptions<HermesProjectsOptions> hermes,
         ILogger<DataController> logger)
     {
         _sessions = sessions;
         _executor = executor;
         _crypto = crypto;
+        _users = users;
+        _requireUser = hermes.Value.RequireUser;
         _logger = logger;
     }
 
@@ -38,6 +45,20 @@ public class DataController : ControllerBase
         var session = ReadSession();
         if (session is null)
             return Unauthorized(new { code = 401, message = "Handshake required" });
+
+        if (Request.Headers.TryGetValue("X-Project-Guid", out var guidHeader)
+            && Guid.TryParse(guidHeader.ToString(), out var headerGuid)
+            && headerGuid != session.ProjectGuid)
+        {
+            return Unauthorized(new { code = 401, message = "ProjectGuid does not match session" });
+        }
+
+        HermesUser? user = null;
+        if (Request.Headers.TryGetValue("X-User-Token", out var userTok))
+            user = _users.Validate(userTok.ToString());
+
+        if (_requireUser && user is null)
+            return Unauthorized(new { code = 401, message = "User login required" });
 
         if (string.IsNullOrWhiteSpace(encdata))
             return BadRequest(new { code = 400, message = "Empty payload" });

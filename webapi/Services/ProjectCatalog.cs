@@ -16,6 +16,9 @@ public sealed class HermesProjectsOptions
     public List<HermesProject> Projects { get; set; } = new();
     public int HandshakeWindowSeconds { get; set; } = 90;
     public int SessionMinutes { get; set; } = 15;
+    public bool RequireUser { get; set; } = true;
+    public string BootstrapAdminPassword { get; set; } = "ChangeMe.Hermes.2026";
+    public List<string> CorsOrigins { get; set; } = new();
 }
 
 public interface IProjectCatalog

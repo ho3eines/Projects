@@ -17,9 +17,8 @@ public interface ISystemApi
     Task<SystemScalarResult<T>> ScalarAsync<T>(string scriptName, object? parameters = null, string? schema = null, CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// The only allowed client for Hermes data: named TSQL via POST /api/system/*.
-/// </summary>
+/// <summary>OBSOLETE. Clients must use IRequestService (Protocol=Hermes). /api/system is not routed.</summary>
+[Obsolete("Use IRequestService with Protocol=Hermes. Do not call /api/system.")]
 public sealed class SystemApi : ISystemApi
 {
     private static readonly JsonSerializerOptions JsonOpts = new()

@@ -1,60 +1,54 @@
-# Hermes security review — ProjectGuid handshake
+# Hermes security
 
 Last reviewed: 2026-08-12
 
-## Intended model (all projects)
+Architecture and wire format live in `.agents/hermes-tsql/SKILL.md`. This file is the threat model.
 
-```
-accounting / central / inventory / …
-        │  1) POST /api/auth/handshake
-        │     X-Project-Guid
-        │     body: AES(SharedKey, { projectGuid, timestamp, nonce })
-        │
-        │  ← session token + session AES key  (15 min, encrypted with SharedKey)
-        │
-        │  2) POST /api/Data/
-        │     X-API-Key: session token
-        │     body: AES(sessionKey, { SqlStr: "DailyDocuments", Parameters, IsExec })
-        │
-        ▼
-     webapi
-        │  schema forced from ProjectGuid (cannot hop to another project)
-        │  SqlStr must be a named script — raw SQL rejected
-        ▼
-     Data/Scripts/{schema}/{Name}.sql
-```
+## Layers
 
-`IRequestService.Request("DailyDocuments", param)` does step 1 automatically (cached), then step 2.
+1. **Project handshake** — registered `ProjectGuid` + SharedKey + nonce + timestamp  
+2. **Session AES** — random key per handshake; payloads on `/api/Data` encrypted  
+3. **User JWT** — HMAC-SHA256 (`Auth:Key`), header `X-User-Token`, required when `Hermes:RequireUser=true`  
+4. **Named scripts only** — raw SQL rejected  
+5. **Schema lock** — from registry, not the client  
+6. **CORS allow-list** — `Hermes:CorsOrigins`  
+7. **Sessions** — memory + `[central].[Sessions]` (AES key stored wrapped with `Auth:Key`)
 
-## Gaps that existed before this change
+## Closed gaps
 
-| # | Gap | Risk | Status |
-|---|-----|------|--------|
-| 1 | `ISystemApi` sent **plaintext** `ScriptName` + params to `/api/system/*` | MITM / token theft reads all queries | Closed for clients: they now use RequestService. `/api/system` still JWT-only (no working issuer yet) |
-| 2 | `RequestService` could send **raw SQL** (`SqlStr`) | Full DB compromise if that API is exposed | Closed on Hermes `DataController`: named scripts only |
-| 3 | Handshake on **every** `Request()` (old verifyAsync) | Extra load, no session binding | Closed: session cached ~14 min |
-| 4 | Response body often **not decrypted** (decrypt commented out) | Data on the wire in clear after POST | Closed in Hermes path: response is AES(sessionKey) |
-| 5 | Client could pass **any schema / connection token** | Cross-project data access | Closed: schema comes from session.ProjectGuid |
-| 6 | No nonce / timestamp on handshake | Replay of a captured handshake | Closed: 90s window + nonce store |
-| 7 | No handshake rate limit | Token-bucket brute force | Closed: 5/min per IP |
-| 8 | JWT `Authority` `https://localhost:7001` does not exist | Auth either broken or bypassed | Still open for *user* login. Project handshake does not replace user login |
-| 9 | CORS `AllowAnyOrigin` | Any website can call the API from a browser | Open — tighten to known WASM origins before production |
-| 10 | `SharedKey` + `ProjectGuid` live in WASM `appsettings.json` | Extractable from browser | Residual (WASM cannot hide secrets). SharedKey only wraps handshake; session key is random. Rotate keys if leaked |
-| 11 | Sessions are **in-memory** | Lost on recycle; not shared across multiple webapi instances | Open — move to SQL/`[central].[Sessions]` when you scale out |
-| 12 | No **user** identity on the session | Any holder of ProjectGuid can run that project's scripts | Open — next layer: central-client login JWT attached as `userCode` / `X-User-Token` and checked on execute |
-| 13 | HTTPS redirection on, but local `TrustServerCertificate` | Dev-only | OK for localhost; require real cert in prod |
-| 14 | `Auth:Key` = `CHANGE_ME_…` | Default secret | Open until user login is built |
+| # | Gap | Fix |
+|---|-----|-----|
+| 1 | Plaintext `/api/system` | Controller is `[NonController]` — not routed |
+| 2 | Raw SQL from client | `NamedScriptRules` on `/api/Data` |
+| 3 | Handshake every call | Session cached ~14 min |
+| 4 | Cleartext Data response | AES(sessionKey) |
+| 5 | Client-chosen schema | Forced from ProjectGuid |
+| 6 | Replay handshake | 90s window + nonce |
+| 7 | Handshake flood | 5/min/IP (+ login 5/min/IP) |
+| 8 | Fake JWT authority `:7001` | Removed. User tokens issued locally |
+| 9 | CORS `AllowAnyOrigin` | Explicit WASM origins |
+| 11 | In-memory sessions only | Persisted to `[central].[Sessions]` (memory fallback if DB down) |
+| 12 | No user identity | `POST /api/auth/login` + `X-User-Token` required |
+| 14 | `CHANGE_ME` key | Replaced; still rotate in production |
 
-## Residual risks (accept for now)
+## Residual (WASM reality)
 
-1. **WASM secret extraction** — ProjectGuid is an *identifier*. SharedKey is a handshake wrapper, not the data key. Treat leaked SharedKey as “rotate + invalidate sessions”, not as DB access by itself.
-2. **Project-level auth ≠ user auth** — handshake proves “this is the accounting app”, not “this is Hossein the accountant”. User login on central-client is the next layer.
-3. **In-memory sessions** — single webapi process only.
+| # | Risk | What we do |
+|---|------|------------|
+| 10 | Guid + SharedKey extractable from WASM | SharedKey only wraps handshake. Rotate if leaked. User password is the secret. |
+| — | Default admin password | Seeded only when Users is empty. Change `Hermes:BootstrapAdminPassword` and the admin password after first run. |
+| — | SQL down | Sessions stay in memory of that process only |
 
-## Rules going forward
+## Default seed (first boot with empty Users)
 
-- Every new Hermes client: new row in `webapi/appsettings.json` → `Hermes:Projects` + matching `BlazorDeploy:ApiSettings` (`Protocol=Hermes`, same Guid + SharedKey).
-- Never execute client SQL.
-- Never let the client choose schema.
-- Do not use `ISystemApi` for production data (plaintext).
-- BlazorDeploy.ir clients keep `Protocol=BlazorDeploy` (unchanged).
+- user: `admin`  
+- password: value of `Hermes:BootstrapAdminPassword` (default `ChangeMe.Hermes.2026`)
+
+## Production checklist
+
+- [ ] New `Auth:Key` (64+ random chars)  
+- [ ] New SharedKeys per project  
+- [ ] Change admin password  
+- [ ] Set `Hermes:CorsOrigins` to real HTTPS hosts  
+- [ ] Real TLS certificate  
+- [ ] SQL backups; never commit `data/` dumps  

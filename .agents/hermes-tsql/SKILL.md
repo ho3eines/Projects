@@ -1,269 +1,252 @@
 ---
 name: hermes-tsql
-description: "THE only data-access skill for Hermes. When the user wants a new entity, module, report, CRUD, query, insert, update, delete, TSQL script, schema, SystemController, or any server communication in this repo. Triggers: اسکریپت، TSQL، entity جدید، سند، گزارش، query, execute, scalar, webapi, schema, DailyDocuments, ISystemApi. NEVER use server-client-comm, ICommunicationService, WebSocket, per-project controllers, or raw SQL via RequestService."
+description: "THE Hermes architecture + data skill. Use for any entity, TSQL, handshake, ProjectGuid, RequestService, webapi, schema, auth, session, login, CORS, or how projects talk to each other. NEVER use server-client-comm, ICommunicationService, WebSocket, per-project controllers, ISystemApi, or raw SQL."
 ---
 
-# hermes-tsql — Named TSQL is the only data path
+# hermes-tsql — Architecture & communication
 
-Hermes is a modular ERP: every product is a **client-only Blazor WASM** app. All data goes through **one** WebAPI that runs **named TSQL files**. There is no other backend.
+This file is the **source of truth** for how Hermes is built and how every project talks to the server. Load it for any data, auth, or new-module work. Do **not** load `server-client-comm`.
+
+---
+
+## 1. What Hermes is
+
+A modular ERP:
+
+- One **webapi** (the only backend)
+- One **central-client** (company site + login + project launcher + users)
+- Many **product clients** (`accounting`, later `inventory`, `store`, …) — **WASM only, no API**
+- **share** — shared DTOs
+- **blazordeployservice** — UI services + `IRequestService` transport
+
+Every product owns a **SQL schema** with the same name (`[accounting]`, `[central]`, …).
 
 ```
-central-client ──(login, token in URL)──► accounting / inventory / store
-        │                                         │
-        └──────────────► webapi ◄─────────────────┘
-                            │
-              1) POST /api/auth/handshake   (ProjectGuid)
-              2) POST /api/Data/            (AES + named script)
-                            │
-              Data/Scripts/{schema-from-guid}/{Name}.sql
-                            │
-              SQL Server  [schema].[Table]
+                    ┌─────────────────┐
+                    │  SQL Server     │
+                    │  HermesMaster   │
+                    │  [central]      │
+                    │  [accounting]   │
+                    │  [inventory]…   │
+                    └────────▲────────┘
+                             │ named .sql files
+                    ┌────────┴────────┐
+   handshake + AES  │     webapi      │  :65222
+                    │ Auth + Data     │
+                    └────────▲────────┘
+           ┌─────────────────┼─────────────────┐
+           │                 │                 │
+    central-client     accounting         future apps
+    :65219             :65218             :…
+    Guid=central       Guid=accounting
 ```
 
-Load this skill for **any** data work. Do **not** load `server-client-comm`.
-
 ---
 
-## Golden rules
+## 2. Communication protocol (all projects, same)
 
-1. **No per-project API.** Never add a controller under `accounting/`, `central-client/`, or a new `{Entity}Controller`.
-2. **No raw SQL from the client.** Never call `IRequestService.Request(sql, …)` or `ISqlService.Insert/Select/Update/Delete` for Hermes business data.
-3. **No WebSocket / auto-CRUD / BusinessService / Dapper query classes.** That is Pdd.ir (`server-client-comm`). Not this repo.
-4. **Named script only.** Client calls `IRequestService.Request(scriptName, param)`. Server runs handshake (`ProjectGuid`) first, then the script. Schema is forced from the project registry.
-5. **Schema = project name.** Tables live in `[accounting].…`, `[central].…`, etc.
-6. **UI stack:** HTML + Bootstrap 5.3 + BDS components. No MudBlazor / Radzen / Tailwind / shadcn.
-7. **Reports first.** Before a new module, list the reports, then design tables/scripts around them.
-8. **Do not ask the user to re-explain this structure.**
+Two steps. `IRequestService` (`Protocol=Hermes`) does both. Clients never call `/api/system`.
 
----
+### Step A — Handshake (once per session, cached ~14 min)
 
-## Endpoints clients use
+```
+POST /api/auth/handshake
+Header: X-Project-Guid: {guid of THIS wasm app}
+Body:   { "data": AES(SharedKey, { projectGuid, timestamp, nonce, clientId? }) }
 
-| Step | Method | URL | Who |
-|------|--------|-----|-----|
-| 1 | POST | `/api/auth/handshake` | `RequestService` (automatic, cached) |
-| 2 | POST | `/api/Data/` | `RequestService` after session exists |
-
-`/api/system/*` is the internal executor. Clients do **not** call it (plaintext + JWT).
-
-Legacy table (server-side executor only):
-
-| Method | URL | Script kind | Returns |
-|--------|-----|-------------|---------|
-| POST | `/api/system/query` | SELECT | `{ requestId, totalCount, data: [...] }` |
-| POST | `/api/system/execute` | INSERT / UPDATE / DELETE / DDL | `{ requestId, affectedRows }` |
-| POST | `/api/system/scalar` | single value (`SELECT COUNT`, next number, …) | `{ requestId, value }` |
-
-Payload (`Share.Models.SystemRequestPayload`):
-
-```json
-{
-  "scriptName": "DailyDocuments",
-  "schema": "accounting",
-  "parameters": {
-    "FromDate": "2026-08-12",
-    "ToDate": "2026-08-12",
-    "SearchText": "",
-    "DocumentType": null,
-    "SkipRows": 0,
-    "TakeSize": 20
-  },
-  "requestId": "guid"
-}
+← { "code": 200, "data": AES(SharedKey, {
+      RequestId,          // session token (send as X-API-Key)
+      EncryptionKey,      // random AES key for Step B
+      ExpiresAt, Schema, Project
+    }) }
 ```
 
-### Path resolution (`SystemQueryExecutor.ResolveScriptPath`)
+Server checks: known active Guid, SharedKey decrypt, Guid header == body, timestamp ±90s, nonce unused, rate limit 5/min/IP.
 
-Tried in order:
+Session is stored in **memory + `[central].[Sessions]`**. Schema is taken from the **project registry**, not the client.
 
-1. `ScriptName` with `.` or `\` rewritten to `/` → `Data/Scripts/{parts}.sql`  
-   e.g. `accounting/DailyDocuments` or `accounting.DailyDocuments`
-2. `Data/Scripts/{Schema}/{ScriptName}.sql`  
-   e.g. Schema=`accounting`, ScriptName=`DailyDocuments`
-3. `Data/Scripts/{ScriptName}.sql`
+### Step B — Named TSQL (every data call)
 
-**Preferred call shape:** `ScriptName = "DailyDocuments"`, `Schema = "accounting"`.
+```
+POST /api/Data/
+Header: X-API-Key: {session token}
+Header: X-Project-Guid: {same guid}          // must match the session
+Header: X-User-Token: {user JWT}             // required for query + execute
+Body:   JSON-string of AES(EncryptionKey, {
+          SqlStr,          // SCRIPT NAME only — not SQL
+          Parameters,      // object → Dapper @Params
+          IsExec, IsScalar,
+          requestDate
+        })
 
-Parameters arrive as JSON object and become Dapper `@Name` parameters. Use **only** `@Param` in SQL — never string-concat user input.
+← { "code": 200, "data": AES(EncryptionKey, json-result) }
+```
 
----
+| `IsExec` | `IsScalar` | Server does |
+|----------|------------|-------------|
+| false | false | `QueryAsync` → JSON array |
+| true | false | `ExecuteAsync` → `{ AffectedRows }` |
+| false | true | `ScalarAsync` → value |
 
-## Client call (always `IRequestService` — Hermes protocol)
+**Rejected:** `SqlStr` with spaces, `;`, `SELECT`, `INSERT`, …  
+**Forced:** schema = session.Schema (cannot hop to another project).
 
-Handshake is automatic: first `Request()` asks for a session with `ProjectGuid`, then sends the named script encrypted.
+### Client code
 
 ```razor
 @inject IRequestService Request
-@inject IAlertService Alert
 
-@code {
-    List<DailyDocumentRow> Rows = new();
-
-    async Task LoadAsync()
-    {
-        Rows = await Request.Request<DailyDocumentRow>(
-            "DailyDocuments",
-            new {
-                FromDate = DateTime.Today,
-                ToDate = DateTime.Today,
-                SearchText = "",
-                DocumentType = (string?)null,
-                SkipRows = 0,
-                TakeSize = 20
-            }) ?? new();
-    }
-
-    async Task SaveAsync()
-    {
-        await Request.Request<object>("DocumentInsert",
-            new { DocumentNumber = "1", TotalAmount = 0m },
-            isExec: true);
-        await Alert.ShowSuccessAsync("ثبت شد", "سند ذخیره شد");
-    }
-}
+var rows = await Request.Request<DailyDocumentRow>("DailyDocuments", param);
+await Request.Request<object>("DocumentInsert", param, isExec: true);
 ```
 
-Config (`wwwroot/appsettings.json`):
+Handshake is automatic. Do not send schema. Do not send SQL.
 
-```json
-"BlazorDeploy": {
-  "ApiSettings": {
-    "BaseUrl": "https://localhost:65222/api/",
-    "Protocol": "Hermes",
-    "ProjectGuid": "<same guid as webapi Hermes:Projects>",
-    "Encryption": "<same SharedKey as that project>"
-  }
-}
+### Login (user identity — layer 2)
+
+Handshake proves **which app**. Login proves **which human**.
+
+```
+POST /api/auth/login
+Header: X-API-Key + X-Project-Guid   (must already have a project session)
+Body:   { "data": AES(sessionKey, { username, password }) }
+
+← AES(sessionKey, { userToken, displayName, role, userId })
 ```
 
-Schema is **not** sent by the client. The server binds schema from ProjectGuid.
+`userToken` is an HMAC-JWT signed with server `Auth:Key`.  
+Product apps receive it as `?token=` from central-client and call `Request.SetUserToken(token)`.
 
-Do **not** use `ISystemApi` for data (plaintext). User login token (later) still travels `?token=` from central-client.
+Writes **and** reads on `/api/Data` require a valid user token.
 
 ---
 
-## Adding a feature (the only checklist)
+## 3. Project registry (how apps stay connected)
 
-### 0. Reports first (new module)
+`webapi/appsettings.json` → `Hermes:Projects`:
 
-Write the report list in chat or `docs/` before any table. Models follow reports, not the other way around.
+| Field | Meaning |
+|-------|---------|
+| `Guid` | Public identity of the WASM app |
+| `Name` | `accounting` / `central` / … |
+| `Schema` | SQL schema the session is locked to |
+| `SharedKey` | Handshake wrapper key (same value in that client's appsettings) |
+| `IsActive` | `false` = handshake refused |
 
-### 1. DTO / row model
+New product checklist:
 
-- Shared across clients → `share/common/Models/{Name}.cs`
-- Project-only → `{project}/Models/{Name}.cs`
-- Inherit `BaseEntity` when the table has audit columns (`CreatedAt`, `UpdatedAt`, `CreatedBy`, `UpdatedBy`, `IsDeleted`)
-- Property names **match SQL column aliases** (`DocumentId`, not `document_id`)
+1. New Guid
+2. Row in `Hermes:Projects`
+3. Client `wwwroot/appsettings.json`: `Protocol=Hermes`, same Guid + SharedKey, `BaseUrl=https://localhost:65222/api/`
+4. Folder `webapi/Data/Scripts/{schema}/`
+5. WASM project referencing `blazordeployservice` + `share`
+6. CORS origin of that client added to `Hermes:CorsOrigins`
 
-### 2. Named TSQL files
+`Protocol=BlazorDeploy` is **only** for BlazorDeploy.ir. Never against this webapi.
 
-`webapi/Data/Scripts/{schema}/{ScriptName}.sql`
+---
 
-| Kind | Name pattern | Endpoint |
-|------|--------------|----------|
-| List / grid | `{Thing}s`, `DailyDocuments`, `{Thing}Search` | query |
-| One row | `{Thing}ById` | query |
-| Insert | `{Thing}Insert` | execute |
-| Update | `{Thing}Update` | execute |
-| Soft delete | `{Thing}Delete` | execute (`IsDeleted = 1`) |
-| Scalar | `{Thing}NextNumber`, `{Thing}Count` | scalar |
-| DDL / ensure | `_{Thing}Ensure` (leading underscore) | execute |
+## 4. Directory law
 
-Qualify every table: `[accounting].[Documents]`.
-
-Pagination (copy `DailyDocuments.sql` — **do not** mix `TOP` with `OFFSET`):
-
-```sql
-WHERE ...
-ORDER BY d.DocumentDate DESC, d.DocumentNumber DESC
-OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY;
+```
+Projects/
+  docs/PROJECT.md              ← product rules
+  docs/SECURITY.md             ← threat model
+  .agents/hermes-tsql/         ← THIS skill
+  webapi/                      ← only backend
+    Controllers/AuthController.cs    handshake + login
+    Controllers/DataController.cs    encrypted named TSQL
+    Services/SystemQueryExecutor.cs  runs .sql files
+    Data/Scripts/{schema}/{Name}.sql
+  share/common/Models/         ← DTOs (BaseEntity, …)
+  blazordeployservice/         ← RequestService + UI
+  central-client/              ← login + launcher
+  accounting/                  ← product client
 ```
 
-Search: `(@SearchText = '' OR col LIKE '%' + @SearchText + '%')` — still parameterized.
-
-### 3. Client page (4 folders only)
+Each product client:
 
 ```
 {project}/
-  Pages/
-    Index.razor                 ← home: از تاریخ / تا تاریخ (default today) + daily grid
-    Dashboard.razor             ← summary of all sections
-    Entry/                      ← ورود عملیات
-    SpecialOperations/          ← عملیات ویژه (سال مالی، …)
-    Reports/                    ← گزارشات
-    Settings/                   ← جداول پایه + امکانات
-  Shared/Components/
-  Models/                       ← project-only DTOs
+  Pages/Index.razor            home: از/تا تاریخ (default today) + grid
+  Pages/Dashboard.razor
+  Pages/Entry/
+  Pages/SpecialOperations/
+  Pages/Reports/
+  Pages/Settings/
+  Pages/Login.razor            only central-client
+  Models/
+  wwwroot/appsettings.json     Protocol + ProjectGuid + SharedKey
 ```
 
-Home page **must** have FromDate/ToDate (default today) and a clickable daily grid.
-
-### 4. UI
-
-- Bootstrap 5.3 + existing BDS: `Modal`, `SearchableList`, `PersianDatePicker`, `BootstrapNumericInput`, `IAlertService`, `IModalService`, `IThemeService`, `ICultureService`
-- Modal-first for simple CRUD; Page + modal for reports / big grids
-- Skeleton for page load, not `spinner-border` (spinner only on the save button)
-- Visible `<label>` on every field; `PersianDatePicker` binds `long?` Unix — convert with `ISqlService.UnixTimeToPersian` / `DateTimeToUnixTime` **only as helpers**, never for CRUD
-- No new NuGet UI kits
-
-### 5. Auth
-
-- Do not invent a second login
-- Token from central-client URL → `ISystemApi`
-- `SystemController` is `[Authorize]`; unauthenticated calls return 401
+No `Controllers/` under a product. No MudBlazor / Radzen / Tailwind / shadcn. HTML + Bootstrap 5.3.
 
 ---
 
-## Script header (required)
+## 5. Named TSQL files
 
-```sql
--- =============================================
--- webapi/Data/Scripts/accounting/DocumentById.sql
--- Schema: accounting
--- Endpoint: query
--- Params: @Id INT
--- =============================================
-SELECT ...
-FROM [accounting].[Documents] d
-WHERE d.DocumentId = @Id
-  AND d.IsDeleted = 0;
-```
+`webapi/Data/Scripts/{schema}/{ScriptName}.sql`
 
----
+| Kind | Name | IsExec |
+|------|------|--------|
+| Grid / list | `DailyDocuments`, `{Thing}Search` | false |
+| One row | `{Thing}ById` | false |
+| Insert / update / soft-delete | `{Thing}Insert` / `Update` / `Delete` | true |
+| Scalar | `{Thing}NextNumber` | IsScalar |
+| DDL | `_{Thing}Ensure` | true |
 
-## What BDS is for (and what it is not)
+Qualify tables: `[accounting].[Documents]`. Parameterize everything. Soft-delete via `IsDeleted`.  
+Pagination: `OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY` — no `TOP` with `OFFSET`.
 
-| Use | Do not use for Hermes data |
-|-----|----------------------------|
-| `IRequestService` with **script name** (`Protocol=Hermes`) | `IRequestService.Request("SELECT …")` raw SQL |
-| `IModalService`, `IAlertService` | `ISqlService.Insert/Select/Update/Delete` |
-| `IThemeService`, `ICultureService` | `ISqlService.InitializeAsync` |
-| `IClientStorageService` (prefs) | `ISystemApi` plaintext `/api/system` |
-| `IEncryptionService` (handshake) | BlazorDeploy.ir `Protocol=BlazorDeploy` against Hermes |
-
-With `Protocol=Hermes`, `RequestService` talks to **this** webapi (`auth/handshake` + `Data/`). Leave `Protocol=BlazorDeploy` only for BlazorDeploy.ir apps.
+Path resolve (`SystemQueryExecutor`): `schema/Name` → `Scripts/{schema}/{Name}.sql`.
 
 ---
 
-## Current repo map (do not reinvent)
+## 6. Security model (layers)
 
-| Path | Role |
-|------|------|
-| `webapi/Controllers/AuthController.cs` | ProjectGuid handshake |
-| `webapi/Controllers/DataController.cs` | Encrypted named-script runner |
-| `webapi/Services/SystemQueryExecutor.cs` | Load + Dapper-run named files |
-| `webapi/Data/Scripts/{schema}/*.sql` | All TSQL |
-| `webapi/appsettings.json` → `Hermes:Projects` | ProjectGuid registry |
-| `blazordeployservice/Services/RequestService.cs` | Client transport |
-| `docs/SECURITY.md` | Gap review |
-| `central-client/` | Login, company site, users, widgets |
-| `accounting/` | Accounting WASM client |
-| `docs/PROJECT.md` | Project law |
+| Layer | What it proves | Where |
+|-------|----------------|-------|
+| 1 Project handshake | This WASM is a registered product | `ProjectGuid` + SharedKey + nonce |
+| 2 Session AES | This browser holds a fresh server key | `EncryptionKey` random per handshake |
+| 3 User JWT | This human logged in | `X-User-Token` HMAC-JWT |
+| 4 Named scripts | Client cannot run arbitrary SQL | `NamedScriptRules` |
+| 5 Schema lock | Client cannot read another product's DB | session.Schema from registry |
+| 6 CORS | Only listed WASM origins | `Hermes:CorsOrigins` |
+
+WASM **cannot hide** Guid/SharedKey. SharedKey only wraps handshake. Rotate it if leaked. User password is the real secret.
+
+`/api/system/*` is **not routed** (not a client API).
+
+Details: `docs/SECURITY.md`.
+
+---
+
+## 7. Adding a feature
+
+1. Reports first (if new module)
+2. DTO in `share` or `{project}/Models` — names = SQL aliases; audit via `BaseEntity`
+3. `.sql` files under the **product schema**
+4. Page in Entry / Reports / Settings / SpecialOperations
+5. Call `Request.Request<T>("ScriptName", param)`
+6. UI: Modal-first CRUD; skeleton loaders; `PersianDatePicker` / `SearchableList` / `IAlertService`
+
+---
+
+## 8. Never
+
+- `server-client-comm`, WebSocket, `{Entity}Controller`, `BusinessService`
+- `ISystemApi` / plaintext `/api/system`
+- `IRequestService.Request("SELECT …")`
+- `ISqlService.Insert/Select/InitializeAsync` for Hermes tables
+- Client-chosen schema or connection string
+- MudBlazor / Radzen / Tailwind / shadcn
+- Asking the user to re-explain this architecture
 
 ---
 
 ## References
 
-- `references/scripts.md` — naming, pagination, DDL, DailyDocuments
-- `references/client.md` — `ISystemApi`, token, page patterns
-- `references/forbidden.md` — exact anti-patterns (including server-client-comm)
+- `references/architecture.md` — sequence diagrams, ports, config samples
+- `references/scripts.md` — SQL conventions
+- `references/client.md` — Razor + Program.cs
+- `references/forbidden.md` — copy-paste anti-patterns

@@ -1,4 +1,5 @@
 @page "/"
+@inject IRequestService Request
 
 <PageTitle>داشبورد</PageTitle>
 
@@ -11,6 +12,7 @@
                 <div class="card-body">
                     <h5 class="card-title">📁 پروژه‌ها</h5>
                     <p class="card-text">مدیریت همه پروژه‌ها</p>
+                    <a class="btn btn-sm btn-outline-primary" href="@AccountingUrl">حسابداری</a>
                 </div>
             </div>
         </div>
@@ -32,3 +34,9 @@
         </div>
     </div>
 </div>
+
+@code {
+    string AccountingUrl => string.IsNullOrEmpty(Request.UserToken)
+        ? "https://localhost:65218/"
+        : "https://localhost:65218/?token=" + Uri.EscapeDataString(Request.UserToken);
+}

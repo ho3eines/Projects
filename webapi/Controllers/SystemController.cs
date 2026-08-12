@@ -1,6 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Dapper;
 using Share.Models;
 using WebApi.Services;
 
@@ -10,9 +8,7 @@ namespace WebApi.Controllers;
 /// Internal named-TSQL executor (JWT). WASM clients must NOT call this.
 /// They use RequestService → /api/auth/handshake + /api/Data/ (encrypted, ProjectGuid).
 /// </summary>
-[ApiController]
-[Route("api/system")]
-[Authorize]
+[NonController]
 public class SystemController : ControllerBase
 {
     private readonly ILogger<SystemController> _logger;

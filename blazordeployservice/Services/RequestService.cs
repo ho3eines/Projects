@@ -16,6 +16,18 @@ namespace BlazorDeployService.Services
         Task<List<T>> GetData<T>(string sql, object parameters = null) where T : class;
         Task PrintToPdf(string reportPath, DataTable dt);
         Task<List<T>?> Request<T>(string sqlstr, object? param = null, bool isExec = false, string? connectionstring = null, string userCode = "") where T : class;
+        void SetUserToken(string? token);
+        string? UserToken { get; }
+        Task<HermesLoginResult?> LoginAsync(string username, string password);
+    }
+
+    public sealed class HermesLoginResult
+    {
+        public string UserToken { get; set; } = "";
+        public int UserId { get; set; }
+        public string Username { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Role { get; set; } = "";
     }
 
     public partial class RequestService : IRequestService
@@ -35,6 +47,7 @@ namespace BlazorDeployService.Services
         private string? _sessionToken;
         private string? _sessionEncKey;
         private DateTime _sessionExpiresUtc = DateTime.MinValue;
+        private string? _userToken;
 
         public RequestService(HttpClient http, IJSRuntime js, IEncryptionService enc, IOptions<AppSettings> appSettings, IAlertService alertService)
         {
