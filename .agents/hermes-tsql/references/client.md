@@ -3,44 +3,20 @@
 ## Register (every WASM `Program.cs`)
 
 ```csharp
-using Share.Extensions;
-
-var builder = WebAssemblyHostBuilder.CreateDefault(args);
-builder.RootComponents.Add<App>("#app");
-builder.RootComponents.Add<HeadOutlet>("head::after");
-
+builder.Services.AddScoped(_ => new HttpClient());
 builder.Services.AddBlazorDeployServices(builder.Configuration);
-builder.Services.AddHermesSystemApi(builder.Configuration);
-
-await builder.Build().RunAsync();
 ```
 
-`wwwroot/appsettings.json`:
+`wwwroot/appsettings.json` must set `Protocol=Hermes`, `ProjectGuid`, `Encryption` (SharedKey) matching `webapi` → `Hermes:Projects`.
 
-```json
-{
-  "Hermes": {
-    "WebApiUrl": "https://localhost:65222/"
-  }
-}
-```
-
-`AddHermesSystemApi` registers `HttpClient` + `ISystemApi` pointed at `Hermes:WebApiUrl`.
-
-## ISystemApi
-
-`share/Services/SystemApi.cs`
+## IRequestService
 
 ```csharp
-Task<SystemQueryResult<T>> QueryAsync<T>(string scriptName, object? parameters = null, string? schema = null);
-Task<SystemExecuteResult> ExecuteAsync(string scriptName, object? parameters = null, string? schema = null);
-Task<SystemScalarResult<T>> ScalarAsync<T>(string scriptName, object? parameters = null, string? schema = null);
-void SetAccessToken(string? token);
+await Request.Request<Row>("DailyDocuments", param);
+await Request.Request<object>("DocumentInsert", param, isExec: true);
 ```
 
-- `T` property names = SQL aliases.
-- Failed HTTP (non-2xx) throws `SystemApiException` with status + body.
-- 401: caller should send the user back to `central-client` login.
+Handshake is automatic and cached. Schema is not a client argument.
 
 ## Token from central-client
 

@@ -7,8 +7,8 @@ using WebApi.Services;
 namespace WebApi.Controllers;
 
 /// <summary>
-/// THE single system endpoint for ALL projects.
-/// Executes named TSQL files from Data/Scripts/{schema}/{name}.sql
+/// Internal named-TSQL executor (JWT). WASM clients must NOT call this.
+/// They use RequestService → /api/auth/handshake + /api/Data/ (encrypted, ProjectGuid).
 /// </summary>
 [ApiController]
 [Route("api/system")]

@@ -48,9 +48,8 @@ WHERE Name = '" + search + "'
 ## Do write
 
 ```csharp
-await Api.QueryAsync<DailyDocumentRow>("DailyDocuments", param, "accounting");
-await Api.ExecuteAsync("DocumentInsert", param, "accounting");
-await Api.ScalarAsync<int>("DocumentNextNumber", param, "accounting");
+await Request.Request<DailyDocumentRow>("DailyDocuments", param);
+await Request.Request<object>("DocumentInsert", param, isExec: true);
 ```
 
 ```sql

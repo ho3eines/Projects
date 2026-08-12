@@ -1,4 +1,4 @@
-﻿using BlazorDeployService.Models;
+using BlazorDeployService.Models;
 using BlazorDeployService.Services;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
@@ -18,7 +18,7 @@ namespace BlazorDeployService.Services
         Task<List<T>?> Request<T>(string sqlstr, object? param = null, bool isExec = false, string? connectionstring = null, string userCode = "") where T : class;
     }
 
-    public class RequestService : IRequestService
+    public partial class RequestService : IRequestService
     {
         readonly private HttpClient _http;
         readonly private IJSRuntime _js;
@@ -30,6 +30,11 @@ namespace BlazorDeployService.Services
         private readonly IAlertService _alertService;
         private readonly string _encryption;
         private readonly string _connectionstringToken;
+        private readonly string _protocol;
+        private readonly string _projectGuid;
+        private string? _sessionToken;
+        private string? _sessionEncKey;
+        private DateTime _sessionExpiresUtc = DateTime.MinValue;
 
         public RequestService(HttpClient http, IJSRuntime js, IEncryptionService enc, IOptions<AppSettings> appSettings, IAlertService alertService)
         {
@@ -42,7 +47,11 @@ namespace BlazorDeployService.Services
             APIKey = _appSettings.ApiSettings.APIKey;
             _encryption = _appSettings.ApiSettings.Encryption;
             _connectionstringToken = _appSettings.ApiSettings.ConnectionStringToken;
+            _protocol = _appSettings.ApiSettings.Protocol ?? "BlazorDeploy";
+            _projectGuid = _appSettings.ApiSettings.ProjectGuid ?? "";
         }
+
+        private bool IsHermes => string.Equals(_protocol, "Hermes", StringComparison.OrdinalIgnoreCase);
 
         //private async Task<DataTable?> RequestDataTable(string _query, bool exec = false)
         //{
@@ -289,12 +298,16 @@ namespace BlazorDeployService.Services
         }
 
         /// <summary>
-        /// این سرویس برای درخواست به سرور api مورد استفاده قرار میگیرد 
+        /// Hermes: named TSQL script (handshake with ProjectGuid first).
+        /// BlazorDeploy: legacy raw SQL path.
         /// </summary>
         public async Task<List<T>?> Request<T>(string sqlstr, object? param = null, bool isExec = false, string? connectionstring = null, string userCode = "") where T : class
         {
             try
             {
+                if (IsHermes)
+                    return await HermesRequest<T>(sqlstr, param, isExec, isScalar: false, userCode, allowRetry: true);
+
                 if (string.IsNullOrEmpty(connectionstring))
                     connectionstring = _connectionstringToken;
 
@@ -379,6 +392,9 @@ namespace BlazorDeployService.Services
         /// </summary>
         public async Task<List<T>> GetData<T>(string sql, object parameters = null) where T : class
         {
+            if (IsHermes)
+                return await HermesRequest<T>(sql, parameters, isExec: false, isScalar: false, allowRetry: true) ?? new List<T>();
+
             (string RequestId, string EncryptionKey) = await verifyAsync();
 
             if (RequestId is not null)

@@ -10,7 +10,13 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.Configure<ConnectionStringsOptions>(
     builder.Configuration.GetSection("ConnectionStrings"));
 
+builder.Services.Configure<HermesProjectsOptions>(
+    builder.Configuration.GetSection("Hermes"));
 builder.Services.AddSingleton<ISystemQueryExecutor, SystemQueryExecutor>();
+builder.Services.AddSingleton<CryptoJsService>();
+builder.Services.AddSingleton<IProjectCatalog, ProjectCatalog>();
+builder.Services.AddSingleton<ISessionStore, SessionStore>();
+builder.Services.AddSingleton<HandshakeGuard>();
 
 // Blazor Server
 builder.Services.AddRazorComponents()

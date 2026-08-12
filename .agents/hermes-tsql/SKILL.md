@@ -12,9 +12,10 @@ central-client ──(login, token in URL)──► accounting / inventory / sto
         │                                         │
         └──────────────► webapi ◄─────────────────┘
                             │
-              POST /api/system/{query|execute|scalar}
+              1) POST /api/auth/handshake   (ProjectGuid)
+              2) POST /api/Data/            (AES + named script)
                             │
-              Data/Scripts/{schema}/{Name}.sql
+              Data/Scripts/{schema-from-guid}/{Name}.sql
                             │
               SQL Server  [schema].[Table]
 ```
@@ -28,7 +29,7 @@ Load this skill for **any** data work. Do **not** load `server-client-comm`.
 1. **No per-project API.** Never add a controller under `accounting/`, `central-client/`, or a new `{Entity}Controller`.
 2. **No raw SQL from the client.** Never call `IRequestService.Request(sql, …)` or `ISqlService.Insert/Select/Update/Delete` for Hermes business data.
 3. **No WebSocket / auto-CRUD / BusinessService / Dapper query classes.** That is Pdd.ir (`server-client-comm`). Not this repo.
-4. **Named script only.** Client sends `ScriptName` + `Parameters` + `Schema` via `ISystemApi`.
+4. **Named script only.** Client calls `IRequestService.Request(scriptName, param)`. Server runs handshake (`ProjectGuid`) first, then the script. Schema is forced from the project registry.
 5. **Schema = project name.** Tables live in `[accounting].…`, `[central].…`, etc.
 6. **UI stack:** HTML + Bootstrap 5.3 + BDS components. No MudBlazor / Radzen / Tailwind / shadcn.
 7. **Reports first.** Before a new module, list the reports, then design tables/scripts around them.
@@ -36,9 +37,16 @@ Load this skill for **any** data work. Do **not** load `server-client-comm`.
 
 ---
 
-## The only three endpoints
+## Endpoints clients use
 
-`webapi/Controllers/SystemController.cs` — `[Authorize]`, route `api/system`.
+| Step | Method | URL | Who |
+|------|--------|-----|-----|
+| 1 | POST | `/api/auth/handshake` | `RequestService` (automatic, cached) |
+| 2 | POST | `/api/Data/` | `RequestService` after session exists |
+
+`/api/system/*` is the internal executor. Clients do **not** call it (plaintext + JWT).
+
+Legacy table (server-side executor only):
 
 | Method | URL | Script kind | Returns |
 |--------|-----|-------------|---------|
@@ -80,10 +88,12 @@ Parameters arrive as JSON object and become Dapper `@Name` parameters. Use **onl
 
 ---
 
-## Client call (always `ISystemApi`)
+## Client call (always `IRequestService` — Hermes protocol)
+
+Handshake is automatic: first `Request()` asks for a session with `ProjectGuid`, then sends the named script encrypted.
 
 ```razor
-@inject ISystemApi Api
+@inject IRequestService Request
 @inject IAlertService Alert
 
 @code {
@@ -91,7 +101,7 @@ Parameters arrive as JSON object and become Dapper `@Name` parameters. Use **onl
 
     async Task LoadAsync()
     {
-        var result = await Api.QueryAsync<DailyDocumentRow>(
+        Rows = await Request.Request<DailyDocumentRow>(
             "DailyDocuments",
             new {
                 FromDate = DateTime.Today,
@@ -100,28 +110,35 @@ Parameters arrive as JSON object and become Dapper `@Name` parameters. Use **onl
                 DocumentType = (string?)null,
                 SkipRows = 0,
                 TakeSize = 20
-            },
-            schema: "accounting");
-
-        Rows = result.Data;
+            }) ?? new();
     }
 
     async Task SaveAsync()
     {
-        var exec = await Api.ExecuteAsync(
-            "DocumentInsert",
+        await Request.Request<object>("DocumentInsert",
             new { DocumentNumber = "1", TotalAmount = 0m },
-            schema: "accounting");
-
-        if (exec.AffectedRows > 0)
-            await Alert.ShowSuccessAsync("ثبت شد", "سند ذخیره شد");
+            isExec: true);
+        await Alert.ShowSuccessAsync("ثبت شد", "سند ذخیره شد");
     }
 }
 ```
 
-`ISystemApi` lives in `share/Services/SystemApi.cs`. Register in every client `Program.cs` with `AddHermesSystemApi(builder.Configuration)`.
+Config (`wwwroot/appsettings.json`):
 
-Token: login happens in `central-client`; other apps receive it as a **URL query param** (`?token=`). `SystemApi` reads it and sends `Authorization: Bearer …`.
+```json
+"BlazorDeploy": {
+  "ApiSettings": {
+    "BaseUrl": "https://localhost:65222/api/",
+    "Protocol": "Hermes",
+    "ProjectGuid": "<same guid as webapi Hermes:Projects>",
+    "Encryption": "<same SharedKey as that project>"
+  }
+}
+```
+
+Schema is **not** sent by the client. The server binds schema from ProjectGuid.
+
+Do **not** use `ISystemApi` for data (plaintext). User login token (later) still travels `?token=` from central-client.
 
 ---
 
@@ -218,13 +235,13 @@ WHERE d.DocumentId = @Id
 
 | Use | Do not use for Hermes data |
 |-----|----------------------------|
-| `IModalService`, `IAlertService` | `IRequestService.Request(rawSql)` |
-| `IThemeService`, `ICultureService` | `ISqlService.Insert/Select/Update/Delete` |
-| `IClientStorageService` (token, prefs) | `ISqlService.InitializeAsync` (auto-DDL from attributes) |
-| `PersianDatePicker`, `SearchableList` | Sending SQL strings over HTTP |
-| `IEncryptionService` if encrypting local data | `GET/POST {BaseUrl}Data/` (BlazorDeploy.ir API) |
+| `IRequestService` with **script name** (`Protocol=Hermes`) | `IRequestService.Request("SELECT …")` raw SQL |
+| `IModalService`, `IAlertService` | `ISqlService.Insert/Select/Update/Delete` |
+| `IThemeService`, `ICultureService` | `ISqlService.InitializeAsync` |
+| `IClientStorageService` (prefs) | `ISystemApi` plaintext `/api/system` |
+| `IEncryptionService` (handshake) | BlazorDeploy.ir `Protocol=BlazorDeploy` against Hermes |
 
-`RequestService` / `SqlService` are leftovers from the BlazorDeploy.ir package. They talk to a **different** API (`Data/`) with encrypted raw SQL. Hermes WebAPI has **no** `Data/` controller.
+With `Protocol=Hermes`, `RequestService` talks to **this** webapi (`auth/handshake` + `Data/`). Leave `Protocol=BlazorDeploy` only for BlazorDeploy.ir apps.
 
 ---
 
@@ -232,13 +249,13 @@ WHERE d.DocumentId = @Id
 
 | Path | Role |
 |------|------|
-| `webapi/Controllers/SystemController.cs` | Only API |
+| `webapi/Controllers/AuthController.cs` | ProjectGuid handshake |
+| `webapi/Controllers/DataController.cs` | Encrypted named-script runner |
 | `webapi/Services/SystemQueryExecutor.cs` | Load + Dapper-run named files |
 | `webapi/Data/Scripts/{schema}/*.sql` | All TSQL |
-| `share/common/Models/SystemRequestPayload.cs` | Request/result DTOs |
-| `share/common/Models/BaseEntity.cs` | Audit base + `ApiResponse<T>` + `PagedResult<T>` |
-| `share/Services/SystemApi.cs` | Client caller |
-| `blazordeployservice/` | UI services/components (NuGet source) |
+| `webapi/appsettings.json` → `Hermes:Projects` | ProjectGuid registry |
+| `blazordeployservice/Services/RequestService.cs` | Client transport |
+| `docs/SECURITY.md` | Gap review |
 | `central-client/` | Login, company site, users, widgets |
 | `accounting/` | Accounting WASM client |
 | `docs/PROJECT.md` | Project law |

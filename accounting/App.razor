@@ -1,6 +1,4 @@
 @namespace Accounting
-@inject NavigationManager Nav
-@inject ISystemApi Api
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
@@ -13,10 +11,3 @@
         </LayoutView>
     </NotFound>
 </Router>
-
-@code {
-    protected override void OnInitialized()
-    {
-        Api.TrySetTokenFromUri(Nav.Uri);
-    }
-}

@@ -62,7 +62,7 @@ D:\hermes\projects\
 | # | Rule |
 |---|------|
 | 1 | هر پروژه = **فقط کلاینت** (Blazor WASM). هیچ API اختصاصی ندارد. |
-| 2 | ارتباط داده = **فقط از طریق `webapi`** با اجرای فایلهای **TSQL نامدار**. |
+| 2 | ارتباط داده = `IRequestService` (Protocol=Hermes): اول handshake با **ProjectGuid**، بعد TSQL نامدار رمزشده. جزئیات: `docs/SECURITY.md`. |
 | 3 | هر پروژه **اسکیمای (Schema) مخصوص خودش** را در دیتابیس دارد. |
 | 4 | `share/` → مدلها/کامپوننتها/سرویسهای **مشترک** همه پروژهها. |
 | 5 | `blazordeployservice/` → منبع **پکیج NuGet** با کامپوننتهای عمومی (RequestService و ...). |
@@ -101,13 +101,14 @@ D:\hermes\projects\
 ## 🚦 ارتباطات (Flow)
 
 ```
-central-client ──(login, token)──► [project]-client
-      │                                   │
-      └──────────► webapi ◄───────────────┘
-                      │
-            اجرای TSQL نامدار
-                      │
-            SQL Server (schema per project)
+central-client ──(login, user token)──► [project]-client
+      │                                        │
+      │         ProjectGuid handshake          │
+      └──────────────► webapi ◄────────────────┘
+                         │
+              session + AES → named TSQL
+                         │
+              SQL Server (schema bound to ProjectGuid)
 ```
 
 ---
@@ -116,7 +117,7 @@ central-client ──(login, token)──► [project]-client
 
 - ❌ MudBlazor / Radzen — فقط HTML + Bootstrap 5.3 + CSS/JS
 - ❌ API اختصاصی برای هر پروژه
-- ❌ `server-client-comm` / WebSocket / Controller جدا / SQL خام از کلاینت (`RequestService`)
+- ❌ `server-client-comm` / WebSocket / Controller جدا / SQL خام در `SqlStr`
 - ❌ پرسیدن دوباره ساختار از کاربر
 
 مهارت داده: `.agents/hermes-tsql/SKILL.md`
