@@ -1,0 +1,129 @@
+@page "/"
+@inject IRequestService Request
+@inject IAlertService Alert
+@inject ISqlService Sql
+
+<PageTitle>اسناد روز انبار — انبار آمل</PageTitle>
+
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h1 class="h-page-title">اسناد روز انبار</h1>
+        <p class="h-lead">رسید و حواله — از تاریخ / تا تاریخ (پیش‌فرض امروز).</p>
+    </div>
+    <a class="btn btn-hermes" href="/entry">حرکت جدید</a>
+</div>
+
+<div class="h-card h-card-pad mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label" for="from">از تاریخ</label>
+            <PersianDatePicker @bind-Value="FromUnix" Placeholder="از تاریخ" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="to">تا تاریخ</label>
+            <PersianDatePicker @bind-Value="ToUnix" Placeholder="تا تاریخ" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="q">جستجو</label>
+            <input id="q" class="form-control" @bind="Search" placeholder="شماره حرکت یا کالا" />
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-hermes w-100" @onclick="LoadAsync" disabled="@Loading">اعمال فیلتر</button>
+        </div>
+    </div>
+</div>
+
+<div class="h-card">
+    @if (Loading)
+    {
+        <div class="h-card-pad placeholder-glow">
+            <div class="placeholder col-12" style="height:2.6rem"></div>
+            <div class="placeholder col-12 mt-2" style="height:2.6rem"></div>
+            <div class="placeholder col-12 mt-2" style="height:2.6rem"></div>
+        </div>
+    }
+    else if (Rows.Count == 0)
+    {
+        <div class="h-card-pad text-muted">حرکتی در این بازه نیست.</div>
+    }
+    else
+    {
+        <table class="h-table">
+            <thead>
+                <tr>
+                    <th>شماره</th>
+                    <th>تاریخ</th>
+                    <th>نوع</th>
+                    <th>کالا</th>
+                    <th>انبار</th>
+                    <th>تعداد</th>
+                    <th>مبلغ</th>
+                    <th>وضعیت</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Rows)
+                {
+                    <tr>
+                        <td>@r.MovementNumber</td>
+                        <td>@r.MovementDate.ToString("yyyy/MM/dd")</td>
+                        <td><span class="h-badge @(r.MovementType == "Receipt" ? "live" : "wait")">@MoveTypeFa(r.MovementType)</span></td>
+                        <td>@r.ItemTitle (@r.ItemCode)</td>
+                        <td>@r.WarehouseName</td>
+                        <td>@r.Qty.ToString("N0")</td>
+                        <td>@r.TotalValue.ToString("N0")</td>
+                        <td>@r.Status</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    List<DailyMovementRow> Rows = new();
+    bool Loading = true;
+    string Search = "";
+    long? FromUnix;
+    long? ToUnix;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Today;
+        FromUnix = Sql.DateTimeToUnixTime(today);
+        ToUnix = Sql.DateTimeToUnixTime(today.AddDays(1).AddSeconds(-1));
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        Loading = true;
+        try
+        {
+            var from = FromUnix.HasValue ? Sql.UnixTimeToDateTime(FromUnix.Value).Date : DateTime.Today;
+            var to = ToUnix.HasValue ? Sql.UnixTimeToDateTime(ToUnix.Value).Date : DateTime.Today;
+            Rows = await Request.Request<DailyMovementRow>("DailyMovements", new
+            {
+                FromDate = from,
+                ToDate = to,
+                SearchText = Search ?? "",
+                MovementType = (string?)null,
+                SkipRows = 0,
+                TakeSize = 50
+            }) ?? new();
+        }
+        catch (Exception ex)
+        {
+            await Alert.ShowErrorAsync("انبار", ex.Message);
+        }
+        finally { Loading = false; }
+    }
+
+    static string MoveTypeFa(string t) => t switch
+    {
+        "Receipt" => "رسید",
+        "Issue" => "حواله",
+        "Adjustment" => "تعدیل",
+        _ => t
+    };
+}

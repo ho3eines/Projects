@@ -1,0 +1,110 @@
+@page "/settings"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>امکانات — فروشگاه اینترنتی</PageTitle>
+
+<h1 class="h-page-title">امکانات و جداول پایه</h1>
+<p class="h-lead mb-4">مشتریان و محصولات.</p>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="h-card h-card-pad">
+            <h5 class="mb-3">مشتریان</h5>
+            <table class="h-table">
+                <thead><tr><th>کد</th><th>نام</th><th>تلفن</th></tr></thead>
+                <tbody>
+                    @foreach (var c in Customers)
+                    {
+                        <tr><td>@c.CustomerCode</td><td>@c.FullName</td><td>@c.Phone</td></tr>
+                    }
+                </tbody>
+            </table>
+            <div class="row g-2 mt-2">
+                <div class="col-md-4"><input class="form-control" @bind="NewCustName" placeholder="نام مشتری" /></div>
+                <div class="col-md-4"><input class="form-control" @bind="NewCustPhone" placeholder="تلفن" /></div>
+                <div class="col-md-4">
+                    <button class="btn btn-hermes w-100" @onclick="AddCustomerAsync">افزودن مشتری</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="h-card h-card-pad">
+            <h5 class="mb-3">محصولات</h5>
+            <table class="h-table">
+                <thead><tr><th>کد</th><th>عنوان</th><th>قیمت</th></tr></thead>
+                <tbody>
+                    @foreach (var p in Products)
+                    {
+                        <tr><td>@p.ProductCode</td><td>@p.Title</td><td>@p.Price.ToString("N0")</td></tr>
+                    }
+                </tbody>
+            </table>
+            <div class="row g-2 mt-2">
+                <div class="col-md-5"><input class="form-control" @bind="NewProdTitle" placeholder="عنوان محصول" /></div>
+                <div class="col-md-3"><input class="form-control" type="number" @bind="NewProdPrice" placeholder="قیمت" /></div>
+                <div class="col-md-4">
+                    <button class="btn btn-hermes w-100" @onclick="AddProductAsync">افزودن محصول</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<CustomerRow> Customers = new();
+    List<ProductRow> Products = new();
+    string NewCustName = "";
+    string NewCustPhone = "";
+    string NewProdTitle = "";
+    decimal NewProdPrice;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    async Task ReloadAsync()
+    {
+        Customers = await Request.Request<CustomerRow>("CustomerList", new { }) ?? new();
+        Products = await Request.Request<ProductRow>("ProductList", new { }) ?? new();
+    }
+
+    async Task AddCustomerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewCustName)) { await Alert.ShowErrorAsync("امکانات", "نام مشتری الزامی است"); return; }
+        try
+        {
+            await Request.Request<object>("CustomerUpsert", new
+            {
+                CustomerId = 0,
+                CustomerCode = (string?)null,
+                FullName = NewCustName,
+                Phone = NewCustPhone,
+                Email = (string?)null,
+                IsActive = true
+            }, isExec: true);
+            NewCustName = ""; NewCustPhone = "";
+            await ReloadAsync();
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("امکانات", ex.Message); }
+    }
+
+    async Task AddProductAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewProdTitle)) { await Alert.ShowErrorAsync("امکانات", "عنوان محصول الزامی است"); return; }
+        try
+        {
+            await Request.Request<object>("ProductUpsert", new
+            {
+                ProductId = 0,
+                ProductCode = (string?)null,
+                Title = NewProdTitle,
+                ItemCode = (string?)null,
+                Price = NewProdPrice,
+                IsActive = true
+            }, isExec: true);
+            NewProdTitle = ""; NewProdPrice = 0;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("امکانات", ex.Message); }
+    }
+}

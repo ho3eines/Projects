@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -94,6 +94,29 @@ namespace BlazorDeployService.Services
 
                 /// <summary>APIKey تنظیم‌شده در appsettings — برای کامپوننت‌هایی مثل CKEditor</summary>
                 string APIKey { get; }
+
+        // ===================== LEGACY API (Hermes v1 compatibility) =====================
+        // Kept so existing clients (accounting, central-client, and the 7-product
+        // clients) compile against the v2 transport. Implemented in RequestServiceCompat.cs.
+
+        /// <summary>Legacy: named-script query or exec.</summary>
+        Task<List<T>?> Request<T>(string scriptName, object? parameters = null, bool isExec = false,
+            string? connectionstring = null, string userCode = "") where T : class;
+
+        /// <summary>Legacy: named-script query (alias of RunScriptAsync).</summary>
+        Task<List<T>> GetData<T>(string sql, object parameters = null) where T : class;
+
+        /// <summary>Legacy no-op (PDF printing was client-side only).</summary>
+        Task PrintToPdf(string reportPath, System.Data.DataTable dt);
+
+        /// <summary>Legacy: stores a user/login token; also ends the session when null.</summary>
+        void SetUserToken(string? token);
+
+        /// <summary>Legacy: current session token (or stored token before login).</summary>
+        string? UserToken { get; }
+
+        /// <summary>Legacy: logs the current project in and returns a session-shaped result.</summary>
+        Task<HermesLoginResult?> LoginAsync(string username, string password);
     }
 
     #endregion
@@ -105,7 +128,7 @@ namespace BlazorDeployService.Services
     /// HMAC-SHA256 signature + Timestamp (ضد replay) + ProjectGuid + UserId اختیاری
     /// + ارسال ModelSchemaInfo برای ساخت خودکار جدول/ستون در سرور
     /// </summary>
-    public sealed class RequestService : IRequestService
+    public sealed partial class RequestService : IRequestService
     {
         private readonly HttpClient _http;
                 private readonly AppSettings _settings;
@@ -160,7 +183,7 @@ namespace BlazorDeployService.Services
 
         public Task<List<T>> RunScriptAsync<T>(
             string scriptName, object? parameters = null, Guid? userId = null, CancellationToken ct = default)
-            => SendAsync<List<T>>("script", scriptName, parameters, userId, model: null, ct: ct);
+            => SendAsync<List<T>>("script", scriptName, parameters, userId, model: null, ct: ct, isScript: true);
 
         // ===================== INTERNALS =====================
 
@@ -188,11 +211,13 @@ namespace BlazorDeployService.Services
             Guid? userId = null,
             object? model = null,
             DeployRequestPayload? payload = null,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            bool isScript = false)
         {
             payload ??= new DeployRequestPayload
             {
-                Tsql = tsql!,
+                Tsql = isScript ? null! : tsql!,
+                ScriptName = isScript ? tsql : null,
                 Model = model is null ? null : SchemaReflector.Extract(model.GetType()),
                 Parameters = parameters is null ? null : ToDictionary(parameters),
                 ProjectGuid = ResolveProjectGuid(),
@@ -282,7 +307,10 @@ namespace BlazorDeployService.Services
 
         private Guid ResolveProjectGuid()
                 {
-                    // از storage محلی خوانده می‌شود — هر پروژه همان guid ثبت‌شده در webapi را دارد
+                    // ۱) اول از appsettings — هر پروژه guid ثابت خودش را دارد
+                    if (Guid.TryParse(_settings.ApiSettings.ProjectGuid, out var fromConfig))
+                        return fromConfig;
+                    // ۲) بعد از storage محلی (سازگاری با اجراهای قبلی)
                     var cached = _storage.GetLocalAsync<string>("hermes:project-guid").GetAwaiter().GetResult();
                     if (Guid.TryParse(cached, out var g)) return g;
                     var fresh = Guid.NewGuid();

@@ -1,0 +1,47 @@
+@page "/special"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>عملیات ویژه — حقوق و دستمزد</PageTitle>
+
+<h1 class="h-page-title">عملیات ویژه</h1>
+<p class="h-lead mb-4">محاسبه و نهایی‌کردن دوره حقوق — با انتشار PayrollFinalized
+(پست GL در حسابداری و انتقال وجه در خزانه، به‌صورت خودکار و idempotent).</p>
+
+<div class="h-card h-card-pad">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" for="period">دوره (مثال: 1405-05)</label>
+            <input id="period" class="form-control" @bind="Period" placeholder="1405-05" />
+        </div>
+        <div class="col-md-4">
+            <button class="btn btn-hermes w-100" @onclick="FinalizeAsync" disabled="@Busy">محاسبه و نهایی‌کردن</button>
+        </div>
+        @if (Message.Length > 0)
+        {
+            <div class="col-md-8"><div class="alert @(Error ? "alert-danger" : "alert-success") mb-0">@Message</div></div>
+        }
+    </div>
+</div>
+
+@code {
+    string Period = "";
+    string Message = "";
+    bool Error;
+    bool Busy;
+
+    async Task FinalizeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Period)) { await Alert.ShowErrorAsync("حقوق", "دوره را وارد کنید"); return; }
+        Busy = true;
+        Message = "";
+        Error = false;
+        try
+        {
+            await Request.Request<object>("PayrollFinalize", new { Period, CreatedBy = Request.UserToken }, isExec: true);
+            Message = $"دوره {Period} نهایی شد؛ رویداد PayrollFinalized منتشر و توسط حسابداری و خزانه مصرف شد.";
+        }
+        catch (Exception ex) { Error = true; Message = ex.Message; }
+        finally { Busy = false; }
+    }
+}

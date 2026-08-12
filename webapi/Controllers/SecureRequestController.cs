@@ -229,10 +229,15 @@ public class SecureRequestController : ControllerBase
 
     private async Task<object> ExecuteScriptAsync(DeployRequestPayloadDto payload, ServerSession session)
     {
-        var rel = (payload.ScriptName ?? string.Empty).Replace(".sql", "", StringComparison.OrdinalIgnoreCase);
+        // ScriptName may be empty when the client sends it as Tsql (legacy RunScriptAsync).
+        var scriptName = payload.ScriptName ?? payload.Tsql;
+        var rel = (scriptName ?? string.Empty).Replace(".sql", "", StringComparison.OrdinalIgnoreCase);
         var safeName = Path.GetFileName(rel);
+        var schema = string.IsNullOrWhiteSpace(session.Schema) ? "dbo" : SanitizeIdentifier(session.Schema);
         var candidates = new[]
         {
+            // per-schema layout: Data/Scripts/{schema}/{name}.sql (7-product platform)
+            Path.Combine(_cfg.ScriptsRoot!, schema, $"{safeName}.sql"),
             Path.Combine(_cfg.ScriptsRoot!, $"{safeName}.sql"),
             Path.Combine(_cfg.ScriptsRoot!, "admin", $"{safeName}.sql"),
             Path.Combine(_cfg.ScriptsRoot!, "shared", $"{safeName}.sql")

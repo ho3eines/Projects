@@ -1,0 +1,78 @@
+@page "/reports"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>گزارشات — فروشگاه اینترنتی</PageTitle>
+
+<h1 class="h-page-title">گزارشات فروشگاه</h1>
+<p class="h-lead mb-4">لیست سفارش‌ها با اقلام.</p>
+
+<div class="h-card h-card-pad mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" for="from">از تاریخ</label>
+            <input id="from" type="date" class="form-control" @bind="From" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="to">تا تاریخ</label>
+            <input id="to" type="date" class="form-control" @bind="To" />
+        </div>
+        <div class="col-md-4">
+            <button class="btn btn-hermes w-100" @onclick="LoadAsync">اجرا</button>
+        </div>
+    </div>
+</div>
+
+<div class="h-card">
+    <table class="h-table">
+        <thead>
+            <tr><th>سفارش</th><th>تاریخ</th><th>مشتری</th><th>قلم</th><th>تعداد</th><th>فی</th><th>وضعیت</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Rows)
+            {
+                <tr>
+                    <td>@r.OrderNumber</td>
+                    <td>@r.OrderDate.ToString("yyyy/MM/dd")</td>
+                    <td>@r.CustomerName</td>
+                    <td>@r.ProductTitle</td>
+                    <td>@r.Qty.ToString("N0")</td>
+                    <td>@r.UnitPrice.ToString("N0")</td>
+                    <td>@r.Status</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    List<OrderLineRow> Rows = new();
+    DateTime From = DateTime.Today.AddMonths(-1);
+    DateTime To = DateTime.Today;
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            Rows = await Request.Request<OrderLineRow>("OrderListReport", new
+            {
+                FromDate = From,
+                ToDate = To,
+                Status = (string?)null
+            }) ?? new();
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("گزارش", ex.Message); }
+    }
+
+    public class OrderLineRow
+    {
+        public string OrderNumber { get; set; } = "";
+        public DateTime OrderDate { get; set; }
+        public string CustomerName { get; set; } = "";
+        public string ProductTitle { get; set; } = "";
+        public decimal Qty { get; set; }
+        public decimal UnitPrice { get; set; }
+        public string Status { get; set; } = "";
+        public decimal TotalAmount { get; set; }
+    }
+}

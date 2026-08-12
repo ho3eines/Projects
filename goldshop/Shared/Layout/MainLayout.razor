@@ -1,0 +1,75 @@
+@inherits LayoutComponentBase
+@inject IRequestService Request
+@inject IThemeService Theme
+@inject IModalService ModalService
+@inject IClientStorageService Storage
+@inject NavigationManager Nav
+
+<div class="h-app">
+    <aside class="h-sidebar">
+        <a class="h-brand" href="/">
+            <div class="h-brand-mark">ط</div>
+            <div>
+                <strong>طلافروشی</strong>
+                <small>Hermes GoldShop</small>
+            </div>
+        </a>
+
+        <div class="h-nav-label">عملیات</div>
+        <nav class="h-nav">
+            <NavLink href="/" Match="NavLinkMatch.All">اسناد روز</NavLink>
+            <NavLink href="/dashboard">داشبورد</NavLink>
+            <NavLink href="/entry">ورود عملیات</NavLink>
+            <NavLink href="/special">عملیات ویژه</NavLink>
+            <NavLink href="/reports">گزارشات</NavLink>
+            <NavLink href="/settings">امکانات</NavLink>
+        </nav>
+
+        <div class="h-sidebar-foot">
+            <a class="btn btn-sm btn-outline-light w-100 mb-2" href="@CentralUrl">بازگشت به مرکز</a>
+            <div class="h-user-chip">
+                <div class="h-avatar">@Initial</div>
+                <div>
+                    <div style="font-weight:600">@DisplayName</div>
+                    <small style="color:#9bb0c3">@(LoggedIn ? "نشست فعال" : "بدون توکن")</small>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="h-main">
+        <header class="h-topbar">
+            <div>
+                <div class="h-page-title" style="font-size:1.05rem">نرم‌افزار طلافروشی</div>
+                <div class="h-lead" style="font-size:.8rem">داده فقط با اسکریپت نام‌دار — schema قفل‌شده روی goldshop</div>
+            </div>
+            <ThemeSelector />
+        </header>
+        <main class="h-content">
+            @if (!LoggedIn)
+            {
+                <div class="alert alert-warning">
+                    توکن کاربر نیست.
+                    <a href="@CentralLogin">از کلاینت مرکزی وارد شوید</a>
+                </div>
+            }
+            @Body
+        </main>
+    </div>
+</div>
+<Modal />
+
+@code {
+    string DisplayName = "کاربر";
+    string Initial => string.IsNullOrWhiteSpace(DisplayName) ? "ک" : DisplayName[..1];
+    bool LoggedIn => !string.IsNullOrEmpty(Request.UserToken);
+    string CentralUrl => HermesApps.Open(HermesApps.Central, Request.UserToken);
+    string CentralLogin => HermesApps.Central.TrimEnd('/') + "/login";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Theme.InitializeAsync();
+        await ModalService.InitializeAsync();
+        DisplayName = await Storage.GetLocalAsync<string>("hermes_user_name") ?? "کاربر";
+    }
+}

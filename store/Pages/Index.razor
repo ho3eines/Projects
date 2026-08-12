@@ -1,0 +1,125 @@
+@page "/"
+@inject IRequestService Request
+@inject IAlertService Alert
+@inject ISqlService Sql
+
+<PageTitle>سفارش‌های روز — فروشگاه اینترنتی</PageTitle>
+
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h1 class="h-page-title">سفارش‌های روز</h1>
+        <p class="h-lead">وضعیت سفارش‌ها (ساگا: رزرو انبار → فاکتور حسابداری → نقد خزانه).</p>
+    </div>
+    <a class="btn btn-hermes" href="/entry">ثبت سفارش جدید</a>
+</div>
+
+<div class="h-card h-card-pad mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label" for="from">از تاریخ</label>
+            <PersianDatePicker @bind-Value="FromUnix" Placeholder="از تاریخ" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="to">تا تاریخ</label>
+            <PersianDatePicker @bind-Value="ToUnix" Placeholder="تا تاریخ" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="q">جستجو</label>
+            <input id="q" class="form-control" @bind="Search" placeholder="شماره سفارش یا مشتری" />
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-hermes w-100" @onclick="LoadAsync" disabled="@Loading">اعمال فیلتر</button>
+        </div>
+    </div>
+</div>
+
+<div class="h-card">
+    @if (Loading)
+    {
+        <div class="h-card-pad placeholder-glow">
+            <div class="placeholder col-12" style="height:2.6rem"></div>
+            <div class="placeholder col-12 mt-2" style="height:2.6rem"></div>
+        </div>
+    }
+    else if (Rows.Count == 0)
+    {
+        <div class="h-card-pad text-muted">سفارشی در این بازه نیست.</div>
+    }
+    else
+    {
+        <table class="h-table">
+            <thead>
+                <tr>
+                    <th>شماره</th><th>تاریخ</th><th>مشتری</th><th>اقلام</th><th>مبلغ</th><th>وضعیت</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Rows)
+                {
+                    <tr>
+                        <td>@r.OrderNumber</td>
+                        <td>@r.OrderDate.ToString("yyyy/MM/dd")</td>
+                        <td>@r.CustomerName</td>
+                        <td>@r.ItemCount</td>
+                        <td>@r.TotalAmount.ToString("N0")</td>
+                        <td><span class="h-badge @StatusClass(r.Status)">@StatusFa(r.Status)</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    List<OrderRow> Rows = new();
+    bool Loading = true;
+    string Search = "";
+    long? FromUnix;
+    long? ToUnix;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Today;
+        FromUnix = Sql.DateTimeToUnixTime(today);
+        ToUnix = Sql.DateTimeToUnixTime(today.AddDays(1).AddSeconds(-1));
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        Loading = true;
+        try
+        {
+            var from = FromUnix.HasValue ? Sql.UnixTimeToDateTime(FromUnix.Value).Date : DateTime.Today;
+            var to = ToUnix.HasValue ? Sql.UnixTimeToDateTime(ToUnix.Value).Date : DateTime.Today;
+            Rows = await Request.Request<OrderRow>("DailyOrders", new
+            {
+                FromDate = from,
+                ToDate = to,
+                SearchText = Search ?? "",
+                Status = (string?)null,
+                SkipRows = 0,
+                TakeSize = 50
+            }) ?? new();
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("فروشگاه", ex.Message); }
+        finally { Loading = false; }
+    }
+
+    static string StatusFa(string s) => s switch
+    {
+        "Placed" => "ثبت‌شده",
+        "Reserved" => "رزرو شده",
+        "Invoiced" => "فاکتور شده",
+        "Rejected" => "رد شده",
+        "Cancelled" => "لغو شده",
+        _ => s
+    };
+
+    static string StatusClass(string s) => s switch
+    {
+        "Reserved" or "Invoiced" => "live",
+        "Rejected" or "Cancelled" => "danger",
+        _ => "wait"
+    };
+}

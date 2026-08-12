@@ -103,12 +103,23 @@ public class AuthController : ControllerBase
             "SELECT * FROM [dbo].[Projects] WHERE ProjectGuid = @guid", new { guid = projectGuid });
     }
 
+    /// <summary>
+    /// Decrypts the client loginToken. The Blazor WASM client encrypts with
+    /// AES-256-CBC (PKCS7): key = SHA256(UTF8(key)), random 16-byte IV prepended
+    /// to the ciphertext, all Base64 (see blazordeployservice/wwwroot/js/interop.js).
+    /// </summary>
     private static string DecryptAes(string base64, string key)
     {
-        var cipher = Convert.FromBase64String(base64);
+        var full = Convert.FromBase64String(base64);
+        if (full.Length <= 16)
+            throw new InvalidOperationException("Invalid token payload");
+
+        var iv = full[..16];
+        var cipher = full[16..];
+
         using var aes = Aes.Create();
-        aes.Key = Encoding.UTF8.GetBytes(key.PadRight(32).Substring(0, 32));
-        aes.IV = new byte[16];
+        aes.Key = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+        aes.IV = iv;
         aes.Mode = CipherMode.CBC;
         aes.Padding = PaddingMode.PKCS7;
         using var dec = aes.CreateDecryptor();

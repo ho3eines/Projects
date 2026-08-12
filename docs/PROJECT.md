@@ -9,6 +9,14 @@
 
 A **modular ERP ecosystem**: one central Blazor WASM client manages all company projects; every product (accounting, inventory, store, ...) is a **Client-only Blazor WASM app**; all data flows through a **single shared WebAPI** that executes **named TSQL scripts**; every project owns its **own DB schema**.
 
+> 📋 **Platform spec (7 products)**: `docs/PLATFORM_PRD.md` (PRD نسخهٔ هرمس، دوزبانه)
+> 🗺️ **Implementation plan / backlog**: `docs/PLATFORM_ROADMAP.md`
+> 🧩 **Architecture decisions**: `docs/adr/` (ADR-001 single webapi · ADR-002 outbox/audit · ADR-003 contracts & tests)
+>
+> هفت محصول: حسابداری (`accounting`, موجود) · انبار آمل (`inventory`, فاز ۱) · خزانه‌داری
+> (`treasury`, فاز ۲) · حقوق و دستمزد (`payroll`, فاز ۳) · طلافروشی (`goldshop`, فاز ۴) ·
+> فروشگاه اینترنتی (`store`, فاز ۵) · پلتفرم مشترک (`central-client` + `webapi` + `share`, فاز ۰).
+
 ---
 
 ## 🗂️ Directory Layout
@@ -126,7 +134,11 @@ central-client ──(login, user token)──► [project]-client
 
 ## 🎯 گام بعدی (Todo)
 
+وضعیت: **۵ محصول جدید + پلتفرم (فاز ۰) پیاده‌سازی‌شده** (ببینید `docs/PLATFORM_ROADMAP.md`).
+- [ ] اجرای `docker compose up --build` و `dotnet test` در محیط دارای دسترسی به NuGet (تأیید نهایی)
+- [ ] حسابداری: تحقیق گزارشات → طراحی مدلها → صفحات Entry/Reports کامل
+- [ ] بک‌لاگ P0-08: `/metrics`، feature flags، توکن ۱۵ دقیقه‌ای + refresh rotation، TDE/TLS
+- [ ] بک‌لاگ P6: DAST، اجرای سخت‌گیرانهٔ E2E (<8s)، تصمیم GitOps (ADR-004)
 - [ ] انتقال و بهروزرسانی `DataGridView` به `blazordeployservice`
 - [ ] سرویسهای `ModalService`, `ThemeService`, `TranslateService` عمومی در `blazordeployservice`
-- [ ] پروژه حسابداری: تحقیق گزارشات → طراحی مدلها → صفحات Entry/Reports/Settings
 - [ ] ویجتهای مرکزی برای وبسایت شرکت

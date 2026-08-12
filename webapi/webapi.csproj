@@ -15,4 +15,7 @@
   <ItemGroup>
     <Watch Include="**\*.razor" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Data\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

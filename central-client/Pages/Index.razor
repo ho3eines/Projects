@@ -13,14 +13,14 @@
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="h-card h-stat">
-            <div><div class="k">پروژه فعال</div><div class="v">۱</div></div>
+            <div><div class="k">پروژه فعال</div><div class="v">۶</div></div>
             <div class="h-stat-ico">▣</div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="h-card h-stat">
-            <div><div class="k">در صف توسعه</div><div class="v">۲</div></div>
-            <div class="h-stat-ico">◌</div>
+            <div><div class="k">پلتفرم مشترک</div><div class="v">۱</div></div>
+            <div class="h-stat-ico">◈</div>
         </div>
     </div>
     <div class="col-md-4">
@@ -39,35 +39,68 @@
                 <span class="h-badge live">فعال</span>
             </div>
             <h4 class="mb-0">حسابداری</h4>
-            <p class="h-lead">اسناد، گزارش‌ها، سال مالی و جداول پایه. Schema: accounting</p>
-            <a class="btn btn-hermes mt-auto" href="@AccountingUrl" target="_blank">ورود به حسابداری</a>
+            <p class="h-lead">اسناد، حساب کل/معین، قوانین مالیاتی. Schema: accounting</p>
+            <a class="btn btn-hermes mt-auto" href="@Url(HermesApps.Accounting)" target="_blank">ورود به حسابداری</a>
         </article>
     </div>
     <div class="col-md-4">
         <article class="h-card h-project">
             <div class="d-flex justify-content-between">
                 <div class="h-project-ico">📦</div>
-                <span class="h-badge wait">به‌زودی</span>
+                <span class="h-badge live">فعال</span>
             </div>
-            <h4 class="mb-0">انبار</h4>
-            <p class="h-lead">کالا، رسید و حواله. همان handshake با Guid جدا.</p>
-            <button class="btn btn-outline-secondary mt-auto" disabled>هنوز منتشر نشده</button>
+            <h4 class="mb-0">انبار آمل</h4>
+            <p class="h-lead">رسید/حواله، کارتکس، انبارگردانی، رزرو موجودی. Schema: inventory</p>
+            <a class="btn btn-hermes mt-auto" href="@Url(HermesApps.Inventory)" target="_blank">ورود به انبار</a>
+        </article>
+    </div>
+    <div class="col-md-4">
+        <article class="h-card h-project">
+            <div class="d-flex justify-content-between">
+                <div class="h-project-ico">💰</div>
+                <span class="h-badge live">فعال</span>
+            </div>
+            <h4 class="mb-0">خزانه‌داری</h4>
+            <p class="h-lead">دریافت/پرداخت، بانک‌ها و صندوق‌ها، نرخ ارز. Schema: treasury</p>
+            <a class="btn btn-hermes mt-auto" href="@Url(HermesApps.Treasury)" target="_blank">ورود به خزانه</a>
+        </article>
+    </div>
+    <div class="col-md-4">
+        <article class="h-card h-project">
+            <div class="d-flex justify-content-between">
+                <div class="h-project-ico">👥</div>
+                <span class="h-badge live">فعال</span>
+            </div>
+            <h4 class="mb-0">حقوق و دستمزد</h4>
+            <p class="h-lead">پرسنل، اقلام حقوق، فیش، انتقال به حسابداری و خزانه. Schema: payroll</p>
+            <a class="btn btn-hermes mt-auto" href="@Url(HermesApps.Payroll)" target="_blank">ورود به حقوق</a>
+        </article>
+    </div>
+    <div class="col-md-4">
+        <article class="h-card h-project">
+            <div class="d-flex justify-content-between">
+                <div class="h-project-ico">🥇</div>
+                <span class="h-badge live">فعال</span>
+            </div>
+            <h4 class="mb-0">مدیریت طلافروشی</h4>
+            <p class="h-lead">فاکتور فروش طلا، اجرت/سود/مالیات، قیمت روز. Schema: goldshop</p>
+            <a class="btn btn-hermes mt-auto" href="@Url(HermesApps.GoldShop)" target="_blank">ورود به طلافروشی</a>
         </article>
     </div>
     <div class="col-md-4">
         <article class="h-card h-project">
             <div class="d-flex justify-content-between">
                 <div class="h-project-ico">🏪</div>
-                <span class="h-badge wait">به‌زودی</span>
+                <span class="h-badge live">فعال</span>
             </div>
-            <h4 class="mb-0">فروشگاه</h4>
-            <p class="h-lead">فروش و صندوق. اتصال از همین مرکز با توکن کاربر.</p>
-            <button class="btn btn-outline-secondary mt-auto" disabled>هنوز منتشر نشده</button>
+            <h4 class="mb-0">فروشگاه اینترنتی</h4>
+            <p class="h-lead">سبد خرید، سفارش → رزرو انبار → فاکتور → نقد. Schema: store</p>
+            <a class="btn btn-hermes mt-auto" href="@Url(HermesApps.Store)" target="_blank">ورود به فروشگاه</a>
         </article>
     </div>
 </div>
 
 @code {
     bool LoggedIn => !string.IsNullOrEmpty(Request.UserToken);
-    string AccountingUrl => HermesApps.Open(HermesApps.Accounting, Request.UserToken);
+    string Url(string app) => HermesApps.Open(app, Request.UserToken);
 }

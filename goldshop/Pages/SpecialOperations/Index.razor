@@ -1,0 +1,79 @@
+@page "/special"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>عملیات ویژه — طلافروشی</PageTitle>
+
+<h1 class="h-page-title">عملیات ویژه</h1>
+<p class="h-lead mb-4">ثبت قیمت روز طلا — پس از ثبت، رویداد GoldPriceUpdated برای
+حسابداری و فروشگاه منتشر می‌شود (Pub/Sub).</p>
+
+<div class="h-card h-card-pad">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label" for="item">جنس</label>
+            <select id="item" class="form-select" @bind="ItemCode">
+                <option value="">— انتخاب —</option>
+                @foreach (var g in Items) { <option value="@g.ItemCode">@g.Title</option> }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="price">قیمت هر گرم (ریال)</label>
+            <input id="price" type="number" step="1000" min="0" class="form-control" @bind="PricePerGram" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="rate">نرخ ارز مرجع (اختیاری)</label>
+            <input id="rate" type="number" step="1000" min="0" class="form-control" @bind="RateToIRR" />
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-hermes w-100" @onclick="SaveAsync" disabled="@Busy">ثبت قیمت</button>
+        </div>
+        @if (Message.Length > 0) { <div class="col-12"><div class="alert alert-success mb-0">@Message</div></div> }
+    </div>
+</div>
+
+@code {
+    List<GoldItemRow> Items = new();
+    string ItemCode = "";
+    decimal PricePerGram;
+    decimal? RateToIRR;
+    string Message = "";
+    bool Busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Items = await Request.Request<GoldItemRow>("GoldItemList", new { }) ?? new();
+        var price = (await Request.Request<GoldPriceRow>("GoldPriceSearch", new { SkipRows = 0, TakeSize = 10 }))?.FirstOrDefault();
+        if (price is not null)
+        {
+            ItemCode = price.ItemCode;
+            PricePerGram = price.PricePerGram;
+            RateToIRR = price.RateToIRR;
+        }
+    }
+
+    async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ItemCode) || PricePerGram <= 0)
+        {
+            await Alert.ShowErrorAsync("قیمت طلا", "جنس و قیمت را وارد کنید");
+            return;
+        }
+        Busy = true;
+        Message = "";
+        try
+        {
+            var title = Items.FirstOrDefault(i => i.ItemCode == ItemCode)?.Title ?? ItemCode;
+            await Request.Request<object>("GoldPriceUpsert", new
+            {
+                ItemCode,
+                Title = title,
+                PricePerGram,
+                RateToIRR
+            }, isExec: true);
+            Message = $"قیمت {title} ثبت و رویداد GoldPriceUpdated منتشر شد.";
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("قیمت طلا", ex.Message); }
+        finally { Busy = false; }
+    }
+}

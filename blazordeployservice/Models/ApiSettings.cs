@@ -19,6 +19,9 @@ namespace BlazorDeployService.Models
 
         /// <summary>Registered project identity. Required when Protocol=Hermes.</summary>
         public string ProjectGuid { get; set; } = string.Empty;
+
+        /// <summary>Dev login token used by the legacy compatibility login (v2 flow).</summary>
+        public string LoginToken { get; set; } = "hermes-admin";
     }
 
     public class EncryptionSettings

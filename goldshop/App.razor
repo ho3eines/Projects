@@ -1,0 +1,42 @@
+@namespace Goldshop
+@inject NavigationManager Nav
+@inject IRequestService Request
+@inject IClientStorageService Storage
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Goldshop.Shared.Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Goldshop.Shared.Layout.MainLayout)">
+            <h1 class="text-danger">صفحه یافت نشد</h1>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(Nav.Uri);
+        var q = uri.Query.TrimStart('?');
+        string? fromUrl = null;
+        foreach (var part in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length == 2 && kv[0].Equals("token", StringComparison.OrdinalIgnoreCase))
+                fromUrl = Uri.UnescapeDataString(kv[1]);
+        }
+
+        if (!string.IsNullOrWhiteSpace(fromUrl))
+        {
+            Request.SetUserToken(fromUrl);
+            await Storage.SetLocalAsync("hermes_user_token", fromUrl);
+            return;
+        }
+
+        var saved = await Storage.GetLocalAsync<string>("hermes_user_token");
+        if (!string.IsNullOrWhiteSpace(saved))
+            Request.SetUserToken(saved);
+    }
+}

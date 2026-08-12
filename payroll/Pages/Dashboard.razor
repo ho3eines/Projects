@@ -1,0 +1,41 @@
+@page "/dashboard"
+@inject IRequestService Request
+
+<PageTitle>داشبورد — حقوق و دستمزد</PageTitle>
+
+<h1 class="h-page-title mb-1">نمای کلی حقوق</h1>
+<p class="h-lead mb-4">پرسنل، دوره‌ها و جمع پرداختی.</p>
+
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">پرسنل فعال</div><div class="v">@S.ActiveEmployees</div></div>
+            <div class="h-stat-ico">👥</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">دوره‌های ثبت‌شده</div><div class="v">@S.TotalRuns</div></div>
+            <div class="h-stat-ico">🗓</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">جمع پرداختی</div><div class="v" style="font-size:1.05rem;padding-top:.4rem">@S.TotalPaid.ToString("N0")</div></div>
+            <div class="h-stat-ico">﷼</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">آخرین دوره</div><div class="v" style="font-size:1.1rem;padding-top:.35rem">@(S.LatestPeriod ?? "—")</div></div>
+            <div class="h-stat-ico">✓</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    DashboardSummaryRow S = new();
+
+    protected override async Task OnInitializedAsync()
+        => S = (await Request.Request<DashboardSummaryRow>("DashboardSummary", new { }))?.FirstOrDefault() ?? new();
+}

@@ -45,3 +45,50 @@ BEGIN
     );
     CREATE INDEX IX_Sessions_ExpiresAt ON [central].[Sessions](ExpiresAt);
 END
+
+-- Audit trail (PRD §5, ADR-002): hash-chained, tamper-evident.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'AuditLog')
+BEGIN
+    CREATE TABLE [central].[AuditLog] (
+        AuditId     BIGINT IDENTITY(1,1) PRIMARY KEY,
+        PrevHash    CHAR(64) NOT NULL,
+        RowHash     CHAR(64) NOT NULL,
+        SchemaName  NVARCHAR(100) NOT NULL,
+        ScriptName  NVARCHAR(200) NOT NULL,
+        Parameters  NVARCHAR(MAX) NULL,
+        UserTokenId NVARCHAR(100) NULL,
+        RequestId   NVARCHAR(100) NULL,
+        Outcome     NVARCHAR(20) NOT NULL DEFAULT N'Success',
+        Error       NVARCHAR(MAX) NULL,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_AuditLog_CreatedAt ON [central].[AuditLog](CreatedAt);
+    CREATE INDEX IX_AuditLog_Schema ON [central].[AuditLog](SchemaName, CreatedAt);
+END
+
+-- Contract: Party (Core owner) — v2 adds NationalId.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'Parties')
+BEGIN
+    CREATE TABLE [central].[Parties] (
+        PartyId     INT IDENTITY(1,1) PRIMARY KEY,
+        PartyCode   NVARCHAR(50) NOT NULL UNIQUE,
+        PartyType   NVARCHAR(30) NOT NULL DEFAULT N'Customer',   -- Customer | Vendor | Employee
+        FullName    NVARCHAR(200) NOT NULL,
+        NationalId  NVARCHAR(20) NULL,                            -- v2 field
+        Phone       NVARCHAR(30) NULL,
+        Email       NVARCHAR(120) NULL,
+        IsActive    BIT NOT NULL DEFAULT 1,
+        IsDeleted   BIT NOT NULL DEFAULT 0,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt   DATETIME2 NULL,
+        CreatedBy   NVARCHAR(100) NULL,
+        UpdatedBy   NVARCHAR(100) NULL
+    );
+    CREATE INDEX IX_Parties_Type ON [central].[Parties](PartyType, IsDeleted);
+END
