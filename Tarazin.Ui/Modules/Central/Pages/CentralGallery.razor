@@ -41,12 +41,12 @@
             <MudTd DataLabel="توضیح">@context.Caption</MudTd>
             <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">آیتمی نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">آیتمی نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

@@ -18,8 +18,8 @@
             <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="string" Label="نوع" @bind-Value="_type" Variant="Variant.Outlined">
-                <MudSelectItem Value="">— نوع —</MudSelectItem>
+            <MudSelect T="string?" Label="نوع" @bind-Value="_type" Variant="Variant.Outlined">
+                <MudSelectItem Value="@null">— نوع —</MudSelectItem>
                 <MudSelectItem Value="Asset">دارایی</MudSelectItem>
                 <MudSelectItem Value="Liability">بدهی</MudSelectItem>
                 <MudSelectItem Value="Equity">سرمایه</MudSelectItem>
@@ -48,12 +48,12 @@
             <MudTd DataLabel="عنوان">@context.Title</MudTd>
             <MudTd DataLabel="نوع">@context.AccountType</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">حسابی نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">حسابی نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 
@@ -66,7 +66,7 @@
     private bool _busy;
     private string _code = "";
     private string _title = "";
-    private string _type = "";
+    private string? _type;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -116,7 +116,7 @@
             Snackbar.Add("حساب ذخیره شد.", Severity.Success);
             _code = "";
             _title = "";
-            _type = "";
+            _type = null;
             await LoadAsync();
         }
         catch (Exception ex)

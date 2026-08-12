@@ -42,12 +42,12 @@
             <MudTd DataLabel="برچسب‌ها">@context.Tags</MudTd>
             <MudTd DataLabel="تاریخ انتشار">@(context.PublishedAt?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">پستی نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">پستی نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

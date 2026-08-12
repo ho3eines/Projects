@@ -83,7 +83,7 @@
             <MudText Typo="Typo.body2">جمع بستانکار: <b>@TotalCredit.ToString("N0")</b></MudText>
         </MudItem>
         <MudItem xs="12">
-            <MudChip Color="@(IsBalanced ? Color.Success : Color.Error)" Size="Size.Small">
+            <MudChip T="string" Color="@(IsBalanced ? Color.Success : Color.Error)" Size="Size.Small">
                 @(IsBalanced ? "✔ متوازن" : "✘ نامتوازن")
             </MudChip>
         </MudItem>

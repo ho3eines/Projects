@@ -18,8 +18,8 @@
             <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudSelect T="string" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined">
-                <MudSelectItem Value="">همه</MudSelectItem>
+            <MudSelect T="string?" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined">
+                <MudSelectItem Value="@null">همه</MudSelectItem>
                 <MudSelectItem Value="Placed">ثبت‌شده</MudSelectItem>
                 <MudSelectItem Value="Reserved">رزروشده</MudSelectItem>
                 <MudSelectItem Value="Invoiced">فاکتورشده</MudSelectItem>
@@ -50,7 +50,7 @@
             <MudTd DataLabel="مبلغ">@context.TotalAmount.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">@context.Status</MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 
@@ -61,7 +61,7 @@
     private List<OrderRow> _rows = new();
     private DateTime? _from;
     private DateTime? _to;
-    private string _status = "";
+    private string? _status;
     private bool _loading;
 
     private async Task LoadAsync()

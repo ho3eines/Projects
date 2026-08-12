@@ -19,11 +19,11 @@
             <MudTd DataLabel="تعداد کارمند">@context.EmployeeCount</MudTd>
             <MudTd DataLabel="خالص کل">@context.NetTotal.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip Size="Size.Small" Color="@(context.Status == "Finalized" ? Color.Success : Color.Default)">@context.Status</MudChip>
+                <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Finalized" ? Color.Success : Color.Default)">@context.Status</MudChip>
             </MudTd>
             <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

@@ -54,7 +54,7 @@
             <MudTd DataLabel="قیمت">@context.Price.ToString("N0")</MudTd>
             <MudTd DataLabel="جمع">@context.LineTotal.ToString("N0")</MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">سبد خالی است.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">سبد خالی است.</MudText></NoRecordsContent>
     </MudTable>
 
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ShoppingCart"

@@ -28,7 +28,7 @@
                     <MudTd DataLabel="قیمت">@context.UnitPrice.ToString("N0")</MudTd>
                     <MudTd DataLabel="ارزش">@context.StockValue.ToString("N0")</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -69,7 +69,7 @@
                     <MudTd DataLabel="ارزش">@context.TotalValue.ToString("N0")</MudTd>
                     <MudTd DataLabel="شرح">@context.Description</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">کارتکسی نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">کارتکسی نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

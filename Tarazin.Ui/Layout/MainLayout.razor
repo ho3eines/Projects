@@ -17,7 +17,7 @@
         <MudSpacer />
         @if (Session.IsAuthenticated)
         {
-            <MudChip Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="me-2">
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="me-2">
                 @Session.DisplayName
             </MudChip>
             <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"

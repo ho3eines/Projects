@@ -44,7 +44,7 @@
                     <MudTd DataLabel="مالیات">@context.Tax.ToString("N0")</MudTd>
                     <MudTd DataLabel="جمع">@context.TotalAmount.ToString("N0")</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></NoRecordsContent>
             </MudTable>
             @if (_sales.Count > 0)
             {
@@ -67,7 +67,7 @@
                     <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
                     <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
                 </RowTemplate>
-                <EmptyContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></EmptyContent>
+                <NoRecordsContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

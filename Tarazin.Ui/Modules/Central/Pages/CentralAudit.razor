@@ -36,12 +36,12 @@
             <MudTd DataLabel="اسکیمه">@context.SchemaName</MudTd>
             <MudTd DataLabel="اسکریپت">@context.ScriptName</MudTd>
             <MudTd DataLabel="نتیجه">
-                <MudChip Size="Size.Small" Color="@(context.Outcome == "Success" ? Color.Success : Color.Error)">@context.Outcome</MudChip>
+                <MudChip T="string" Size="Size.Small" Color="@(context.Outcome == "Success" ? Color.Success : Color.Error)">@context.Outcome</MudChip>
             </MudTd>
             <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
             <MudTd DataLabel="هش" Style="direction:ltr; font-size:.7rem">@context.RowHash[..12]…</MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">رویدادی نیست.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">رویدادی نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

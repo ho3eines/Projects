@@ -40,7 +40,7 @@
             <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
             <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
         </RowTemplate>
-        <EmptyContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></EmptyContent>
+        <NoRecordsContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 
