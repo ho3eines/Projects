@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.Data.SqlClient;
 using WebApi.Models;
+using WebApi.Services;
 
 namespace WebApi.Controllers;
 
@@ -210,30 +211,53 @@ public class SecureRequestController : ControllerBase
 
     private async Task<object> ExecuteQueryAsync(DeployRequestPayloadDto payload, ServerSession session)
     {
+        var sql = await ResolveNamedScriptSqlAsync(payload, session);
         await using var conn = await OpenProjectConnectionAsync(session);
-        var rows = await conn.QueryAsync(payload.Tsql, BuildParams(payload.Parameters));
+        var rows = await conn.QueryAsync(sql, BuildParams(payload.Parameters));
         return rows.ToList();
     }
 
     private async Task<object> ExecuteCommandAsync(DeployRequestPayloadDto payload, ServerSession session)
     {
+        var sql = await ResolveNamedScriptSqlAsync(payload, session);
         await using var conn = await OpenProjectConnectionAsync(session);
-        return await conn.ExecuteAsync(payload.Tsql, BuildParams(payload.Parameters));
+        return await conn.ExecuteAsync(sql, BuildParams(payload.Parameters));
     }
 
     private async Task<object> ExecuteScalarAsync(DeployRequestPayloadDto payload, ServerSession session)
     {
+        var sql = await ResolveNamedScriptSqlAsync(payload, session);
         await using var conn = await OpenProjectConnectionAsync(session);
-        return await conn.ExecuteScalarAsync(payload.Tsql, BuildParams(payload.Parameters));
+        return await conn.ExecuteScalarAsync(sql, BuildParams(payload.Parameters));
     }
 
     private async Task<object> ExecuteScriptAsync(DeployRequestPayloadDto payload, ServerSession session)
     {
+        var sql = await ResolveNamedScriptSqlAsync(payload, session);
+        await using var conn = await OpenProjectConnectionAsync(session);
+        var rows = await conn.QueryAsync(sql, BuildParams(payload.Parameters));
+        return rows.ToList();
+    }
+
+    /// <summary>
+    /// Resolves a client request to the SQL of a *named* script under the
+    /// session's own schema folder. Raw SQL is never executed: query/execute/scalar
+    /// and script all funnel through this single, validated, schema-scoped loader
+    /// (SECURITY.md layer 4 — "named scripts only"; ADR-001 schema lock).
+    /// </summary>
+    private async Task<string> ResolveNamedScriptSqlAsync(DeployRequestPayloadDto payload, ServerSession session)
+    {
         // ScriptName may be empty when the client sends it as Tsql (legacy RunScriptAsync).
-        var scriptName = payload.ScriptName ?? payload.Tsql;
-        var rel = (scriptName ?? string.Empty).Replace(".sql", "", StringComparison.OrdinalIgnoreCase);
+        var scriptName = (payload.ScriptName ?? payload.Tsql ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(scriptName) || !NamedScriptRules.IsSafeScriptName(scriptName))
+            throw new InvalidOperationException("Only named TSQL scripts are allowed");
+
+        var rel = scriptName.Replace(".sql", "", StringComparison.OrdinalIgnoreCase).Replace('\\', '/');
         var safeName = Path.GetFileName(rel);
         var schema = string.IsNullOrWhiteSpace(session.Schema) ? "dbo" : SanitizeIdentifier(session.Schema);
+
+        // Prefer the session's own schema folder; fall back to root/admin/shared only
+        // for scripts that legitimately live outside a product schema.
         var candidates = new[]
         {
             // per-schema layout: Data/Scripts/{schema}/{name}.sql (7-product platform)
@@ -245,10 +269,7 @@ public class SecureRequestController : ControllerBase
         var path = candidates.FirstOrDefault(System.IO.File.Exists);
         if (path is null) throw new FileNotFoundException($"Script not found: {safeName}");
 
-        var sql = await System.IO.File.ReadAllTextAsync(path);
-        await using var conn = await OpenProjectConnectionAsync(session);
-        var rows = await conn.QueryAsync(sql, BuildParams(payload.Parameters));
-        return rows.ToList();
+        return await System.IO.File.ReadAllTextAsync(path);
     }
 
     // ===================== SCHEMA GUARD =====================
@@ -256,50 +277,14 @@ public class SecureRequestController : ControllerBase
     private async Task ProvisionSchemaAsync(ModelSchemaInfoDto model, Guid correlationId, SecurityContext? sec, ServerSession session)
     {
         if (model.Columns.Count == 0) return;
-        var schema = SanitizeIdentifier(model.Schema);
-        var table = SanitizeIdentifier(model.Table);
 
-        await using var conn = await OpenProjectConnectionAsync(session);
-        var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @s AND TABLE_NAME = @t",
-            new { s = schema, t = table });
-
-        if (exists == 0)
-        {
-            // --- CREATE TABLE ---
-            var cols = new StringBuilder();
-            foreach (var c in model.Columns)
-            {
-                var name = SanitizeIdentifier(c.Name);
-                cols.Append($"[{name}] {c.SqlType}");
-                if (c.IsPrimaryKey) cols.Append(" PRIMARY KEY");
-                if (c.IsIdentity) cols.Append(" IDENTITY(1,1)");
-                cols.Append(c.IsRequired ? " NOT NULL" : " NULL");
-                if (c.DefaultExpression is not null) cols.Append($" DEFAULT {c.DefaultExpression}");
-                cols.Append(',');
-            }
-            var ddl = $"CREATE TABLE [{schema}].[{table}] (\n{cols.ToString().TrimEnd(',')}\n);";
-            await conn.ExecuteAsync(ddl);
-            _log.LogInformation("Auto-created table {Schema}.{Table} ({Correlation})", schema, table, correlationId);
-        }
-        else
-        {
-            // --- ALTER ADD missing columns ---
-            foreach (var c in model.Columns)
-            {
-                var name = SanitizeIdentifier(c.Name);
-                var colExists = await conn.ExecuteScalarAsync<int>(
-                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @s AND TABLE_NAME = @t AND COLUMN_NAME = @c",
-                    new { s = schema, t = table, c = name });
-
-                if (colExists == 0)
-                {
-                    var ddl = $"ALTER TABLE [{schema}].[{table}] ADD [{name}] {c.SqlType}{(c.IsRequired ? " NOT NULL" : " NULL")}";
-                    await conn.ExecuteAsync(ddl);
-                    _log.LogInformation("Auto-added column {Schema}.{Table}.{Column} ({Correlation})", schema, table, name, correlationId);
-                }
-            }
-        }
+        // SECURITY: client-driven DDL (table/column auto-provisioning driven by a
+        // WASM-extractable Model + SqlType/DefaultExpression) is DISABLED. It let a
+        // caller inject arbitrary T-SQL through unescaped SqlType/DefaultExpression
+        // and contradicts ADR-001's schema-lock (schemas are owned by _Ensure.sql,
+        // never shaped by the client). Keep the hook so callers get a clear signal.
+        _log.LogWarning("Auto-provisioning is disabled (requested {Schema}.{Table} by {Project}) — schemas are defined by named _Ensure.sql scripts only",
+            SanitizeIdentifier(model.Schema), SanitizeIdentifier(model.Table), sec?.ApiKey ?? "?");
     }
 
     private static string SanitizeIdentifier(string input)

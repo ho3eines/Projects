@@ -1,9 +1,162 @@
 @page "/reports"
+@inject IRequestService Request
+@inject IAlertService Alert
+
 <PageTitle>گزارشات — حسابداری</PageTitle>
-<h1 class="h-page-title">گزارشات</h1>
-<p class="h-lead mb-4">گزارش‌محور: اول فهرست گزارش، بعد مدل.</p>
-<div class="row g-3">
-    <div class="col-md-4"><div class="h-card h-card-pad"><h5>دفتر روزنامه</h5><p class="h-lead mb-0">به‌زودی</p></div></div>
-    <div class="col-md-4"><div class="h-card h-card-pad"><h5>دفتر کل</h5><p class="h-lead mb-0">به‌زودی</p></div></div>
-    <div class="col-md-4"><div class="h-card h-card-pad"><h5>تراز آزمایشی</h5><p class="h-lead mb-0">به‌زودی</p></div></div>
+
+<h1 class="h-page-title">گزارشات حسابداری</h1>
+<p class="h-lead mb-4">دفتر روزنامه، دفتر کل و تراز آزمایشی.</p>
+
+<div class="h-card h-card-pad mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label" for="rep">گزارش</label>
+            <select id="rep" class="form-select" @bind="Report">
+                <option value="daily">دفتر روزنامه</option>
+                <option value="ledger">دفتر کل</option>
+                <option value="trial">تراز آزمایشی</option>
+            </select>
+        </div>
+        @if (Report == "ledger")
+        {
+            <div class="col-md-3">
+                <label class="form-label" for="acc">حساب</label>
+                <select id="acc" class="form-select" @bind="AccountId">
+                    <option value="0">— همهٔ حساب‌ها —</option>
+                    @foreach (var a in Accounts)
+                    {
+                        <option value="@a.AccountId">@a.AccountCode — @a.Title</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="col-md-2">
+            <label class="form-label" for="from">از تاریخ</label>
+            <input id="from" type="date" class="form-control" @bind="From" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="to">تا تاریخ</label>
+            <input id="to" type="date" class="form-control" @bind="To" />
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-hermes w-100" @onclick="LoadAsync">اجرا</button>
+        </div>
+    </div>
 </div>
+
+<div class="h-card">
+    @if (Report == "daily")
+    {
+        <table class="h-table">
+            <thead>
+                <tr><th>تاریخ</th><th>شماره</th><th>طرف حساب</th><th>حساب</th><th>شرح</th><th>بدهکار</th><th>بستانکار</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in DailyBook)
+                {
+                    <tr>
+                        <td>@r.DocumentDate.ToString("yyyy/MM/dd")</td>
+                        <td>@r.DocumentNumber</td>
+                        <td>@r.CounterPartyName</td>
+                        <td>@r.AccountCode — @r.AccountTitle</td>
+                        <td>@r.Description</td>
+                        <td>@r.Debit.ToString("N0")</td>
+                        <td>@r.Credit.ToString("N0")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5">جمع</td>
+                    <td>@DailyBook.Sum(r => r.Debit).ToString("N0")</td>
+                    <td>@DailyBook.Sum(r => r.Credit).ToString("N0")</td>
+                </tr>
+            </tfoot>
+        </table>
+    }
+    else if (Report == "ledger")
+    {
+        <table class="h-table">
+            <thead>
+                <tr><th>کد</th><th>حساب</th><th>بدهکار</th><th>بستانکار</th><th>مانده</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Ledger)
+                {
+                    <tr>
+                        <td>@r.AccountCode</td><td>@r.AccountTitle</td>
+                        <td>@r.Debit.ToString("N0")</td><td>@r.Credit.ToString("N0")</td>
+                        <td>@r.Balance.ToString("N0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <table class="h-table">
+            <thead>
+                <tr><th>کد</th><th>حساب</th><th>نوع</th><th>بدهکار</th><th>بستانکار</th><th>مانده</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Trial)
+                {
+                    <tr>
+                        <td>@r.AccountCode</td><td>@r.AccountTitle</td><td>@r.AccountType</td>
+                        <td>@r.Debit.ToString("N0")</td><td>@r.Credit.ToString("N0")</td>
+                        <td>@r.Balance.ToString("N0")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3">جمع</td>
+                    <td>@Trial.Sum(r => r.Debit).ToString("N0")</td>
+                    <td>@Trial.Sum(r => r.Credit).ToString("N0")</td>
+                    <td>@Trial.Sum(r => r.Balance).ToString("N0")</td>
+                </tr>
+            </tfoot>
+        </table>
+    }
+</div>
+
+@code {
+    List<ChartOfAccountRow> Accounts = new();
+    List<DailyBookRow> DailyBook = new();
+    List<GeneralLedgerRow> Ledger = new();
+    List<TrialBalanceRow> Trial = new();
+    string Report = "daily";
+    int AccountId;
+    DateTime From = DateTime.Today.AddMonths(-1);
+    DateTime To = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Accounts = await Request.Request<ChartOfAccountRow>("ChartOfAccountSearch",
+            new { SearchText = "", SkipRows = 0, TakeSize = 500 }) ?? new();
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            switch (Report)
+            {
+                case "daily":
+                    DailyBook = await Request.Request<DailyBookRow>("DailyBookReport",
+                        new { FromDate = From, ToDate = To }) ?? new();
+                    break;
+                case "ledger":
+                    Ledger = await Request.Request<GeneralLedgerRow>("GeneralLedgerReport",
+                        new { FromDate = From, ToDate = To, AccountId = AccountId == 0 ? (int?)null : AccountId }) ?? new();
+                    break;
+                default:
+                    Trial = await Request.Request<TrialBalanceRow>("TrialBalanceReport",
+                        new { FromDate = From, ToDate = To }) ?? new();
+                    break;
+            }
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("گزارش", ex.Message); }
+    }
+}

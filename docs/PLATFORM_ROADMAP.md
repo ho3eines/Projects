@@ -54,13 +54,17 @@ launcher card to `central-client/Pages/Index.razor`; create
 | P0-06 docker compose | ✅ | `docker-compose.yml` (SQL Server + webapi) + `webapi/Dockerfile` |
 | P0-07 CI + static analysis | ✅ | `ci/ci.yml` (برای فعال‌سازی: انتقال به `.github/workflows/ci.yml` توسط maintainer — توکن GitHub App این sandbox مجوز `workflows` ندارد) + `tools/cross-schema-scan.sh` (اسکن ۸۴ اسکریپت: OK) |
 | v2 سازگاری (2026-08-12) | ✅ | کلاینت‌ها به پروتکل v2 منتقل شدند: `RequestServiceCompat.cs` (API قدیمی روی v2)، رفع `RunScriptAsync`/`ResolveProjectGuid`، رفع دیکریپت loginToken در AuthController، پشتیبانی پوشهٔ per-schema در `ExecuteScriptAsync`، ثبت DI سشن v2، `EnsureDatabaseAsync` در startup، appsettings هفت کلاینت v2، `tools/seed-projects-hermes7.ps1` (ثبت ۷ محصول در `dbo.Projects` → HermesMaster + اسکیمه) |
-| P0-08 Ops hardening | 🔲 بک‌لاگ | metrics، feature flags، refresh-token — برای فاز بعدی |
+| P0-08 Ops hardening | 🔲 بک‌لاگ | metrics، feature flags، refresh rotation (۱۵ دقیقهٔ توکن انجام شد) — بقیه برای فاز بعدی |
 | P1–P5 محصولات | ✅ | انبار، خزانه، حقوق، طلافروشی، فروشگاه — صفحات ۶‌گانه + مدل‌ها + اسکریپت‌ها |
+| تکمیل حسابداری (۲۰۲۶/۰۸/۱۲) | ✅ | Entry (سند روزنامهٔ دومرحله‌ای)، Reports (دفتر روزنامه/کل/تراز آزمایشی)، SpecialOperations (بستن دوره) + جدول `DocumentLines` + اسکریپت‌ها + مدل‌ها |
+| تکمیل central-client (۲۰۲۶/۰۸/۱۲) | ✅ | News / Blog / Gallery — جدول‌ها + اسکریپت‌های List/Upsert + صفحات |
+| Auto-seed پروژه‌ها (۲۰۲۶/۰۸/۱۲) | ✅ | `ProjectSeedInitializer` → ثبت خودکار ۷ پروژه در `dbo.Projects` هنگام startup (تکمیل AC#1 بدون گام دستی) |
 | P6 E2E / hardening | 🔲 بک‌لاگ | تست E2E نوشته شده (AC #2)؛ اجرای سخت‌گیرانهٔ <8s در CI با `HERMES_STRICT_E2E=1`؛ DAST و GitOps برای بعد |
 
 > اجرای محلی: `docker compose up --build` ← پس از بالا آمدن webapi در
-> `http://localhost:65222`، کلاینت‌ها را با `dotnet run` در پوشه هر محصول بالا
-> بیاورید و از central-client (`:65219`) وارد شوید.
+> `http://localhost:65222`، ۷ پروژه به‌صورت خودکار در `dbo.Projects` ثبت می‌شوند؛
+> سپس کلاینت‌ها را با `dotnet run` در پوشه هر محصول بالا بیاورید و از central-client
+> (`:65219`) وارد شوید.
 
 ## 3. Phases & work items
 

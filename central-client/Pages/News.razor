@@ -1,7 +1,76 @@
 @page "/news"
+@inject IRequestService Request
+@inject IAlertService Alert
+
 <PageTitle>اخبار — Hermes</PageTitle>
 <h1 class="h-page-title">اخبار شرکت</h1>
-<p class="h-lead mb-4">ویجت خبر روی سایت مرکزی. محتوا بعداً از اسکریپت‌های schema central خوانده می‌شود.</p>
-<div class="h-card h-card-pad">
-    <p class="mb-0 text-muted">هنوز خبری ثبت نشده. پس از طراحی جدول News، فایل `_Seed.sql` را با چند تیتر نمونه به‌روز کنید.</p>
+<p class="h-lead mb-4">مدیریت اخبار نمایش داده‌شده در وبسایت مرکزی.</p>
+
+<div class="h-card h-card-pad mb-3">
+    <div class="row g-2">
+        <div class="col-md-4"><input class="form-control" @bind="NewTitle" placeholder="عنوان خبر" /></div>
+        <div class="col-md-4"><input class="form-control" @bind="NewSummary" placeholder="خلاصه" /></div>
+        <div class="col-md-2"><input class="form-control" type="date" @bind="NewPublished" /></div>
+        <div class="col-md-2">
+            <button class="btn btn-hermes w-100" @onclick="AddAsync">افزودن خبر</button>
+        </div>
+    </div>
 </div>
+
+<div class="h-card">
+    <table class="h-table">
+        <thead>
+            <tr><th>#</th><th>عنوان</th><th>خلاصه</th><th>تاریخ انتشار</th><th>وضعیت</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var n in News)
+            {
+                <tr>
+                    <td>@n.NewsId</td>
+                    <td>@n.Title</td>
+                    <td>@n.Summary</td>
+                    <td>@(n.PublishedAt?.ToString("yyyy/MM/dd") ?? "-")</td>
+                    <td>@(n.IsActive ? "فعال" : "غیرفعال")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    List<NewsRow> News = new();
+    string NewTitle = "";
+    string NewSummary = "";
+    DateTime? NewPublished = DateTime.Today;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    async Task ReloadAsync()
+        => News = await Request.Request<NewsRow>("NewsList", new { SkipRows = 0, TakeSize = 100 }) ?? new();
+
+    async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewTitle))
+        {
+            await Alert.ShowErrorAsync("اخبار", "عنوان خبر الزامی است");
+            return;
+        }
+        try
+        {
+            await Request.Request<object>("NewsUpsert", new
+            {
+                NewsId = 0,
+                Title = NewTitle,
+                Summary = string.IsNullOrWhiteSpace(NewSummary) ? null : NewSummary,
+                Body = (string?)null,
+                ImageUrl = (string?)null,
+                PublishedAt = NewPublished,
+                IsActive = true,
+                CreatedBy = Request.UserToken
+            }, isExec: true);
+            NewTitle = ""; NewSummary = ""; NewPublished = DateTime.Today;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("اخبار", ex.Message); }
+    }
+}

@@ -29,7 +29,13 @@ Architecture and wire format live in `.agents/hermes-tsql/SKILL.md`. This file i
 | 9 | CORS `AllowAnyOrigin` | Explicit WASM origins |
 | 11 | In-memory sessions only | Persisted to `[central].[Sessions]` (memory fallback if DB down) |
 | 12 | No user identity | `POST /api/auth/login` + `X-User-Token` required |
+| 13 | Raw TSQL on `/api/request/{query\|execute\|scalar}` | All methods now resolve **named scripts only** (`ResolveNamedScriptSqlAsync` + `NamedScriptRules`) — no client SQL is executed (2026-08-12) |
 | 14 | `CHANGE_ME` key | Replaced; still rotate in production |
+| 15 | Cross-schema script path (dot/slash name) in `SystemQueryExecutor` | Schema-scoped resolution + path containment (ADR-001 schema lock) (2026-08-12) |
+| 16 | Client-driven DDL (`Model.SqlType`/`DefaultExpression` injection) | Auto-provisioning disabled — schemas defined by `_Ensure.sql` only (2026-08-12) |
+| 17 | `/api/projects` leaked `EncryptionKey`/`LoginTokenHash`/`ApiKey`/`ConnectionString` | Responses redact all credentials (2026-08-12) |
+| 18 | Backup `.bak` downloadable without auth (static `/backup` + unauthenticated `DownloadBackup`) | Static mapping removed; downloads require the API key via `/api/projects/{guid}/backups/{file}` (2026-08-12) |
+| 19 | Hard-coded fallback `Auth:Key` (`HERMES-DEV-…`) | Refuse to start when `Auth:Key` is unset (2026-08-12) |
 
 ## Residual (WASM reality)
 
@@ -38,6 +44,8 @@ Architecture and wire format live in `.agents/hermes-tsql/SKILL.md`. This file i
 | 10 | Guid + SharedKey extractable from WASM | SharedKey only wraps handshake. Rotate if leaked. User password is the secret. |
 | — | Default admin password | Seeded only when Users is empty. Change `Hermes:BootstrapAdminPassword` and the admin password after first run. |
 | — | SQL down | Sessions stay in memory of that process only |
+| — | API key / HMAC secret / SharedKey / login token are all extractable from WASM | They now only gate **named-script** execution per project. `/api/projects` (admin: create/restore/backup) is still API-key-gated — for production, move this admin surface behind a real server-side session with the user password (backlog). |
+| — | Login token is a fixed `hermes-admin` for every project | The session is not bound to a per-user password in the v1 client transport. For production, bind sessions to `central.Users` + real login (backlog). |
 
 ## Test login (always, upserted on webapi start)
 

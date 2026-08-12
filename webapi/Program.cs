@@ -2,7 +2,6 @@ using WebApi;
 using WebApi.Services;
 using WebApi.Controllers;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,6 +29,7 @@ builder.Services.AddSingleton<IAuditService, AuditService>();
 builder.Services.AddSingleton<IContractCatalog, ContractCatalog>();
 builder.Services.AddHostedService<SchemaBootstrap>();
 builder.Services.AddHostedService<OutboxProcessor>();
+builder.Services.AddHostedService<ProjectSeedInitializer>();
 
 // ---- RequestService v2 ----
 builder.Services.Configure<RequestServiceConfig>(builder.Configuration.GetSection("RequestService"));
@@ -123,14 +123,10 @@ app.UseCors("HermesClients");
 // فایل‌های استاتیک عمومی (wwwroot: css, js, lib)
 app.UseStaticFiles();
 
-// بکاپ‌ها از wwwroot/backup/{ProjectGuid}/ قابل دانلود هستند
-var backupRoot = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "backup");
-Directory.CreateDirectory(backupRoot);
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(backupRoot),
-    RequestPath = "/backup"
-});
+// NOTE: Database backups live under wwwroot/backup/{ProjectGuid}/ but are NOT
+// served as public static files. They are only reachable through the
+// authenticated /api/projects/{guid}/backups/{file} endpoint (ProjectController),
+// so a `.bak` can never be downloaded without the API key.
 
 app.UseAuthentication();
 app.UseAuthorization();

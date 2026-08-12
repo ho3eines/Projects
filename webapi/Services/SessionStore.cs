@@ -46,7 +46,10 @@ public sealed class SessionStore : ISessionStore
     {
         _cs = cs.Value.DefaultConnection;
         _crypto = crypto;
-        _protectKey = string.IsNullOrWhiteSpace(auth.Value.Key) ? "HERMES-DEV-KEY-CHANGE-ME-32CHARS-MIN!!" : auth.Value.Key;
+        if (string.IsNullOrWhiteSpace(auth.Value.Key))
+            throw new InvalidOperationException(
+                "Auth:Key is not configured. A hard-coded fallback key would be a public secret — refuse to start.");
+        _protectKey = auth.Value.Key;
         _log = log;
     }
 

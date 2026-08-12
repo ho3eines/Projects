@@ -92,3 +92,63 @@ BEGIN
     );
     CREATE INDEX IX_Parties_Type ON [central].[Parties](PartyType, IsDeleted);
 END
+
+-- Central website content (central-client): News / Blog / Gallery (PRD §1, roadmap P0).
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'News')
+BEGIN
+    CREATE TABLE [central].[News] (
+        NewsId      INT IDENTITY(1,1) PRIMARY KEY,
+        Title       NVARCHAR(200) NOT NULL,
+        Summary     NVARCHAR(1000) NULL,
+        Body        NVARCHAR(MAX) NULL,
+        ImageUrl    NVARCHAR(500) NULL,
+        PublishedAt DATE NULL,
+        IsActive    BIT NOT NULL DEFAULT 1,
+        IsDeleted   BIT NOT NULL DEFAULT 0,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt   DATETIME2 NULL,
+        CreatedBy   NVARCHAR(100) NULL
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'BlogPosts')
+BEGIN
+    CREATE TABLE [central].[BlogPosts] (
+        PostId      INT IDENTITY(1,1) PRIMARY KEY,
+        Title       NVARCHAR(200) NOT NULL,
+        Slug        NVARCHAR(200) NULL,
+        Body        NVARCHAR(MAX) NULL,
+        Author      NVARCHAR(100) NULL,
+        Tags        NVARCHAR(500) NULL,
+        PublishedAt DATE NULL,
+        IsActive    BIT NOT NULL DEFAULT 1,
+        IsDeleted   BIT NOT NULL DEFAULT 0,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTDATETIME(),
+        UpdatedAt   DATETIME2 NULL,
+        CreatedBy   NVARCHAR(100) NULL
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'GalleryItems')
+BEGIN
+    CREATE TABLE [central].[GalleryItems] (
+        GalleryItemId INT IDENTITY(1,1) PRIMARY KEY,
+        Title         NVARCHAR(200) NOT NULL,
+        ImageUrl      NVARCHAR(500) NULL,
+        Caption       NVARCHAR(500) NULL,
+        SortOrder     INT NOT NULL DEFAULT 0,
+        IsActive      BIT NOT NULL DEFAULT 1,
+        IsDeleted     BIT NOT NULL DEFAULT 0,
+        CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTDATETIME(),
+        CreatedBy     NVARCHAR(100) NULL
+    );
+END

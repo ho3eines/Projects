@@ -10,6 +10,22 @@ BEGIN
         (N'DOC-00001', CAST(SYSDATETIME() AS DATE), N'Journal', N'شرکت نمونه', 250000000, N'IRR', N'Posted', N'seed');
 END
 
+-- Two balanced journal lines for the seeded document (بدهکار صندوق / بستانکار فروش).
+IF NOT EXISTS (SELECT 1 FROM [accounting].[DocumentLines])
+BEGIN
+    INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+    SELECT d.DocumentId, a.AccountId, a.AccountCode, a.Title, N'درآمد فروش', 250000000, 0
+    FROM [accounting].[Documents] d
+    CROSS JOIN [accounting].[ChartOfAccounts] a
+    WHERE d.DocumentNumber = N'DOC-00001' AND a.AccountCode = N'1000';
+
+    INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+    SELECT d.DocumentId, a.AccountId, a.AccountCode, a.Title, N'درآمد فروش', 0, 250000000
+    FROM [accounting].[Documents] d
+    CROSS JOIN [accounting].[ChartOfAccounts] a
+    WHERE d.DocumentNumber = N'DOC-00001' AND a.AccountCode = N'4000';
+END
+
 IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts])
 BEGIN
     INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
