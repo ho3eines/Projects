@@ -41,8 +41,8 @@ IF NOT EXISTS (SELECT 1 FROM [treasury].[CashMovements])
 BEGIN
     INSERT INTO [treasury].[CashMovements] (MovementNumber, MovementDate, Direction, Amount, CurrencyCode, AccountId, CashBoxId, Description, SourceReference, Status, CreatedBy)
     VALUES
-        (N'CSH-00001', CAST(SYSDATETIME() AS DATE), N'In',  50000000, N'IRR', 1, NULL, N'دریافت از فروش نقدی', NULL, N'Posted', N'seed'),
-        (N'CSH-00002', CAST(SYSDATETIME() AS DATE), N'Out', 18000000, N'IRR', 1, NULL, N'پرداخت هزینه جاری',   NULL, N'Posted', N'seed');
+        (N'CSH-00001', CAST(SYSDATETIME() AS DATE), N'In',  50000000, N'IRR', 1, NULL, N'دریافت از فروش نقدی', N'SEED:CSH-00001', N'Posted', N'seed'),
+        (N'CSH-00002', CAST(SYSDATETIME() AS DATE), N'Out', 18000000, N'IRR', 1, NULL, N'پرداخت هزینه جاری',   N'SEED:CSH-00002', N'Posted', N'seed');
 END
 
 IF NOT EXISTS (SELECT 1 FROM [treasury].[Cheques])

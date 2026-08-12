@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:tarazin="clr-namespace:Tarazin;assembly=Tarazin.Ui"
              x:Class="Tarazin.Maui.MainPage"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
+             FlowDirection="RightToLeft"
+             BackgroundColor="#0B3A38">
 
     <!--
         BlazorWebView hosts the SHARED App.razor (Router + MudBlazor providers)

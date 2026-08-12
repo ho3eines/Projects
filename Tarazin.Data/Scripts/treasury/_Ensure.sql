@@ -86,12 +86,46 @@ BEGIN
         AccountId       INT NULL,                        -- bank account
         CashBoxId       INT NULL,                        -- cash box
         Description     NVARCHAR(300) NULL,
-        SourceReference NVARCHAR(100) NULL UNIQUE,       -- idempotency key (Invoice:12, Payroll:3)
+        SourceReference NVARCHAR(100) NULL,              -- idempotency key (Invoice:12, Payroll:3)
         Status          NVARCHAR(30) NOT NULL DEFAULT N'Posted',
         CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CreatedBy       NVARCHAR(100) NULL
     );
     CREATE INDEX IX_CashMovements_Date ON [treasury].[CashMovements](MovementDate);
+    -- SQL Server UNIQUE constraint treats NULL as a value and allows only ONE null.
+    -- Manual receipts have no source key, so uniqueness must ignore empty/NULL.
+    CREATE UNIQUE INDEX UX_CashMovements_SourceReference
+        ON [treasury].[CashMovements](SourceReference)
+        WHERE SourceReference IS NOT NULL AND SourceReference <> N'';
+END
+
+-- Existing databases: drop the auto-named UNIQUE constraint that rejects a second NULL.
+IF OBJECT_ID(N'treasury.CashMovements', N'U') IS NOT NULL
+BEGIN
+    DECLARE @uqName SYSNAME;
+    SELECT TOP (1) @uqName = kc.name
+    FROM sys.key_constraints kc
+    JOIN sys.tables t ON kc.parent_object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    JOIN sys.index_columns ic ON ic.object_id = t.object_id AND ic.index_id = kc.unique_index_id
+    JOIN sys.columns c ON c.object_id = t.object_id AND c.column_id = ic.column_id
+    WHERE s.name = N'treasury'
+      AND t.name = N'CashMovements'
+      AND kc.type = N'UQ'
+      AND c.name = N'SourceReference';
+
+    IF @uqName IS NOT NULL
+        EXEC(N'ALTER TABLE [treasury].[CashMovements] DROP CONSTRAINT [' + @uqName + N']');
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes
+        WHERE name = N'UX_CashMovements_SourceReference'
+          AND object_id = OBJECT_ID(N'treasury.CashMovements'))
+    BEGIN
+        CREATE UNIQUE INDEX UX_CashMovements_SourceReference
+            ON [treasury].[CashMovements](SourceReference)
+            WHERE SourceReference IS NOT NULL AND SourceReference <> N'';
+    END
 END
 
 IF NOT EXISTS (

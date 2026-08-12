@@ -21,6 +21,7 @@ public static class ServiceCollectionExtensions
 
         // UI-layer services
         services.AddScoped<UserSession>();
+        services.AddScoped<UiPreferences>();
         services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<UserSession>());
         services.AddScoped<AuthService>();
 

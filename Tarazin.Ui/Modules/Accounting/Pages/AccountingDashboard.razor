@@ -4,39 +4,23 @@
 
 <PageTitle>داشبورد — حسابداری</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">نمای کلی</MudText>
+<PageHeader Title="نمای کلی حسابداری" Subtitle="اسناد و مبالغ امروز." Eyebrow="حسابداری" />
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
 }
 else
 {
     <MudGrid>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">اسناد امروز</MudText>
-                <MudText Typo="Typo.h4">@_todayCount</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">جمع مبلغ</MudText>
-                <MudText Typo="Typo.h5">@_sum.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">ورود عملیات</MudText>
-                <MudText Typo="Typo.h5">ثبت سند</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">گزارشات</MudText>
-                <MudText Typo="Typo.h5">مرور</MudText>
-            </MudPaper>
-        </MudItem>
+        <StatCard Label="اسناد امروز" Value="@_todayCount.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Description" Accent="#1E4B73" />
+        <StatCard Label="جمع مبلغ" Value="@_sum.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Payments" Accent="#C49A3C" />
+        <StatCard Label="ورود عملیات" Value="ثبت سند"
+                  Icon="@Icons.Material.Filled.PostAdd" Accent="#0E4D4A" Hint="از منوی ماژول" />
+        <StatCard Label="گزارشات" Value="مرور دفاتر"
+                  Icon="@Icons.Material.Filled.Assessment" Accent="#2B6B7A" />
     </MudGrid>
 }
 

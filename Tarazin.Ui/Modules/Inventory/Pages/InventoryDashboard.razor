@@ -4,39 +4,23 @@
 
 <PageTitle>داشبورد — انبار آمل</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">نمای کلی انبار</MudText>
+<PageHeader Title="نمای کلی انبار" Subtitle="حرکت‌ها، موجودی و رزرو." Eyebrow="انبار آمل" />
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
 }
 else
 {
     <MudGrid>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">حرکات امروز</MudText>
-                <MudText Typo="Typo.h4">@_summary.TodayMovements</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">کل کالاها</MudText>
-                <MudText Typo="Typo.h4">@_summary.TotalItems</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">ارزش موجودی</MudText>
-                <MudText Typo="Typo.h5">@_summary.StockValue.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">رزرو فعال</MudText>
-                <MudText Typo="Typo.h4">@_summary.ActiveReservations</MudText>
-            </MudPaper>
-        </MudItem>
+        <StatCard Label="حرکات امروز" Value="@_summary.TodayMovements.ToString("N0")"
+                  Icon="@Icons.Material.Filled.SwapHoriz" Accent="#4A6B3A" />
+        <StatCard Label="کل کالاها" Value="@_summary.TotalItems.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Inventory2" Accent="#0E4D4A" />
+        <StatCard Label="ارزش موجودی" Value="@_summary.StockValue.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Savings" Accent="#C49A3C" />
+        <StatCard Label="رزرو فعال" Value="@_summary.ActiveReservations.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Bookmark" Accent="#9C3B2E" />
     </MudGrid>
 }
 

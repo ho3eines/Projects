@@ -1,4 +1,5 @@
 @page "/login"
+@layout AuthLayout
 @inject AuthService Auth
 @inject UserSession Session
 @inject NavigationManager Nav
@@ -6,38 +7,64 @@
 
 <PageTitle>ورود — ترازین</PageTitle>
 
-<MudGrid Justify="Justify.Center">
-    <MudItem xs="12" sm="8" md="5" lg="4">
-        <MudPaper Elevation="3" Class="pa-8">
-            <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-1">ورود به ترازین</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center" Class="mb-6">
-                یک حساب برای همهٔ ماژول‌ها — حسابداری، انبار، خزانه، حقوق، طلافروشی و فروشگاه.
-            </MudText>
+<div class="tz-login">
+    <aside class="tz-login__brand">
+        <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="72" height="72" />
+        <h1>ترازین</h1>
+        <p class="tz-login__tag">مدیریت هوشمند کسب‌وکار</p>
+        <ul class="tz-login__points">
+            <li>یک حساب برای هر هفت ماژول</li>
+            <li>راست‌چین، فونت فارسی، تاریخ شمسی</li>
+            <li>حسابداری، خزانه، انبار، حقوق، طلا، فروشگاه</li>
+        </ul>
+    </aside>
 
-            <MudForm @ref="_form" @bind-Valid="_valid" ValidateOnClick="true">
-                <MudTextField @bind-Value="_username" Label="نام کاربری" Immediate="true"
-                              For="() => _username" Variant="Variant.Outlined" Class="mb-4" />
-                <MudTextField @bind-Value="_password" Label="رمز عبور" InputType="InputType.Password"
-                              For="() => _password" Variant="Variant.Outlined" Class="mb-6" />
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
-                           Disabled="_busy" OnClick="LoginAsync" StartIcon="@Icons.Material.Filled.Login">
-                    @(_busy ? "در حال ورود..." : "ورود")
-                </MudButton>
-            </MudForm>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+    <main class="tz-login__panel">
+        <MudText Typo="Typo.h4" Class="mb-1">ورود به سامانه</MudText>
+        <MudText Typo="Typo.body2" Class="tz-login__lead">
+            نام کاربری و رمز خود را وارد کنید.
+        </MudText>
+
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudTextField @bind-Value="_username" Label="نام کاربری" Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person"
+                          Immediate="true" Class="mb-4" Required="true" RequiredError="نام کاربری لازم است." />
+            <MudTextField @bind-Value="_password" Label="رمز عبور" Variant="Variant.Outlined"
+                          InputType="@_pwdType" Adornment="Adornment.End"
+                          AdornmentIcon="@_pwdIcon" OnAdornmentClick="TogglePwd"
+                          Immediate="true" Class="mb-5" Required="true" RequiredError="رمز عبور لازم است." />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
+                       Disabled="_busy" OnClick="LoginAsync" StartIcon="@Icons.Material.Filled.Login">
+                @(_busy ? "در حال ورود..." : "ورود")
+            </MudButton>
+        </MudForm>
+
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="mt-6 tz-login__hint"
+                  Icon="@Icons.Material.Filled.Info">
+            اولین اجرا: کاربر <b>admin</b> با رمز <b>admin</b>
+        </MudAlert>
+    </main>
+</div>
 
 @code {
     private MudForm? _form;
     private bool _valid;
     private bool _busy;
+    private bool _showPwd;
     private string _username = "";
     private string _password = "";
+
+    private InputType _pwdType => _showPwd ? InputType.Text : InputType.Password;
+    private string _pwdIcon => _showPwd ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility;
+
+    private void TogglePwd() => _showPwd = !_showPwd;
 
     private async Task LoginAsync()
     {
         if (_busy) return;
+        await (_form?.Validate() ?? Task.CompletedTask);
+        if (!_valid) return;
+
         _busy = true;
         try
         {

@@ -1,0 +1,23 @@
+<div class="tz-pagehead">
+    <div>
+        @if (!string.IsNullOrWhiteSpace(Eyebrow))
+        {
+            <div class="tz-pagehead__eye">@Eyebrow</div>
+        }
+        <MudText Typo="Typo.h4">@Title</MudText>
+        @if (!string.IsNullOrWhiteSpace(Subtitle))
+        {
+            <MudText Typo="Typo.body2" Class="tz-pagehead__sub">@Subtitle</MudText>
+        }
+    </div>
+    <div class="tz-pagehead__actions">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? Eyebrow { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

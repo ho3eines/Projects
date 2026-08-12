@@ -1,0 +1,24 @@
+<MudItem xs="12" sm="6" md="@Md">
+    <MudPaper Elevation="0" Class="tz-stat" Style="@($"--tz-accent:{Accent}")">
+        <div class="tz-stat__icon" aria-hidden="true">
+            <MudIcon Icon="@Icon" />
+        </div>
+        <div class="tz-stat__body">
+            <div class="tz-stat__label">@Label</div>
+            <div class="tz-stat__value tz-num">@Value</div>
+            @if (!string.IsNullOrWhiteSpace(Hint))
+            {
+                <div class="tz-stat__hint">@Hint</div>
+            }
+        </div>
+    </MudPaper>
+</MudItem>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "—";
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Insights;
+    [Parameter] public string Accent { get; set; } = "#0E4D4A";
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public int Md { get; set; } = 3;
+}

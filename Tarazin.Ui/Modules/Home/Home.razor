@@ -1,58 +1,80 @@
 @page "/"
 @inject UserSession Session
 @inject ScriptCatalog Catalog
+@inject NavigationManager Nav
 
 <PageTitle>خانه — ترازین</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-1">ترازین — مدیریت هوشمند کسب‌وکار</MudText>
-<MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
-    یک پروژهٔ Blazor Server؛ هر محصول یک ماژول با اسکیمهٔ SQL مستقل. بدون وب‌سرویس، بدون کلاینت جدا.
-</MudText>
+<section class="tz-hero">
+    <div class="tz-hero__copy">
+        <div class="tz-kicker">ترازین</div>
+        <h1>میز کار یکپارچهٔ کسب‌وکار</h1>
+        <p>
+            حسابداری، خزانه، انبار، حقوق، طلا و فروشگاه — همه در یک پوستهٔ راست‌چین،
+            با یک حساب و یک دیتابیس.
+        </p>
+        <div class="tz-hero__cta">
+            @if (Session.IsAuthenticated)
+            {
+                <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Person">
+                    @Greeting، @Session.DisplayName
+                </MudChip>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/login"
+                           StartIcon="@Icons.Material.Filled.Login" Size="Size.Large">
+                    ورود به سامانه
+                </MudButton>
+            }
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/diag"
+                       StartIcon="@Icons.Material.Filled.MonitorHeart">
+                وضعیت اتصال
+            </MudButton>
+        </div>
+    </div>
+    <div class="tz-hero__aside" aria-hidden="true">
+        <div class="tz-hero__orb"></div>
+        <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="120" height="120" />
+    </div>
+</section>
 
-@if (!Session.IsAuthenticated)
-{
-    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
-        برای ورود به ماژول‌ها از دکمهٔ «ورود» بالا استفاده کنید.
-    </MudAlert>
-}
+<MudText Typo="Typo.subtitle2" Class="tz-section-label">ماژول‌ها</MudText>
 
-<MudGrid>
-    @foreach (var m in Modules)
+<div class="tz-modgrid">
+    @foreach (var m in TarazinModules.All)
     {
-        <MudItem xs="12" sm="6" md="4" lg="3">
-            <div class="h-module-card" @onclick="() => Nav.NavigateTo(m.Url)" role="link" tabindex="0">
-                <MudCard Elevation="2">
-                    <MudCardContent>
-                        <MudText Typo="Typo.h5">@m.Icon</MudText>
-                        <MudText Typo="Typo.h6" Class="mt-2">@m.Title</MudText>
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">@m.Lead</MudText>
-                    </MudCardContent>
-                    <MudCardActions>
-                        <MudButton Variant="Variant.Text" Color="Color.Primary">ورود به ماژول</MudButton>
-                    </MudCardActions>
-                </MudCard>
+        <button type="button" class="tz-modcard" style="--tz-accent:@m.Accent"
+                @onclick="() => Nav.NavigateTo(m.Url)">
+            <div class="tz-modcard__icon">
+                <MudIcon Icon="@m.Icon" />
             </div>
-        </MudItem>
+            <div class="tz-modcard__body">
+                <h3>@m.Title</h3>
+                <p>@m.Lead</p>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.West" Class="tz-modcard__go" />
+        </button>
     }
-</MudGrid>
+</div>
 
-<MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-6">
+<footer class="tz-home-meta">
     @Catalog.Count اسکریپت نامدار در @Catalog.Schemas.Count اسکیمه بارگذاری شده است.
-</MudText>
+</footer>
 
 @code {
-    [Inject] NavigationManager Nav { get; set; } = default!;
-
-    record ModuleCard(string Icon, string Title, string Lead, string Url);
-
-    static readonly List<ModuleCard> Modules =
-    [
-        new("◈", "پلتفرم مشترک", "وبسایت، اخبار، بلاگ، گالری، کاربران، ممیزی", "/central"),
-        new("📒", "حسابداری", "اسناد روز، دفتر روزنامه/کل، تراز آزمایشی", "/accounting"),
-        new("📦", "انبار آمل", "رسید/حواله، کارتکس، موجودی", "/inventory"),
-        new("💰", "خزانه‌داری", "دریافت/پرداخت، صندوق و بانک، چک", "/treasury"),
-        new("🧾", "حقوق و دستمزد", "کارمندان، فیش حقوق، نهایی‌کردن دوره", "/payroll"),
-        new("🏅", "طلافروشی", "فروش روز، قیمت طلا، فاکتور", "/goldshop"),
-        new("🛒", "فروشگاه", "سفارش‌ها، محصولات، مشتریان", "/store"),
-    ];
+    private static string Greeting
+    {
+        get
+        {
+            var h = DateTime.Now.Hour;
+            return h switch
+            {
+                < 12 => "صبح بخیر",
+                < 17 => "ظهر بخیر",
+                < 20 => "عصر بخیر",
+                _ => "شب بخیر"
+            };
+        }
+    }
 }

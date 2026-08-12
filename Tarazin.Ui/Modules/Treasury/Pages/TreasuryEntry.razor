@@ -5,10 +5,7 @@
 
 <PageTitle>دریافت / پرداخت — خزانه‌داری</PageTitle>
 
-<MudText Typo="Typo.h4">ثبت دریافت / پرداخت</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-    حرکت نقدی صندوق یا بانک.
-</MudText>
+<PageHeader Title="ثبت دریافت / پرداخت" Subtitle="حرکت نقدی صندوق یا بانک." Eyebrow="خزانه‌داری" />
 
 <MudPaper Elevation="1" Class="pa-4">
     <MudGrid>
@@ -33,7 +30,7 @@
                 }
                 @foreach (var b in _bankAccounts)
                 {
-                    <MudSelectItem Value="b.AccountId">بانک: @b.AccountName</MudSelectItem>
+                    <MudSelectItem Value="@b.AccountId">بانک: @b.AccountName</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>

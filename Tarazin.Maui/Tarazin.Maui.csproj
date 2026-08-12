@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
@@ -9,11 +9,16 @@
     <SingleProject>true</SingleProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Blazor owns CSS; do not let the MAUI SDK emit default CSS items. -->
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
 
     <ApplicationTitle>ترازین</ApplicationTitle>
     <ApplicationId>ir.tarazin.app</ApplicationId>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
+
+    <!-- Unpackaged WinExe so `dotnet run` / F5 work without MSIX. -->
+    <WindowsPackageType>None</WindowsPackageType>
 
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
@@ -23,25 +28,23 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- UI kit + config plumbing for the shared data layer -->
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
     <PackageReference Include="MudBlazor" Version="9.8.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Shared core: all modules/pages/models/services/scripts (embedded) -->
     <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- MAUI app resources -->
     <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#0F766E" />
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0F766E" BaseSize="128,128" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- appsettings for the shared layer (connection string + bootstrap admin) -->
     <EmbeddedResource Include="appsettings.json" LogicalName="Tarazin.Maui.appsettings.json" />
   </ItemGroup>
 
