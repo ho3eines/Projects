@@ -28,7 +28,7 @@ per-schema project registry. Pain points observed:
 
 ## Decision
 
-**Delete all of it.** Ship exactly one **Blazor Server** project (`TarazinApp`,
+**Delete all of it.** Ship exactly one **Blazor Server** project (`Tarazin`,
 net10.0). Products become modules (`Modules/{Name}/`), each with its own SQL
 schema (`Data/Scripts/{schema}/`). Data access runs **in the same process** via
 Dapper executing **named TSQL scripts**. UI is **MudBlazor only**.

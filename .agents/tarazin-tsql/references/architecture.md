@@ -1,24 +1,26 @@
-# Tarazin architecture — v2 (single Blazor Server)
+# Tarazin architecture — v2.1 (Blazor Hybrid)
 
 ## Topology
 
 ```
-dotnet run --project TarazinApp      → https://localhost:65220 (Blazor Server)
-        │
+Tarazin.Shared (RCL — UI + data layer)
+├── Tarazin.Web   → dotnet run --project Tarazin.Web   https://localhost:65220
+└── Tarazin.Maui  → dotnet build -f net10.0-windows10.0.19041.0 (ویندوز)
         └── SQL Server (docker compose) — TarazinMaster
                 [central] [accounting] [inventory] [treasury]
                 [payroll] [goldshop] [store]
 ```
 
-One port, one process, one connection string
-(`ConnectionStrings:DefaultConnection`).
+One shared core, one connection string
+(`ConnectionStrings:DefaultConnection`), two hosts.
 
-## Startup sequence
+## Startup sequence (shared)
 
-1. `ScriptCatalog.Load(contentRoot)` — reads `Data/Scripts/{schema}/{Name}.sql`
-2. `DbService.EnsureSchemaAsync()` — runs every `{schema}/_Ensure.sql`
-3. `DbService.SeedAsync()` — runs every `{schema}/_Seed.sql`
-4. `EnsureBootstrapAdminAsync()` — creates `admin` only when `[central].[Users]` is empty
+1. `ScriptCatalog` ctor — loads embedded `Tarazin.Data.Scripts.{schema}.{Name}.sql`
+2. `TarazinDbInitializer.EnsureInitializedAsync(services)` — runs every
+   `{schema}/_Ensure.sql`
+3. `…` → runs every `{schema}/_Seed.sql`
+4. `…` → creates `admin` only when `[central].[Users]` is empty
 
 ## Services
 
@@ -27,7 +29,7 @@ One port, one process, one connection string
 | `ScriptCatalog` | singleton | script store: `TryGet(schema, name, out sql)` |
 | `DbService` | scoped | `QueryAsync<T>` / `QueryFirstOrDefaultAsync<T>` / `ExecuteAsync` / `ScalarAsync` |
 | `AuthService` | scoped | `AuthenticateAsync(user, pass)` → `UserRow?` |
-| `UserSession` | scoped | per-circuit session state |
+| `UserSession` | scoped | per-circuit (web) / per-app (MAUI) session state |
 | `AuditService` | scoped | `RecordAsync(...)` → `[central].[AuditLog]` (hash chain) |
 | `PasswordHasher` | static | PBKDF2 hash/verify |
 
@@ -38,5 +40,6 @@ One port, one process, one connection string
 - Page code: `@inject DbService Db` — never `HttpClient` for data.
 - UI: MudBlazor components only (`MudTable`, `MudDatePicker`, `MudSelect`,
   `MudTextField`, `MudPaper`, `MudGrid`, `MudSnackbar`, …).
-- RTL: `dir="rtl"` in `Pages/_Host.cshtml`; Persian culture via
+- RTL: `dir="rtl"` in `Tarazin.Web/Pages/_Host.cshtml` and
+  `Tarazin.Maui/wwwroot/index.html`; Persian culture via
   `CultureInfo.GetCultureInfo("fa-IR")` on date pickers.

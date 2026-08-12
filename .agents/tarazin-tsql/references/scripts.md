@@ -3,7 +3,7 @@
 ## File location
 
 ```
-TarazinApp/Data/Scripts/
+Tarazin.Shared/Data/Scripts/
   accounting/
     _Ensure.sql          ← DDL (schemas/tables), runs at startup
     _Seed.sql            ← idempotent seed data, runs at startup

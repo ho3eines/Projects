@@ -1,9 +1,9 @@
-# PRD – پلتفرم یکپارچه ترازین (نسخهٔ تک‌پروژه‌ای)
-**Single Blazor Server + MudBlazor — جایگزین کامل معماری چندپروژه‌ای + WebAPI**
+# PRD – پلتفرم یکپارچه ترازین (نسخهٔ Blazor Hybrid)
+**هستهٔ مشترک (RCL) + هاست وب (Blazor Server) + هاست MAUI (Blazor Hybrid) — جایگزین کامل معماری چندپروژه‌ای + WebAPI**
 
 > **وضعیت**: مصوب — ۲۰۲۶/۰۸/۱۲ — **جایگزین** PRD v1.0 (میکروسرویس) و v1.5 (تک‌وب‌سرویس + WASM)
 > **سند مرجع معماری**: `docs/PROJECT.md` · **برنامهٔ کار**: `docs/PLATFORM_ROADMAP.md`
-> **تصمیم‌ها**: `docs/adr/` (ADR-001 تک‌پروژه، ADR-002 بدون رویداد/outbox، ADR-003 قراردادها)
+> **تصمیم‌ها**: `docs/adr/` (ADR-001 هستهٔ مشترک، ADR-002 بدون رویداد/outbox، ADR-003 قراردادها، ADR-004 MAUI Hybrid)
 
 ---
 
@@ -11,49 +11,55 @@
 
 | مشکل | راه‌حل جدید |
 |------|-------------|
-| ۱۱ پروژه در solution → مدیریت سخت و فایل‌های تکراری زیاد | **یک پروژهٔ Blazor Server** به نام `TarazinApp` |
-| ۷ کلاینت WASM + ۱ وب‌سرویس + ۱ کتابخانهٔ مشترک + ۱ پکیج | همه داخل یک پروژه؛ هر محصول یک **ماژول** |
+| ۱۱ پروژه در solution → مدیریت سخت و فایل‌های تکراری زیاد | **یک هستهٔ مشترک** (`Tarazin.Shared` RCL) + دو هاست نازک |
+| ۷ کلاینت WASM + ۱ وب‌سرویس + ۱ کتابخانهٔ مشترک + ۱ پکیج | UI یک‌جا در RCL؛ هر محصول یک **ماژول** |
 | درگیر شدن با وب‌سرویس (handshake، توکن، AES، CORS) | حذف کامل لایهٔ HTTP؛ Dapper مستقیم در همان پروسه |
 | Bootstrap/HTML دستی و کامپوننت‌های سفارشی | **MudBlazor** (طراحی رایگان، RTL، جدول، مودال، فرم) |
 | بک‌بون رویدادها (Outbox، processor) پیچیده | حذف؛ عملیات بین‌ماژولی مستقیم و تراکنشی |
+| نبود نسخهٔ بومی (دسکتاپ/موبایل) | **MAUI Blazor Hybrid** — همان UI در BlazorWebView |
 
 ## 2. محصولات / ماژول‌ها (7)
 
-| # | محصول | ماژول | اسکیمه | مسیر |
+| # | محصول | ماژول (در `Tarazin.Shared/Modules/`) | اسکیمه | مسیر |
 |---|--------|-------|--------|------|
-| 1 | حسابداری | `Modules/Accounting` | `accounting` | `/accounting` |
-| 2 | انبار آمل | `Modules/Inventory` | `inventory` | `/inventory` |
-| 3 | خزانه‌داری | `Modules/Treasury` | `treasury` | `/treasury` |
-| 4 | حقوق و دستمزد | `Modules/Payroll` | `payroll` | `/payroll` |
-| 5 | طلافروشی | `Modules/GoldShop` | `goldshop` | `/goldshop` |
-| 6 | فروشگاه اینترنتی | `Modules/Store` | `store` | `/store` |
-| 7 | پلتفرم مشترک (وبسایت، کاربران، ممیزی) | `Modules/Central` | `central` | `/central` |
+| 1 | حسابداری | `Accounting` | `accounting` | `/accounting` |
+| 2 | انبار آمل | `Inventory` | `inventory` | `/inventory` |
+| 3 | خزانه‌داری | `Treasury` | `treasury` | `/treasury` |
+| 4 | حقوق و دستمزد | `Payroll` | `payroll` | `/payroll` |
+| 5 | طلافروشی | `GoldShop` | `goldshop` | `/goldshop` |
+| 6 | فروشگاه اینترنتی | `Store` | `store` | `/store` |
+| 7 | پلتفرم مشترک (وبسایت، کاربران، ممیزی) | `Central` | `central` | `/central` |
 
 هر ماژول استاندارداً ۶ صفحه دارد:
 `/home` (فهرست روزانه)، `/dashboard`، `/entry` (ورود عملیات)، `/reports`،
 `/special` (عملیات ویژه)، `/settings` (امکانات و جداول پایه).
+همین صفحات بدون تغییر در **وب** و **اپ MAUI** رندر می‌شوند.
 
 ## 3. معماری سطح بالا
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│  TarazinApp (یک پروژهٔ Blazor Server — net10.0)             │
-│  ┌───────────┐  ┌───────────────┐  ┌────────────────────┐  │
-│  │ MudBlazor │  │ Modules/{7}   │  │ Services           │  │
-│  │ UI kit    │  │ Pages + Models│  │ DbService, Auth…   │  │
-│  └───────────┘  └──────┬────────┘  └─────────┬──────────┘  │
-│                        │                    │ Dapper       │
-│               Data/Scripts/{schema}/*.sql ──┘              │
-└───────────────────────────────┬────────────────────────────┘
-                                │ (یک ConnectionString)
-                        SQL Server — TarazinMaster
-                [central] [accounting] [inventory] [treasury]
-                [payroll] [goldshop] [store]   (اسکیمهٔ جدا)
+┌──────────────────────────────────────────────────────────────────┐
+│  Tarazin.Shared (RCL — net10.0, RootNamespace: Tarazin)          │
+│  Modules/*  Models/*  Layout/*  Services/*  Data/Scripts/*(embedded)│
+│  App.razor (Router + MudBlazor providers + init)                 │
+└───────────────┬───────────────────────────────┬──────────────────┘
+                │                               │
+    ┌───────────▼──────────┐       ┌────────────▼───────────┐
+    │ Tarazin.Web          │       │ Tarazin.Maui           │
+    │ Blazor Server (web)  │       │ MAUI Blazor Hybrid     │
+    │ Program.cs + _Host   │       │ MauiProgram + MainPage │
+    │ SignalR + prerender  │       │ BlazorWebView (بومی)    │
+    └───────────┬──────────┘       └────────────┬───────────┘
+                │                               │
+                └──────────┬────────────────────┘
+                           │ DbService + Dapper (در همان پروسه)
+                   SQL Server — TarazinMaster
+            [central] [accounting] [inventory] [treasury]
+            [payroll] [goldshop] [store]   (اسکیمهٔ جدا)
 ```
 
 - **بدون HTTP برای داده**: `DbService.QueryAsync<T>(schema, scriptName, params)`.
-- **اسکیمه = مرز ماژول**: ماژول حسابداری فقط اسکریپت‌های `accounting/` را صدا می‌زند.
-- **قراردادهای دامنه**: مدل‌های مشترک در `TarazinApp/Models/SharedModels.cs`
+- **قراردادهای دامنه**: مدل‌های مشترک در `Tarazin.Shared/Models/SharedModels.cs`
   (Party, ChartOfAccount, CurrencyRate, TaxRule, InventoryMovement, PayrollRun,
   GoldPrice, Order) — ستون‌های اسکریپت‌ها باید با همین نام‌ها هم‌نام باشند (ADR-003).
 
@@ -67,24 +73,31 @@
 
 ## 5. امنیت و نشست
 
-- ورود با نام کاربری/رمز در همان پروسه (`AuthService` + PBKDF2)؛
-  نشست به ازای هر circuit Blazor در حافظه (`UserSession`).
-- هیچ رازی به مرورگر نمی‌رود؛ **مشکل WASM «کلیدها داخل کلاینت» به‌کلی از بین رفت**.
+- ورود با نام کاربری/رمز در همان پروسه (`AuthService` + PBKDF2).
+- وب: نشست به ازای هر circuit Blazor در حافظه (`UserSession`).
+- MAUI: نشست در سطح اپ (scoped ≈ singleton — تک‌کاربره).
+- هیچ رازی به مرورگر/WebView نمی‌رود؛ **مشکل WASM «کلیدها داخل کلاینت» به‌کلی از بین رفت**.
 - همهٔ عملیات تغییردهنده در `[central].[AuditLog]` با زنجیرهٔ هش ثبت می‌شود (ADR-002).
 - `docs/SECURITY.md` تهدیدها و چک‌لیست تولید را شرح می‌دهد.
 
 ## 6. استقرار و CI
 
-- `docker compose up -d` → فقط SQL Server؛ سپس `dotnet run --project TarazinApp`.
-- CI (`ci/ci.yml`): restore + build تک‌پروژه + `tools/cross-schema-scan.sh`.
+- `docker compose up -d` → فقط SQL Server.
+- **وب**: `dotnet run --project Tarazin.Web` (یا publish).
+- **MAUI**: `dotnet workload install maui` سپس
+  `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net10.0-windows10.0.19041.0`
+  (روی ویندوز؛ سایر TFMها در VS/دستگاه‌های مربوطه).
+- CI (`ci/ci.yml`): build وب (ubuntu) + build MAUI (windows + workload) +
+  `tools/cross-schema-scan.sh`.
 
 ## 7. معیارهای پذیرش
 
-1. `dotnet build Tarazin.slnx` با یک پروژه پاس می‌شود.
-2. همهٔ ۷ ماژول از یک آدرس در دسترس‌اند و داده‌ی واقعی نشان می‌دهند.
-3. جستجوی کد: هیچ `HttpClient` برای داده و هیچ SQL خام در `.razor` وجود ندارد.
-4. `tools/cross-schema-scan.sh` پاس (بدون ارجاع بین‌اسکیمه‌ای غیرمجاز).
-5. ورود bootstrap و مدیریت کاربران کار می‌کند؛ ممیزی ردیف ثبت می‌کند.
+1. `dotnet build Tarazin.Web/Tarazin.Web.csproj` پاس (شامل `Tarazin.Shared`).
+2. build MAUI (ویندوز) با workload پاس.
+3. همهٔ ۷ ماژول از یک آدرس در دسترس‌اند و دادهٔ واقعی نشان می‌دهند (وب + MAUI).
+4. جستجوی کد: هیچ `HttpClient` برای داده و هیچ SQL خام در `.razor` وجود ندارد.
+5. `tools/cross-schema-scan.sh` پاس (بدون ارجاع بین‌اسکیمه‌ای غیرمجاز).
+6. ورود bootstrap و مدیریت کاربران کار می‌کند؛ ممیزی ردیف ثبت می‌کند.
 
 ---
-*نسخه ۲.۰ — ۱۴۰۵/۰۵/۲۱ — تیم معماری ترازین*
+*نسخه ۲.۱ — ۱۴۰۵/۰۵/۲۱ — تیم معماری ترازین*

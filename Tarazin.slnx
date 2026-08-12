@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="TarazinApp/TarazinApp.csproj" />
+  <Project Path="Tarazin.Shared/Tarazin.Shared.csproj" />
+  <Project Path="Tarazin.Web/Tarazin.Web.csproj" />
+  <Project Path="Tarazin.Maui/Tarazin.Maui.csproj" />
 </Solution>

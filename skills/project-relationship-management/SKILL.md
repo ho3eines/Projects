@@ -17,7 +17,7 @@ trigger:
 ## Context (v2)
 
 There is **no multi-project coordination anymore**. Tarazin is a single Blazor
-Server project (`TarazinApp`); products are **modules** (`Modules/{Name}/`) with
+Server project (`Tarazin`); products are **modules** (`Modules/{Name}/`) with
 their own SQL schema. "Project relationship" now means **module boundaries and
 schema contracts**.
 

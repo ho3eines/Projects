@@ -3,28 +3,34 @@ name: tarazin-tsql
 description: "THE Tarazin architecture + data skill. Use for any entity, TSQL, module, schema, DbService, named script, login, session, audit, or how modules talk to the database. NEVER use HttpClient-for-data, raw SQL in pages, per-module controllers, webapi, WASM clients, or the old BlazorDeployService transport."
 ---
 
-# tarazin-tsql — Architecture & data (v2: single Blazor Server)
+# tarazin-tsql — Architecture & data (v2.1: Blazor Hybrid)
 
 This file is the **source of truth** for how Tarazin is built and how every
 module reads/writes data. Load it for any data, auth, or new-module work.
 
 ---
 
-## 1. What Tarazin is (v2)
+## 1. What Tarazin is (v2.1)
 
-A single **Blazor Server** application (`TarazinApp/`, net10.0) hosting **seven
-product modules**. UI is **MudBlazor**. Data access is **Dapper over named TSQL
-scripts** executed **in the same process** — there is **no webapi, no WASM, no
-HTTP data layer**.
+A **shared core** (`Tarazin.Shared/`, Razor Class Library, net10.0) hosting
+**seven product modules**, served by **two thin hosts**:
+
+- `Tarazin.Web/` — Blazor Server (browser)
+- `Tarazin.Maui/` — MAUI Blazor Hybrid (BlazorWebView, native)
+
+UI is **MudBlazor**. Data access is **Dapper over named TSQL scripts** executed
+**in the same process** — there is **no webapi, no WASM, no HTTP data layer**.
+Scripts are **embedded resources** in `Tarazin.Shared` so both hosts work
+without any content root.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│ TarazinApp (Blazor Server, one process)              │
-│   Modules/{Name}/Pages/*.razor  (MudBlazor UI)      │
-│        │ DbService.QueryAsync<T>(schema, script)    │
-│   Data/Scripts/{schema}/{Name}.sql ── Dapper ──┐    │
-└─────────────────────────────────────────────────┼────┘
-                                                  ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Tarazin.Shared (RCL — Modules/ Models/ Layout/ Services/)     │
+│   Modules/{Name}/Pages/*.razor  (MudBlazor UI)                │
+│        │ DbService.QueryAsync<T>(schema, script)              │
+│   Data/Scripts/{schema}/{Name}.sql (embedded) ── Dapper ──┐   │
+└────────────────────────────────────────────────────────────┼───┘
+        host: Tarazin.Web (Blazor Server) / Tarazin.Maui (WebView) ▼
         SQL Server — TarazinMaster (one DB, one schema per product)
         [central] [accounting] [inventory] [treasury]
         [payroll] [goldshop] [store]
@@ -60,8 +66,9 @@ await Db.ExecuteAsync("accounting", "DocumentInsert", new { LinesJson, ... });
 var count = await Db.ScalarAsync("central", "UserCount");
 ```
 
-- **Script name only** — the resolver is `ScriptCatalog` (loaded at startup from
-  `Data/Scripts/{schema}/{Name}.sql`). Never write inline SQL in a page.
+- **Script name only** — the resolver is `ScriptCatalog`, which loads embedded
+  resources `Tarazin.Data.Scripts.{schema}.{Name}.sql` from `Tarazin.Shared`
+  (self-loading singleton). Never write inline SQL in a page.
 - **Schema = scope guard** — a module only calls scripts of its own schema.
   Server-side scripts may read other schemas only with a
   `-- Cross-schema: x, y` header (enforced by `tools/cross-schema-scan.sh`).
@@ -72,6 +79,8 @@ var count = await Db.ScalarAsync("central", "UserCount");
 
 - Login: `/login` → `AuthService.AuthenticateAsync(user, pass)` against
   `[central].[Users]` (PBKDF2). No tokens, no URL parameters, no handshake.
+- Web: `UserSession` is per SignalR circuit (scoped).
+- MAUI: same services, but scoped ≈ app-wide singleton (single-user app).
 - Session: `UserSession` (scoped per circuit) — `IsAuthenticated`,
   `DisplayName`, `Role`, `IsAdmin`, `SignIn/SignOut`.
 - Bootstrap admin `admin`/`admin` is created at startup only when `Users` is empty.
@@ -92,15 +101,18 @@ sensitive data). Audit failures are logged, never thrown.
 
 ## 6. Startup order
 
-`Program.cs`: `ScriptCatalog.Load` → `DbService.EnsureSchemaAsync` (all
-`_Ensure.sql`) → `DbService.SeedAsync` (all `_Seed.sql`) →
-`EnsureBootstrapAdminAsync`.
+`TarazinDbInitializer.EnsureInitializedAsync(services)` (shared):
+`DbService.EnsureSchemaAsync` (all `_Ensure.sql`) → `DbService.SeedAsync`
+(all `_Seed.sql`) → bootstrap admin. Web: called in `Program.cs` before
+`app.Run()`. MAUI: called from the shared `App.razor` OnInitializedAsync.
+Interlocked guard makes it run exactly once.
 
 ## 7. Rules when adding a new module
 
 1. Research the domain's reports first (report-first).
-2. `Models/{Module}Models.cs` — models matching script columns (ADR-003).
-3. `Data/Scripts/{schema}/_Ensure.sql` (+ `_Seed.sql`) — idempotent DDL/data.
-4. Pages under `Modules/{Name}/Pages/` with MudBlazor only.
+2. `Tarazin.Shared/Models/{Module}Models.cs` — models matching script columns (ADR-003).
+3. `Tarazin.Shared/Data/Scripts/{schema}/_Ensure.sql` (+ `_Seed.sql`) — idempotent DDL/data.
+4. Pages under `Tarazin.Shared/Modules/{Name}/Pages/` with MudBlazor only.
 5. Add NavMenu entry + Home launcher card.
 6. Run `tools/cross-schema-scan.sh` before committing.
+7. The result automatically appears in BOTH hosts (web + MAUI).

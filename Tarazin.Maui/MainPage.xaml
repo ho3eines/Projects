@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:tarazin="clr-namespace:Tarazin;assembly=Tarazin.Shared"
+             x:Class="Tarazin.Maui.MainPage"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+
+    <!--
+        BlazorWebView hosts the SHARED App.razor (Router + MudBlazor providers)
+        from Tarazin.Shared — the exact same UI as the web app.
+    -->
+    <BlazorWebView HostPage="wwwroot/index.html">
+        <BlazorWebView.RootComponents>
+            <RootComponent Selector="#app" ComponentType="{x:Type tarazin:App}" />
+        </BlazorWebView.RootComponents>
+    </BlazorWebView>
+
+</ContentPage>

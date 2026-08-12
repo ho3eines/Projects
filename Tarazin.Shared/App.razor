@@ -1,0 +1,49 @@
+@* Shared App shell — hosted by BOTH the web host (Tarazin.Web/_Host.cshtml)
+   and the MAUI Blazor Hybrid host (Tarazin.Maui/MainPage.xaml root component). *@
+<Router AppAssembly="typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mt-4">
+                صفحه‌ای که دنبالش بودید پیدا نشد.
+            </MudAlert>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@* MudBlazor global providers — render once, outside the router *@
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (!string.IsNullOrWhiteSpace(_initError))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mt-4" Style="position:fixed;bottom:0;left:0;right:0;z-index:9999">
+        خطا در راه‌اندازی داده: @_initError
+    </MudAlert>
+}
+
+@code {
+    private string _initError = "";
+
+    /// <summary>
+    /// Runs schema ensure + seed + bootstrap admin exactly once per process
+    /// (web host already does it in Program.cs; this covers the MAUI host).
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await TarazinDbInitializer.EnsureInitializedAsync(ServiceProvider);
+        }
+        catch (Exception ex)
+        {
+            _initError = ex.Message;
+        }
+    }
+
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+}

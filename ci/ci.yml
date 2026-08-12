@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  build:
-    name: Build (single Blazor Server project)
+  build-web:
+    name: Build web host + shared core
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,13 +18,30 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore Tarazin.slnx
+        run: dotnet restore Tarazin.Web/Tarazin.Web.csproj
 
       - name: Build
-        run: dotnet build Tarazin.slnx -c Release --no-restore
+        run: dotnet build Tarazin.Web/Tarazin.Web.csproj -c Release --no-restore
 
       - name: Cross-schema static analysis
         run: bash tools/cross-schema-scan.sh
+
+  build-maui:
+    name: Build MAUI Blazor Hybrid (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui
+
+      - name: Build MAUI (Windows target)
+        run: dotnet build Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net10.0-windows10.0.19041.0
 
   codeql:
     name: SAST

@@ -1,29 +1,36 @@
-# PRD – Tarazin — Smart Business Management Platform (v2 — Single Blazor Server)
-# PRD – ترازین — مدیریت هوشمند کسب‌وکار (نسخهٔ ۲ — تک‌پروژهٔ Blazor Server)
+# PRD – Tarazin — Smart Business Management Platform (v2.1 — Blazor Hybrid)
+# PRD – ترازین — مدیریت هوشمند کسب‌وکار (نسخهٔ ۲.۱ — Blazor Hybrid)
 
 > **Status**: Adopted — 2026-08-12 · **Supersedes**: PRD v1.0 (microservices), v1.5 (single webapi + WASM)
 > **Binding decisions**: [ADR-001](adr/ADR-001-single-blazor-server-architecture.md),
 > [ADR-002](adr/ADR-002-no-event-backbone-direct-sql.md),
-> [ADR-003](adr/ADR-003-contracts-shared-models-and-scripts.md)
+> [ADR-003](adr/ADR-003-contracts-shared-models-and-scripts.md),
+> [ADR-004](adr/ADR-004-maui-blazor-hybrid.md)
 > **Work plan**: [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md)
 
-**EN** – One Blazor Server project hosts all seven business applications.
-Each product is a *bounded context*: a module (`Modules/{Name}/`) and one private
-SQL schema (`Data/Scripts/{schema}/`). There is no web service, no WASM client,
-no HTTP data layer: the UI runs in the same process as the data access (Dapper +
-named TSQL scripts). The UI is built exclusively with MudBlazor.
+**EN** – One shared core (`Tarazin.Shared`, a Razor Class Library) hosts all
+seven business applications. Each product is a *bounded context*: a module
+(`Modules/{Name}/`) and one private SQL schema (`Data/Scripts/{schema}/`,
+embedded resources). The same UI is hosted by **two thin hosts**: the web app
+(`Tarazin.Web`, Blazor Server) and the MAUI app (`Tarazin.Maui`, MAUI Blazor
+Hybrid in a BlazorWebView). There is no web service, no WASM client, no HTTP
+data layer: UI and data access (Dapper + named TSQL scripts) run in the same
+process. The UI is built exclusively with MudBlazor.
 
-**FA** – یک پروژهٔ Blazor Server همهٔ هفت محصول تجاری را میزبانی می‌کند. هر محصول
-یک *bounded context* است: یک ماژول (`Modules/{Name}/`) و یک اسکیمهٔ SQL خصوصی
-(`Data/Scripts/{schema}/`). هیچ وب‌سرویس، هیچ کلاینت WASM و هیچ لایهٔ HTTP برای داده
-وجود ندارد: UI و لایهٔ داده (Dapper + اسکریپت‌های TSQL نامدار) در یک پروسه‌اند.
-رابط کاربری فقط با MudBlazor ساخته می‌شود.
+**FA** – یک هستهٔ مشترک (`Tarazin.Shared` — Razor Class Library) همهٔ هفت محصول
+تجاری را میزبانی می‌کند. هر محصول یک *bounded context* است: یک ماژول
+(`Modules/{Name}/`) و یک اسکیمهٔ SQL خصوصی (`Data/Scripts/{schema}/` — به‌صورت
+Embedded). همان UI با **دو هاست نازک** ارائه می‌شود: وب (`Tarazin.Web` — Blazor
+Server) و اپ MAUI (`Tarazin.Maui` — MAUI Blazor Hybrid داخل BlazorWebView).
+هیچ وب‌سرویس، هیچ کلاینت WASM و هیچ لایهٔ HTTP برای داده وجود ندارد: UI و لایهٔ
+داده (Dapper + اسکریپت‌های TSQL نامدار) در یک پروسه‌اند. رابط کاربری فقط با
+MudBlazor ساخته می‌شود.
 
 ---
 
 ## Products / محصولات (7)
 
-| # | Product / محصول | Module / ماژول | Schema / اسکیمه | Route / مسیر | Status |
+| # | Product / محصول | Module / ماژول (در `Tarazin.Shared/`) | Schema / اسکیمه | Route / مسیر | Status |
 |---|---|---|---|---|---|
 | 1 | Accounting / حسابداری | `Modules/Accounting` | `accounting` | `/accounting` | ✅ پیاده‌سازی‌شده |
 | 2 | Warehouse Mgmt – Amol Anbar / انبار آمل | `Modules/Inventory` | `inventory` | `/inventory` | ✅ پیاده‌سازی‌شده |
@@ -35,25 +42,28 @@ named TSQL scripts). The UI is built exclusively with MudBlazor.
 
 ## 1. Vision / دیدگاه کلی
 
-**EN** – Deliver a single, extensible Blazor Server application that hosts all
-seven business applications. Each product is a bounded context (module + schema).
+**EN** – Deliver a single, extensible UI core that runs everywhere: browser and
+native desktop/mobile. Each product is a bounded context (module + schema).
 Cross-module work happens directly in server-side scripts, in one process — no
 async event backbone, no message queue.
 
-**FA** – ارائهٔ یک برنامهٔ Blazor Server واحد و قابل گسترش که هفت محصول تجاری را
-میزبانی کند. هر محصول یک bounded context است (ماژول + اسکیمه). کار بین‌ماژولی
-مستقیم در اسکریپت‌های سمت سرور و در یک پروسه انجام می‌شود — بدون بک‌بون رویداد.
+**FA** – ارائهٔ یک هستهٔ UI واحد و قابل گسترش که همه‌جا اجرا می‌شود: مرورگر و
+دسکتاپ/موبایل بومی. هر محصول یک bounded context است (ماژول + اسکیمه). کار
+بین‌ماژولی مستقیم در اسکریپت‌های سمت سرور و در یک پروسه انجام می‌شود — بدون
+بک‌بون رویداد.
 
 ## 2. High-Level Architecture / معماری سطح بالا
 
 | Layer / لایه | Responsibility / وظیفه | Tech / سازوکار |
 |---|---|---|
-| Presentation | All pages/forms/tables/modals | Blazor Server (SignalR) + **MudBlazor** |
+| Presentation (مشترک) | All pages/forms/tables/modals | `Tarazin.Shared` (RCL) + **MudBlazor** |
+| Host — Web | Serve the shared UI in the browser | `Tarazin.Web` — Blazor Server (SignalR) |
+| Host — MAUI | Serve the shared UI in a native app | `Tarazin.Maui` — MAUI Blazor Hybrid (BlazorWebView) |
 | Application | Orchestration inside pages | `Modules/*/Pages/*.razor` + `Services/` |
 | Data Access | Named-script execution, schema scope | `DbService` + Dapper (in-process) |
 | Data | One DB `TarazinMaster`, one schema per product | SQL Server (docker compose) |
-| Auth & Audit | Login, per-circuit session, hash-chained audit | `AuthService`, `UserSession`, `AuditService` |
-| DevOps | Build + static analysis | `ci/ci.yml`, `tools/cross-schema-scan.sh` |
+| Auth & Audit | Login, session, hash-chained audit | `AuthService`, `UserSession`, `AuditService` |
+| DevOps | Build web + build MAUI + static analysis | `ci/ci.yml`, `tools/cross-schema-scan.sh` |
 
 > **Rule** – No module ever embeds raw SQL or calls another module's schema
 > directly. Cross-schema reads are declared in server-side scripts
@@ -61,7 +71,7 @@ async event backbone, no message queue.
 
 ## 3. Shared Domain Contracts / قراردادهای دامنه مشترک
 
-Defined as C# models in `TarazinApp/Models/SharedModels.cs`; script columns must
+Defined as C# models in `Tarazin.Shared/Models/SharedModels.cs`; script columns must
 match (ADR-003):
 
 | Contract / قرارداد | Owner / مالک | Consumers / مصرف‌کننده‌ها |
@@ -101,7 +111,7 @@ ADR-002 explains why the event backbone was retired.
 
 ## 7. Deployment / استقرار
 * `docker compose up -d` → SQL Server only.
-* `dotnet run --project TarazinApp` (or `dotnet publish TarazinApp -c Release`).
+* `dotnet run --project Tarazin` (or `dotnet publish Tarazin -c Release`).
 * CI: restore + build + `tools/cross-schema-scan.sh` (GitHub Actions).
 
 ## 8. Risks & Mitigations / ریسک‌ها

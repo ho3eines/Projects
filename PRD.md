@@ -1,35 +1,44 @@
-# PRD: ترازین — مدیریت هوشمند کسب‌وکار (Single Blazor Server Platform)
+# PRD: ترازین — مدیریت هوشمند کسب‌وکار (Blazor Hybrid Platform)
 
 ## Overview
-این سند معماری مصوب «ترازین» است: **یک پروژهٔ Blazor Server** که همهٔ محصولات را
-به‌صورت ماژول در خودش دارد. هیچ وب‌سرویس، هیچ کلاینت WASM جدا، هیچ کتابخانهٔ
-اشتراکی جدا و هیچ پکیج NuGet جدا وجود ندارد. رابط کاربری با **MudBlazor**
-ساخته می‌شود تا تیم درگیر طراحی دستی نشود.
+این سند معماری مصوب «ترازین» است: **یک هستهٔ مشترک** (Razor Class Library) که همهٔ
+صفحات/مدل‌ها/سرویس‌ها/اسکریپت‌ها را دارد + **دو هاست نازک** که همان UI را میزبانی
+می‌کنند:
+1. **هاست وب** (`Tarazin.Web`) — Blazor Server در مرورگر.
+2. **هاست MAUI** (`Tarazin.Maui`) — MAUI Blazor Hybrid (دسکتاپ ویندوز/مک و موبایل).
+
+هیچ وب‌سرویس، هیچ کلاینت WASM جدا و هیچ لایهٔ HTTP برای داده وجود ندارد. رابط
+کاربری با **MudBlazor** ساخته می‌شود تا تیم درگیر طراحی دستی نشود.
 
 ## Scope
 - **محصولات (7)** — حسابداری، انبار آمل، خزانه‌داری، حقوق و دستمزد، طلافروشی،
   فروشگاه اینترنتی، پلتفرم مشترک (اخبار/بلاگ/گالری/کاربران/ممیزی).
-- هر محصول = یک **ماژول** (`Modules/{Name}/`) با صفحات، مدل‌ها و یک **اسکیمهٔ SQL
-  مستقل** (`Data/Scripts/{schema}/`).
-- داده فقط از طریق **اسکریپت‌های TSQL نامدار** که در همان پروسهٔ Blazor Server با
-  Dapper اجرا می‌شوند — بدون HTTP، بدون توکن، بدون لایهٔ API.
+- هر محصول = یک **ماژول** (`Tarazin.Shared/Modules/{Name}/`) با صفحات، مدل‌ها و یک
+  **اسکیمهٔ SQL مستقل** (`Tarazin.Shared/Data/Scripts/{schema}/`).
+- داده فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded Resource) که در همان
+  پروسه با Dapper اجرا می‌شوند — بدون HTTP، بدون توکن، بدون لایهٔ API.
 
 ## Architecture (High Level)
 | لایه | مسئولیت | سازوکار |
 |------|---------|---------|
-| UI | همهٔ صفحات، فرم‌ها، جداول، مودال، اعتبارسنجی | Blazor Server + MudBlazor |
+| UI (مشترک) | همهٔ صفحات، فرم‌ها، جداول، مودال، اعتبارسنجی | `Tarazin.Shared` (RCL) + MudBlazor |
+| Host وب | میزبانی UI در مرورگر | `Tarazin.Web` — Blazor Server (SignalR) |
+| Host MAUI | میزبانی UI در اپ بومی | `Tarazin.Maui` — BlazorWebView (Blazor Hybrid) |
 | Data access | اجرای اسکریپت‌های نامدار روی SQL Server | `DbService` + Dapper (در همان پروسه) |
-| Scripts | منطق دامنه و گزارش‌ها (report-first) | `TarazinApp/Data/Scripts/{schema}/{Name}.sql` |
+| Scripts | منطق دامنه و گزارش‌ها (report-first) | `Tarazin.Shared/Data/Scripts/{schema}/{Name}.sql` |
 | DB | یک دیتابیس `TarazinMaster` با اسکیمهٔ جدا برای هر محصول | SQL Server (docker compose) |
-| Auth | ورود با نام کاربری/رمز از جدول `[central].[Users]` | `AuthService` + PBKDF2، نشست هر circuit |
+| Auth | ورود با نام کاربری/رمز از جدول `[central].[Users]` | `AuthService` + PBKDF2 |
 | Audit | ثبت تمام عملیات با زنجیرهٔ هش | `AuditService` → `[central].[AuditLog]` |
 
 ## Key Rules (قوانین کلیدی)
-1. **فقط یک پروژه**: `TarazinApp/` — همهٔ چیز داخل همین پوشه.
-2. **فقط Blazor Server** — بدون WebAPI، بدون WASM، بدون کال‌کردن `HttpClient` برای داده.
+1. **UI فقط در `Tarazin.Shared`** — صفحات جدید آنجا ساخته می‌شوند تا هر دو هاست
+   خودکار بگیرندش؛ هاست‌ها فقط پوسته‌اند.
+2. **دو هاست، یک هسته** — `AddTarazinSharedServices()` در `Program.cs` (وب) و
+   `MauiProgram.cs` (MAUI)؛ `App.razor` مشترک در هر دو رندر می‌شود.
 3. **MudBlazor تنها کتابخانهٔ UI است** — Bootstrap دستی، CSS سفارشی و جدول سفارشی ممنوع.
 4. **هر ماژول فقط اسکیمهٔ خودش را لمس می‌کند** (`DbService` با `{schema}`).
-5. **هیچ SQL خام در صفحات نیست** — همه چیز از `Data/Scripts/{schema}/{Name}.sql`.
+5. **هیچ SQL خام در صفحات نیست** — همه چیز از `Data/Scripts/{schema}/{Name}.sql`
+   (Embedded Resource در `ScriptCatalog`).
 6. **Report-first**: قبل از ساخت هر ماژول، گزارش‌های موردنیاز دامنه تحقیق و سپس مدل‌ها
    و اسکریپت‌ها طراحی می‌شوند.
 7. چهار بخش استاندارد هر ماژول: **ورود عملیات**، **عملیات ویژه**، **گزارشات**، **امکانات**.
@@ -40,13 +49,24 @@
 - بک‌بون رویدادها (Outbox) — cross-module عملیات مستقیماً و تراکنشی انجام می‌شود.
 - Bootstrap سفارشی و کامپوننت‌های دست‌ساز (DataGrid و...) — همه با MudBlazor جایگزین شدند.
 
+## MAUI Blazor Hybrid (خلاصه)
+- `Tarazin.Maui/MainPage.xaml` → `BlazorWebView` با `RootComponent` = `Tarazin.App` (مشترک).
+- `wwwroot/index.html` → رانتایم `_framework/blazor.webview.js` + استاتیک‌های MudBlazor و RCL.
+- پیکربندی: `appsettings.json` به‌صورت Embedded خوانده می‌شود.
+- **محدودیت پلتفرم**: `Microsoft.Data.SqlClient` روی ویندوز/مک پشتیبانی می‌شود؛ برای
+  اندروید/iOS لایهٔ داده باید به وب‌سرویس/Provider دیگر برود (بک‌لاگ). جزییات:
+  `skills/blazor/blazor-maui-hybrid/SKILL.md`.
+
 ## Acceptance Criteria
-1. `dotnet build Tarazin.slnx` — بدون خطا، فقط با یک پروژه.
-2. با `docker compose up -d` + `dotnet run` همهٔ ۷ ماژول از یک آدرس باز می‌شوند.
-3. در صفحات، هیچ رشتهٔ SQL و هیچ `HttpClient` برای داده وجود ندارد.
-4. اسکریپت‌های هر اسکیمه از اسکیمهٔ دیگر بدون اعلام قبلی استفاده نمی‌کنند
+1. `dotnet build Tarazin.Web/Tarazin.Web.csproj` — بدون خطا (شامل `Tarazin.Shared`).
+2. `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net10.0-windows10.0.19041.0`
+   روی ویندوز با `dotnet workload install maui` — بدون خطا.
+3. با `docker compose up -d` + `dotnet run` همهٔ ۷ ماژول از یک آدرس باز می‌شوند.
+4. در صفحات، هیچ رشتهٔ SQL و هیچ `HttpClient` برای داده وجود ندارد.
+5. اسکریپت‌های هر اسکیمه از اسکیمهٔ دیگر بدون اعلام قبلی استفاده نمی‌کنند
    (`tools/cross-schema-scan.sh` پاس شود).
-5. ورود با کاربر bootstrap (admin/admin در اولین اجرا) و مدیریت کاربران کار می‌کند.
+6. ورود با کاربر bootstrap (admin/admin در اولین اجرا) و مدیریت کاربران کار می‌کند
+   (در هر دو هاست).
 
 ---
-*نسخه ۲.۰ — ۲۰۲۶/۰۸/۱۲ — بازطراحی کامل از multi-project + webapi به یک پروژهٔ Blazor Server + MudBlazor.*
+*نسخه ۲.۱ — ۲۰۲۶/۰۸/۱۲ — Blazor Hybrid: هستهٔ مشترک + هاست وب (Blazor Server) + هاست MAUI.*

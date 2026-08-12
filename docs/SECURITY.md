@@ -1,15 +1,16 @@
-# Tarazin security (v2 — single Blazor Server)
+# Tarazin security (v2.1 — Blazor Hybrid)
 
 Last reviewed: 2026-08-12
 
 Architecture and data rules live in `docs/PROJECT.md` and `.agents/tarazin-tsql/SKILL.md`.
-This file is the threat model for the **single-process** architecture.
+This file is the threat model for the **shared-core + two hosts** architecture
+(`Tarazin.Shared` RCL, `Tarazin.Web` Blazor Server, `Tarazin.Maui` Blazor Hybrid).
 
 ## Layers
 
 1. **Login** — username/password → `AuthService` verifies PBKDF2 hash from `[central].[Users]`
-2. **Session** — per SignalR circuit (`UserSession`, scoped); no tokens, no URL parameters
-3. **Data access** — named TSQL scripts only; `DbService` scopes by schema; Dapper parameterization
+2. **Session** — web: per SignalR circuit (`UserSession`, scoped); MAUI: per-app (scoped ≈ singleton)
+3. **Data access** — named TSQL scripts only (embedded resources); `DbService` scopes by schema; Dapper parameterization
 4. **Audit** — every mutating script recorded to `[central].[AuditLog]` with SHA-256 hash chain
 5. **Bootstrap admin** — created only when `Users` is empty; change on first production login
 
@@ -24,6 +25,18 @@ This file is the threat model for the **single-process** architecture.
 | CORS allow-list management | ✅ Gone — same origin (Blazor Server) |
 | Session table + wrapped AES keys | ✅ Gone — per-circuit in-memory session |
 
+## MAUI Blazor Hybrid notes
+
+- The MAUI app embeds `appsettings.json` (connection string + bootstrap admin)
+  into the package — **do not ship production credentials inside the app**;
+  use per-machine configuration (e.g. `%AppData%`, environment, or a settings
+  screen) before distributing builds.
+- `Microsoft.Data.SqlClient` runs on Windows/macOS only; Android/iOS need a
+  different data provider (backlog) — never ship SQL Server credentials to
+  mobile platforms.
+- The WebView enforces no CORS (in-process) — same security rules as the web
+  host still apply (named scripts, schema scope, audit).
+
 ## Remaining considerations (production checklist)
 
 - [ ] Change bootstrap password immediately (`Tarazin:BootstrapAdminPassword` in appsettings or env)
@@ -32,6 +45,7 @@ This file is the threat model for the **single-process** architecture.
 - [ ] Keep `tools/cross-schema-scan.sh` in CI — it enforces schema isolation
 - [ ] Review audit rows regularly (tamper-evident hash chain makes silent edits detectable)
 - [ ] SQL Server backups — add scheduled backup outside the app (see roadmap backlog)
+- [ ] MAUI: per-machine config for the connection string; don't bake production secrets in the package
 
 ## Test login (bootstrap, created at first startup only)
 

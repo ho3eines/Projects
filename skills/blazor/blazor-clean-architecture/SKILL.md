@@ -11,10 +11,11 @@ metadata:
     related_skills: [tarazin-project-architecture, blazor-data-access]
 ---
 
-# Blazor Clean Architecture Skill (v2 — single project)
+# Blazor Clean Architecture Skill (v3 — shared core + hosts)
 
-Implements a clean, maintainable **single Blazor Server project** with clear
-layers inside one csproj — no separate Client/Server/Shared projects, no webapi.
+Implements a clean, maintainable **shared core** (`Tarazin.Shared` Razor Class
+Library) with clear layers, hosted by two thin shells — `Tarazin.Web` (Blazor
+Server) and `Tarazin.Maui` (MAUI Blazor Hybrid). No webapi, no WASM clients.
 
 ## When to Use
 
@@ -27,19 +28,22 @@ layers inside one csproj — no separate Client/Server/Shared projects, no webap
 ## Solution Structure
 
 ```
-TarazinApp/
-├── Program.cs              # Composition root: services, MudBlazor, startup ensure/seed
-├── App.razor               # Router + Mud providers
-├── Pages/_Host.cshtml      # RTL HTML shell
+Tarazin.Shared/             # ← THE core (Razor Class Library, RootNamespace: Tarazin)
+├── App.razor               # Router + Mud providers + shared init (hosts render this)
+├── _Imports.razor          # shared usings (Tarazin.* + MudBlazor)
 ├── Layout/                 # MainLayout (MudLayout) + NavMenu (MudNavMenu)
 ├── Models/                 # SharedModels.cs + {Module}Models.cs
-├── Services/               # ScriptCatalog, DbService, AuthService, UserSession, AuditService
+├── Services/               # ScriptCatalog, DbService, AuthService, UserSession,
+│                           # AuditService, ServiceCollectionExtensions, TarazinDbInitializer
 ├── Modules/{Name}/Pages/   # one folder per product/bounded context
-├── Data/Scripts/{schema}/  # named TSQL (report-first data layer)
-└── wwwroot/                # MudBlazor static assets + tiny app.css
+├── Data/Scripts/{schema}/  # named TSQL (embedded resources — report-first)
+└── wwwroot/css/app.css     # tiny MudBlazor overrides (served by both hosts)
+
+Tarazin.Web/                # thin web host (Blazor Server): Program.cs + _Host.cshtml
+Tarazin.Maui/               # thin MAUI host (Blazor Hybrid): MauiProgram + MainPage.xaml
 ```
 
-## Dependency Rules (inside the one project)
+## Dependency Rules (inside the core)
 
 - **Pages** → Services + Models (+ MudBlazor components)
 - **Services** → ScriptCatalog/DbService → SQL Server
@@ -64,13 +68,13 @@ server-side scripts with a `-- Cross-schema:` header (verified by
 
 ## Migrating from the old WASM+API layout
 
-| Old (v1/v1.5) | New (v2) |
+| Old (v1/v1.5) | New (v3) |
 |---|---|
-| `src/Client` WASM | `Modules/*/Pages` |
-| `src/Server` WebAPI + controllers | `Services/DbService` (in-process) |
-| `src/Data` class library | `Data/Scripts/` + `Services/DbService` |
+| `src/Client` WASM | `Tarazin.Shared/Modules/*/Pages` |
+| `src/Server` WebAPI + controllers | `Tarazin.Shared/Services/DbService` (in-process) |
+| `src/Data` class library | `Tarazin.Shared/Data/Scripts/` (embedded) + `DbService` |
 | `src/Business` class library | script logic (TSQL) + page handlers |
-| `src/Shared` contracts | `Models/SharedModels.cs` |
+| `src/Shared` contracts | `Tarazin.Shared/Models/SharedModels.cs` |
 | `tests/` xUnit against API | build + `tools/cross-schema-scan.sh` (CI) |
 
 ## References

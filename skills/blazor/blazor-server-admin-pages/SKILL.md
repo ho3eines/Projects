@@ -81,6 +81,7 @@ await Db.ExecuteAsync("central", "UserUpsert", new
    unregistered `HttpClient` throws at runtime.
 
 ## 🧪 Session verification
-- `dotnet build Tarazin.slnx` — one project, build succeeded
+- `dotnet build Tarazin.Web/Tarazin.Web.csproj` — core + web host build succeeded
+- (MAUI: `dotnet build Tarazin.Maui/... -f net10.0-windows10.0.19041.0`)
 - Open `/central/users` → list + create works
 - Open `/{module}/settings` → base table CRUD works

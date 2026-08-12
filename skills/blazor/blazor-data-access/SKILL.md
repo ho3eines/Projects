@@ -28,9 +28,9 @@ Dapper. No HTTP, no encryption envelopes, no tokens.
 
 | Piece | File | Role |
 |---|---|---|
-| Script store | `Services/ScriptCatalog.cs` | loads `Data/Scripts/{schema}/{Name}.sql` at startup |
-| Executor | `Services/DbService.cs` | `QueryAsync<T>` / `QueryFirstOrDefaultAsync<T>` / `ExecuteAsync` / `ScalarAsync` |
-| Scripts | `Data/Scripts/{schema}/*.sql` | the data layer (report-first) |
+| Script store | `Tarazin.Shared/Services/ScriptCatalog.cs` | loads embedded `Tarazin.Data.Scripts.{schema}.{Name}.sql` (self-loading singleton) |
+| Executor | `Tarazin.Shared/Services/DbService.cs` | `QueryAsync<T>` / `QueryFirstOrDefaultAsync<T>` / `ExecuteAsync` / `ScalarAsync` |
+| Scripts | `Tarazin.Shared/Data/Scripts/{schema}/*.sql` | the data layer (report-first); `EmbeddedResource` → both hosts |
 | Models | `Models/*.cs` | Dapper result shapes (ADR-003) |
 
 ## API
@@ -49,7 +49,7 @@ missing from the catalog (typo = loud failure).
 ## Script conventions
 
 ```sql
--- TarazinApp/Data/Scripts/{schema}/{Name}.sql
+-- Tarazin.Shared/Data/Scripts/{schema}/{Name}.sql
 -- Cross-schema: central        ← only if you must read another schema
 SELECT ... FROM [{schema}].[Table] t
 WHERE t.Column = @Param AND t.IsDeleted = 0
