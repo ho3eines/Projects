@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +13,12 @@ namespace BlazorDeployService.Models
         public string APIKey { get; set; } = string.Empty;
         public string Encryption { get; set; } = string.Empty;
         public string ConnectionStringToken { get; set; } = string.Empty;
+
+        /// <summary>BlazorDeploy = legacy raw-SQL API. Hermes = ProjectGuid handshake + named TSQL.</summary>
+        public string Protocol { get; set; } = "BlazorDeploy";
+
+        /// <summary>Registered project identity. Required when Protocol=Hermes.</summary>
+        public string ProjectGuid { get; set; } = string.Empty;
     }
 
     public class EncryptionSettings

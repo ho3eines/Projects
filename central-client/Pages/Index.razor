@@ -1,34 +1,73 @@
 @page "/"
+@inject IRequestService Request
 
-<PageTitle>داشبورد</PageTitle>
+<PageTitle>داشبورد — Hermes</PageTitle>
 
-<div class="container mt-4">
-    <h1>🏢 سیستم مدیریت پروژه‌ها</h1>
-    <p class="text-muted">کلاینت مرکزی — وب‌سایت شرکت + مدیریت پروژه‌ها + ویجت‌ها</p>
-    <div class="row mt-4">
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">📁 پروژه‌ها</h5>
-                    <p class="card-text">مدیریت همه پروژه‌ها</p>
-                </div>
-            </div>
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h1 class="h-page-title">پروژه‌های سازمان</h1>
+        <p class="h-lead">با یک حساب وارد شوید و هر ماژول را در تب جدا باز کنید. توکن کاربر همراه لینک می‌رود.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="h-card h-stat">
+            <div><div class="k">پروژه فعال</div><div class="v">۱</div></div>
+            <div class="h-stat-ico">▣</div>
         </div>
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">📰 اخبار</h5>
-                    <p class="card-text">اخبار شرکت</p>
-                </div>
-            </div>
+    </div>
+    <div class="col-md-4">
+        <div class="h-card h-stat">
+            <div><div class="k">در صف توسعه</div><div class="v">۲</div></div>
+            <div class="h-stat-ico">◌</div>
         </div>
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">👥 کاربران</h5>
-                    <p class="card-text">مدیریت کاربران و دسترسی‌ها</p>
-                </div>
-            </div>
+    </div>
+    <div class="col-md-4">
+        <div class="h-card h-stat">
+            <div><div class="k">وضعیت نشست</div><div class="v" style="font-size:1.1rem;padding-top:.35rem">@(LoggedIn ? "وارد شده" : "بدون توکن")</div></div>
+            <div class="h-stat-ico">◉</div>
         </div>
     </div>
 </div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <article class="h-card h-project">
+            <div class="d-flex justify-content-between">
+                <div class="h-project-ico">📒</div>
+                <span class="h-badge live">فعال</span>
+            </div>
+            <h4 class="mb-0">حسابداری</h4>
+            <p class="h-lead">اسناد، گزارش‌ها، سال مالی و جداول پایه. Schema: accounting</p>
+            <a class="btn btn-hermes mt-auto" href="@AccountingUrl" target="_blank">ورود به حسابداری</a>
+        </article>
+    </div>
+    <div class="col-md-4">
+        <article class="h-card h-project">
+            <div class="d-flex justify-content-between">
+                <div class="h-project-ico">📦</div>
+                <span class="h-badge wait">به‌زودی</span>
+            </div>
+            <h4 class="mb-0">انبار</h4>
+            <p class="h-lead">کالا، رسید و حواله. همان handshake با Guid جدا.</p>
+            <button class="btn btn-outline-secondary mt-auto" disabled>هنوز منتشر نشده</button>
+        </article>
+    </div>
+    <div class="col-md-4">
+        <article class="h-card h-project">
+            <div class="d-flex justify-content-between">
+                <div class="h-project-ico">🏪</div>
+                <span class="h-badge wait">به‌زودی</span>
+            </div>
+            <h4 class="mb-0">فروشگاه</h4>
+            <p class="h-lead">فروش و صندوق. اتصال از همین مرکز با توکن کاربر.</p>
+            <button class="btn btn-outline-secondary mt-auto" disabled>هنوز منتشر نشده</button>
+        </article>
+    </div>
+</div>
+
+@code {
+    bool LoggedIn => !string.IsNullOrEmpty(Request.UserToken);
+    string AccountingUrl => HermesApps.Open(HermesApps.Accounting, Request.UserToken);
+}

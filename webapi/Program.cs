@@ -1,4 +1,3 @@
-using Share.Models;
 using WebApi;
 using WebApi.Services;
 
@@ -9,29 +8,39 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.Configure<ConnectionStringsOptions>(
     builder.Configuration.GetSection("ConnectionStrings"));
+builder.Services.Configure<HermesProjectsOptions>(
+    builder.Configuration.GetSection("Hermes"));
+builder.Services.Configure<AuthOptions>(
+    builder.Configuration.GetSection("Auth"));
 
 builder.Services.AddSingleton<ISystemQueryExecutor, SystemQueryExecutor>();
+builder.Services.AddSingleton<CryptoJsService>();
+builder.Services.AddSingleton<IProjectCatalog, ProjectCatalog>();
+builder.Services.AddSingleton<ISessionStore, SessionStore>();
+builder.Services.AddSingleton<HandshakeGuard>();
+builder.Services.AddSingleton<IUserTokenService, UserTokenService>();
+builder.Services.AddSingleton<IUserDirectory, UserDirectory>();
+builder.Services.AddHostedService<SchemaBootstrap>();
 
-// Blazor Server
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Auth (JWT)
-builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer(options =>
+var hermes = builder.Configuration.GetSection("Hermes").Get<HermesProjectsOptions>() ?? new();
+var origins = hermes.CorsOrigins.Count > 0
+    ? hermes.CorsOrigins.ToArray()
+    : new[]
     {
-        options.Authority = builder.Configuration["Auth:Authority"];
-        options.Audience = builder.Configuration["Auth:Audience"];
-        options.RequireHttpsMetadata = false;
-    });
-
-builder.Services.AddAuthorization();
+        "https://localhost:65218", "http://localhost:65220",
+        "https://localhost:65219", "http://localhost:65221"
+    };
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", p =>
+    options.AddPolicy("HermesClients", p =>
     {
-        p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        p.WithOrigins(origins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -43,10 +52,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
-app.UseAuthentication();
-app.UseAuthorization();
-
+app.UseCors("HermesClients");
 app.MapControllers();
 
 app.MapRazorComponents<App>()
