@@ -42,7 +42,8 @@ namespace BlazorDeployService.Services
     /// <summary>پیلود استاندارد همه درخواست‌ها به webapi</summary>
     public sealed class DeployRequestPayload
     {
-        public string Tsql { get; set; } = default!;
+        // برای اسکریپت‌های نام‌دار null است و فقط ScriptName ارسال می‌شود
+        public string? Tsql { get; set; }
         public ModelSchemaInfo? Model { get; set; }
         public Dictionary<string, object?>? Parameters { get; set; }
         public string? ScriptName { get; set; }
@@ -224,7 +225,7 @@ namespace BlazorDeployService.Services
         {
             payload ??= new DeployRequestPayload
             {
-                Tsql = isScript ? null! : tsql!,
+                Tsql = isScript ? null : tsql,
                 ScriptName = isScript ? tsql : null,
                 Model = model is null ? null : SchemaReflector.Extract(model.GetType()),
                 Parameters = parameters is null ? null : ToDictionary(parameters),

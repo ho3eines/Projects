@@ -27,7 +27,11 @@ public sealed class ModelSchemaInfoDto
 /// <summary>پیلود استاندارد همه درخواست‌ها</summary>
 public sealed class DeployRequestPayloadDto
 {
-    public string Tsql { get; set; } = default!;
+    // اختیاری: درخواست‌های اسکریپت نام‌دار فقط ScriptName می‌فرستند.
+    // اگر non-nullable بماند، [ApiController] قبل از اجرای اکشن خطای
+    // «The Tsql field is required» برمی‌گرداند. اعتبارسنجی واقعی
+    // (Tsql یا ScriptName) داخل SecureRequestController انجام می‌شود.
+    public string? Tsql { get; set; }
     public ModelSchemaInfoDto? Model { get; set; }
     public Dictionary<string, object?>? Parameters { get; set; }
     public string? ScriptName { get; set; }
