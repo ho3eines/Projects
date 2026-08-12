@@ -1,498 +1,422 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Reflection;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
 using BlazorDeployService.Models;
 using BlazorDeployService.Services;
 using Microsoft.Extensions.Options;
-using Microsoft.JSInterop;
-using Newtonsoft.Json;
-using System.Data;
-using System.Net.Http.Json;
 
 namespace BlazorDeployService.Services
 {
+    #region ===================== PAYLOAD MODELS =====================
+
+    /// <summary>توضیحات یک ستون برای ساخت خودکار جدول در سرور</summary>
+    public sealed class SchemaColumnInfo
+    {
+        public string Name { get; set; } = default!;
+        public string SqlType { get; set; } = "nvarchar(max)";
+        public bool IsPrimaryKey { get; set; }
+        public bool IsIdentity { get; set; }
+        public bool IsRequired { get; set; }
+        public string? DefaultExpression { get; set; }
+    }
+
+    /// <summary>اطلاعات مدل — کلاینت آن را از روی attribute ها استخراج می‌کند</summary>
+    public sealed class ModelSchemaInfo
+    {
+        public string TypeName { get; set; } = default!;
+        public string Schema { get; set; } = "dbo";
+        public string Table { get; set; } = default!;
+        public int TableVersion { get; set; }
+        public List<SchemaColumnInfo> Columns { get; set; } = new();
+    }
+
+    /// <summary>پیلود استاندارد همه درخواست‌ها به webapi</summary>
+    public sealed class DeployRequestPayload
+    {
+        public string Tsql { get; set; } = default!;
+        public ModelSchemaInfo? Model { get; set; }
+        public Dictionary<string, object?>? Parameters { get; set; }
+        public string? ScriptName { get; set; }
+        public Guid? CorrelationId { get; set; } = Guid.NewGuid();
+        public Guid ProjectGuid { get; set; }
+        public Guid? UserId { get; set; }
+        public bool RequireUser { get; set; }
+    }
+
+    /// <summary>پاسخ استاندارد سرور</summary>
+    public sealed class DeployResponse<T>
+    {
+        public Guid? CorrelationId { get; set; }
+        public int TotalCount { get; set; }
+        public T? Data { get; set; }
+        public int AffectedRows { get; set; }
+        public long DurationMs { get; set; }
+        public string? Error { get; set; }
+    }
+
+    #endregion
+
+    #region ===================== INTERFACE =====================
+
+    /// <summary>
+    /// سرویس مرکزی ارتباط با webapi — مدل‌محور، امن و خود-تشخیص‌دهنده schema
+    /// </summary>
     public interface IRequestService
     {
-        string APIKey { get; set; }
-        string BaseUrl { get; set; }
+        /// <summary>اجرای SELECT — نتیجه لیستی از مدل</summary>
+        Task<List<T>> QueryAsync<T>(string tsql, object? parameters = null, Guid? userId = null, CancellationToken ct = default);
 
+        /// <summary>اجرای SELECT با مدل به‌عنوان الگو (سرور جدول/ستون را خودکار می‌سازد)</summary>
+        Task<List<T>> QueryModelAsync<T>(string tsql, T? model = null, Guid? userId = null, CancellationToken ct = default) where T : class;
+
+        /// <summary>اجرای INSERT/UPDATE/DELETE/DDL — تعداد رکوردهای متأثر</summary>
+        Task<int> ExecuteAsync(string tsql, object? parameters = null, Guid? userId = null, CancellationToken ct = default);
+
+        /// <summary>اجرای INSERT با مدل — سرور جدول را مطمئن می‌کند سپس درج می‌کند</summary>
+        Task<int> ExecuteModelAsync<T>(string tsql, T model, Guid? userId = null, CancellationToken ct = default) where T : class;
+
+        /// <summary>اجرای اسکالر — یک مقدار</summary>
+        Task<T?> ScalarAsync<T>(string tsql, object? parameters = null, Guid? userId = null, CancellationToken ct = default);
+
+        /// <summary>اجرای اسکریپت نام‌دار از پوشه TSQL سرور</summary>
+                Task<List<T>> RunScriptAsync<T>(string scriptName, object? parameters = null, Guid? userId = null, CancellationToken ct = default);
+
+                /// <summary>BaseUrl تنظیم‌شده در appsettings — برای کامپوننت‌هایی مثل CKEditor</summary>
+                string BaseUrl { get; }
+
+                /// <summary>APIKey تنظیم‌شده در appsettings — برای کامپوننت‌هایی مثل CKEditor</summary>
+                string APIKey { get; }
+
+        // ===================== LEGACY API (Hermes v1 compatibility) =====================
+        // Kept so existing clients (accounting, central-client, and the 7-product
+        // clients) compile against the v2 transport. Implemented in RequestServiceCompat.cs.
+
+        /// <summary>Legacy: named-script query or exec.</summary>
+        Task<List<T>?> Request<T>(string scriptName, object? parameters = null, bool isExec = false,
+            string? connectionstring = null, string userCode = "") where T : class;
+
+        /// <summary>Legacy: named-script query (alias of RunScriptAsync).</summary>
         Task<List<T>> GetData<T>(string sql, object parameters = null) where T : class;
-        Task PrintToPdf(string reportPath, DataTable dt);
-        Task<List<T>?> Request<T>(string sqlstr, object? param = null, bool isExec = false, string? connectionstring = null, string userCode = "") where T : class;
+
+        /// <summary>Legacy no-op (PDF printing was client-side only).</summary>
+        Task PrintToPdf(string reportPath, System.Data.DataTable dt);
+
+        /// <summary>Legacy: stores a user/login token; also ends the session when null.</summary>
         void SetUserToken(string? token);
+
+        /// <summary>Legacy: current session token (or stored token before login).</summary>
         string? UserToken { get; }
+
+        /// <summary>Legacy: logs the current project in and returns a session-shaped result.</summary>
         Task<HermesLoginResult?> LoginAsync(string username, string password);
     }
 
-    public sealed class HermesLoginResult
+    #endregion
+
+    #region ===================== IMPLEMENTATION =====================
+
+    /// <summary>
+    /// پیاده‌سازی جدید RequestService — پروتکل امن v2:
+    /// HMAC-SHA256 signature + Timestamp (ضد replay) + ProjectGuid + UserId اختیاری
+    /// + ارسال ModelSchemaInfo برای ساخت خودکار جدول/ستون در سرور
+    /// </summary>
+    public sealed partial class RequestService : IRequestService
     {
-        public string UserToken { get; set; } = "";
-        public int UserId { get; set; }
-        public string Username { get; set; } = "";
-        public string DisplayName { get; set; } = "";
-        public string Role { get; set; } = "";
+        private readonly HttpClient _http;
+                private readonly AppSettings _settings;
+                private readonly IEncryptionService _encryption;
+                private readonly IClientStorageService _storage;
+                private readonly ISessionService _session;
+
+                public string BaseUrl => _settings.ApiSettings.BaseUrl;
+                public string APIKey => _settings.ApiSettings.APIKey;
+
+                public RequestService(
+                    HttpClient http,
+                    IOptions<AppSettings> settings,
+                    IEncryptionService encryption,
+                    IClientStorageService storage,
+                    ISessionService session)
+                {
+                    _http = http;
+                    _settings = settings.Value;
+                    _encryption = encryption;
+                    _storage = storage;
+                    _session = session;
+                }
+
+        // ===================== PUBLIC API =====================
+
+        public Task<List<T>> QueryAsync<T>(
+            string tsql, object? parameters = null, Guid? userId = null, CancellationToken ct = default)
+            => SendAsync<List<T>>("query", tsql, parameters, userId, model: null, ct: ct);
+
+        public Task<List<T>> QueryModelAsync<T>(
+            string tsql, T? model = null, Guid? userId = null, CancellationToken ct = default) where T : class
+        {
+            var (payload, schema) = BuildModelPayload(tsql, model, userId);
+            return SendAsync<List<T>>("query", payload: payload, ct: ct);
+        }
+
+        public Task<int> ExecuteAsync(
+            string tsql, object? parameters = null, Guid? userId = null, CancellationToken ct = default)
+            => SendAsync<int>("execute", tsql, parameters, userId, model: null, ct: ct);
+
+        public Task<int> ExecuteModelAsync<T>(
+            string tsql, T model, Guid? userId = null, CancellationToken ct = default) where T : class
+        {
+            var (payload, schema) = BuildModelPayload(tsql, model, userId);
+            return SendAsync<int>("execute", payload: payload, ct: ct);
+        }
+
+        public Task<T?> ScalarAsync<T>(
+            string tsql, object? parameters = null, Guid? userId = null, CancellationToken ct = default)
+            => SendAsync<T>("scalar", tsql, parameters, userId, model: null, ct: ct);
+
+        public Task<List<T>> RunScriptAsync<T>(
+            string scriptName, object? parameters = null, Guid? userId = null, CancellationToken ct = default)
+            => SendAsync<List<T>>("script", scriptName, parameters, userId, model: null, ct: ct, isScript: true);
+
+        // ===================== INTERNALS =====================
+
+        private (DeployRequestPayload payload, ModelSchemaInfo? schema) BuildModelPayload<T>(
+            string tsql, T? model, Guid? userId) where T : class
+        {
+            var schemaInfo = model is null ? null : SchemaReflector.Extract(model.GetType());
+            var parameters = model is null ? null : ToDictionary(model);
+            var payload = new DeployRequestPayload
+            {
+                Tsql = tsql,
+                Model = schemaInfo,
+                Parameters = parameters,
+                ProjectGuid = ResolveProjectGuid(),
+                UserId = userId,
+                RequireUser = userId.HasValue
+            };
+            return (payload, schemaInfo);
+        }
+
+        private async Task<T> SendAsync<T>(
+            string endpoint,
+            string? tsql = null,
+            object? parameters = null,
+            Guid? userId = null,
+            object? model = null,
+            DeployRequestPayload? payload = null,
+            CancellationToken ct = default,
+            bool isScript = false)
+        {
+            payload ??= new DeployRequestPayload
+            {
+                Tsql = isScript ? null! : tsql!,
+                ScriptName = isScript ? tsql : null,
+                Model = model is null ? null : SchemaReflector.Extract(model.GetType()),
+                Parameters = parameters is null ? null : ToDictionary(parameters),
+                ProjectGuid = ResolveProjectGuid(),
+                UserId = userId,
+                RequireUser = userId.HasValue
+            };
+
+            // ۱) سریالایز
+            var json = JsonSerializer.Serialize(payload, JsonOpts);
+
+            // ۲) رمزنگاری اختیاری payload
+                        var finalBody = _settings.Encryption.Enabled
+                            ? await _encryption.EncryptDataAsync(json, _settings.Encryption.Key)
+                            : json;
+
+                        // ۳) ساخت هدرهای امنیتی
+                        var headers = BuildSecurityHeaders(finalBody);
+
+                        // ۴) ارسال
+                        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.ApiSettings.BaseUrl}/api/request/{endpoint}")
+                        {
+                            Content = new StringContent(finalBody, Encoding.UTF8, _settings.Encryption.Enabled ? "text/plain" : "application/json")
+                        };
+            foreach (var (key, value) in headers)
+                request.Headers.TryAddWithoutValidation(key, value);
+
+            using var response = await _http.SendAsync(request, ct);
+                        var raw = await response.Content.ReadAsStringAsync(ct);
+
+                        // نشست منقضی یا باطل → UI باید لاگین باز کند
+                        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                        {
+                            await _session.EndSessionAsync($"http-{(int)response.StatusCode}");
+                            throw new RequestServiceException(
+                                $"نشست شما منقضی شده است ({(int)response.StatusCode}) — لطفاً دوباره وارد شوید.",
+                                "SESSION_EXPIRED");
+                        }
+
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            throw new RequestServiceException(
+                                $"درخواست ناموفق ({response.StatusCode}): {Truncate(raw, 400)}",
+                                response.StatusCode.ToString());
+                        }
+
+                        var result = JsonSerializer.Deserialize<DeployResponse<T>>(raw, JsonOpts);
+                        if (result is null)
+                            throw new RequestServiceException("پاسخ سرور قابل خواندن نبود.", "EMPTY_RESPONSE");
+
+                        if (!string.IsNullOrEmpty(result.Error))
+                            throw new RequestServiceException(result.Error, "SERVER_ERROR");
+
+                        // نشست زنده است — هر درخواست موفق زمان انقضا را جلو می‌برد
+                        await _session.TouchAsync();
+
+                        return result.Data!;
+        }
+
+        /// <summary>
+                /// هدرهای امنیتی: API-Key + Timestamp + HMAC-SHA256 امضای body + SessionToken + ProjectGuid
+                /// </summary>
+                private Dictionary<string, string> BuildSecurityHeaders(string body)
+                {
+                    var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+                    var apiKey = _settings.ApiSettings.APIKey;
+                    var secret = _settings.ApiSettings.ConnectionStringToken;
+
+                    // امضا: HMAC-SHA256(secret, timestamp + body)
+                    var signature = HmacSha256(secret, $"{ts}|{body}");
+
+                    var headers = new Dictionary<string, string>
+                    {
+                        ["X-API-Key"] = apiKey,
+                        ["X-Timestamp"] = ts,
+                        ["X-Signature"] = signature,
+                        ["X-Project-Guid"] = ResolveProjectGuid().ToString("D"),
+                        ["X-User-Id"] = _session.ProjectGuid?.ToString("D") ?? ""
+                    };
+
+                    // توکن نشست — اگر نشست فعال باشد
+                    if (!string.IsNullOrEmpty(_session.SessionToken))
+                        headers["X-Auth-Token"] = _session.SessionToken;
+
+                    return headers;
+                }
+
+        private Guid ResolveProjectGuid()
+                {
+                    // ۱) اول از appsettings — هر پروژه guid ثابت خودش را دارد
+                    if (Guid.TryParse(_settings.ApiSettings.ProjectGuid, out var fromConfig))
+                        return fromConfig;
+                    // ۲) بعد از storage محلی (سازگاری با اجراهای قبلی)
+                    var cached = _storage.GetLocalAsync<string>("hermes:project-guid").GetAwaiter().GetResult();
+                    if (Guid.TryParse(cached, out var g)) return g;
+                    var fresh = Guid.NewGuid();
+                    _storage.SetLocalAsync("hermes:project-guid", fresh.ToString()).GetAwaiter().GetResult();
+                    return fresh;
+                }
+
+        private static Dictionary<string, object?> ToDictionary(object model)
+        {
+            var dict = new Dictionary<string, object?>();
+            foreach (var prop in model.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (prop.GetIndexParameters().Length == 0)
+                    dict[prop.Name] = prop.GetValue(model);
+            }
+            return dict;
+        }
+
+        private static string HmacSha256(string secret, string data)
+        {
+            using var hmac = new System.Security.Cryptography.HMACSHA256(Encoding.UTF8.GetBytes(secret));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+
+        private static readonly JsonSerializerOptions JsonOpts = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
     }
 
-    public partial class RequestService : IRequestService
+    /// <summary>استثنای اختصاصی سرویس درخواست</summary>
+    public sealed class RequestServiceException : Exception
     {
-        readonly private HttpClient _http;
-        readonly private IJSRuntime _js;
-        readonly private IEncryptionService _enc;
-        private string _token;
-        public string APIKey { get; set; }
-        public string BaseUrl { set; get; }
-        private readonly AppSettings _appSettings;
-        private readonly IAlertService _alertService;
-        private readonly string _encryption;
-        private readonly string _connectionstringToken;
-        private readonly string _protocol;
-        private readonly string _projectGuid;
-        private string? _sessionToken;
-        private string? _sessionEncKey;
-        private DateTime _sessionExpiresUtc = DateTime.MinValue;
-        private string? _userToken;
+        public string Code { get; }
+        public RequestServiceException(string message, string code) : base(message) => Code = code;
+    }
 
-        public RequestService(HttpClient http, IJSRuntime js, IEncryptionService enc, IOptions<AppSettings> appSettings, IAlertService alertService)
+    #endregion
+
+    #region ===================== SCHEMA REFLECTOR =====================
+
+    /// <summary>
+    /// متادیتای مدل را از روی attribute های SqlService استخراج می‌کند
+    /// تا سرور بتواند جدول/ستون را بدون داشتن خود مدل بسازد
+    /// </summary>
+    public static class SchemaReflector
+    {
+        public static ModelSchemaInfo Extract(Type modelType)
         {
-            _http = http;
-            _js = js;
-            _enc = enc;
-            _alertService = alertService;
-            _appSettings = appSettings.Value;
-            BaseUrl = _appSettings.ApiSettings.BaseUrl;
-            APIKey = _appSettings.ApiSettings.APIKey;
-            _encryption = _appSettings.ApiSettings.Encryption;
-            _connectionstringToken = _appSettings.ApiSettings.ConnectionStringToken;
-            _protocol = _appSettings.ApiSettings.Protocol ?? "BlazorDeploy";
-            _projectGuid = _appSettings.ApiSettings.ProjectGuid ?? "";
-        }
-
-        private bool IsHermes => string.Equals(_protocol, "Hermes", StringComparison.OrdinalIgnoreCase);
-
-        //private async Task<DataTable?> RequestDataTable(string _query, bool exec = false)
-        //{
-        //    if (string.IsNullOrEmpty(_token))
-        //        _token = await GetToken();
-
-        //    try
-        //    {
-
-        //        Request Value = new Request
-        //        {
-        //            Token = _token,
-        //            Data = _query,
-        //            RequestDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-        //            Exec = exec,
-        //            userCode = ""
-        //        };
-        //        //Console.WriteLine(_query);
-        //        //_response Value = new _response(token: _token, data: _query, requestDate: DateTime.Now.ToString());
-        //        string ValueJson = System.Text.Json.JsonSerializer.Serialize(Value);
-
-        //        string encRequest = await _enc.EncryptDataAsync(ValueJson, _token);
-
-        //        DataDto _datarequst = new DataDto
-        //        {
-        //            data = encRequest
-        //        };
-
-        //        var response = await _http.PostAsJsonAsync(BaseUrl + "Data/", _datarequst);
-        //        if (response.IsSuccessStatusCode)
-        //        {
-        //            if (!exec)
-        //            {
-        //                string responseData = await response.Content.ReadAsStringAsync();
-        //                var decData = await _enc.DecryptDataAsync(responseData, _token);
-        //                //var decData = await _js.InvokeAsync<string>("decryptData", responseData, _token);
-        //                RequestDataTable? _data = JsonConvert.DeserializeObject<RequestDataTable>(decData);
-        //                return _data.Data;
-        //            }
-        //            return null;
-        //        }
-        //        else
-        //        {
-        //            dynamic responseData = await response.Content.ReadAsStringAsync();
-        //            await _alertService.ShowErrorAsync("خطا", responseData.message ?? "");
-        //            return null;
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        await _alertService.ShowErrorAsync("خطا", ex.Message);
-        //        return null;
-        //    }
-        //}
-        //public async Task<string> GetToken()
-        //{
-        //    try
-        //    {
-        //        var _res = await _http.GetStringAsync(BaseUrl + "Data/");
-        //        var decryptedData = await _enc.DecryptDataAsync(_res, "vqmx70HjZd4kz2qIEegN/pWlR+66QASRFuiJZTDgmOk=");
-        //        //var decryptedData = await _js.InvokeAsync<string>("decryptData", _res, "vqmx70HjZd4kz2qIEegN/pWlR+66QASRFuiJZTDgmOk=");
-        //        Request _request = JsonConvert.DeserializeObject<Request>(decryptedData);
-        //        return _request.Data;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        await _alertService.ShowErrorAsync("خطا در گرفتن توکن", ex.Message);
-        //        return "";
-        //    }
-        //}
-        private async Task<(string, string)> verifyAsync()
-        {
-            try
+            var tableAttr = modelType.GetCustomAttribute<TableAttribute>();
+            var info = new ModelSchemaInfo
             {
-                // پاکسازی و تنظیم هدرها
-                _http.DefaultRequestHeaders.Clear();
-                _http.DefaultRequestHeaders.Add("X-API-Key", APIKey);
+                TypeName = modelType.FullName ?? modelType.Name,
+                Table = tableAttr?.Name ?? modelType.Name,
+                TableVersion = tableAttr?.TableVersion ?? 0,
+                Schema = "dbo"
+            };
 
-                // ارسال درخواست
-                var response = await _http.GetAsync(BaseUrl + "Data/");
+            foreach (var prop in modelType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (prop.GetIndexParameters().Length > 0) continue;
 
-                // خواندن پاسخ
-                var responseString = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
+                var col = new SchemaColumnInfo
                 {
-                    var res = JsonConvert.DeserializeObject<dynamic>(responseString);
-
-                    if (res == null)
-                    {
-                        await _alertService.ShowErrorAsync("خطا", "خطا در دریافت اطلاعات");
-                        return (null, null);
-                    }
-
-                    int code = (int)res.code;
-                    if (code == 200)
-                    {
-                        string encryptedData = (string)res.data;
-
-                        if (string.IsNullOrEmpty(encryptedData))
-                        {
-                            await _alertService.ShowErrorAsync("خطا", "داده‌ای برای رمزگشایی وجود ندارد");
-                            return (null, null);
-                        }
-
-                        // رمزگشایی داده‌ها
-                        var decryptedData = await _enc.DecryptDataAsync(encryptedData, _encryption);
-
-                        if (string.IsNullOrEmpty(decryptedData))
-                        {
-                            await _alertService.ShowErrorAsync("خطا", "خطا در رمزگشایی داده‌ها");
-                            return (null, null);
-                        }
-
-                        var data = JsonConvert.DeserializeObject<dynamic>(decryptedData);
-
-                        if (data == null)
-                        {
-                            await _alertService.ShowErrorAsync("خطا", "اطلاعاتی یافت نشد");
-                            return (null, null);
-                        }
-
-
-                        return ((string)data.RequestId, (string)data.EncryptionKey);
-
-                    }
-                    else
-                    {
-                        // خطای سرور (کد غیر 200)
-                        string message = (string)res.message ?? "خطای نامشخص";
-                        await _alertService.ShowErrorAsync($"خطا {code}", message);
-                        return (null, null);
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        var errorRes = JsonConvert.DeserializeObject<dynamic>(responseString);
-                        if (errorRes != null)
-                        {
-                            int errorCode = (int?)errorRes.code ?? (int)response.StatusCode;
-                            string errorMessage = (string)errorRes.message ?? response.ReasonPhrase ?? "خطا در ارتباط با سرور";
-                            await _alertService.ShowErrorAsync($"خطا {errorCode}", errorMessage);
-                        }
-                        else
-                        {
-                            await _alertService.ShowErrorAsync($"خطا {(int)response.StatusCode}", response.ReasonPhrase ?? "خطا در ارتباط با سرور");
-                        }
-                    }
-                    catch
-                    {
-                        await _alertService.ShowErrorAsync($"خطا {(int)response.StatusCode}", response.ReasonPhrase ?? "خطا در ارتباط با سرور");
-                    }
-                    return (null, null);
-                }
-            }
-            catch (HttpRequestException httpEx)
-            {
-                await _alertService.ShowErrorAsync("خطا در ارتباط با سرور", httpEx.Message);
-                return (null, null);
-            }
-            catch (JsonException jsonEx)
-            {
-                await _alertService.ShowErrorAsync("خطا در پردازش اطلاعات", jsonEx.Message);
-                return (null, null);
-            }
-            catch (Exception ex)
-            {
-                await _alertService.ShowErrorAsync("خطا در Verify", ex.Message);
-                return (null, null);
-            }
-        }
-
-        private async Task<List<T>?> Requestsever<T>(string _requestToken, string _encryptionKey, string _connectionStringToken, string _sqlstr, object? param = null, bool _isExec = false, string _userCode = "") where T : class
-        {
-            try
-            {
-                var _data = new requestdata
-                {
-                    token = Guid.NewGuid().ToString(),
-                    requestDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                    connectionString = _connectionStringToken,
-                    IsExec = _isExec,
-                    SqlStr = _sqlstr,
-                    Parameters = param,
-                    userCode = _userCode,
-                    ExpairDate = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd HH:mm:ss"),
-                    token2 = Guid.NewGuid().ToString()
+                    Name = prop.Name,
+                    IsPrimaryKey = prop.GetCustomAttribute<PrimaryKeyAttribute>() is not null,
+                    IsIdentity = prop.GetCustomAttribute<IdentityAttribute>() is not null,
+                    IsRequired = prop.GetCustomAttribute<RequiredAttribute>() is not null,
+                    DefaultExpression = prop.GetCustomAttribute<DefaultAttribute>()?.Expression,
+                    SqlType = prop.GetCustomAttribute<SqlTypeAttribute>()?.SqlType
+                              ?? MapClrToSql(prop.PropertyType)
                 };
+                var maxLen = prop.GetCustomAttribute<MaxLengthAttribute>();
+                if (maxLen is not null && col.SqlType.StartsWith("nvarchar"))
+                    col.SqlType = $"nvarchar({maxLen.Length})";
 
-                string ValueJson = JsonConvert.SerializeObject(_data);
-
-                string encdata = await _enc.EncryptDataAsync(ValueJson, _encryptionKey);
-
-                _http.DefaultRequestHeaders.Clear();
-                _http.DefaultRequestHeaders.Add("X-API-Key", _requestToken);
-
-                var response = await _http.PostAsJsonAsync(BaseUrl + "Data/", encdata);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    string responseData = await response.Content.ReadAsStringAsync();
-                    responeData res = JsonConvert.DeserializeObject<responeData>(responseData);
-                    if (res is null) return null;
-                    if (res.code == 200)
-                    {
-                        encdata = res.data;
-                        if (!_data.IsExec)
-                        {
-                            //string decryptedData = await _enc.DecryptDataAsync(encdata, _encryptionKey);
-                            //ResponseData data = JsonConvert.DeserializeObject<ResponseData>(encdata);
-
-                            if (encdata is not null)
-                            {
-                                //string decList = await _enc.DecryptDataAsync(data.Data, _encryptionKey);
-                                var obj = JsonConvert.DeserializeObject<List<T>>(encdata);
-                                return obj;
-                            }
-                        }
-                        else
-                            return null;
-
-                    }
-                    else
-                    {
-                        await _alertService.ShowErrorAsync("خطا", res.message ?? "");
-                        return null;
-                    }
-                }
-                else
-                {
-                    dynamic responseData = await response.Content.ReadAsStringAsync();
-                    await _alertService.ShowErrorAsync("خطا", responseData.message ?? "");
-                    return null;
-                }
+                info.Columns.Add(col);
             }
-            catch (Exception ex)
-            {
-                await _alertService.ShowErrorAsync("خطا در ارسال به سرور", ex.Message);
-                return null;
-            }
-            return null;
+            return info;
         }
 
-        /// <summary>
-        /// Hermes: named TSQL script (handshake with ProjectGuid first).
-        /// BlazorDeploy: legacy raw SQL path.
-        /// </summary>
-        public async Task<List<T>?> Request<T>(string sqlstr, object? param = null, bool isExec = false, string? connectionstring = null, string userCode = "") where T : class
+        private static string MapClrToSql(Type type)
         {
-            try
-            {
-                if (IsHermes)
-                    return await HermesRequest<T>(sqlstr, param, isExec, isScalar: false, userCode, allowRetry: true);
-
-                if (string.IsNullOrEmpty(connectionstring))
-                    connectionstring = _connectionstringToken;
-
-                (string RequestId, string EncryptionKey) = await verifyAsync();
-                if (RequestId is not null)
-                {
-                    var r = await Requestsever<T>(RequestId, EncryptionKey, connectionstring, sqlstr, param, isExec, userCode);
-
-                    if (isExec)
-                        return null;
-                    else
-                        return r;
-
-
-                }
-                return null;
-            }
-            catch (Exception ex)
-            {
-                await _alertService.ShowErrorAsync("خطا در ارسال درخواست", ex.Message);
-                return null;
-            }
-        }
-        //private async Task<List<T>?> Request<T>(string connectionStringToken, string sqlstr, object? param = null, bool isExec = false, string userCode = "") where T : new()
-        //{
-        //    try
-        //    {
-        //        (string RequestId, string EncryptionKey) = await verifyAsync();
-        //        if (RequestId is not null)
-        //        {
-        //            DataTable data = await Requestsever(RequestId, EncryptionKey, connectionStringToken, sqlstr, param, isExec, userCode);
-
-        //            if (data is not null)
-        //                return DataTableToList<T>(data);
-        //            else
-        //                return null;
-
-        //        }
-        //        return null;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        await _alertService.ShowErrorAsync("خطا در ارسال درخواست", ex.Message);
-        //        return null;
-        //    }
-        //}
-        //
-        //private List<T> DataTableToList<T>(DataTable dataTable) where T : new()
-        //{
-        //    var list = new List<T>();
-        //    var properties = typeof(T).GetProperties();
-
-        //    foreach (DataRow row in dataTable.Rows)
-        //    {
-        //        var item = new T();
-        //        foreach (var property in properties)
-        //        {
-        //            if (dataTable.Columns.Contains(property.Name))
-        //            {
-        //                var value = row[property.Name];
-        //                if (value != DBNull.Value)
-        //                {
-        //                    try
-        //                    {
-        //                        property.SetValue(item, Convert.ChangeType(value, property.PropertyType));
-        //                    }
-        //                    catch
-        //                    {
-        //                        // Ignore conversion errors
-        //                    }
-        //                }
-        //            }
-        //        }
-        //        list.Add(item);
-        //    }
-
-        //    return list;
-        //}
-
-        /// <summary>
-        /// این سرویس برای خواندن دیتا ها بر اساس مدل درخواستی، مورد استفاده قرار میگیرد
-        /// </summary>
-        public async Task<List<T>> GetData<T>(string sql, object parameters = null) where T : class
-        {
-            if (IsHermes)
-                return await HermesRequest<T>(sql, parameters, isExec: false, isScalar: false, allowRetry: true) ?? new List<T>();
-
-            (string RequestId, string EncryptionKey) = await verifyAsync();
-
-            if (RequestId is not null)
-            {
-                var data = await Requestsever<T>(
-                    RequestId,
-                    EncryptionKey,
-                    _connectionstringToken,
-                    sql,
-                    parameters
-                );
-
-                if (data is not null)
-                {
-                    var json = JsonConvert.SerializeObject(data);
-
-                    return JsonConvert.DeserializeObject<List<T>>(json) ?? new List<T>();
-                }
-            }
-
-            return new List<T>();
-        }
-
-        /// <summary>
-        /// این سرویس برای نمایش ریپورت مورد استفاده قرار میگیرد
-        /// </summary>
-        public async Task PrintToPdf(string reportPath, DataTable dt)
-        {
-            try
-            {
-                ReportDto _report = new ReportDto
-                {
-                    ReportPath = reportPath,
-                    dt = dt,
-                    dateTime = DateTime.Now,
-                    UserCode = ""
-                };
-
-                string ValueJson = JsonConvert.SerializeObject(_report);
-
-                string encRequest = await _enc.EncryptDataAsync(ValueJson, "qwzxcvsdfgx70HjZd4xcrhxhr66QRFuiJZTDgmOk=");
-                //string encRequest = await _js.InvokeAsync<string>("encryptData", ValueJson, "qwzxcvsdfgx70HjZd4xcrhxhr66QRFuiJZTDgmOk=");
-
-                string responseData = "";
-
-                var response = await _http.PostAsJsonAsync(BaseUrl + "report/pdf/", encRequest);
-                if (response.IsSuccessStatusCode)
-                {
-                    responseData = await response.Content.ReadAsStringAsync();
-                    await _js.InvokeVoidAsync("open", responseData, "_blank");
-                }
-                //var _res = await _http.GetStringAsync(_http.BaseAddress.ToString() + "report/pdf");
-            }
-            catch (Exception ex)
-            {
-                await _alertService.ShowErrorAsync("خطا در ساخت گزارش", ex.Message);
-            }
+            type = Nullable.GetUnderlyingType(type) ?? type;
+            if (type == typeof(string)) return "nvarchar(max)";
+            if (type == typeof(int)) return "int";
+            if (type == typeof(long)) return "bigint";
+            if (type == typeof(short)) return "smallint";
+            if (type == typeof(byte)) return "tinyint";
+            if (type == typeof(bool)) return "bit";
+            if (type == typeof(decimal)) return "decimal(18,4)";
+            if (type == typeof(double)) return "float";
+            if (type == typeof(float)) return "real";
+            if (type == typeof(Guid)) return "uniqueidentifier";
+            if (type == typeof(DateTime)) return "datetime2";
+            if (type == typeof(DateTimeOffset)) return "datetimeoffset";
+            if (type == typeof(TimeSpan)) return "time";
+            if (type.IsEnum) return "int";
+            if (type == typeof(byte[])) return "varbinary(max)";
+            return "nvarchar(max)";
         }
     }
-    public class requestdata
-    {
-        public string token { set; get; }
-        public string requestDate { set; get; }
-        public string connectionString { set; get; }
-        public bool IsExec { set; get; }
-        public string SqlStr { set; get; }
-        public object Parameters { set; get; }
-        public string userCode { set; get; }
-        public string ExpairDate { set; get; }
-        public string token2 { set; get; }
 
-    }
-
-    public class ResponseData
-    {
-        public bool Success { set; get; }
-        public string? Data { set; get; }
-        public int? ResponseSize { set; get; }
-        public string? ErrorMessage { set; get; }
-    }
-
-    public class dataReturn
-    {
-        public int code { set; get; }
-        public List<dynamic> data { set; get; }
-        public string message { set; get; }
-    }
+    #endregion
 }

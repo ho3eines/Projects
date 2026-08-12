@@ -1,174 +1,257 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.Authorization;
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using Dapper;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
-using WebApi.Services;
+using WebApi.Models;
 
 namespace WebApi.Controllers;
 
 /// <summary>
-/// ProjectGuid handshake. Issues a short-lived session token + AES key.
-/// RequestService (Protocol=Hermes) calls this BEFORE any data request.
+/// احراز هویت پروژه‌ها با webapi:
+/// POST /api/auth/login
+///   body: { projectGuid, loginToken (AES-encrypted), clientVersion }
+/// جریان:
+///   1) پروژه را در جدول Projects پیدا می‌کند (شامل ConnectionString و تنظیمات اختصاصی)
+///   2) loginToken رمزنگاری‌شده را با EncryptionKey پروژه دیکریپت می‌کند
+///   3) با LoginTokenHash مقایسه می‌کند (FixedTimeEquals)
+///   4) در صورت موفقیت SessionToken می‌سازد و در SessionStore ثبت می‌کند
+///   5) SessionTimeoutMinutes از جدول Projects خوانده می‌شود (قابل تنظیم در run-time)
 /// </summary>
 [ApiController]
 [Route("api/auth")]
-[AllowAnonymous]
 public class AuthController : ControllerBase
 {
-    private readonly IProjectCatalog _projects;
-    private readonly ISessionStore _sessions;
-    private readonly HandshakeGuard _guard;
-    private readonly CryptoJsService _crypto;
-    private readonly HermesProjectsOptions _options;
-    private readonly ILogger<AuthController> _logger;
+    private readonly RequestServiceConfig _cfg;
+    private readonly SessionStore _sessions;
+    private readonly ILogger<AuthController> _log;
 
-    public AuthController(
-        IProjectCatalog projects,
-        ISessionStore sessions,
-        HandshakeGuard guard,
-        CryptoJsService crypto,
-        IOptions<HermesProjectsOptions> options,
-        ILogger<AuthController> logger)
+    public AuthController(IOptions<RequestServiceConfig> cfg, SessionStore sessions, ILogger<AuthController> log)
     {
-        _projects = projects;
+        _cfg = cfg.Value;
         _sessions = sessions;
-        _guard = guard;
-        _crypto = crypto;
-        _options = options.Value;
-        _logger = logger;
-    }
-
-    public sealed class HandshakeEnvelope
-    {
-        public string? Data { get; set; }
-    }
-
-    [HttpPost("handshake")]
-    public IActionResult Handshake([FromBody] HandshakeEnvelope? body)
-    {
-        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        if (!_guard.TryConsumeRate("hs:" + ip))
-            return StatusCode(429, new { code = 429, message = "Too many handshake attempts" });
-
-        if (string.IsNullOrWhiteSpace(body?.Data))
-            return BadRequest(new { code = 400, message = "Encrypted handshake payload required" });
-
-        if (!TryReadProjectGuid(out var projectGuid))
-            return BadRequest(new { code = 400, message = "X-Project-Guid header required" });
-
-        var project = _projects.Find(projectGuid);
-        if (project is null || !project.IsActive || string.IsNullOrWhiteSpace(project.SharedKey))
-        {
-            _logger.LogWarning("Handshake rejected: unknown or inactive project {Guid} from {IP}", projectGuid, ip);
-            return Unauthorized(new { code = 401, message = "Unknown project" });
-        }
-
-        string plain;
-        try
-        {
-            plain = _crypto.Decrypt(project.SharedKey, body.Data);
-        }
-        catch
-        {
-            return Unauthorized(new { code = 401, message = "Decrypt failed" });
-        }
-
-        using var doc = JsonDocument.Parse(plain);
-        var root = doc.RootElement;
-        var guidInBody = root.TryGetProperty("projectGuid", out var gEl) ? gEl.GetString() : null;
-        var nonce = root.TryGetProperty("nonce", out var nEl) ? nEl.GetString() : null;
-        var timestamp = root.TryGetProperty("timestamp", out var tEl) ? tEl.GetInt64() : 0;
-        var clientId = root.TryGetProperty("clientId", out var cEl) ? cEl.GetString() : null;
-
-        if (!Guid.TryParse(guidInBody, out var bodyGuid) || bodyGuid != projectGuid)
-            return Unauthorized(new { code = 401, message = "ProjectGuid mismatch" });
-
-        if (!_guard.IsTimestampFresh(timestamp, _options.HandshakeWindowSeconds))
-            return Unauthorized(new { code = 401, message = "Stale handshake" });
-
-        if (!_guard.TryAcceptNonce(nonce ?? ""))
-            return Unauthorized(new { code = 401, message = "Replay rejected" });
-
-        var lifetime = TimeSpan.FromMinutes(Math.Clamp(_options.SessionMinutes, 5, 60));
-        var (token, encKey, expires) = _sessions.Issue(project, clientId, lifetime);
-
-        var inner = JsonSerializer.Serialize(new
-        {
-            RequestId = token,
-            EncryptionKey = encKey,
-            ExpiresAt = expires,
-            Schema = project.Schema,
-            Project = project.Name
-        });
-
-        return Ok(new
-        {
-            code = 200,
-            data = _crypto.Encrypt(project.SharedKey, inner)
-        });
+        _log = log;
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] HandshakeEnvelope? body)
+    public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
     {
-        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        if (!_guard.TryConsumeRate("login:" + ip))
-            return StatusCode(429, new { code = 429, message = "Too many login attempts" });
+        if (request.ProjectGuid == Guid.Empty)
+            return BadRequest(new { error = "ProjectGuid is required" });
+        if (string.IsNullOrEmpty(request.LoginToken))
+            return BadRequest(new { error = "LoginToken is required" });
 
-        if (!Request.Headers.TryGetValue("X-API-Key", out var apiKey))
-            return Unauthorized(new { code = 401, message = "Handshake required before login" });
+        // 1) پیدا کردن پروژه از جدول Projects
+        var project = await FindProjectAsync(request.ProjectGuid);
+        if (project is null)
+            return Unauthorized(new { error = "Project not found or inactive" });
+        if (!project.IsActive)
+            return Unauthorized(new { error = "Project is disabled" });
 
-        var session = _sessions.Validate(apiKey.ToString());
-        if (session is null)
-            return Unauthorized(new { code = 401, message = "Handshake required before login" });
+        // 2) دیکریپت loginToken با EncryptionKey پروژه
+        string decrypted;
+        try { decrypted = DecryptAes(request.LoginToken, project.EncryptionKey); }
+        catch { return Unauthorized(new { error = "Invalid token encryption" }); }
 
-        if (string.IsNullOrWhiteSpace(body?.Data))
-            return BadRequest(new { code = 400, message = "Encrypted login payload required" });
-
-        string plain;
-        try { plain = _crypto.Decrypt(session.EncryptionKey, body.Data); }
-        catch { return Unauthorized(new { code = 401, message = "Decrypt failed" }); }
-
-        using var doc = JsonDocument.Parse(plain);
-        var username = doc.RootElement.TryGetProperty("username", out var u) ? u.GetString() : null;
-        var password = doc.RootElement.TryGetProperty("password", out var p) ? p.GetString() : null;
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-            return BadRequest(new { code = 400, message = "username/password required" });
-
-        var user = await _users.FindByUsernameAsync(username);
-        if (user is null || !user.IsActive || !PasswordHasher.Verify(password, user.PasswordHash))
+        // 3) مقایسه امن با LoginTokenHash
+        var hash = Sha256(decrypted);
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(hash), Encoding.UTF8.GetBytes(project.LoginTokenHash)))
         {
-            _logger.LogWarning("Failed login for {User} from {IP}", username, ip);
-            return Unauthorized(new { code = 401, message = "Invalid credentials" });
+            _log.LogWarning("Failed login for project {Project}", request.ProjectGuid);
+            return Unauthorized(new { error = "Invalid login token" });
         }
 
-        var hermesUser = new HermesUser
-        {
-            UserId = user.UserId,
-            Username = user.Username,
-            DisplayName = user.DisplayName,
-            Role = user.Role
-        };
-        _sessions.AttachUser(apiKey.ToString(), hermesUser);
-        var jwt = _userTokens.Issue(hermesUser);
+        // 4) ساخت نشست — Timeout از جدول پروژه (به دقیقه)
+        var session = _sessions.Create(project);
 
-        var inner = JsonSerializer.Serialize(new
+        _log.LogInformation("Project {Name} logged in, session {Token} (timeout {Timeout} min)",
+            project.Name, session.SessionToken[..8], project.SessionTimeoutMinutes);
+
+        return Ok(new LoginResponseDto
         {
-            userToken = jwt,
-            userId = user.UserId,
-            displayName = user.DisplayName,
-            role = user.Role,
-            username = user.Username
+            SessionToken = session.SessionToken,
+            ExpiresInSeconds = project.SessionTimeoutMinutes * 60,
+            ExpiresInMinutes = project.SessionTimeoutMinutes,
+            Project = new ProjectInfoDto
+            {
+                ProjectGuid = project.ProjectGuid,
+                Name = project.Name,
+                Schema = project.Schema,
+                SessionTimeoutMinutes = project.SessionTimeoutMinutes,
+                DatabaseName = project.DatabaseName
+            }
         });
-
-        return Ok(new { code = 200, data = _crypto.Encrypt(session.EncryptionKey, inner) });
     }
 
-    private bool TryReadProjectGuid(out Guid guid)
+    /// <summary>خروج از نشست — توکن باطل می‌شود</summary>
+    [HttpPost("logout")]
+    public IActionResult Logout([FromHeader(Name = "X-Auth-Token")] string? token)
     {
-        guid = Guid.Empty;
-        if (!Request.Headers.TryGetValue("X-Project-Guid", out var raw))
-            return false;
-        return Guid.TryParse(raw.ToString(), out guid);
+        if (!string.IsNullOrEmpty(token))
+            _sessions.Revoke(token);
+        return Ok(new { message = "Logged out" });
     }
+
+    private async Task<ProjectDefinition?> FindProjectAsync(Guid projectGuid)
+    {
+        await using var conn = new SqlConnection(_cfg.ConnectionString);
+        await conn.OpenAsync();
+        return await conn.QueryFirstOrDefaultAsync<ProjectDefinition>(
+            "SELECT * FROM [dbo].[Projects] WHERE ProjectGuid = @guid", new { guid = projectGuid });
+    }
+
+    /// <summary>
+    /// Decrypts the client loginToken. The Blazor WASM client encrypts with
+    /// AES-256-CBC (PKCS7): key = SHA256(UTF8(key)), random 16-byte IV prepended
+    /// to the ciphertext, all Base64 (see blazordeployservice/wwwroot/js/interop.js).
+    /// </summary>
+    private static string DecryptAes(string base64, string key)
+    {
+        var full = Convert.FromBase64String(base64);
+        if (full.Length <= 16)
+            throw new InvalidOperationException("Invalid token payload");
+
+        var iv = full[..16];
+        var cipher = full[16..];
+
+        using var aes = Aes.Create();
+        aes.Key = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+        aes.IV = iv;
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
+        using var dec = aes.CreateDecryptor();
+        var plain = dec.TransformFinalBlock(cipher, 0, cipher.Length);
+        return Encoding.UTF8.GetString(plain);
+    }
+
+    private static string Sha256(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input))).ToLowerInvariant();
+    }
+}
+
+/// <summary>DTO درخواست ورود</summary>
+public sealed class LoginRequestDto
+{
+    public Guid ProjectGuid { get; set; }
+    public string LoginToken { get; set; } = default!;
+    public string ClientVersion { get; set; } = "1.0.100";
+}
+
+/// <summary>DTO پاسخ ورود</summary>
+public sealed class LoginResponseDto
+{
+    public string SessionToken { get; set; } = default!;
+    public int ExpiresInSeconds { get; set; }
+    public int ExpiresInMinutes { get; set; }
+    public ProjectInfoDto Project { get; set; } = new();
+}
+
+/// <summary>DTO اطلاعات پروژه برای کلاینت</summary>
+public sealed class ProjectInfoDto
+{
+    public Guid ProjectGuid { get; set; }
+    public string Name { get; set; } = default!;
+    public string Schema { get; set; } = "dbo";
+    public int SessionTimeoutMinutes { get; set; } = 10;
+    public string DatabaseName { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// نگهداری نشست‌های فعال در حافظه (ConcurrentDictionary)
+/// - هر نشست Timeout اختصاصی دارد (از جدول پروژه)
+/// - Touch با هر درخواست معتبر — سکوت بیش از Timeout → انقضا
+/// - پاکسازی دوره‌ای نشست‌های منقضی
+/// </summary>
+public sealed class SessionStore
+{
+    private readonly ConcurrentDictionary<string, ServerSession> _sessions = new();
+    private readonly ILogger<SessionStore> _log;
+
+    public SessionStore(ILogger<SessionStore> log)
+    {
+        _log = log;
+        // پاکسازی دوره‌ای نشست‌های منقضی (هر ۵ دقیقه)
+        var _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(5));
+                CleanupExpired();
+            }
+        });
+    }
+
+    public ServerSession Create(ProjectDefinition project)
+    {
+        var session = new ServerSession
+        {
+            SessionToken = GenerateToken(),
+            ProjectGuid = project.ProjectGuid,
+            CreatedAtUtc = DateTime.UtcNow,
+            LastActivityUtc = DateTime.UtcNow,
+            TimeoutMinutes = project.SessionTimeoutMinutes,
+            DatabaseName = project.DatabaseName,
+            Schema = project.Schema
+        };
+        _sessions[session.SessionToken] = session;
+        return session;
+    }
+
+    /// <summary>اعتبارسنجی توکن + Touch — اگر منقضی باشد حذف و false</summary>
+    public bool Validate(string token, out ServerSession? session)
+    {
+        session = null;
+        if (_sessions.TryGetValue(token, out var s))
+        {
+            if (s.IsExpired)
+            {
+                _sessions.TryRemove(token, out _);
+                _log.LogInformation("Session {Token} expired after {Min} min idle", token[..8], s.TimeoutMinutes);
+                return false;
+            }
+            s.Touch();
+            session = s;
+            return true;
+        }
+        return false;
+    }
+
+    public void Revoke(string token) => _sessions.TryRemove(token, out _);
+
+    public int ActiveCount => _sessions.Count;
+
+    public IReadOnlyList<ServerSession> All => _sessions.Values.ToList();
+
+    private void CleanupExpired()
+    {
+        foreach (var (token, s) in _sessions)
+        {
+            if (s.IsExpired) _sessions.TryRemove(token, out _);
+        }
+    }
+
+    private static string GenerateToken()
+    {
+        // 32 bytes random → 64 hex chars — غیرقابل پیش‌بینی
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+    }
+}
+
+/// <summary>نشست فعال در سرور</summary>
+public sealed class ServerSession
+{
+    public string SessionToken { get; set; } = default!;
+    public Guid ProjectGuid { get; set; }
+    public string DatabaseName { get; set; } = string.Empty;
+    public string Schema { get; set; } = "dbo";
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime LastActivityUtc { get; set; }
+    public int TimeoutMinutes { get; set; } = 10;
+
+    public bool IsExpired => (DateTime.UtcNow - LastActivityUtc).TotalMinutes > TimeoutMinutes;
+    public void Touch() => LastActivityUtc = DateTime.UtcNow;
 }

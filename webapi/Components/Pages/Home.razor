@@ -1,0 +1,42 @@
+@page "/"
+<PageTitle>مدیریت پروژه‌ها</PageTitle>
+
+<div class="container-fluid py-4" dir="rtl">
+    <div class="p-5 mb-4 bg-primary bg-gradient text-white rounded-3">
+        <h1 class="display-5 fw-bold">🏢 Hermes WebAPI</h1>
+        <p class="lead">میزبان مدیریت پروژه‌ها — هر پروژه دیتابیس اختصاصی، تنظیمات بکاپ و اتصال API دارد.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="display-6 mb-3">🔌</div>
+                    <h5 class="card-title">اتصال به API</h5>
+                    <p class="card-text small">اطلاعات لازم برای وصل کردن کلاینت (Guid، ApiKey، Timeout، وضعیت) هر پروژه.</p>
+                    <a href="/connection" class="btn btn-outline-primary">مشاهده</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="display-6 mb-3">➕</div>
+                    <h5 class="card-title">ایجاد پروژه</h5>
+                    <p class="card-text small">پروژه جدید با دیتابیس اختصاصی، کانکشن استرینگ و تنظیمات بکاپ بسازید.</p>
+                    <a href="/create-project" class="btn btn-outline-success">ایجاد</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="display-6 mb-3">📋</div>
+                    <h5 class="card-title">لیست پروژه‌ها</h5>
+                    <p class="card-text small">مدیریت پروژه‌های موجود — بکاپ، ریستور، تنظیمات.</p>
+                    <a href="/projects" class="btn btn-outline-secondary">مدیریت</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

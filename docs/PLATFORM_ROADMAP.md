@@ -53,6 +53,7 @@ launcher card to `central-client/Pages/Index.razor`; create
 | P0-05 Contract tests | ✅ | `tests/Hermes.ContractTests` (شکل، backward-compat، idempotency، E2E) |
 | P0-06 docker compose | ✅ | `docker-compose.yml` (SQL Server + webapi) + `webapi/Dockerfile` |
 | P0-07 CI + static analysis | ✅ | `ci/ci.yml` (برای فعال‌سازی: انتقال به `.github/workflows/ci.yml` توسط maintainer — توکن GitHub App این sandbox مجوز `workflows` ندارد) + `tools/cross-schema-scan.sh` (اسکن ۸۴ اسکریپت: OK) |
+| v2 سازگاری (2026-08-12) | ✅ | کلاینت‌ها به پروتکل v2 منتقل شدند: `RequestServiceCompat.cs` (API قدیمی روی v2)، رفع `RunScriptAsync`/`ResolveProjectGuid`، رفع دیکریپت loginToken در AuthController، پشتیبانی پوشهٔ per-schema در `ExecuteScriptAsync`، ثبت DI سشن v2، `EnsureDatabaseAsync` در startup، appsettings هفت کلاینت v2، `tools/seed-projects-hermes7.ps1` (ثبت ۷ محصول در `dbo.Projects` → HermesMaster + اسکیمه) |
 | P0-08 Ops hardening | 🔲 بک‌لاگ | metrics، feature flags، refresh-token — برای فاز بعدی |
 | P1–P5 محصولات | ✅ | انبار، خزانه، حقوق، طلافروشی، فروشگاه — صفحات ۶‌گانه + مدل‌ها + اسکریپت‌ها |
 | P6 E2E / hardening | 🔲 بک‌لاگ | تست E2E نوشته شده (AC #2)؛ اجرای سخت‌گیرانهٔ <8s در CI با `HERMES_STRICT_E2E=1`؛ DAST و GitOps برای بعد |

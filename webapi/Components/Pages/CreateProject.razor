@@ -1,0 +1,123 @@
+@page "/create-project"
+@using System.Data
+@using Microsoft.Data.SqlClient
+@using Dapper
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@inject IConfiguration Config
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="p-4" dir="rtl">
+    <h4 class="mb-3">➕ ایجاد پروژه جدید</h4>
+
+    <EditForm Model="Model" OnValidSubmit="HandleValidSubmit" FormName="create-project-form">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="form-label">نام پروژه</label>
+                <InputText class="form-control" @bind-Value="Model.Name" required />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">SessionTimeout (دقیقه)</label>
+                <InputNumber class="form-control" @bind-Value="Model.SessionTimeoutMinutes" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">ApiKey</label>
+                <InputText class="form-control" @bind-Value="Model.ApiKey" required />
+            </div>
+            <div class="col-12">
+                <label class="form-label">ConnectionString</label>
+                <InputText class="form-control" @bind-Value="Model.ConnectionString" required
+                           placeholder="Server=localhost;Database=MyProject;User Id=sa;Password=***" />
+            </div>
+            <div class="col-12">
+                <label class="form-label">نام دیتابیس</label>
+                <InputText class="form-control" @bind-Value="Model.DatabaseName" required />
+            </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn-secondary" @onclick="Cancel">لغو</button>
+            <button type="submit" class="btn btn-success" disabled="@isSubmitting">
+                @(isSubmitting ? "در حال ذخیره..." : "ذخیره")
+            </button>
+        </div>
+    </EditForm>
+
+    @if (_error != null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+</div>
+
+@code {
+    public class CreateFormModel
+    {
+        public string Name { get; set; } = "";
+        public int SessionTimeoutMinutes { get; set; } = 10;
+        public string ApiKey { get; set; } = "";
+        public string ConnectionString { get; set; } = "";
+        public string DatabaseName { get; set; } = "";
+    }
+
+    private CreateFormModel Model = new();
+    private bool isSubmitting = false;
+    private string? _error;
+
+    private async Task HandleValidSubmit()
+    {
+        isSubmitting = true;
+        _error = null;
+
+        try
+        {
+            var connStr = Config.GetConnectionString("DefaultConnection")!;
+            using var conn = new SqlConnection(connStr);
+            await conn.OpenAsync();
+
+            var sql = @"
+INSERT INTO dbo.Projects (
+    Name, ProjectGuid, LoginTokenHash, EncryptionKey, ApiKey,
+    SessionTimeoutMinutes, IsActive, ConnectionString, DatabaseName,
+    DatabaseProvider, AutoBackupEnabled, AutoBackupIntervalMinutes,
+    AutoBackupTimeUtc, MaxBackupRetention, Description, CreatedAtUtc
+)
+VALUES (
+    @Name, NEWID(), NEWID(), NEWID(), @ApiKey,
+    @SessionTimeoutMinutes, @IsActive, @ConnectionString, @DatabaseName,
+    'SqlServer', @AutoBackupEnabled, 1440, '02:00:00', 7, @Description, GETUTCDATE()
+);";
+
+            await conn.ExecuteAsync(sql, new
+            {
+                Name = Model.Name,
+                ApiKey = Model.ApiKey,
+                SessionTimeoutMinutes = Model.SessionTimeoutMinutes,
+                IsActive = true,
+                ConnectionString = Model.ConnectionString,
+                DatabaseName = Model.DatabaseName,
+                AutoBackupEnabled = true,
+                Description = ""
+            });
+
+            await JS.InvokeVoidAsync("eval", "window.location.href = '/projects';");
+        }
+        catch (Exception ex)
+        {
+            _error = $"خطا در ذخیره پروژه: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Cancel()
+    {
+        Nav.NavigateTo("/projects");
+        await Task.CompletedTask;
+    }
+}

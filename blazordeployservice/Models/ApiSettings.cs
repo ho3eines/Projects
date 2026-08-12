@@ -19,6 +19,9 @@ namespace BlazorDeployService.Models
 
         /// <summary>Registered project identity. Required when Protocol=Hermes.</summary>
         public string ProjectGuid { get; set; } = string.Empty;
+
+        /// <summary>Dev login token used by the legacy compatibility login (v2 flow).</summary>
+        public string LoginToken { get; set; } = "hermes-admin";
     }
 
     public class EncryptionSettings
@@ -34,10 +37,20 @@ namespace BlazorDeployService.Models
     }
     
     public class AppSettings
-    {
-        public ApiSettings ApiSettings { get; set; } = new();
-        public EncryptionSettings Encryption { get; set; } = new();
-        public LocalizationSettings Localization { get; set; } = new(); 
-    }
+        {
+            public ApiSettings ApiSettings { get; set; } = new();
+            public EncryptionSettings Encryption { get; set; } = new();
+            public LocalizationSettings Localization { get; set; } = new();
+            /// <summary>کامیت خودکار — چند روز بعد از ذخیره موفق، تغییرات به‌صورت خودکار commit می‌شوند. صفر = غیرفعال</summary>
+            public AutoCommitSettings AutoCommit { get; set; } = new();
+        }
+
+        /// <summary>تنظیمات کامیت خودکار</summary>
+        public class AutoCommitSettings
+        {
+            /// <summary>فاصله کامیت خودکار به روز — 0 = غیرفعال (پیش‌فرض 7 روز)</summary>
+            public int Days { get; set; } = 7;
+            public bool Enabled => Days > 0;
+        }
 }
 

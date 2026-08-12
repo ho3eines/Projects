@@ -1,13 +1,26 @@
 @namespace WebApi
 
-<Router AppAssembly="typeof(Program).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Components.Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <LayoutView Layout="typeof(Components.Layout.MainLayout)">
-            <h1 class="text-danger">صفحه یافت نشد</h1>
-        </LayoutView>
-    </NotFound>
-</Router>
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-bs-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>🏢 Hermes WebAPI</title>
+
+    <!-- Bootstrap 5.3 RTL (لوکال) -->
+    <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="css/data-grid.css" />
+    <link rel="stylesheet" href="css/responsive-table.css" />
+    <link rel="stylesheet" href="css/site.css" />
+
+    <HeadOutlet />
+</head>
+<body>
+    <Routes @rendermode="RenderMode.InteractiveServer" />
+
+    <!-- Bootstrap Bundle (Popper) — لوکال -->
+    <script src="lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>

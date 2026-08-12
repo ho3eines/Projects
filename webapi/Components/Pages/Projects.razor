@@ -1,0 +1,87 @@
+@page "/projects"
+@using System.Data
+@using Microsoft.Data.SqlClient
+@using WebApi.Models
+@using WebApi.Grid
+@using WebApi.Services
+@using Microsoft.AspNetCore.Components
+@inject IConfiguration Config
+@inject ProjectService ProjectService
+
+<PageTitle>مدیریت پروژه‌ها</PageTitle>
+
+<div class="container-fluid py-4" dir="rtl">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">🗂️ مدیریت پروژه‌ها</h1>
+        <a href="/create-project" class="btn btn-primary">➕ ایجاد پروژه</a>
+    </div>
+
+    @if (_error != null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+    else
+    {
+        <DataGrid TModel="ProjectRow"
+                  Items="_projects"
+                  Columns="_columns"
+                  PageSize="10"
+                  AllowSelect="false"
+                  AllowFiltering="true"
+                  IsLoading="_isLoading">
+            <HeaderTemplate>
+                <a href="/create-project" class="btn btn-sm btn-primary">➕ ایجاد پروژه</a>
+            </HeaderTemplate>
+        </DataGrid>
+    }
+</div>
+
+@code {
+    private List<DataGridColumn<ProjectRow>> _columns = new()
+    {
+        new() { PropertyName = nameof(ProjectRow.Name), Caption = "نام", Sortable = true },
+        new() { PropertyName = nameof(ProjectRow.ProjectGuid), Caption = "ProjectGuid", Sortable = false },
+        new() { PropertyName = nameof(ProjectRow.ApiKey), Caption = "ApiKey",
+                Formatter = p => MaskApiKey(p!.ApiKey) },
+        new() { PropertyName = nameof(ProjectRow.SessionTimeoutMinutes), Caption = "Timeout (دقیقه)", Sortable = true, Width = 120 },
+        new() { PropertyName = nameof(ProjectRow.AutoBackupEnabled), Caption = "بکاپ خودکار",
+                Formatter = p => p!.AutoBackupEnabled ? "✅" : "❌" },
+        new() { PropertyName = nameof(ProjectRow.IsActive), Caption = "وضعیت",
+                Formatter = p => p!.IsActive ? "فعال" : "غیرفعال" },
+    };
+
+    private List<ProjectRow> _projects = new();
+    private string? _error;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProjectsAsync();
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        try
+        {
+            _projects = await ProjectService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"خطا در بارگذاری پروژه‌ها: {ex.Message}";
+            _projects = new();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string MaskApiKey(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return "----";
+        if (key.Length <= 8) return new string('•', key.Length);
+        return key[..4] + new string('•', Math.Max(4, key.Length - 8)) + key[^4..];
+    }
+}

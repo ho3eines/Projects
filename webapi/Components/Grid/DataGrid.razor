@@ -1,0 +1,478 @@
+@* ============================================================
+   DataGrid.razor - model-driven Blazor grid (no DataTable)
+   Features: search, column filters, sort, pagination, row
+   selection, inline edit, delete, CSV/Excel/Print export,
+   skeleton loading, empty state, RTL + dark-mode ready.
+   ============================================================ *@
+@typeparam TModel
+@implements IDisposable
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<div class="data-grid-wrapper">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="input-group" style="max-width: 300px;">
+            <span class="input-group-text">🔍</span>
+            <input class="form-control" placeholder="جستجو..."
+                   value="@_searchText"
+                   @oninput="OnSearchChanged" />
+        </div>
+        <div class="btn-group">
+            @if (ExportButtons)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ExportToCsv">CSV</button>
+                <button class="btn btn-sm btn-outline-success" @onclick="ExportToExcel">Excel</button>
+                <button class="btn btn-sm btn-outline-primary" @onclick="Print">🖨️</button>
+            }
+            @if (HeaderTemplate != null)
+            {
+                @HeaderTemplate
+            }
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    @if (AllowSelect)
+                    {
+                        <th style="width:40px">
+                            <input type="checkbox" class="form-check-input"
+                                   @bind="SelectAll" @bind:after="ToggleSelectAll" />
+                        </th>
+                    }
+                    @foreach (var col in Columns)
+                    {
+                        @if (col.Visible)
+                        {
+                            <th style="@(col.Width > 0 ? $"width:{col.Width}px" : "")"
+                                class="@col.CssClass">
+                                @if (col.Sortable)
+                                {
+                                    <button class="btn btn-link p-0 text-decoration-none"
+                                            @onclick="() => SortBy(col.PropertyName)">
+                                        @col.Caption
+                                        @(SortColumn == col.PropertyName ? (SortAscending ? "▲" : "▼") : "⇅")
+                                    </button>
+                                }
+                                else
+                                {
+                                    @col.Caption
+                                }
+                                @if (col.Filterable && AllowFiltering)
+                                {
+                                    <input class="form-control form-control-sm mt-1"
+                                           placeholder="فیلتر"
+                                           @oninput="e => OnFilterChanged(col, e)" />
+                                }
+                            </th>
+                        }
+                    }
+                    @if (RowActions.Any() || AllowInlineEdit || AllowDelete)
+                    {
+                        <th style="width:110px">عملیات</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (IsLoading)
+                {
+                    @for (int i = 0; i < PageSize; i++)
+                    {
+                        <tr>
+                            <td colspan="@TotalColumnCount">
+                                <div class="skeleton skeleton-row"></div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else if (!_pagedItems.Any())
+                {
+                    <tr>
+                        <td colspan="@TotalColumnCount" class="text-center text-muted py-4">
+                            @(EmptyState ?? "هیچ داده‌ای یافت نشد")
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in _pagedItems)
+                    {
+                        <tr class="@(IsSelected(item) ? "table-active" : "")">
+                            @if (AllowSelect)
+                            {
+                                <td>
+                                    <input type="checkbox" class="form-check-input"
+                                           checked="@IsSelected(item)"
+                                           @onchange="() => ToggleSelect(item)" />
+                                </td>
+                            }
+                            @foreach (var col in Columns.Where(c => c.Visible))
+                            {
+                                <td class="@col.CssClass" data-label="@col.Caption">
+                                    @if (AllowInlineEdit && IsEditing(item))
+                                    {
+                                        <input class="form-control form-control-sm"
+                                               value="@GetValue(item, col)"
+                                               @onchange="e => SetValue(item, col, e)" />
+                                    }
+                                    else
+                                    {
+                                        @GetDisplayValue(item, col)
+                                    }
+                                </td>
+                            }
+                            @if (OnEditItem.HasDelegate || OnDeleteItem.HasDelegate)
+                                                        {
+                                                            <td class="text-nowrap">
+                                                                @if (OnEditItem.HasDelegate)
+                                                                {
+                                                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => OnEditItem.InvokeAsync(item)">✏️</button>
+                                                                }
+                                                                @if (OnDeleteItem.HasDelegate)
+                                                                {
+                                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteItem(item)">🗑️</button>
+                                                                }
+                                                            </td>
+                                                        }
+                            else if (AllowInlineEdit || AllowDelete)
+                            {
+                                <td class="text-nowrap">
+                                    @if (AllowInlineEdit)
+                                    {
+                                        @if (IsEditing(item))
+                                        {
+                                            <button class="btn btn-sm btn-success" @onclick="() => SaveItem(item)">💾</button>
+                                            <button class="btn btn-sm btn-secondary" @onclick="() => CancelEdit(item)">✖</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(item)">✏️</button>
+                                        }
+                                    }
+                                    @if (AllowDelete)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteItem(item)">🗑️</button>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+        <div class="form-group d-flex align-items-center gap-2 mb-0">
+            <label class="text-muted small">نمایش</label>
+            <select class="form-select form-select-sm" style="width:auto"
+                    @bind="PageSize" @bind:after="OnPageSizeChanged">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+        <DataGridPagination CurrentPage="CurrentPage"
+                            PageSize="PageSize"
+                            TotalItems="_filteredItems.Count"
+                            OnPageChanged="SetPage" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<TModel>? Items { get; set; }
+    [Parameter] public Func<GridState, Task<GridResult<TModel>>>? ItemsProvider { get; set; }
+    [Parameter] public List<DataGridColumn<TModel>> Columns { get; set; } = new();
+    [Parameter] public bool AllowSelect { get; set; } = true;
+    [Parameter] public bool AllowFiltering { get; set; } = true;
+    [Parameter] public bool AllowInlineEdit { get; set; }
+    [Parameter] public bool AllowDelete { get; set; }
+    [Parameter] public bool ExportCsv { get; set; } = true;
+    [Parameter] public bool ExportExcel { get; set; } = true;
+    [Parameter] public bool ExportButtons { get; set; } = true;
+    [Parameter] public int PageSize { get; set; } = 10;
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public string? EmptyState { get; set; }
+    [Parameter] public IEnumerable<RenderFragment<TModel>> RowActions { get; set; } = new List<RenderFragment<TModel>>();
+    [Parameter] public RenderFragment? HeaderTemplate { get; set; }
+    [Parameter] public EventCallback<TModel> OnSaveItem { get; set; }
+        [Parameter] public EventCallback<TModel> OnEditItem { get; set; }
+        [Parameter] public EventCallback<TModel> OnDeleteItem { get; set; }
+    [Parameter] public EventCallback<List<TModel>> OnSelectionChanged { get; set; }
+    [Parameter] public Func<TModel, bool>? CanEdit { get; set; }
+
+    private List<TModel> _allItems = new();
+    private List<TModel> _filteredItems = new();
+    private List<TModel> _pagedItems = new();
+    private HashSet<TModel> _editing = new();
+    private string _search = "";
+    private string _searchText = "";
+    private Dictionary<string, string> _filters = new();
+    private string? SortColumn { get; set; }
+    private bool SortAscending { get; set; } = true;
+    private int CurrentPage { get; set; } = 1;
+    private bool SelectAll { get; set; }
+    private List<TModel> _selectedItems = new();
+
+    private int TotalColumnCount =>
+        (AllowSelect ? 1 : 0) +
+        Columns.Count(c => c.Visible) +
+        (RowActions.Any() || AllowInlineEdit || AllowDelete ? 1 : 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ItemsProvider == null && Items != null)
+        {
+            _allItems = Items;
+            ApplyFilterSortPaging(_allItems.Count);
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (ItemsProvider != null)
+        {
+            var state = new GridState
+            {
+                SearchText = _search,
+                SortColumn = SortColumn ?? "",
+                SortAscending = SortAscending,
+                Page = CurrentPage,
+                PageSize = PageSize
+            };
+            var result = await ItemsProvider(state);
+            _allItems = result.Items;
+            ApplyFilterSortPaging(result.TotalCount);
+        }
+        else
+        {
+            _allItems = Items ?? new List<TModel>();
+            ApplyFilterSortPaging(_allItems.Count);
+        }
+        StateHasChanged();
+    }
+
+    private void ApplyFilterSortPaging(int totalCount = 0)
+    {
+        IEnumerable<TModel> query = _allItems;
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            query = query.Where(item => Columns.Where(c => c.Visible).Any(c =>
+                GetDisplayValue(item, c)?.ToString()?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true));
+        }
+        foreach (var f in _filters)
+        {
+            var col = Columns.FirstOrDefault(c => c.PropertyName == f.Key);
+            if (col != null)
+                query = query.Where(p => GetDisplayValue(p, col)?.ToString()?.Contains(f.Value, StringComparison.OrdinalIgnoreCase) == true);
+        }
+
+        _filteredItems = query.ToList();
+
+        if (!string.IsNullOrWhiteSpace(SortColumn))
+        {
+            var prop = typeof(TModel).GetProperty(SortColumn!);
+            if (prop != null)
+            {
+                _filteredItems = SortAscending
+                    ? _filteredItems.OrderBy(p => prop.GetValue(p)).ToList()
+                    : _filteredItems.OrderByDescending(p => prop.GetValue(p)).ToList();
+            }
+        }
+
+        var totalPages = Math.Max(1, (_filteredItems.Count + PageSize - 1) / PageSize);
+        if (CurrentPage > totalPages) CurrentPage = totalPages;
+
+        _pagedItems = _filteredItems
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize)
+            .ToList();
+    }
+
+    private void OnSearchChanged(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _searchText = _search;
+        CurrentPage = 1;
+        ApplyFilterSortPaging();
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged(DataGridColumn<TModel> col, ChangeEventArgs e)
+    {
+        _filters[col.PropertyName] = e.Value?.ToString() ?? "";
+        CurrentPage = 1;
+        ApplyFilterSortPaging();
+        StateHasChanged();
+    }
+
+    private void SortBy(string col)
+    {
+        if (SortColumn == col)
+            SortAscending = !SortAscending;
+        else
+        {
+            SortColumn = col;
+            SortAscending = true;
+        }
+        ApplyFilterSortPaging();
+        StateHasChanged();
+    }
+
+    private async Task SetPage(int page)
+    {
+        CurrentPage = page;
+        await LoadAsync();
+    }
+
+    private async Task OnPageSizeChanged()
+    {
+        CurrentPage = 1;
+        await LoadAsync();
+    }
+
+    private object? GetValue(TModel item, DataGridColumn<TModel> col)
+    {
+        if (col.Formatter != null) return col.Formatter(item);
+        return item?.GetType().GetProperty(col.PropertyName)?.GetValue(item);
+    }
+
+    private object? GetDisplayValue(TModel item, DataGridColumn<TModel> col)
+    {
+        var v = GetValue(item, col);
+        if (v is DateTime dt)
+        {
+            return dt.ToShortDateString();
+        }
+        return v;
+    }
+
+    private void SetValue(TModel item, DataGridColumn<TModel> col, ChangeEventArgs e)
+    {
+        var prop = typeof(TModel).GetProperty(col.PropertyName);
+        if (prop == null) return;
+        var val = e.Value?.ToString();
+        try
+        {
+            var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+            prop.SetValue(item, Convert.ChangeType(val, targetType));
+        }
+        catch { /* keep old */ }
+        StateHasChanged();
+    }
+
+    private bool IsSelected(TModel item) => _selectedItems.Contains(item);
+    private bool IsEditing(TModel item) => _editing.Contains(item);
+
+    private void ToggleSelect(TModel item)
+    {
+        if (_selectedItems.Contains(item)) _selectedItems.Remove(item);
+        else _selectedItems.Add(item);
+        _ = OnSelectionChanged.InvokeAsync(_selectedItems);
+        SelectAll = _selectedItems.Count == _pagedItems.Count;
+        StateHasChanged();
+    }
+
+    private void ToggleSelectAll()
+    {
+        if (SelectAll)
+            _selectedItems = new List<TModel>(_pagedItems);
+        else
+            _selectedItems.Clear();
+        SelectAll = _selectedItems.Count == _pagedItems.Count;
+        _ = OnSelectionChanged.InvokeAsync(_selectedItems);
+        StateHasChanged();
+    }
+
+    private void StartEdit(TModel item)
+    {
+        _editing.Add(item);
+        StateHasChanged();
+    }
+
+    private void CancelEdit(TModel item)
+    {
+        _editing.Remove(item);
+        StateHasChanged();
+    }
+
+    private async Task SaveItem(TModel item)
+    {
+        _editing.Remove(item);
+        await OnSaveItem.InvokeAsync(item);
+        await LoadAsync();
+    }
+
+    private async Task DeleteItem(TModel item)
+    {
+        if (CanEdit?.Invoke(item) == false) return;
+        _selectedItems.Remove(item);
+        _editing.Remove(item);
+        await OnDeleteItem.InvokeAsync(item);
+        await LoadAsync();
+    }
+
+    private async Task ExportToCsv()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(string.Join(",", Columns.Where(c => c.Visible).Select(c => EscapeCsv(c.Caption))));
+        foreach (var item in _filteredItems)
+            sb.AppendLine(string.Join(",", Columns.Where(c => c.Visible)
+                .Select(c => EscapeCsv(GetDisplayValue(item, c)?.ToString() ?? ""))));
+        var bytes = System.Text.Encoding.UTF8.GetPreamble()
+            .Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        await DownloadFileAsync("data-grid-export.csv", bytes, "text/csv");
+    }
+
+    private async Task ExportToExcel()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<html><head><meta charset='utf-8'></head><body><table border='1'>");
+        sb.AppendLine("<tr>" + string.Join("", Columns.Where(c => c.Visible).Select(c => $"<th>{c.Caption}</th>")) + "</tr>");
+        foreach (var item in _filteredItems)
+            sb.AppendLine("<tr>" + string.Join("", Columns.Where(c => c.Visible)
+                .Select(c => $"<td>{GetDisplayValue(item, c)}</td>")) + "</tr>");
+        sb.AppendLine("</table></body></html>");
+        var bytes = System.Text.Encoding.UTF8.GetPreamble()
+            .Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        await DownloadFileAsync("data-grid-export.xls", bytes, "application/vnd.ms-excel");
+    }
+
+    private async Task DownloadFileAsync(string fileName, byte[] bytes, string mime)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        var dataUrl = $"data:{mime};base64,{base64}";
+        await JSRuntime.InvokeVoidAsync("eval", $@"
+            var a = document.createElement('a');
+            a.href = '{dataUrl}';
+            a.download = '{fileName}';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();");
+    }
+
+    private static string EscapeCsv(string s) =>
+        $"\"{s.Replace("\"", "\"\"")}\"";
+
+    private async Task Print()
+    {
+        await JSRuntime.InvokeVoidAsync("eval", $@"
+            var w = window.open('', '_blank');
+            w.document.write('<html dir=""rtl""><body>' +
+              document.querySelector('.data-grid-wrapper table').outerHTML +
+              '</body></html>');
+            w.print();");
+    }
+
+    public void Dispose() { }
+}

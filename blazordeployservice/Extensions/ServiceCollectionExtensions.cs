@@ -12,39 +12,43 @@ namespace BlazorDeployService.Extensions
         /// این سرویس برای اجرای سرویس ها مورد استفاده قرار میگیرد
         /// </summary>
         public static IServiceCollection AddBlazorDeployServices(this IServiceCollection services, IConfiguration configuration)
-        {
-            services.Configure<AppSettings>(configuration.GetSection("BlazorDeploy"));
+                {
+                    services.Configure<AppSettings>(configuration.GetSection("BlazorDeploy"));
 
-            services.AddScoped<IAlertService, AlertService>();
-            services.AddScoped<IClientStorageService,ClientStorageService>();
-            services.AddScoped<IClientIdService, ClientIdService>();
-            services.AddScoped<ICultureService,CultureService>();
-            services.AddScoped<IEncryptionService, EncryptionService>();
-            services.AddScoped<ILocalizationCacheService,LocalizationCacheService>();
-            services.AddScoped<IThemeService,ThemeService>();
-            services.AddScoped<IRequestService,RequestService>();
-            services.AddScoped<IModalService, ModalService>();
-            services.AddScoped<ISqlService, SqlService>();
-            return services;
-        }
+                    services.AddScoped<IAlertService, AlertService>();
+                    services.AddScoped<IClientStorageService,ClientStorageService>();
+                    services.AddScoped<IClientIdService, ClientIdService>();
+                    services.AddScoped<ICultureService,CultureService>();
+                    services.AddScoped<IEncryptionService, EncryptionService>();
+                    services.AddScoped<ILocalizationCacheService,LocalizationCacheService>();
+                    services.AddScoped<IThemeService,ThemeService>();
+                    services.AddScoped<ISessionService, SessionService>();
+                    services.AddScoped<IAuthService, AuthService>();
+                    services.AddScoped<IRequestService,RequestService>();
+                    services.AddScoped<IModalService, ModalService>();
+                    services.AddScoped<ISqlService, SqlService>();
+                    return services;
+                }
 
         /// <summary>
         /// این سرویس برای اجرای سرویس ها مورد استفاده قرار میگیرد
         /// </summary>
         public static IServiceCollection AddBlazorDeployServices(this IServiceCollection services)
-        {
-            services.AddScoped<IAlertService, AlertService>();
-            services.AddScoped<IClientStorageService, ClientStorageService>();
-            services.AddScoped<IClientIdService, ClientIdService>();
-            services.AddScoped<ICultureService, CultureService>();
-            services.AddScoped<IEncryptionService, EncryptionService>();
-            services.AddScoped<ILocalizationCacheService, LocalizationCacheService>();
-            services.AddScoped<IThemeService, ThemeService>();
-            services.AddScoped<IRequestService, RequestService>();
-            services.AddScoped<IModalService, ModalService>();
-            services.AddScoped<ISqlService, SqlService>();
-            return services;
-        }
+                {
+                    services.AddScoped<IAlertService, AlertService>();
+                    services.AddScoped<IClientStorageService, ClientStorageService>();
+                    services.AddScoped<IClientIdService, ClientIdService>();
+                    services.AddScoped<ICultureService, CultureService>();
+                    services.AddScoped<IEncryptionService, EncryptionService>();
+                    services.AddScoped<ILocalizationCacheService, LocalizationCacheService>();
+                    services.AddScoped<IThemeService, ThemeService>();
+                    services.AddScoped<ISessionService, SessionService>();
+                    services.AddScoped<IAuthService, AuthService>();
+                    services.AddScoped<IRequestService, RequestService>();
+                    services.AddScoped<IModalService, ModalService>();
+                    services.AddScoped<ISqlService, SqlService>();
+                    return services;
+                }
 
         //private static async Task InitializeServices(WebAssemblyHost host)
         //{
