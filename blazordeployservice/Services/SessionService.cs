@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using BlazorDeployService.Models;
+using Microsoft.Extensions.Options;
 
 namespace BlazorDeployService.Services;
 
@@ -38,6 +39,7 @@ public sealed class SessionService : ISessionService, IAsyncDisposable
 {
     private readonly IClientStorageService _storage;
     private readonly IEncryptionService _encryption;
+    private readonly string _storageSecret;
 
     private const string TokenKey = "hermes:session-token";
     private const string ProjectKey = "hermes:session-project";
@@ -54,10 +56,19 @@ public sealed class SessionService : ISessionService, IAsyncDisposable
 
     public event EventHandler<SessionExpiredEventArgs>? SessionExpired;
 
-    public SessionService(IClientStorageService storage, IEncryptionService encryption)
+    public SessionService(
+        IClientStorageService storage,
+        IEncryptionService encryption,
+        IOptions<AppSettings> settings)
     {
         _storage = storage;
         _encryption = encryption;
+        // The token cannot be used as the key for encrypting itself: it is not
+        // known until after decryption. Use the project's stable client key so a
+        // session can actually be restored after a page refresh.
+        _storageSecret = string.IsNullOrWhiteSpace(settings.Value.Encryption.Key)
+            ? TokenKey
+            : settings.Value.Encryption.Key;
     }
 
     public async Task StartSessionAsync(LoginResponse response)
@@ -69,7 +80,7 @@ public sealed class SessionService : ISessionService, IAsyncDisposable
         _lastActivityUtc = DateTime.UtcNow;
 
         // ذخیره امن در localStorage
-        await _storage.SetLocalEncryptedAsync(TokenKey, response.SessionToken, response.SessionToken);
+        await _storage.SetLocalEncryptedAsync(TokenKey, response.SessionToken, _storageSecret);
         await _storage.SetLocalEncryptedAsync(ProjectKey, response.Project, response.SessionToken);
         await _storage.SetLocalEncryptedAsync(ExpiryKey, DateTime.UtcNow.AddSeconds(response.ExpiresInSeconds).Ticks.ToString(), response.SessionToken);
 
@@ -80,7 +91,7 @@ public sealed class SessionService : ISessionService, IAsyncDisposable
     {
         try
         {
-            var token = await _storage.GetLocalEncryptedAsync<string>(TokenKey, TokenKey);
+            var token = await _storage.GetLocalEncryptedAsync<string>(TokenKey, _storageSecret);
             if (string.IsNullOrEmpty(token)) return false;
 
             var project = await _storage.GetLocalEncryptedAsync<ProjectInfo>(ProjectKey, token);
