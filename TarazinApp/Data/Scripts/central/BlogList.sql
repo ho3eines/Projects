@@ -1,7 +1,7 @@
 -- =============================================
 -- TarazinApp/Data/Scripts/central/BlogList.sql
 -- Schema: central
--- Query. پست‌های وبلاگ (central-client).
+-- Query. پست‌های وبلاگ (پلتفرم مشترک).
 -- =============================================
 SELECT
     b.PostId,

@@ -1,7 +1,7 @@
 -- =============================================
 -- TarazinApp/Data/Scripts/central/NewsList.sql
 -- Schema: central
--- Query. اخبار شرکت (central-client).
+-- Query. اخبار شرکت (پلتفرم مشترک).
 -- =============================================
 SELECT
     n.NewsId,

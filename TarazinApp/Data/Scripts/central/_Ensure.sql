@@ -93,7 +93,7 @@ BEGIN
     CREATE INDEX IX_Parties_Type ON [central].[Parties](PartyType, IsDeleted);
 END
 
--- Central website content (central-client): News / Blog / Gallery (PRD §1, roadmap P0).
+-- محتویات وبسایت مرکزی (پلتفرم مشترک): اخبار، بلاگ، گالری.
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t
     JOIN sys.schemas s ON t.schema_id = s.schema_id

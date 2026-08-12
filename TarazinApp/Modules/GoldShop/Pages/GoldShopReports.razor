@@ -1,0 +1,138 @@
+@page "/goldshop/reports"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>گزارشات — طلافروشی</PageTitle>
+
+<MudText Typo="Typo.h4">گزارشات طلافروشی</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    فروش روز (در بازهٔ تاریخ) و تاریخچهٔ قیمت طلا.
+</MudText>
+
+<MudTabs>
+    <MudTabPanel Text="فروش روز">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="LoadSalesAsync" Disabled="_loadingSales">
+                        اجرا
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_sales" Loading="_loadingSales" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>مشتری</MudTh><MudTh>کالا</MudTh>
+                    <MudTh>وزن (گرم)</MudTh><MudTh>اجرت</MudTh><MudTh>سود</MudTh><MudTh>مالیات</MudTh><MudTh>جمع</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="شماره">@context.InvoiceNumber</MudTd>
+                    <MudTd DataLabel="تاریخ">@context.InvoiceDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd DataLabel="مشتری">@context.CustomerName</MudTd>
+                    <MudTd DataLabel="کالا">@context.ItemCode — @context.ItemTitle</MudTd>
+                    <MudTd DataLabel="وزن">@context.WeightGram.ToString("N3")</MudTd>
+                    <MudTd DataLabel="اجرت">@context.Workmanship.ToString("N0")</MudTd>
+                    <MudTd DataLabel="سود">@context.Profit.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مالیات">@context.Tax.ToString("N0")</MudTd>
+                    <MudTd DataLabel="جمع">@context.TotalAmount.ToString("N0")</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></EmptyContent>
+            </MudTable>
+            @if (_sales.Count > 0)
+            {
+                <MudText Typo="Typo.body2" Class="mt-4">
+                    جمع فروش: <b>@_sales.Sum(s => s.TotalAmount).ToString("N0")</b>
+                </MudText>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="تاریخچه قیمت طلا">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_prices" Loading="_loadingPrices" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت هر گرم</MudTh><MudTh>به‌روزرسانی</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.ItemCode</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
+                    <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "goldshop";
+
+    private List<DailySaleRow> _sales = new();
+    private List<GoldPriceRow> _prices = new();
+    private DateTime? _from;
+    private DateTime? _to;
+    private bool _loadingSales;
+    private bool _loadingPrices;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _from = DateTime.Today.AddMonths(-1);
+        _to = DateTime.Today;
+        await LoadPricesAsync();
+    }
+
+    private async Task LoadSalesAsync()
+    {
+        _loadingSales = true;
+        try
+        {
+            _sales = (await Db.QueryAsync<DailySaleRow>(Schema, "DailySales", new
+            {
+                FromDate = _from?.Date ?? DateTime.Today.AddMonths(-1),
+                ToDate = _to?.Date ?? DateTime.Today,
+                SearchText = "",
+                SkipRows = 0,
+                TakeSize = 200
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingSales = false;
+        }
+    }
+
+    private async Task LoadPricesAsync()
+    {
+        _loadingPrices = true;
+        try
+        {
+            _prices = (await Db.QueryAsync<GoldPriceRow>(Schema, "GoldPriceSearch", new
+            {
+                SkipRows = 0,
+                TakeSize = 200
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingPrices = false;
+        }
+    }
+}

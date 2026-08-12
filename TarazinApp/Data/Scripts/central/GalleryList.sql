@@ -1,7 +1,7 @@
 -- =============================================
 -- TarazinApp/Data/Scripts/central/GalleryList.sql
 -- Schema: central
--- Query. گالری وبسایت (central-client).
+-- Query. گالری وبسایت (پلتفرم مشترک).
 -- =============================================
 SELECT
     g.GalleryItemId,
