@@ -1,102 +1,221 @@
 @page "/login"
 @layout EmptyLayout
+@using Microsoft.Extensions.Configuration
 @using BlazorDeployService.Services
 @inject IRequestService Request
 @inject NavigationManager Nav
 @inject IClientStorageService Storage
 @inject IErrorDisplayService Errors
+@inject IConfiguration Config
+@inject HttpClient Http
 
-<PageTitle>ورود — Hermes</PageTitle>
+<PageTitle>ورود | مرکز مدیریت Hermes</PageTitle>
 
-<div class="h-login">
-    <!-- حباب‌های متحرک پس‌زمینه (شیشه‌ای) -->
-    <div class="h-blob h-blob-1" aria-hidden="true"></div>
-    <div class="h-blob h-blob-2" aria-hidden="true"></div>
-    <div class="h-blob h-blob-3" aria-hidden="true"></div>
+<div class="lg-page">
+    <!-- افکت‌های نوری پس‌زمینه -->
+    <span class="lg-orb lg-orb-1" aria-hidden="true"></span>
+    <span class="lg-orb lg-orb-2" aria-hidden="true"></span>
+    <span class="lg-orb lg-orb-3" aria-hidden="true"></span>
+    <span class="lg-grid-overlay" aria-hidden="true"></span>
 
-    <div class="h-login-grid">
-        <section class="h-login-art">
-            <div>
-                <div class="h-brand-mark h-brand-mark-lg mb-4">H</div>
-                <h2 class="fw-bold text-white">یک ورود، همه پروژه‌ها</h2>
-                <p class="mt-3 h-login-art-text">
-                    در کلاینت مرکزی وارد شوید. توکن کاربر به حسابداری، انبار و فروشگاه
-                    از طریق آدرس منتقل می‌شود. هر پروژه با ProjectGuid خودش به webapi وصل است.
+    <div class="lg-shell">
+        <!-- ستون معرفی برند (فقط دسکتاپ) -->
+        <aside class="lg-intro" aria-label="معرفی Hermes">
+            <div class="lg-intro-top">
+                <div class="lg-logo">
+                    <span class="lg-logo-mark">H</span>
+                    <span class="lg-logo-text">
+                        <strong>Hermes</strong>
+                        <small>مرکز مدیریت یکپارچه</small>
+                    </span>
+                </div>
+                <h2 class="lg-intro-title">یک ورود،<br />همهٔ ماژول‌ها</h2>
+                <p class="lg-intro-text">
+                    با یک حساب کاربری وارد شوید و حسابداری، انبار، خزانه، حقوق و دستمزد،
+                    طلافروشی و فروشگاه را از یک جا مدیریت کنید.
                 </p>
+                <ul class="lg-features">
+                    <li>ورود یک‌باره (SSO) به هر ۷ پروژه</li>
+                    <li>نشست امن با رمزنگاری AES و امضای HMAC</li>
+                    <li>داشبورد واحد برای همهٔ ماژول‌ها</li>
+                </ul>
             </div>
-            <div class="h-login-steps">
-                <span class="h-step-pill"><b>۱</b> Handshake پروژه</span>
-                <span class="h-step-pill"><b>۲</b> لاگین کاربر</span>
-                <span class="h-step-pill"><b>۳</b> باز کردن ماژول</span>
+            <div class="lg-intro-steps">
+                <span class="lg-step"><b>۱</b> ورود</span>
+                <span class="lg-step-arrow">←</span>
+                <span class="lg-step"><b>۲</b> صدور نشست</span>
+                <span class="lg-step-arrow">←</span>
+                <span class="lg-step"><b>۳</b> باز شدن ماژول‌ها</span>
             </div>
-        </section>
+        </aside>
 
-        <section class="h-login-panel">
-            <div class="h-login-box">
-                <div class="h-login-mobile-brand">
-                    <div class="h-brand-mark mb-2">H</div>
-                    <div class="h-login-eyebrow">Hermes ERP</div>
+        <!-- کارت فرم ورود -->
+        <main class="lg-card">
+            <!-- برند فشرده (فقط موبایل/تبلت) -->
+            <div class="lg-card-brand">
+                <span class="lg-logo-mark">H</span>
+                <strong>Hermes</strong>
+            </div>
+
+            <div class="lg-server @ServerClass" role="status">
+                <span class="lg-dot" aria-hidden="true"></span>
+                <span>@ServerText</span>
+            </div>
+
+            <h1 class="lg-title">ورود به حساب کاربری</h1>
+            <p class="lg-sub">برای دسترسی به مرکز مدیریت وارد شوید</p>
+
+            <div class="lg-hint">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                <span>حساب آزمایشی: <b>admin</b> / <b>admin</b></span>
+            </div>
+
+            @if (!string.IsNullOrEmpty(ErrorText))
+            {
+                <div class="lg-error" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                    <span>@ErrorText</span>
+                    <button type="button" class="lg-error-close" @onclick="() => ErrorText = null" aria-label="بستن پیام">&times;</button>
+                </div>
+            }
+
+            <form class="lg-form" @onsubmit="DoLogin" @onsubmit:preventDefault="true" novalidate>
+                <div class="lg-field">
+                    <label for="lg-user">نام کاربری</label>
+                    <div class="lg-control">
+                        <i class="bi bi-person" aria-hidden="true"></i>
+                        <input id="lg-user" name="username" type="text"
+                               autocomplete="username" autocapitalize="off" spellcheck="false"
+                               placeholder="مثلاً admin"
+                               @bind="Username" @bind:event="oninput" disabled="@Busy" />
+                    </div>
                 </div>
 
-                <p class="h-login-eyebrow d-none d-lg-block">Hermes ERP</p>
-                <h1 class="mb-2">ورود به سیستم</h1>
-                <p class="text-muted mb-4 h-login-hint">تست: <code>admin</code> / <code>admin</code></p>
+                <div class="lg-field">
+                    <label for="lg-pass">رمز عبور</label>
+                    <div class="lg-control">
+                        <i class="bi bi-lock" aria-hidden="true"></i>
+                        <input id="lg-pass" name="password"
+                               type="@(ShowPass ? "text" : "password")"
+                               autocomplete="current-password"
+                               placeholder="رمز عبور خود را وارد کنید"
+                               @bind="Password" @bind:event="oninput" disabled="@Busy" />
+                        <button type="button" class="lg-eye" tabindex="-1"
+                                @onclick="() => ShowPass = !ShowPass"
+                                aria-label="@(ShowPass ? "مخفی کردن رمز" : "نمایش رمز")">
+                            <i class="bi @(ShowPass ? "bi-eye-slash" : "bi-eye")" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
 
-                @if (!string.IsNullOrEmpty(ErrorText))
+                <label class="lg-remember">
+                    <input type="checkbox" @bind="RememberMe" disabled="@Busy" />
+                    <span>نام کاربری را به خاطر بسپار</span>
+                </label>
+
+                <button class="lg-submit" type="submit" disabled="@Busy">
+                    @if (Busy)
+                    {
+                        <span class="lg-spinner" aria-hidden="true"></span>
+                        <span>در حال ورود…</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-box-arrow-in-left" aria-hidden="true"></i>
+                        <span>ورود به مرکز مدیریت</span>
+                    }
+                </button>
+            </form>
+
+            @if (AllowOffline)
+            {
+                <div class="lg-divider" aria-hidden="true"><span>یا</span></div>
+                <button type="button" class="lg-offline" @onclick="DoOfflineLogin" disabled="@Busy">
+                    <i class="bi bi-cloud-slash" aria-hidden="true"></i>
+                    <span>ورود آفلاین (حالت نمایشی)</span>
+                </button>
+                @if (ServerUp == false)
                 {
-                    <div class="h-alert-inline h-alert-inline-error mb-4" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
-                        <span class="h-alert-inline-msg">@ErrorText</span>
-                        <button type="button" class="h-alert-close" @onclick="() => ErrorText = null" aria-label="بستن پیام خطا">&times;</button>
-                    </div>
+                    <p class="lg-note">اتصال به سرور برقرار نشد؛ با حساب مدیر می‌توانید وارد حالت نمایشی شوید.</p>
                 }
+            }
 
-                <form @onsubmit="DoLogin" @onsubmit:preventDefault="true" novalidate>
-                    <div class="mb-3">
-                        <label class="form-label" for="user">نام کاربری</label>
-                        <div class="h-input-group">
-                            <i class="bi bi-person-fill h-input-icon"></i>
-                            <input id="user" class="form-control form-control-lg h-input"
-                                   @bind="Username" autocomplete="username" placeholder="نام کاربری" />
-                        </div>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label" for="pass">رمز عبور</label>
-                        <div class="h-input-group">
-                            <i class="bi bi-shield-lock-fill h-input-icon"></i>
-                            <input id="pass" type="@(ShowPass ? "text" : "password")"
-                                   class="form-control form-control-lg h-input h-input-pass"
-                                   @bind="Password" autocomplete="current-password" placeholder="رمز عبور" />
-                            <button type="button" class="h-input-eye" @onclick="() => ShowPass = !ShowPass"
-                                    tabindex="-1" aria-label="نمایش/مخفی کردن رمز">
-                                <i class="bi @(ShowPass ? "bi-eye-slash" : "bi-eye")"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <button class="btn btn-gold w-100 h-btn-login" disabled="@Busy" type="submit">
-                        @if (Busy)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2"></span>
-                            <text>در حال ورود…</text>
-                        }
-                        else
-                        {
-                            <text>ورود به مرکز مدیریت</text>
-                        }
-                    </button>
-                </form>
-            </div>
-        </section>
+            <footer class="lg-foot">Hermes Platform • نسخهٔ ۱٫۰</footer>
+        </main>
     </div>
 </div>
 
 @code {
-    string Username = "admin";
-    string Password = "admin";
+    string Username = "";
+    string Password = "";
     bool ShowPass;
+    bool RememberMe = true;
     bool Busy;
     string? ErrorText;
+    bool? ServerUp; // null = در حال بررسی
+
+    bool AllowOffline =>
+        string.Equals(Config["Auth:AllowOfflineLogin"], "true", StringComparison.OrdinalIgnoreCase);
+
+    string AdminUser => Config["Auth:AdminUsername"] ?? "admin";
+    string AdminPass => Config["Auth:AdminPassword"] ?? "admin";
+
+    string ServerText => ServerUp switch
+    {
+        null => "در حال بررسی اتصال به سرور…",
+        true => "اتصال به سرور برقرار است",
+        false => "سرور در دسترس نیست"
+    };
+
+    string ServerClass => ServerUp switch
+    {
+        null => "is-checking",
+        true => "is-up",
+        false => "is-down"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // پیش‌فرض تست سریع — مثل رفتار قبلی صفحه
+        Username = AdminUser;
+        Password = AdminPass;
+
+        // نام کاربری ذخیره‌شده (مرا به خاطر بسپار)
+        var remembered = await SafeStorage(() => Storage.GetLocalAsync<string>("hermes_login_name"));
+        if (!string.IsNullOrWhiteSpace(remembered))
+        {
+            Username = remembered!;
+            RememberMe = true;
+        }
+
+        // اگر قبلاً وارد شده‌ایم، مستقیم به داشبورد
+        var savedToken = await SafeStorage(() => Storage.GetLocalAsync<string>("hermes_user_token"));
+        if (!string.IsNullOrEmpty(Request.UserToken) || !string.IsNullOrWhiteSpace(savedToken))
+        {
+            Nav.NavigateTo("/", replace: true);
+            return;
+        }
+
+        _ = CheckServerAsync();
+    }
+
+    /// <summary>پینگ /health سرور — هر پاسخ HTTP یعنی «سرور بالاست»</summary>
+    async Task CheckServerAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var resp = await Http.GetAsync(
+                $"{Request.BaseUrl.TrimEnd('/')}/health",
+                HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            ServerUp = true;
+        }
+        catch
+        {
+            ServerUp = false;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
 
     async Task DoLogin()
     {
@@ -111,30 +230,114 @@
         Busy = true;
         try
         {
-            var result = await Request.LoginAsync(Username, Password);
-            if (result is null)
+            var result = await Request.LoginAsync(Username.Trim(), Password);
+            if (result is null || string.IsNullOrEmpty(result.UserToken))
             {
                 ErrorText = "پاسخ سرور معتبر نیست — لطفاً دوباره تلاش کنید.";
-                await Errors.ShowErrorAsync("پاسخ سرور معتبر نیست — لطفاً دوباره تلاش کنید.", "ورود");
                 return;
             }
 
-            await Storage.SetLocalAsync("hermes_user_token", result.UserToken);
-            await Storage.SetLocalAsync("hermes_user_name", result.DisplayName);
-            await Errors.ShowSuccessAsync($"خوش آمدید {result.DisplayName}", "ورود موفق");
-            Nav.NavigateTo("/");
+            await PersistLoginAsync(result.UserToken, result.DisplayName ?? "مدیر سیستم");
+            await SafeToast(() => Errors.ShowSuccessAsync($"خوش آمدید، {result.DisplayName}!", "ورود موفق"));
+            Nav.NavigateTo("/", replace: true);
+        }
+        catch (Exception ex) when (IsConnectivityError(ex))
+        {
+            // سرور در دسترس نیست → اگر حساب مدیر است، مستقیم وارد حالت آفلاین شو
+            if (AllowOffline && IsAdmin(Username, Password))
+            {
+                await DoOfflineLoginCore();
+            }
+            else
+            {
+                ServerUp = false;
+                ErrorText = AllowOffline
+                    ? "اتصال به سرور برقرار نشد. می‌توانید با حساب مدیر وارد حالت آفلاین شوید."
+                    : "اتصال به سرور برقرار نشد — وضعیت شبکه یا در دسترس بودن سرور را بررسی کنید.";
+                var msg = ErrorText;
+                await SafeToast(() => Errors.ShowErrorAsync(msg, "ورود"));
+            }
         }
         catch (Exception ex)
         {
-            // نمایش خطا هم به‌صورت Toast و هم داخل فرم
-            await Errors.ShowAsync(ex, "ورود");
             ErrorText = FriendlyError(ex);
+            await SafeToast(() => Errors.ShowAsync(ex, "ورود"));
         }
         finally
         {
             Busy = false;
         }
     }
+
+    /// <summary>ورود دستی به حالت نمایشی (دکمه «ورود آفلاین»)</summary>
+    async Task DoOfflineLogin()
+    {
+        ErrorText = null;
+
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        {
+            ErrorText = "نام کاربری و رمز عبور را وارد کنید.";
+            return;
+        }
+
+        if (!IsAdmin(Username, Password))
+        {
+            ErrorText = $"در حالت آفلاین فقط با حساب مدیر ({AdminUser}) می‌توان وارد شد.";
+            return;
+        }
+
+        Busy = true;
+        try
+        {
+            await DoOfflineLoginCore();
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    /// <summary>ساخت نشست محلی نمایشی و رفتن به داشبورد — بدون نیاز به سرور</summary>
+    async Task DoOfflineLoginCore()
+    {
+        var token = "demo-" + Guid.NewGuid().ToString("N");
+        await PersistLoginAsync(token, "مدیر سیستم");
+        await SafeToast(() => Errors.ShowSuccessAsync("وارد حالت نمایشی شدید — برای دادهٔ واقعی سرور باید در دسترس باشد.", "حالت آفلاین"));
+        Nav.NavigateTo("/", replace: true);
+    }
+
+    bool IsAdmin(string user, string pass) =>
+        string.Equals(user.Trim(), AdminUser, StringComparison.OrdinalIgnoreCase) && pass == AdminPass;
+
+    /// <summary>ذخیره توکن/نام کاربر — هم در حافظه هم در localStorage</summary>
+    async Task PersistLoginAsync(string token, string displayName)
+    {
+        // توکن در حافظه سرویس — MainLayout بلافاصله بدون رفرش عبور می‌کند
+        Request.SetUserToken(token);
+
+        await SafeStorage(Storage.SetLocalAsync("hermes_user_token", token));
+        await SafeStorage(Storage.SetLocalAsync("hermes_user_name", displayName));
+
+        if (RememberMe)
+            await SafeStorage(Storage.SetLocalAsync("hermes_login_name", Username.Trim()));
+        else
+            await SafeStorage(Storage.RemoveLocalAsync("hermes_login_name"));
+    }
+
+    static bool IsConnectivityError(Exception ex) => ex switch
+    {
+        RequestServiceException rse => rse.Code is "NETWORK" or "TIMEOUT",
+        HttpRequestException => true,
+        OperationCanceledException => true,
+        _ => false
+    };
+
+    /// <summary>ذخیره‌سازی امن — خطای JS حافظه نباید جریان ورود را متوقف کند</summary>
+    static async Task SafeStorage(Task op) { try { await op(); } catch { /* دسترسی به storage ممکن نیست */ } }
+    static async Task<T?> SafeStorage<T>(Func<Task<T?>> op) { try { return await op(); } catch { return default; } }
+
+    /// <summary>نمایش امن پیام — خطای toast نباید جلوی هدایت بعد از ورود را بگیرد</summary>
+    static async Task SafeToast(Func<Task> op) { try { await op(); } catch { /* سرویس پیام در دسترس نیست */ } }
 
     /// <summary>پیام کوتاه و خوانا برای نمایش داخل فرم</summary>
     static string FriendlyError(Exception ex) => ex switch
