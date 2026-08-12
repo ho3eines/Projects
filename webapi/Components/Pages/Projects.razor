@@ -10,18 +10,21 @@
 
 <PageTitle>مدیریت پروژه‌ها</PageTitle>
 
-<div class="container-fluid py-4" dir="rtl">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">🗂️ مدیریت پروژه‌ها</h1>
-        <a href="/create-project" class="btn btn-primary">➕ ایجاد پروژه</a>
+<div class="h-page-header">
+    <div>
+        <h1 class="h-page-title">🗂️ مدیریت پروژه‌ها</h1>
+        <p class="h-lead">لیست همه پروژه‌های ثبت‌شده در سیستم.</p>
     </div>
+    <a href="/create-project" class="btn btn-hermes">➕ ایجاد پروژه</a>
+</div>
 
-    @if (_error != null)
-    {
-        <div class="alert alert-danger">@_error</div>
-    }
-    else
-    {
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else
+{
+    <div class="h-card">
         <DataGrid TModel="ProjectRow"
                   Items="_projects"
                   Columns="_columns"
@@ -30,11 +33,11 @@
                   AllowFiltering="true"
                   IsLoading="_isLoading">
             <HeaderTemplate>
-                <a href="/create-project" class="btn btn-sm btn-primary">➕ ایجاد پروژه</a>
+                <a href="/create-project" class="btn btn-sm btn-hermes">➕ ایجاد پروژه</a>
             </HeaderTemplate>
         </DataGrid>
-    }
-</div>
+    </div>
+}
 
 @code {
     private List<DataGridColumn<ProjectRow>> _columns = new()

@@ -9,7 +9,7 @@
 
 <div class="h-card h-card-pad mb-3">
     <div class="row g-3 align-items-end">
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6">
             <label class="form-label" for="rep">گزارش</label>
             <select id="rep" class="form-select" @bind="Report">
                 <option value="daily">دفتر روزنامه</option>
@@ -19,7 +19,7 @@
         </div>
         @if (Report == "ledger")
         {
-            <div class="col-md-3">
+            <div class="col-md-3 col-sm-6">
                 <label class="form-label" for="acc">حساب</label>
                 <select id="acc" class="form-select" @bind="AccountId">
                     <option value="0">— همهٔ حساب‌ها —</option>
@@ -30,15 +30,15 @@
                 </select>
             </div>
         }
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="from">از تاریخ</label>
             <input id="from" type="date" class="form-control" @bind="From" />
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="to">تا تاریخ</label>
             <input id="to" type="date" class="form-control" @bind="To" />
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-12">
             <button class="btn btn-hermes w-100" @onclick="LoadAsync">اجرا</button>
         </div>
     </div>
@@ -47,76 +47,82 @@
 <div class="h-card">
     @if (Report == "daily")
     {
-        <table class="h-table">
-            <thead>
-                <tr><th>تاریخ</th><th>شماره</th><th>طرف حساب</th><th>حساب</th><th>شرح</th><th>بدهکار</th><th>بستانکار</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var r in DailyBook)
-                {
+        <div class="h-table-wrap">
+            <table class="h-table">
+                <thead>
+                    <tr><th>تاریخ</th><th>شماره</th><th>طرف حساب</th><th>حساب</th><th>شرح</th><th>بدهکار</th><th>بستانکار</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in DailyBook)
+                    {
+                        <tr>
+                            <td>@r.DocumentDate.ToString("yyyy/MM/dd")</td>
+                            <td>@r.DocumentNumber</td>
+                            <td>@r.CounterPartyName</td>
+                            <td>@r.AccountCode — @r.AccountTitle</td>
+                            <td>@r.Description</td>
+                            <td>@r.Debit.ToString("N0")</td>
+                            <td>@r.Credit.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
                     <tr>
-                        <td>@r.DocumentDate.ToString("yyyy/MM/dd")</td>
-                        <td>@r.DocumentNumber</td>
-                        <td>@r.CounterPartyName</td>
-                        <td>@r.AccountCode — @r.AccountTitle</td>
-                        <td>@r.Description</td>
-                        <td>@r.Debit.ToString("N0")</td>
-                        <td>@r.Credit.ToString("N0")</td>
+                        <td colspan="5">جمع</td>
+                        <td>@DailyBook.Sum(r => r.Debit).ToString("N0")</td>
+                        <td>@DailyBook.Sum(r => r.Credit).ToString("N0")</td>
                     </tr>
-                }
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="5">جمع</td>
-                    <td>@DailyBook.Sum(r => r.Debit).ToString("N0")</td>
-                    <td>@DailyBook.Sum(r => r.Credit).ToString("N0")</td>
-                </tr>
-            </tfoot>
-        </table>
+                </tfoot>
+            </table>
+        </div>
     }
     else if (Report == "ledger")
     {
-        <table class="h-table">
-            <thead>
-                <tr><th>کد</th><th>حساب</th><th>بدهکار</th><th>بستانکار</th><th>مانده</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var r in Ledger)
-                {
-                    <tr>
-                        <td>@r.AccountCode</td><td>@r.AccountTitle</td>
-                        <td>@r.Debit.ToString("N0")</td><td>@r.Credit.ToString("N0")</td>
-                        <td>@r.Balance.ToString("N0")</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="h-table-wrap">
+            <table class="h-table">
+                <thead>
+                    <tr><th>کد</th><th>حساب</th><th>بدهکار</th><th>بستانکار</th><th>مانده</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Ledger)
+                    {
+                        <tr>
+                            <td>@r.AccountCode</td><td>@r.AccountTitle</td>
+                            <td>@r.Debit.ToString("N0")</td><td>@r.Credit.ToString("N0")</td>
+                            <td>@r.Balance.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
     else
     {
-        <table class="h-table">
-            <thead>
-                <tr><th>کد</th><th>حساب</th><th>نوع</th><th>بدهکار</th><th>بستانکار</th><th>مانده</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var r in Trial)
-                {
+        <div class="h-table-wrap">
+            <table class="h-table">
+                <thead>
+                    <tr><th>کد</th><th>حساب</th><th>نوع</th><th>بدهکار</th><th>بستانکار</th><th>مانده</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Trial)
+                    {
+                        <tr>
+                            <td>@r.AccountCode</td><td>@r.AccountTitle</td><td>@r.AccountType</td>
+                            <td>@r.Debit.ToString("N0")</td><td>@r.Credit.ToString("N0")</td>
+                            <td>@r.Balance.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
                     <tr>
-                        <td>@r.AccountCode</td><td>@r.AccountTitle</td><td>@r.AccountType</td>
-                        <td>@r.Debit.ToString("N0")</td><td>@r.Credit.ToString("N0")</td>
-                        <td>@r.Balance.ToString("N0")</td>
+                        <td colspan="3">جمع</td>
+                        <td>@Trial.Sum(r => r.Debit).ToString("N0")</td>
+                        <td>@Trial.Sum(r => r.Credit).ToString("N0")</td>
+                        <td>@Trial.Sum(r => r.Balance).ToString("N0")</td>
                     </tr>
-                }
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="3">جمع</td>
-                    <td>@Trial.Sum(r => r.Debit).ToString("N0")</td>
-                    <td>@Trial.Sum(r => r.Credit).ToString("N0")</td>
-                    <td>@Trial.Sum(r => r.Balance).ToString("N0")</td>
-                </tr>
-            </tfoot>
-        </table>
+                </tfoot>
+            </table>
+        </div>
     }
 </div>
 

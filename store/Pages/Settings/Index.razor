@@ -8,43 +8,47 @@
 <p class="h-lead mb-4">مشتریان و محصولات.</p>
 
 <div class="row g-3">
-    <div class="col-md-6">
+    <div class="col-lg-6 col-12">
         <div class="h-card h-card-pad">
-            <h5 class="mb-3">مشتریان</h5>
-            <table class="h-table">
-                <thead><tr><th>کد</th><th>نام</th><th>تلفن</th></tr></thead>
-                <tbody>
-                    @foreach (var c in Customers)
-                    {
-                        <tr><td>@c.CustomerCode</td><td>@c.FullName</td><td>@c.Phone</td></tr>
-                    }
-                </tbody>
-            </table>
-            <div class="row g-2 mt-2">
-                <div class="col-md-4"><input class="form-control" @bind="NewCustName" placeholder="نام مشتری" /></div>
-                <div class="col-md-4"><input class="form-control" @bind="NewCustPhone" placeholder="تلفن" /></div>
-                <div class="col-md-4">
+            <h5 class="h-section-title">مشتریان</h5>
+            <div class="h-table-wrap">
+                <table class="h-table">
+                    <thead><tr><th>کد</th><th>نام</th><th>تلفن</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in Customers)
+                        {
+                            <tr><td>@c.CustomerCode</td><td>@c.FullName</td><td>@c.Phone</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="row g-2 mt-3">
+                <div class="col-md-4 col-sm-6"><input class="form-control" @bind="NewCustName" placeholder="نام مشتری" /></div>
+                <div class="col-md-4 col-sm-6"><input class="form-control" @bind="NewCustPhone" placeholder="تلفن" /></div>
+                <div class="col-md-4 col-sm-12">
                     <button class="btn btn-hermes w-100" @onclick="AddCustomerAsync">افزودن مشتری</button>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-lg-6 col-12">
         <div class="h-card h-card-pad">
-            <h5 class="mb-3">محصولات</h5>
-            <table class="h-table">
-                <thead><tr><th>کد</th><th>عنوان</th><th>قیمت</th></tr></thead>
-                <tbody>
-                    @foreach (var p in Products)
-                    {
-                        <tr><td>@p.ProductCode</td><td>@p.Title</td><td>@p.Price.ToString("N0")</td></tr>
-                    }
-                </tbody>
-            </table>
-            <div class="row g-2 mt-2">
-                <div class="col-md-5"><input class="form-control" @bind="NewProdTitle" placeholder="عنوان محصول" /></div>
-                <div class="col-md-3"><input class="form-control" type="number" @bind="NewProdPrice" placeholder="قیمت" /></div>
-                <div class="col-md-4">
+            <h5 class="h-section-title">محصولات</h5>
+            <div class="h-table-wrap">
+                <table class="h-table">
+                    <thead><tr><th>کد</th><th>عنوان</th><th>قیمت</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in Products)
+                        {
+                            <tr><td>@p.ProductCode</td><td>@p.Title</td><td>@p.Price.ToString("N0")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="row g-2 mt-3">
+                <div class="col-md-5 col-sm-6"><input class="form-control" @bind="NewProdTitle" placeholder="عنوان محصول" /></div>
+                <div class="col-md-3 col-sm-6"><input class="form-control" type="number" @bind="NewProdPrice" placeholder="قیمت" /></div>
+                <div class="col-md-4 col-sm-12">
                     <button class="btn btn-hermes w-100" @onclick="AddProductAsync">افزودن محصول</button>
                 </div>
             </div>

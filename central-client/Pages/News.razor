@@ -8,33 +8,35 @@
 
 <div class="h-card h-card-pad mb-3">
     <div class="row g-2">
-        <div class="col-md-4"><input class="form-control" @bind="NewTitle" placeholder="عنوان خبر" /></div>
-        <div class="col-md-4"><input class="form-control" @bind="NewSummary" placeholder="خلاصه" /></div>
-        <div class="col-md-2"><input class="form-control" type="date" @bind="NewPublished" /></div>
-        <div class="col-md-2">
+        <div class="col-md-4 col-sm-6"><input class="form-control" @bind="NewTitle" placeholder="عنوان خبر" /></div>
+        <div class="col-md-4 col-sm-6"><input class="form-control" @bind="NewSummary" placeholder="خلاصه" /></div>
+        <div class="col-md-2 col-sm-6"><input class="form-control" type="date" @bind="NewPublished" /></div>
+        <div class="col-md-2 col-sm-6">
             <button class="btn btn-hermes w-100" @onclick="AddAsync">افزودن خبر</button>
         </div>
     </div>
 </div>
 
 <div class="h-card">
-    <table class="h-table">
-        <thead>
-            <tr><th>#</th><th>عنوان</th><th>خلاصه</th><th>تاریخ انتشار</th><th>وضعیت</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var n in News)
-            {
-                <tr>
-                    <td>@n.NewsId</td>
-                    <td>@n.Title</td>
-                    <td>@n.Summary</td>
-                    <td>@(n.PublishedAt?.ToString("yyyy/MM/dd") ?? "-")</td>
-                    <td>@(n.IsActive ? "فعال" : "غیرفعال")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>#</th><th>عنوان</th><th>خلاصه</th><th>تاریخ انتشار</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var n in News)
+                {
+                    <tr>
+                        <td>@n.NewsId</td>
+                        <td>@n.Title</td>
+                        <td>@n.Summary</td>
+                        <td>@(n.PublishedAt?.ToString("yyyy/MM/dd") ?? "-")</td>
+                        <td>@(n.IsActive ? "فعال" : "غیرفعال")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </div>
 
 @code {

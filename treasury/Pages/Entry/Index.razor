@@ -9,14 +9,14 @@
 
 <div class="h-card h-card-pad">
     <div class="row g-3">
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="dir">جهت</label>
             <select id="dir" class="form-select" @bind="Direction">
                 <option value="In">دریافت</option>
                 <option value="Out">پرداخت</option>
             </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 col-sm-6">
             <label class="form-label" for="acc">حساب (بانک یا صندوق)</label>
             <select id="acc" class="form-select" @bind="AccountId">
                 <option value="-1">— صندوق —</option>
@@ -25,15 +25,15 @@
                 @foreach (var c in Boxes) { <option value="@(-100 - c.CashBoxId)">💵 @c.Title</option> }
             </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="date">تاریخ</label>
             <input id="date" type="date" class="form-control" @bind="MoveDate" />
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="amount">مبلغ</label>
             <input id="amount" type="number" step="1000" min="0" class="form-control" @bind="Amount" />
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="cur">ارز</label>
             <select id="cur" class="form-select" @bind="Currency">
                 <option value="IRR">IRR</option>
@@ -41,11 +41,11 @@
                 <option value="EUR">EUR</option>
             </select>
         </div>
-        <div class="col-md-10">
+        <div class="col-md-10 col-sm-12">
             <label class="form-label" for="desc">شرح</label>
             <input id="desc" class="form-control" @bind="Description" />
         </div>
-        <div class="col-12 d-flex gap-2">
+        <div class="col-12 d-flex gap-2 flex-wrap">
             <button class="btn btn-hermes" @onclick="SaveAsync" disabled="@Busy">ثبت حرکت</button>
             @if (Message.Length > 0) { <div class="alert alert-success mb-0 py-1 px-3">@Message</div> }
         </div>

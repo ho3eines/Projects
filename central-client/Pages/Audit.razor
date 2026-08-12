@@ -9,47 +9,49 @@
 
 <div class="h-card h-card-pad mb-3">
     <div class="row g-3 align-items-end">
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6">
             <label class="form-label" for="schema">اسکیمه</label>
             <input id="schema" class="form-control" @bind="Schema" placeholder="همه" />
         </div>
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6">
             <label class="form-label" for="script">اسکریپت</label>
             <input id="script" class="form-control" @bind="Script" placeholder="همه" />
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="from">از تاریخ</label>
             <input id="from" type="date" class="form-control" @bind="From" />
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6">
             <label class="form-label" for="to">تا تاریخ</label>
             <input id="to" type="date" class="form-control" @bind="To" />
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-12">
             <button class="btn btn-hermes w-100" @onclick="LoadAsync">اجرا</button>
         </div>
     </div>
 </div>
 
 <div class="h-card">
-    <table class="h-table">
-        <thead>
-            <tr><th>#</th><th>زمان</th><th>اسکیمه</th><th>اسکریپت</th><th>کاربر</th><th>نتیجه</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var r in Rows)
-            {
-                <tr>
-                    <td>@r.AuditId</td>
-                    <td>@r.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
-                    <td>@r.SchemaName</td>
-                    <td>@r.ScriptName</td>
-                    <td>@r.UserTokenId</td>
-                    <td><span class="h-badge @(r.Outcome == "Success" ? "live" : "danger")">@r.Outcome</span></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>#</th><th>زمان</th><th>اسکیمه</th><th>اسکریپت</th><th>کاربر</th><th>نتیجه</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Rows)
+                {
+                    <tr>
+                        <td>@r.AuditId</td>
+                        <td>@r.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
+                        <td>@r.SchemaName</td>
+                        <td>@r.ScriptName</td>
+                        <td>@r.UserTokenId</td>
+                        <td><span class="h-badge @(r.Outcome == "Success" ? "live" : "danger")">@r.Outcome</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
     @if (Rows.Count == 0)
     {
         <div class="h-card-pad text-muted">رکوردی یافت نشد.</div>

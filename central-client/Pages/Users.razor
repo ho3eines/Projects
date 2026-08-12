@@ -4,7 +4,7 @@
 
 <PageTitle>کاربران — Hermes</PageTitle>
 
-<div class="d-flex justify-content-between align-items-end mb-4">
+<div class="h-page-header">
     <div>
         <h1 class="h-page-title">کاربران و دسترسی</h1>
         <p class="h-lead">تعریف کاربر در مرکز انجام می‌شود؛ توکن همان کاربر همه پروژه‌ها را باز می‌کند.</p>
@@ -23,33 +23,35 @@
     }
     else
     {
-        <table class="h-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>نام کاربری</th>
-                    <th>نام نمایشی</th>
-                    <th>نقش</th>
-                    <th>وضعیت</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var u in UsersList)
-                {
+        <div class="h-table-wrap">
+            <table class="h-table">
+                <thead>
                     <tr>
-                        <td>@u.UserId</td>
-                        <td>@u.Username</td>
-                        <td>@u.DisplayName</td>
-                        <td>@u.Role</td>
-                        <td>
-                            <span class="h-badge @(u.IsActive ? "live" : "wait")">
-                                @(u.IsActive ? "فعال" : "غیرفعال")
-                            </span>
-                        </td>
+                        <th>#</th>
+                        <th>نام کاربری</th>
+                        <th>نام نمایشی</th>
+                        <th>نقش</th>
+                        <th>وضعیت</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var u in UsersList)
+                    {
+                        <tr>
+                            <td>@u.UserId</td>
+                            <td>@u.Username</td>
+                            <td>@u.DisplayName</td>
+                            <td>@u.Role</td>
+                            <td>
+                                <span class="h-badge @(u.IsActive ? "live" : "wait")">
+                                    @(u.IsActive ? "فعال" : "غیرفعال")
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 </div>
 

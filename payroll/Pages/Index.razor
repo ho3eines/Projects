@@ -4,7 +4,7 @@
 
 <PageTitle>دوره‌های حقوق — حقوق و دستمزد</PageTitle>
 
-<div class="d-flex justify-content-between align-items-end mb-4">
+<div class="h-page-header">
     <div>
         <h1 class="h-page-title">دوره‌های حقوق</h1>
         <p class="h-lead">آخرین دوره‌های محاسبه و نهایی‌شده.</p>
@@ -26,25 +26,27 @@
     }
     else
     {
-        <table class="h-table">
-            <thead>
-                <tr>
-                    <th>دوره</th><th>تعداد پرسنل</th><th>خالص پرداختی</th><th>وضعیت</th><th>تاریخ ثبت</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var r in Rows)
-                {
+        <div class="h-table-wrap">
+            <table class="h-table">
+                <thead>
                     <tr>
-                        <td>@r.Period</td>
-                        <td>@r.EmployeeCount</td>
-                        <td>@r.NetTotal.ToString("N0")</td>
-                        <td><span class="h-badge live">@r.Status</span></td>
-                        <td>@r.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                        <th>دوره</th><th>تعداد پرسنل</th><th>خالص پرداختی</th><th>وضعیت</th><th>تاریخ ثبت</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var r in Rows)
+                    {
+                        <tr>
+                            <td>@r.Period</td>
+                            <td>@r.EmployeeCount</td>
+                            <td>@r.NetTotal.ToString("N0")</td>
+                            <td><span class="h-badge live">@r.Status</span></td>
+                            <td>@r.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 </div>
 

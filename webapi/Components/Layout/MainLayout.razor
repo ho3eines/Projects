@@ -5,39 +5,78 @@
 @using Microsoft.AspNetCore.Components.Web
 @inject IModalService ModalService
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm" dir="rtl">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="/">🏢 Hermes WebAPI</a>
+<div class="h-app">
+    <!-- Mobile Overlay -->
+    <div class="h-overlay @(SidebarOpen ? "show" : "")" @onclick="CloseSidebar"></div>
 
-        <!-- Toggler for mobile -->
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu"
-                aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+    <!-- Sidebar -->
+    <aside class="h-sidebar @(SidebarOpen ? "open" : "")">
+        <a class="h-brand" href="/" @onclick="CloseSidebar">
+            <div class="h-brand-mark">🏢</div>
+            <div>
+                <strong>Hermes</strong>
+                <small>WebAPI Admin</small>
+            </div>
+        </a>
 
-        <div class="collapse navbar-collapse" id="navMenu">
-            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <a class="nav-link" href="/">🏠 خانه</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/projects">📋 لیست پروژه‌ها</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/create-project">➕ پروژه جدید</a>
-                </li>
-            </ul>
+        <div class="h-nav-section">
+            <div class="h-nav-label">مدیریت</div>
+            <nav class="h-nav">
+                <NavLink href="/" Match="NavLinkMatch.All" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">🏠</span> خانه
+                </NavLink>
+                <NavLink href="/projects" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">📋</span> لیست پروژه‌ها
+                </NavLink>
+                <NavLink href="/create-project" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">➕</span> پروژه جدید
+                </NavLink>
+            </nav>
         </div>
-    </div>
-</nav>
 
-<main class="container-fluid py-4" dir="rtl">
-    @Body
-</main>
+        <div class="h-sidebar-foot">
+            <div class="h-user-chip">
+                <div class="h-avatar">A</div>
+                <div>
+                    <div class="h-user-name">مدیر سیستم</div>
+                    <div class="h-user-status">ادمین</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Area -->
+    <div class="h-main">
+        <header class="h-topbar">
+            <div class="h-topbar-right">
+                <button class="h-hamburger" @onclick="ToggleSidebar" aria-label="منو">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div>
+                    <div class="h-page-title" style="font-size:1.05rem">Hermes WebAPI</div>
+                    <div class="h-lead" style="font-size:.75rem">مدیریت پروژه‌ها و تنظیمات سیستم</div>
+                </div>
+            </div>
+        </header>
+        <main class="h-content" dir="rtl">
+            @Body
+        </main>
+        <footer class="text-center py-3 text-muted small">
+            <hr />
+            © 2025 Hermes WebAPI — مدیریت پروژه‌ها
+        </footer>
+    </div>
+</div>
 
 <ModalContainer />
 
-<footer class="text-center py-3 text-muted small">
-    <hr />
-    © 2025 Hermes WebAPI — مدیریت پروژه‌ها
-</footer>
+@code {
+    bool SidebarOpen = false;
+
+    void ToggleSidebar() => SidebarOpen = !SidebarOpen;
+    void CloseSidebar() => SidebarOpen = false;
+}

@@ -8,10 +8,10 @@
 
 <div class="h-card h-card-pad mb-3">
     <div class="row g-2">
-        <div class="col-md-4"><input class="form-control" @bind="NewTitle" placeholder="عنوان" /></div>
-        <div class="col-md-4"><input class="form-control" @bind="NewCaption" placeholder="توضیح" /></div>
-        <div class="col-md-2"><input class="form-control" type="number" @bind="NewSort" placeholder="ترتیب" /></div>
-        <div class="col-md-2">
+        <div class="col-md-4 col-sm-6"><input class="form-control" @bind="NewTitle" placeholder="عنوان" /></div>
+        <div class="col-md-4 col-sm-6"><input class="form-control" @bind="NewCaption" placeholder="توضیح" /></div>
+        <div class="col-md-2 col-sm-6"><input class="form-control" type="number" @bind="NewSort" placeholder="ترتیب" /></div>
+        <div class="col-md-2 col-sm-6">
             <button class="btn btn-hermes w-100" @onclick="AddAsync">افزودن آیتم</button>
         </div>
     </div>
@@ -20,12 +20,14 @@
 <div class="row g-3">
     @foreach (var g in Items)
     {
-        <div class="col-md-4">
+        <div class="col-lg-4 col-sm-6">
             <div class="h-card h-card-pad">
-                <h5 class="mb-1">@g.Title</h5>
-                <p class="h-lead mb-1">@g.Caption</p>
-                <span class="badge text-bg-secondary">ترتیب @g.SortOrder</span>
-                <span class="badge @(g.IsActive ? "text-bg-success" : "text-bg-secondary")">@(g.IsActive ? "فعال" : "غیرفعال")</span>
+                <h5 class="mb-1 h-section-title">@g.Title</h5>
+                <p class="h-lead mb-2">@g.Caption</p>
+                <div class="d-flex gap-2">
+                    <span class="badge text-bg-secondary">ترتیب @g.SortOrder</span>
+                    <span class="badge @(g.IsActive ? "text-bg-success" : "text-bg-secondary")">@(g.IsActive ? "فعال" : "غیرفعال")</span>
+                </div>
             </div>
         </div>
     }
