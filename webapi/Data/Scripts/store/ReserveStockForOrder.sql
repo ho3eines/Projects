@@ -33,12 +33,12 @@ BEGIN
             ELSE
             BEGIN
                 INSERT INTO [inventory].[Reservations] (ItemCode, Qty, OrderId, Status, CreatedAt)
-                SELECT p.ItemCode, oi.Qty, @OrderId, N'Active', SYSUTDATETIME()
+                SELECT p.ItemCode, oi.Qty, @OrderId, N'Active', SYSUTCDATETIME()
                 FROM [store].[OrderItems] oi
                 JOIN [store].[Products] p ON p.ProductId = oi.ProductId
                 WHERE oi.OrderId = @OrderId;
 
-                INSERT INTO [store].[OrderReservations] (OrderId, ReservedAt) VALUES (@OrderId, SYSUTDATETIME());
+                INSERT INTO [store].[OrderReservations] (OrderId, ReservedAt) VALUES (@OrderId, SYSUTCDATETIME());
 
                 UPDATE [store].[Orders] SET Status = N'Reserved' WHERE OrderId = @OrderId;
 

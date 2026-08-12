@@ -49,5 +49,5 @@ IF NOT EXISTS (SELECT 1 FROM [treasury].[Cheques])
 BEGIN
     INSERT INTO [treasury].[Cheques] (ChequeNumber, BankId, Amount, DueDate, Direction, Status, CreatedAt)
     VALUES
-        (N'CHQ-881231', 1, 75000000, DATEADD(DAY, 30, SYSDATETIME()), N'In', N'Pending', SYSUTDATETIME());
+        (N'CHQ-881231', 1, 75000000, DATEADD(DAY, 30, SYSDATETIME()), N'In', N'Pending', SYSUTCDATETIME());
 END

@@ -129,7 +129,7 @@ BEGIN
         PublishedAt DATE NULL,
         IsActive    BIT NOT NULL DEFAULT 1,
         IsDeleted   BIT NOT NULL DEFAULT 0,
-        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTDATETIME(),
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         UpdatedAt   DATETIME2 NULL,
         CreatedBy   NVARCHAR(100) NULL
     );
@@ -148,7 +148,7 @@ BEGIN
         SortOrder     INT NOT NULL DEFAULT 0,
         IsActive      BIT NOT NULL DEFAULT 1,
         IsDeleted     BIT NOT NULL DEFAULT 0,
-        CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTDATETIME(),
+        CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CreatedBy     NVARCHAR(100) NULL
     );
 END

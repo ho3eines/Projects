@@ -7,7 +7,7 @@ IF NOT EXISTS (SELECT 1 FROM [store].[CartItems] WHERE CustomerId = @CustomerId 
 BEGIN
     IF @Qty > 0
         INSERT INTO [store].[CartItems] (CustomerId, ProductId, Qty, AddedAt)
-        VALUES (@CustomerId, @ProductId, @Qty, SYSUTDATETIME());
+        VALUES (@CustomerId, @ProductId, @Qty, SYSUTCDATETIME());
 END
 ELSE
 BEGIN

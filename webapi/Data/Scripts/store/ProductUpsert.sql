@@ -9,7 +9,7 @@ DECLARE @EffectiveCode NVARCHAR(50) = ISNULL(NULLIF(@ProductCode, N''),
 IF NOT EXISTS (SELECT 1 FROM [store].[Products] WHERE ProductId = @ProductId)
 BEGIN
     INSERT INTO [store].[Products] (ProductCode, Title, ItemCode, Price, IsActive, CreatedAt)
-    VALUES (@EffectiveCode, @Title, @ItemCode, ISNULL(@Price, 0), ISNULL(@IsActive, 1), SYSUTDATETIME());
+    VALUES (@EffectiveCode, @Title, @ItemCode, ISNULL(@Price, 0), ISNULL(@IsActive, 1), SYSUTCDATETIME());
 END
 ELSE
 BEGIN
