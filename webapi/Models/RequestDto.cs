@@ -27,7 +27,14 @@ public sealed class ModelSchemaInfoDto
 /// <summary>پیلود استاندارد همه درخواست‌ها</summary>
 public sealed class DeployRequestPayloadDto
 {
-    public string Tsql { get; set; } = default!;
+    /// <summary>
+    /// Nullable on purpose: named-script calls send only <see cref="ScriptName"/>.
+    /// Do NOT make this non-nullable — with [ApiController] + Nullable enable,
+    /// ASP.NET Core implicitly adds [Required] to non-nullable reference-type
+    /// properties, which rejects the request during model binding (before the
+    /// action runs) with "The Tsql field is required."
+    /// </summary>
+    public string? Tsql { get; set; }
     public ModelSchemaInfoDto? Model { get; set; }
     public Dictionary<string, object?>? Parameters { get; set; }
     public string? ScriptName { get; set; }
