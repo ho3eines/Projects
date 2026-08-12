@@ -19,12 +19,12 @@
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudSelect T="string?" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined">
-                <MudSelectItem Value="(string?)null">همه</MudSelectItem>
-                <MudSelectItem Value="'Placed'">ثبت‌شده</MudSelectItem>
-                <MudSelectItem Value="'Reserved'">رزروشده</MudSelectItem>
-                <MudSelectItem Value="'Invoiced'">فاکتورشده</MudSelectItem>
-                <MudSelectItem Value="'Rejected'">ردشده</MudSelectItem>
-                <MudSelectItem Value="'Cancelled'">لغوشده</MudSelectItem>
+                <MudSelectItem Value="@((string?)null)">همه</MudSelectItem>
+                <MudSelectItem Value="@("Placed")">ثبت‌شده</MudSelectItem>
+                <MudSelectItem Value="@("Reserved")">رزروشده</MudSelectItem>
+                <MudSelectItem Value="@("Invoiced")">فاکتورشده</MudSelectItem>
+                <MudSelectItem Value="@("Rejected")">ردشده</MudSelectItem>
+                <MudSelectItem Value="@("Cancelled")">لغوشده</MudSelectItem>
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
