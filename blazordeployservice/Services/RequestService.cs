@@ -273,9 +273,11 @@ namespace BlazorDeployService.Services
             {
                         var raw = await response.Content.ReadAsStringAsync(ct);
 
-                        // نشست منقضی یا باطل → UI باید لاگین باز کند
-                        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                        // فقط پاسخ صریح SESSION_EXPIRED نشست محلی را پاک می‌کند.
+                        // قبلاً همهٔ 401/403ها (از جمله خطای HMAC یا USER_REQUIRED)
+                        // به‌اشتباه «نشست منقضی» نمایش داده می‌شدند و علت واقعی پنهان می‌ماند.
+                        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized &&
+                            raw.Contains("SESSION_EXPIRED", StringComparison.OrdinalIgnoreCase))
                         {
                             await _session.EndSessionAsync($"http-{(int)response.StatusCode}");
                             throw new RequestServiceException(
@@ -286,7 +288,7 @@ namespace BlazorDeployService.Services
                         if (!response.IsSuccessStatusCode)
                         {
                             throw new RequestServiceException(
-                                $"درخواست ناموفق ({response.StatusCode}): {Truncate(raw, 400)}",
+                                $"درخواست ناموفق ({(int)response.StatusCode}): {Truncate(raw, 400)}",
                                 response.StatusCode.ToString());
                         }
 

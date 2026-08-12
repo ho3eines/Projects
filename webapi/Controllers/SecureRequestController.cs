@@ -55,21 +55,20 @@ public class SecureRequestController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Execute(
         [FromRoute] string method,
-        [FromBody] DeployRequestPayloadDto payload,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        var correlationId = payload?.CorrelationId ?? Guid.NewGuid();
+        var correlationId = Guid.NewGuid();
 
-        // ---------- 1) Read raw body for signature validation ----------
+        // Read the body ourselves before MVC model binding consumes it.  The HMAC
+        // is calculated over the exact bytes sent by the client; reading an
+        // already-bound [FromBody] parameter here used to produce an empty body,
+        // so every otherwise valid request failed with a misleading 401.
         string rawBody;
         try
         {
-            Request.EnableBuffering();
-            Request.Body.Position = 0;
             using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
             rawBody = await reader.ReadToEndAsync(ct);
-            Request.Body.Position = 0;
         }
         catch (Exception ex)
         {
@@ -80,20 +79,30 @@ public class SecureRequestController : ControllerBase
         var (ok, sec, secError) = TryResolveSecurity(rawBody);
         if (!ok)
             return await RejectAsync(401, secError, secError, sw, correlationId, null);
-        if (payload is null)
+
+        DeployRequestPayloadDto? payload;
+        try
         {
-            return await RejectAsync(400, "EMPTY_PAYLOAD", "Payload is empty", sw, correlationId, sec);
+            var payloadJson = rawBody;
+            if (Request.Headers.ContainsKey("X-Encrypted"))
+            {
+                payloadJson = TryDecrypt(rawBody);
+                if (payloadJson is null)
+                    return await RejectAsync(400, "DECRYPT_FAIL", "Unable to decrypt payload", sw, correlationId, sec);
+            }
+
+            payload = JsonSerializer.Deserialize<DeployRequestPayloadDto>(payloadJson, JsonOpts);
+        }
+        catch (JsonException)
+        {
+            return await RejectAsync(400, "INVALID_PAYLOAD", "Request body is not valid JSON", sw, correlationId, sec);
         }
 
-        // ---------- 3) Decrypt if encrypted ----------
-        if (Request.Headers.ContainsKey("X-Encrypted"))
-        {
-            var decrypted = TryDecrypt(payload.EncryptedPayload);
-            if (decrypted is null)
-                return await RejectAsync(400, "DECRYPT_FAIL", "Unable to decrypt payload", sw, correlationId, sec);
-            try { payload = JsonSerializer.Deserialize<DeployRequestPayloadDto>(decrypted, JsonOpts)!; }
-            catch { return await RejectAsync(400, "DECRYPT_FAIL", "Decrypted payload is not valid JSON", sw, correlationId, sec); }
-        }
+        if (payload is null)
+            return await RejectAsync(400, "EMPTY_PAYLOAD", "Payload is empty", sw, correlationId, sec);
+
+        if (payload.CorrelationId != Guid.Empty)
+            correlationId = payload.CorrelationId;
 
         // ---------- 3.5) Session validation ----------
         // X-Auth-Token باید معتبر باشد — SessionStore آن را Touch می‌کند

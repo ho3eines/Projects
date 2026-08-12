@@ -81,6 +81,7 @@ public class AuthController : ControllerBase
                 Name = project.Name,
                 Schema = project.Schema,
                 SessionTimeoutMinutes = project.SessionTimeoutMinutes,
+                SessionTimeoutSeconds = checked(project.SessionTimeoutMinutes * 60),
                 DatabaseName = project.DatabaseName
             }
         });
@@ -157,6 +158,7 @@ public sealed class ProjectInfoDto
     public string Name { get; set; } = default!;
     public string Schema { get; set; } = "dbo";
     public int SessionTimeoutMinutes { get; set; } = 10;
+    public int SessionTimeoutSeconds { get; set; } = 600;
     public string DatabaseName { get; set; } = string.Empty;
 }
 
