@@ -1,0 +1,75 @@
+/* ============ Hermes WebAPI — Global Styles ============ */
+
+html, body {
+    direction: rtl;
+    font-family: Vazirmatn, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+/* ============ Navbar tweaks ============ */
+.navbar-brand {
+    font-size: 1.15rem;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+    color: rgba(255, 255, 255, 0.85);
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.35rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ============ Cards / tables polish ============ */
+.card {
+    border-radius: 0.6rem;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+    transition: box-shadow 0.2s ease;
+}
+
+.table {
+    background-color: #fff;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.table thead th {
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+}
+
+/* ============ Code blocks ============ */
+code, pre {
+    direction: ltr;
+    text-align: left;
+    unicode-bidi: embed;
+}
+
+/* ============ Alerts ============ */
+.alert {
+    border-radius: 0.5rem;
+}
+
+/* ============ Page header ============ */
+h1, h2, h3 {
+    font-weight: 600;
+}
+
+/* ============ Footer ============ */
+footer hr {
+    opacity: 0.15;
+}
+
+/* ============ Responsive table on mobile ============ */
+@media (max-width: 767.98px) {
+    .table-responsive {
+        font-size: 0.85rem;
+    }
+}

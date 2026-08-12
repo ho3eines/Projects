@@ -1,0 +1,89 @@
+﻿@using WebApi.Models
+@using WebApi.Services
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@implements IDisposable
+@inject IModalService ModalService
+@inject IJSRuntime JSRuntime
+
+@foreach (var modal in _activeModals)
+{
+    @if (modal.Value.Show)
+    {
+        <div class="modal-container" @key="modal.Value.Id">
+            <div class="modal-backdrop @(_modalAnimations[modal.Value.Id] ? "show" : "")"
+                 data-modal-id="@modal.Value.Id"></div>
+
+            <div class="modal-dialog @modal.Value.ModalSize @(_modalAnimations[modal.Value.Id] ? "show" : "")">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@modal.Value.Title</h5>
+                        @if (modal.Value.CloseButton)
+                        {
+                            <button type="button" class="btn-close-rtl"
+                                    @onclick="() => CloseModal(modal.Value.Id)"></button>
+                        }
+                    </div>
+                    <div class="modal-body">
+                        <DynamicComponent Type="@modal.Value.ComponentType"
+                                          Parameters="@modal.Value.Parameters" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private Dictionary<string, ModalModel> _activeModals = new();
+    private Dictionary<string, bool> _modalAnimations = new();
+
+    protected override void OnInitialized()
+    {
+        ModalService.OnShow += ShowModal;
+        ModalService.OnClose += CloseModal;
+    }
+
+    private void ShowModal(ModalModel modal)
+    {
+        _activeModals[modal.Id] = modal;
+        _modalAnimations[modal.Id] = true;
+        StateHasChanged();
+    }
+
+    private async void CloseModal(string modalId)
+    {
+        if (modalId == "all")
+        {
+            foreach (var id in _activeModals.Keys.ToList())
+            {
+                await AnimateClose(id);
+            }
+            return;
+        }
+
+        if (_activeModals.ContainsKey(modalId))
+        {
+            await AnimateClose(modalId);
+        }
+    }
+
+    private async Task AnimateClose(string modalId)
+    {
+        _modalAnimations[modalId] = false;
+        StateHasChanged();
+
+        await Task.Delay(300);
+
+        _activeModals.Remove(modalId);
+        _modalAnimations.Remove(modalId);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        ModalService.OnShow -= ShowModal;
+        ModalService.OnClose -= CloseModal;
+    }
+}

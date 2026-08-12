@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using BlazorDeployService.Models;
 
 namespace BlazorDeployService.Services
 {
@@ -131,52 +132,74 @@ namespace BlazorDeployService.Services
     {
         #region ---------- INITIALIZE ----------
         private readonly IRequestService _req;
-        private readonly IClientStorageService _local;
-        public SqlService(IRequestService req, IClientStorageService local)
-        {
-            _req = req;
-            _local = local;
-        }
-        public async Task InitializeAsync<T>() where T : class
-        {
-            var table = GetTableName(typeof(T));
-            var columns = GetColumns(typeof(T));
-            var version = GetTableVersion(typeof(T));
+                private readonly IClientStorageService _local;
+                private readonly AppSettings? _appSettings;
 
-            var sb = new StringBuilder();
-
-            if (await _local.GetLocalAsync<int>($"Table_{table}") < version)
-            {
-                sb.AppendLine($@"
-IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{table}')
-BEGIN
-    CREATE TABLE [{table}] (
-{string.Join(", ", columns.Select(c => " " + c.Definition))}
-    );
-END
-ELSE
-BEGIN");
-
-                foreach (var col in columns)
+                public SqlService(IRequestService req, IClientStorageService local, AppSettings? appSettings = null)
                 {
-                    sb.AppendLine($@"
-    IF NOT EXISTS (
-        SELECT 1 FROM sys.columns 
-        WHERE Name = '{col.Name}'
-          AND Object_ID = Object_ID('{table}')
-    )
-    BEGIN
-        ALTER TABLE [{table}] ADD {col.Definition};
-    END");
+                    _req = req;
+                    _local = local;
+                    _appSettings = appSettings;
                 }
+                public async Task InitializeAsync<T>() where T : class
+                {
+                    var table = GetTableName(typeof(T));
+                    var columns = GetColumns(typeof(T));
+                    var version = GetTableVersion(typeof(T));
 
-                sb.AppendLine("END");
-                if (!string.IsNullOrEmpty(sb.ToString()))
-                    await _req.Request<T>(sb.ToString().Replace("{", "").Replace("}", ""), null, true);
+                    // ---- AUTO-RENAME: اگر نام جدول در کد تغییر کرده باشد ----
+                    var prevTableKey = "PrevTable_" + table;
+                    var previousTable = await _local.GetLocalAsync<string>(prevTableKey);
+                    if (!string.IsNullOrEmpty(previousTable) && previousTable != table)
+                    {
+                        var renameSql = $@"
+        IF EXISTS (SELECT 1 FROM sys.tables WHERE name = '{previousTable}')
+           AND NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{table}')
+        BEGIN
+            EXEC sp_rename '{previousTable}', '{table}';
+        END";
+                        await _req.ExecuteAsync(renameSql, null, null);
+                        await _local.SetLocalAsync(prevTableKey, table);
+                    }
+                    else if (string.IsNullOrEmpty(previousTable))
+                    {
+                        await _local.SetLocalAsync(prevTableKey, table);
+                    }
 
-                await _local.SetLocalAsync($"Table_{table}", version);
-            }
-        }
+                    var sb = new StringBuilder();
+
+                    if (await _local.GetLocalAsync<int>($"Table_{table}") < version)
+                    {
+                        sb.AppendLine($@"
+        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{table}')
+        BEGIN
+            CREATE TABLE [{table}] (
+        {string.Join(", ", columns.Select(c => " " + c.Definition))}
+            );
+        END
+        ELSE
+        BEGIN");
+
+                        foreach (var col in columns)
+                        {
+                            sb.AppendLine($@"
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.columns 
+                WHERE Name = '{col.Name}'
+                  AND Object_ID = Object_ID('{table}')
+            )
+            BEGIN
+                ALTER TABLE [{table}] ADD {col.Definition};
+            END");
+                        }
+
+                        sb.AppendLine("END");
+                        if (!string.IsNullOrEmpty(sb.ToString()))
+                            await _req.ExecuteAsync(sb.ToString().Replace("{", "").Replace("}", ""), null, null);
+
+                        await _local.SetLocalAsync($"Table_{table}", version);
+                    }
+                }
 
         #endregion
 
@@ -204,12 +227,13 @@ VALUES ({string.Join(",", props.Select(p => "@" + p.Name))});",
             };
 
 
-            await _req.Request<T>(sql.CommandText, values, true);
-        }
+            await _req.ExecuteAsync(sql.CommandText, values, null);
+                        await MaybeAutoCommitAsync(table);
+                    }
 
-        #endregion
+                    #endregion
 
-        #region ---------- UPDATE ----------
+                    #region ---------- UPDATE ----------
 
         public async Task Update<T>(object values, object where) where T : class
         {
@@ -250,12 +274,13 @@ WHERE {string.Join(" AND ", whereProps.Select(p => $"{p.Name} = @w_{p.Name}"))};
             // تبدیل به آبجکت ناشناس برای Dapper
             var anonymousParams = CreateAnonymousObject(paramDict);
 
-            await _req.Request<T>(sql.CommandText, anonymousParams, true);
-        }
+            await _req.ExecuteAsync(sql.CommandText, anonymousParams, null);
+                        await MaybeAutoCommitAsync(table);
+                    }
 
-        #endregion
+                    #endregion
 
-        #region ---------- SELECT ----------
+                    #region ---------- SELECT ----------
 
         public async Task<List<T>> Select<T>() where T : class
         {
@@ -266,7 +291,7 @@ WHERE {string.Join(" AND ", whereProps.Select(p => $"{p.Name} = @w_{p.Name}"))};
 
             //Console.WriteLine($"\n sql={sql.CommandText}");
 
-            List<T> resp = await _req.GetData<T>(sql.CommandText);
+            List<T> resp = await _req.QueryAsync<T>(sql.CommandText);
 
             //Console.WriteLine($"\n response = {JsonConvert.SerializeObject(resp)}");
 
@@ -287,7 +312,7 @@ WHERE {string.Join(" AND ", props.Select(p => $"{p.Name}=@{p.Name}"))};",
                 Parameters = BuildParameters(typeof(T), props)
             };
 
-            return await _req.GetData<T>(sql.CommandText, where);
+            return await _req.QueryAsync<T>(sql.CommandText, where);
         }
 
         #endregion
@@ -308,7 +333,7 @@ WHERE {string.Join(" AND ", props.Select(p => $"{p.Name}=@{p.Name}"))};",
                 Parameters = BuildParameters(typeof(T), props)
             };
 
-            await _req.Request<T>(sql.CommandText, where, true);
+            await _req.ExecuteAsync(sql.CommandText, where, null);
         }
 
         #endregion
@@ -420,16 +445,46 @@ WHERE {string.Join(" AND ", props.Select(p => $"{p.Name}=@{p.Name}"))};",
         public string UnixTimeToPersian(long unixTime)
         {
             unixTime += 12600;  // به خاطر تایم زون ایران
-
             DateTime dateTime = UnixTimeToDateTime(unixTime);
-
             var persianCalendar = new PersianCalendar();
-
             int year = persianCalendar.GetYear(dateTime);
             int month = persianCalendar.GetMonth(dateTime);
             int day = persianCalendar.GetDayOfMonth(dateTime);
-
             return $"{year:0000}/{month:00}/{day:00}";
+        }
+
+        /// <summary>
+        /// Auto-commit: اگر تنظیمات AutoCommit فعال باشد و از آخرین کامیت بیش از Days روز گذشته باشد،
+        /// یک درخواست COMMIT را به سرور می‌فرستد.
+        /// در این معماری یعنی ثبت فلگ IsCommitted در جدول.
+        /// </summary>
+        private async Task MaybeAutoCommitAsync(string table)
+        {
+            if (_appSettings?.AutoCommit?.Enabled != true) return;
+
+            var lastCommitKey = $"LastAutoCommit_{table}";
+            var lastCommitUtc = await _local.GetLocalAsync<DateTime>(lastCommitKey);
+            var now = DateTime.UtcNow;
+
+            if (lastCommitUtc != default && (now - lastCommitUtc).TotalDays < _appSettings.AutoCommit.Days)
+                return;
+
+            await _local.SetLocalAsync(lastCommitKey, now);
+
+            var commitSql = $@"
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'IsCommitted' AND Object_ID = Object_ID('{table}'))
+    ALTER TABLE [{table}] ADD IsCommitted BIT NOT NULL DEFAULT 0;
+
+UPDATE [{table}] SET IsCommitted = 1 WHERE IsCommitted = 0;";
+
+            try
+            {
+                await _req.ExecuteAsync(commitSql, null, null);
+            }
+            catch
+            {
+                await _local.SetLocalAsync(lastCommitKey, lastCommitUtc);
+            }
         }
 
         #endregion
