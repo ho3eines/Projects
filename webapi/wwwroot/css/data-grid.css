@@ -26,7 +26,7 @@
     --pdd-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.data-grid-wrapper { background: var(--pdd-surface); border: 1px solid var(--pdd-border); border-radius: 0.75rem; box-shadow: var(--pdd-shadow); padding: 1rem; }
+.data-grid-wrapper { width: 100%; background: var(--pdd-surface); border: 1px solid var(--pdd-border); border-radius: 0.75rem; box-shadow: var(--pdd-shadow); padding: 1rem; }
 
 .skeleton { background: linear-gradient(90deg, var(--pdd-surface) 25%, var(--pdd-border) 50%, var(--pdd-surface) 75%); background-size: 200% 100%; animation: skeleton-shimmer 1.5s infinite; }
 .skeleton-row { height: 48px; border-radius: 4px; }

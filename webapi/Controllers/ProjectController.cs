@@ -1,8 +1,8 @@
-using System.Text;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
+using Share;
 using WebApi.Models;
 using WebApi.Services;
 
@@ -14,6 +14,7 @@ namespace WebApi.Controllers;
 /// - بکاپ دیتابیس به wwwroot/backup/{ProjectGuid}/
 /// - دانلود بکاپ / ریستور
 /// - تنظیم بکاپ خودکار (AutoBackupScheduler)
+/// - ClientUrl برای ورود مستقیم به کلاینت هر پروژه
 /// </summary>
 [ApiController]
 [Route("api/projects")]
@@ -49,29 +50,7 @@ public class ProjectController : ControllerBase
             await conn.OpenAsync();
             var projects = (await conn.QueryAsync<ProjectDefinition>(
                 "SELECT * FROM [dbo].[Projects] ORDER BY [CreatedAtUtc] DESC")).ToList();
-            var dto = projects.Select(p => new ProjectDefinitionDto
-            {
-                ProjectGuid = p.ProjectGuid,
-                Name = p.Name,
-                Schema = p.Schema,
-                // Credentials are NEVER returned to clients: LoginTokenHash, EncryptionKey,
-                // ApiKey and ConnectionString are secrets that must not leave the server.
-                LoginTokenHash = "",
-                EncryptionKey = "",
-                ApiKey = "",
-                SessionTimeoutMinutes = p.SessionTimeoutMinutes,
-                IsActive = p.IsActive,
-                ConnectionString = "",
-                DatabaseName = p.DatabaseName,
-                DatabaseProvider = p.DatabaseProvider,
-                AutoBackupEnabled = p.AutoBackupEnabled,
-                AutoBackupIntervalMinutes = p.AutoBackupIntervalMinutes,
-                AutoBackupTimeUtc = p.AutoBackupTimeUtc,
-                MaxBackupRetention = p.MaxBackupRetention,
-                LastBackupAtUtc = p.LastBackupAtUtc,
-                Description = p.Description,
-                Icon = p.Icon
-            }).ToList();
+            var dto = projects.Select(ToPublicDto).ToList();
             return Ok(new ProjectListResponse { Projects = dto });
         }
         catch (Exception ex)
@@ -88,28 +67,41 @@ public class ProjectController : ControllerBase
         var project = await FindProjectAsync(projectGuid);
         if (project is null) return NotFound(new { error = "Project not found" });
 
-        // Return a DTO with credentials redacted (never leak keys/connection strings).
-        return Ok(new ProjectDefinitionDto
+        return Ok(ToPublicDto(project));
+    }
+
+    /// <summary>
+    /// دایرکتوری عمومی پروژه‌ها — فقط نام، اسکیما، آیکون و ClientUrl.
+    /// بدون راز. لانچر مرکزی و لیست ادمین از همین برای «ورود به پروژه» استفاده می‌کنند.
+    /// </summary>
+    [HttpGet("directory")]
+    public async Task<IActionResult> Directory()
+    {
+        try
         {
-            ProjectGuid = project.ProjectGuid,
-            Name = project.Name,
-            Schema = project.Schema,
-            LoginTokenHash = "",
-            EncryptionKey = "",
-            ApiKey = "",
-            SessionTimeoutMinutes = project.SessionTimeoutMinutes,
-            IsActive = project.IsActive,
-            ConnectionString = "",
-            DatabaseName = project.DatabaseName,
-            DatabaseProvider = project.DatabaseProvider,
-            AutoBackupEnabled = project.AutoBackupEnabled,
-            AutoBackupIntervalMinutes = project.AutoBackupIntervalMinutes,
-            AutoBackupTimeUtc = project.AutoBackupTimeUtc,
-            MaxBackupRetention = project.MaxBackupRetention,
-            LastBackupAtUtc = project.LastBackupAtUtc,
-            Description = project.Description,
-            Icon = project.Icon
-        });
+            await using var conn = new SqlConnection(_cfg.ConnectionString);
+            await conn.OpenAsync();
+            var items = (await conn.QueryAsync<ProjectDirectoryItem>(@"
+                SELECT [Name], [Schema],
+                       ISNULL(NULLIF(LTRIM(RTRIM(ClientUrl)), ''), '') AS ClientUrl,
+                       Icon, Description, IsActive
+                FROM [dbo].[Projects]
+                WHERE IsActive = 1
+                ORDER BY [Name]")).ToList();
+
+            foreach (var item in items)
+            {
+                if (string.IsNullOrWhiteSpace(item.ClientUrl))
+                    item.ClientUrl = HermesApps.ForSchema(item.Schema);
+            }
+
+            return Ok(items);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to get project directory");
+            return StatusCode(500, new { error = "Failed to get project directory" });
+        }
     }
 
     [HttpPost]
@@ -135,29 +127,27 @@ INSERT INTO [dbo].[Projects]
     (ProjectGuid, [Name], [Schema], LoginTokenHash, EncryptionKey, ApiKey,
      SessionTimeoutMinutes, IsActive, ConnectionString, DatabaseName, DatabaseProvider,
      AutoBackupEnabled, AutoBackupIntervalMinutes, AutoBackupTimeUtc, MaxBackupRetention,
-     CreatedAtUtc, [Description], [Icon])
+     CreatedAtUtc, [Description], [Icon], ClientUrl)
 VALUES
     (@ProjectGuid, @Name, @Schema, @LoginTokenHash, @EncryptionKey, @ApiKey,
      @SessionTimeoutMinutes, @IsActive, @ConnectionString, @DatabaseName, @DatabaseProvider,
      @AutoBackupEnabled, @AutoBackupIntervalMinutes, @AutoBackupTimeUtc, @MaxBackupRetention,
-     @CreatedAtUtc, @Description, @Icon)",
+     @CreatedAtUtc, @Description, @Icon, @ClientUrl)",
                 new
                 {
                     dto.ProjectGuid, dto.Name, dto.Schema, dto.LoginTokenHash, dto.EncryptionKey, dto.ApiKey,
                     dto.SessionTimeoutMinutes, dto.IsActive, dto.ConnectionString, dto.DatabaseName, dto.DatabaseProvider,
                     dto.AutoBackupEnabled, dto.AutoBackupIntervalMinutes, dto.AutoBackupTimeUtc, dto.MaxBackupRetention,
-                    CreatedAtUtc = DateTime.UtcNow, dto.Description, dto.Icon
+                    CreatedAtUtc = DateTime.UtcNow, dto.Description, dto.Icon,
+                    ClientUrl = ResolveClientUrl(dto.ClientUrl, dto.Schema)
                 });
 
-            // ساخت پوشه بکاپ
             var backupDir = GetBackupDir(dto.ProjectGuid);
             Directory.CreateDirectory(backupDir);
-
-            // ثبت در زمان‌بند بکاپ خودکار
             await _backupScheduler.Register(dto.ProjectGuid);
 
             return CreatedAtAction(nameof(Get), new { projectGuid = dto.ProjectGuid },
-                new { message = "Project created", dto.ProjectGuid });
+                new { message = "Project created", dto.ProjectGuid, clientUrl = ResolveClientUrl(dto.ClientUrl, dto.Schema) });
         }
         catch (Exception ex)
         {
@@ -183,14 +173,15 @@ UPDATE [dbo].[Projects] SET
     ConnectionString = @ConnectionString, DatabaseName = @DatabaseName, DatabaseProvider = @DatabaseProvider,
     AutoBackupEnabled = @AutoBackupEnabled, AutoBackupIntervalMinutes = @AutoBackupIntervalMinutes,
     AutoBackupTimeUtc = @AutoBackupTimeUtc, MaxBackupRetention = @MaxBackupRetention,
-    [Description] = @Description, [Icon] = @Icon
+    [Description] = @Description, [Icon] = @Icon, ClientUrl = @ClientUrl
 WHERE ProjectGuid = @ProjectGuid",
                 new
                 {
                     ProjectGuid = projectGuid, dto.Name, dto.Schema, dto.LoginTokenHash, dto.EncryptionKey, dto.ApiKey,
                     dto.SessionTimeoutMinutes, dto.IsActive, dto.ConnectionString, dto.DatabaseName, dto.DatabaseProvider,
                     dto.AutoBackupEnabled, dto.AutoBackupIntervalMinutes, dto.AutoBackupTimeUtc, dto.MaxBackupRetention,
-                    dto.Description, dto.Icon
+                    dto.Description, dto.Icon,
+                    ClientUrl = ResolveClientUrl(dto.ClientUrl, dto.Schema)
                 });
 
             if (affected == 0) return NotFound(new { error = "Project not found" });
@@ -230,7 +221,6 @@ WHERE ProjectGuid = @ProjectGuid",
 
     // ===================== BACKUP =====================
 
-    /// <summary>بکاپ دستی — فایل .bak در wwwroot/backup/{ProjectGuid}/</summary>
     [HttpPost("{projectGuid:guid}/backup")]
     public async Task<IActionResult> Backup(Guid projectGuid, [FromQuery] bool auto = false)
     {
@@ -258,7 +248,6 @@ WHERE ProjectGuid = @ProjectGuid",
         }
     }
 
-    /// <summary>لیست بکاپ‌های موجود برای دانلود</summary>
     [HttpGet("{projectGuid:guid}/backups")]
     public async Task<IActionResult> ListBackups(Guid projectGuid)
     {
@@ -286,15 +275,12 @@ WHERE ProjectGuid = @ProjectGuid",
         return Ok(new BackupListResponse { Total = backups.Count, Backups = backups });
     }
 
-    /// <summary>دانلود بکاپ از wwwroot</summary>
     [HttpGet("{projectGuid:guid}/backups/{fileName}")]
     public IActionResult DownloadBackup(Guid projectGuid, string fileName)
     {
-        // Backups contain sensitive data — require the API key like every other
-        // /api/projects operation (was previously unauthenticated).
         if (!TryValidateApiKey(out var error)) return error;
 
-        var safeName = Path.GetFileName(fileName); // جلوگیری از path traversal
+        var safeName = Path.GetFileName(fileName);
         var dir = GetBackupDir(projectGuid);
         var path = Path.Combine(dir, safeName);
         if (!System.IO.File.Exists(path))
@@ -304,7 +290,6 @@ WHERE ProjectGuid = @ProjectGuid",
         return File(fileBytes, "application/octet-stream", safeName);
     }
 
-    /// <summary>ریستور دیتابیس از بکاپ</summary>
     [HttpPost("{projectGuid:guid}/restore")]
     public async Task<IActionResult> Restore(Guid projectGuid, [FromBody] RestoreRequestDto dto)
     {
@@ -320,14 +305,12 @@ WHERE ProjectGuid = @ProjectGuid",
 
         try
         {
-            // ریستور با SQL Server: RESTORE DATABASE
             var dbName = project.DatabaseName;
             var masterConn = BuildMasterConnection(project.ConnectionString);
 
             await using var conn = new SqlConnection(masterConn);
             await conn.OpenAsync();
 
-            // اطمینان از تنها بودن اتصال
             await conn.ExecuteAsync($@"
 IF DB_ID('{dbName}') IS NOT NULL
 BEGIN
@@ -350,7 +333,6 @@ END",
         }
     }
 
-    /// <summary>تنظیم بکاپ خودکار — بلافاصله در زمان‌بند ثبت می‌شود</summary>
     [HttpPut("{projectGuid:guid}/backup-settings")]
     public async Task<IActionResult> UpdateBackupSettings(Guid projectGuid, [FromBody] UpdateBackupSettingsDto dto)
     {
@@ -378,7 +360,6 @@ WHERE ProjectGuid = @guid",
 
             if (affected == 0) return NotFound(new { error = "Project not found" });
 
-            // ثبت مجدد در زمان‌بند
             if (dto.AutoBackupEnabled)
                 await _backupScheduler.Register(projectGuid);
             else
@@ -394,6 +375,32 @@ WHERE ProjectGuid = @guid",
     }
 
     // ===================== HELPERS =====================
+
+    private static ProjectDefinitionDto ToPublicDto(ProjectDefinition p) => new()
+    {
+        ProjectGuid = p.ProjectGuid,
+        Name = p.Name,
+        Schema = p.Schema,
+        LoginTokenHash = "",
+        EncryptionKey = "",
+        ApiKey = "",
+        SessionTimeoutMinutes = p.SessionTimeoutMinutes,
+        IsActive = p.IsActive,
+        ConnectionString = "",
+        DatabaseName = p.DatabaseName,
+        DatabaseProvider = p.DatabaseProvider,
+        AutoBackupEnabled = p.AutoBackupEnabled,
+        AutoBackupIntervalMinutes = p.AutoBackupIntervalMinutes,
+        AutoBackupTimeUtc = p.AutoBackupTimeUtc,
+        MaxBackupRetention = p.MaxBackupRetention,
+        LastBackupAtUtc = p.LastBackupAtUtc,
+        Description = p.Description,
+        Icon = p.Icon,
+        ClientUrl = ResolveClientUrl(p.ClientUrl, p.Schema)
+    };
+
+    private static string ResolveClientUrl(string? url, string? schema)
+        => string.IsNullOrWhiteSpace(url) ? HermesApps.ForSchema(schema) : url.Trim();
 
     private async Task<ProjectDefinition?> FindProjectAsync(Guid projectGuid)
     {
@@ -445,7 +452,6 @@ WHERE ProjectGuid = @guid",
         var fileName = $"{prefix}_{project.DatabaseName}_{stamp}.bak";
         var backupPath = Path.Combine(dir, fileName);
 
-        // بکاپ با SQL Server — اتصال به master
         var masterConn = BuildMasterConnection(project.ConnectionString);
         await using var conn = new SqlConnection(masterConn);
         await conn.OpenAsync();
@@ -455,7 +461,6 @@ WHERE ProjectGuid = @guid",
 
         var info = new FileInfo(backupPath);
 
-        // پاکسازی بکاپ‌های قدیمی (retention)
         if (project.MaxBackupRetention > 0)
         {
             var all = Directory.GetFiles(dir, "*.bak")

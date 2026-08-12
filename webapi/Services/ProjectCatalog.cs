@@ -9,6 +9,7 @@ public sealed class HermesProject
     public string Schema { get; set; } = "";
     public string SharedKey { get; set; } = "";
     public bool IsActive { get; set; } = true;
+    public string ClientUrl { get; set; } = "";
 }
 
 public sealed class HermesProjectsOptions

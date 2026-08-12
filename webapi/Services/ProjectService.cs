@@ -25,7 +25,7 @@ public class ProjectService
         await conn.OpenAsync();
         var list = await conn.QueryAsync<ProjectRow>(@"
             SELECT Name, ProjectGuid, ApiKey, SessionTimeoutMinutes,
-                   AutoBackupEnabled, IsActive
+                   AutoBackupEnabled, IsActive, [Schema], Icon, Description, ClientUrl
             FROM dbo.Projects
             ORDER BY Name");
         return list.ToList();

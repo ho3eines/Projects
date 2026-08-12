@@ -74,6 +74,8 @@ html, body {
     background-attachment: fixed;
     color: var(--h-ink);
     min-height: 100%;
+    width: 100%;
+    max-width: 100%;
     margin: 0;
     padding: 0;
     -webkit-font-smoothing: antialiased;
@@ -82,7 +84,11 @@ html, body {
     line-height: 1.6;
 }
 
-#app { min-height: 100vh; }
+#app {
+    min-height: 100vh;
+    width: 100%;
+    max-width: 100%;
+}
 #blazor-error-ui { display: none; }
 #blazor-error-ui.display {
     display: flex;
@@ -185,8 +191,9 @@ html, body {
    ═══════════════════════════════════════════ */
 .h-app {
     min-height: 100vh;
-    display: grid;
-    grid-template-columns: var(--h-sidebar) 1fr;
+    width: 100%;
+    max-width: 100%;
+    display: block;
 }
 
 /* ── Sidebar (glass) ── */
@@ -407,9 +414,12 @@ html, body {
    ═══════════════════════════════════════════ */
 .h-main {
     min-width: 0;
+    width: auto;
+    max-width: none;
     display: flex;
     flex-direction: column;
     margin-right: var(--h-sidebar);
+    box-sizing: border-box;
 }
 
 /* ── Topbar (glass) ── */
@@ -487,6 +497,9 @@ html, body {
     padding: 1.5rem 2rem 3rem;
     flex: 1;
     min-height: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* ═══════════════════════════════════════════
@@ -1142,10 +1155,24 @@ html, body {
 /* ═══════════════════════════════════════════
    Responsive — Tablet (< 1024px)
    ═══════════════════════════════════════════ */
-@media (max-width: 1024px) {
-    .h-app { grid-template-columns: 1fr; }
+.h-project-url {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    word-break: break-all;
+}
+.h-project-url a {
+    color: var(--h-accent);
+    text-decoration: none;
+}
+.h-project-url a:hover { text-decoration: underline; }
 
-    .h-main { margin-right: 0; }
+@media (max-width: 1024px) {
+    .h-app { display: block; }
+
+    .h-main { margin-right: 0; width: 100%; }
 
     .h-sidebar {
         transform: translateX(100%);
@@ -1320,8 +1347,8 @@ html, body {
         display: none !important;
     }
 
-    .h-app { grid-template-columns: 1fr; }
-    .h-main { margin-right: 0; }
+    .h-app { display: block; }
+    .h-main { margin-right: 0; width: 100%; }
     .h-content { padding: 0; }
 
     .h-card {

@@ -40,6 +40,11 @@
                 <InputText class="form-control" @bind-Value="DatabaseName" required />
             </div>
             <div class="col-12">
+                <label class="form-label">آدرس کلاینت (URL)</label>
+                <InputText class="form-control" @bind-Value="ClientUrl" required
+                           placeholder="https://localhost:65218/" />
+            </div>
+            <div class="col-12">
                 <label class="form-label">AutoBackupEnabled</label>
                 <InputCheckbox class="form-check-input" @bind-Value="AutoBackupEnabled" />
             </div>
@@ -71,6 +76,7 @@
     private string DatabaseName { get; set; } = "";
     private bool AutoBackupEnabled { get; set; } = true;
     private string? Description { get; set; } = "";
+    private string ClientUrl { get; set; } = "";
 
     protected override void OnInitialized()
     {
@@ -122,12 +128,12 @@ INSERT INTO dbo.Projects (
     Name, ProjectGuid, LoginTokenHash, EncryptionKey, ApiKey,
     SessionTimeoutMinutes, IsActive, ConnectionString, DatabaseName,
     DatabaseProvider, AutoBackupEnabled, AutoBackupIntervalMinutes,
-    AutoBackupTimeUtc, MaxBackupRetention, Description, CreatedAtUtc
+    AutoBackupTimeUtc, MaxBackupRetention, Description, ClientUrl, CreatedAtUtc
 )
 VALUES (
     @Name, NEWID(), NEWID(), NEWID(), @ApiKey,
     @SessionTimeoutMinutes, @IsActive, @ConnectionString, @DatabaseName,
-    'SqlServer', @AutoBackupEnabled, 1440, '02:00:00', 7, @Description, GETUTCDATE()
+    'SqlServer', @AutoBackupEnabled, 1440, '02:00:00', 7, @Description, @ClientUrl, GETUTCDATE()
 );";
 
             await conn.ExecuteAsync(sql, new
@@ -139,7 +145,8 @@ VALUES (
                 ConnectionString,
                 DatabaseName,
                 AutoBackupEnabled,
-                Description
+                Description,
+                ClientUrl
             });
         }
         else
