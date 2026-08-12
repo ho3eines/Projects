@@ -1,0 +1,76 @@
+@page "/reports"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>گزارشات — طلافروشی</PageTitle>
+
+<h1 class="h-page-title">گزارشات طلافروشی</h1>
+<p class="h-lead mb-4">خلاصه فروش در بازه.</p>
+
+<div class="h-card h-card-pad mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" for="from">از تاریخ</label>
+            <input id="from" type="date" class="form-control" @bind="From" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="to">تا تاریخ</label>
+            <input id="to" type="date" class="form-control" @bind="To" />
+        </div>
+        <div class="col-md-4">
+            <button class="btn btn-hermes w-100" @onclick="LoadAsync">اجرا</button>
+        </div>
+    </div>
+</div>
+
+<div class="h-card">
+    <table class="h-table">
+        <thead>
+            <tr><th>تاریخ</th><th>شماره</th><th>مشتری</th><th>جنس</th><th>وزن</th><th>اجرت</th><th>سود</th><th>مالیات</th><th>جمع</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Rows)
+            {
+                <tr>
+                    <td>@r.InvoiceDate.ToString("yyyy/MM/dd")</td>
+                    <td>@r.InvoiceNumber</td>
+                    <td>@r.CustomerName</td>
+                    <td>@r.ItemTitle</td>
+                    <td>@r.WeightGram.ToString("N3")</td>
+                    <td>@r.Workmanship.ToString("N0")</td>
+                    <td>@r.Profit.ToString("N0")</td>
+                    <td>@r.Tax.ToString("N0")</td>
+                    <td><strong>@r.TotalAmount.ToString("N0")</strong></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (Rows.Count > 0)
+    {
+        <div class="h-card-pad border-top">
+            جمع فروش بازه: <strong>@Rows.Sum(r => r.TotalAmount).ToString("N0")</strong>
+        </div>
+    }
+</div>
+
+@code {
+    List<DailySaleRow> Rows = new();
+    DateTime From = DateTime.Today.AddMonths(-1);
+    DateTime To = DateTime.Today;
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            Rows = await Request.Request<DailySaleRow>("DailySales", new
+            {
+                FromDate = From,
+                ToDate = To,
+                SearchText = "",
+                SkipRows = 0,
+                TakeSize = 200
+            }) ?? new();
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("گزارش", ex.Message); }
+    }
+}

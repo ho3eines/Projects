@@ -20,6 +20,7 @@ public class DataController : ControllerBase
     private readonly ISystemQueryExecutor _executor;
     private readonly CryptoJsService _crypto;
     private readonly IUserTokenService _users;
+    private readonly IAuditService _audit;
     private readonly bool _requireUser;
     private readonly ILogger<DataController> _logger;
 
@@ -28,6 +29,7 @@ public class DataController : ControllerBase
         ISystemQueryExecutor executor,
         CryptoJsService crypto,
         IUserTokenService users,
+        IAuditService audit,
         IOptions<HermesProjectsOptions> hermes,
         ILogger<DataController> logger)
     {
@@ -35,6 +37,7 @@ public class DataController : ControllerBase
         _executor = executor;
         _crypto = crypto;
         _users = users;
+        _audit = audit;
         _requireUser = hermes.Value.RequireUser;
         _logger = logger;
     }
@@ -90,6 +93,8 @@ public class DataController : ControllerBase
 
         // Force schema from ProjectGuid session — client cannot hop projects.
         var schema = session.Schema;
+        var parametersJson = parameters is JsonElement pje ? pje.GetRawText() : null;
+        var userTokenId = user?.Username ?? session.UserId?.ToString();
 
         try
         {
@@ -103,6 +108,15 @@ public class DataController : ControllerBase
             if (isExec)
             {
                 var affected = await _executor.ExecuteAsync(scriptName!, parameters, schema);
+                await _audit.LogAsync(new AuditEntry
+                {
+                    SchemaName = schema,
+                    ScriptName = scriptName!,
+                    Parameters = parametersJson,
+                    UserTokenId = userTokenId,
+                    RequestId = Guid.NewGuid().ToString("N")[..16],
+                    Outcome = "Success"
+                });
                 var json = JsonSerializer.Serialize(new { AffectedRows = affected });
                 return Ok(new { code = 200, data = _crypto.Encrypt(session.EncryptionKey, json) });
             }
@@ -123,6 +137,19 @@ public class DataController : ControllerBase
         }
         catch (Exception ex)
         {
+            if (isExec)
+            {
+                await _audit.LogAsync(new AuditEntry
+                {
+                    SchemaName = schema,
+                    ScriptName = scriptName!,
+                    Parameters = parametersJson,
+                    UserTokenId = userTokenId,
+                    RequestId = Guid.NewGuid().ToString("N")[..16],
+                    Outcome = "Error",
+                    Error = ex.Message
+                });
+            }
             _logger.LogError(ex, "Script {Schema}/{Script} failed", schema, scriptName);
             return StatusCode(500, new { code = 500, message = ex.Message });
         }

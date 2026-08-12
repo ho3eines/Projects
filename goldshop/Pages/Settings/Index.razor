@@ -1,0 +1,63 @@
+@page "/settings"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>امکانات — طلافروشی</PageTitle>
+
+<h1 class="h-page-title">امکانات و جداول پایه</h1>
+<p class="h-lead mb-4">تعریف اجناس طلا.</p>
+
+<div class="h-card h-card-pad">
+    <table class="h-table">
+        <thead>
+            <tr><th>کد</th><th>عنوان</th><th>عیار</th><th>وضعیت</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var g in Items)
+            {
+                <tr><td>@g.ItemCode</td><td>@g.Title</td><td>@(g.Purity?.ToString("N2") ?? "—")</td><td>@(g.IsActive ? "فعال" : "غیرفعال")</td></tr>
+            }
+        </tbody>
+    </table>
+    <div class="row g-2 mt-2">
+        <div class="col-md-3"><input class="form-control" @bind="NewCode" placeholder="کد (XAU-24)" /></div>
+        <div class="col-md-5"><input class="form-control" @bind="NewTitle" placeholder="عنوان" /></div>
+        <div class="col-md-2"><input class="form-control" type="number" step="0.01" @bind="NewPurity" placeholder="عیار" /></div>
+        <div class="col-md-2">
+            <button class="btn btn-hermes w-100" @onclick="AddItemAsync">افزودن</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<GoldItemRow> Items = new();
+    string NewCode = "";
+    string NewTitle = "";
+    decimal? NewPurity;
+
+    protected override async Task OnInitializedAsync()
+        => Items = await Request.Request<GoldItemRow>("GoldItemList", new { }) ?? new();
+
+    async Task AddItemAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewCode) || string.IsNullOrWhiteSpace(NewTitle))
+        {
+            await Alert.ShowErrorAsync("امکانات", "کد و عنوان را وارد کنید");
+            return;
+        }
+        try
+        {
+            await Request.Request<object>("GoldItemUpsert", new
+            {
+                GoldItemId = 0,
+                ItemCode = NewCode,
+                Title = NewTitle,
+                Purity = NewPurity,
+                IsActive = true
+            }, isExec: true);
+            NewCode = ""; NewTitle = ""; NewPurity = null;
+            Items = await Request.Request<GoldItemRow>("GoldItemList", new { }) ?? new();
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("امکانات", ex.Message); }
+    }
+}

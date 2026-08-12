@@ -1,0 +1,89 @@
+@page "/special"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>عملیات ویژه — خزانه‌داری</PageTitle>
+
+<h1 class="h-page-title">عملیات ویژه</h1>
+<p class="h-lead mb-4">ثبت چک دریافتی/پرداختی و بستن روز.</p>
+
+<div class="h-card h-card-pad mb-3">
+    <h5 class="mb-3">ثبت چک</h5>
+    <div class="row g-3">
+        <div class="col-md-3"><input class="form-control" @bind="ChequeNumber" placeholder="شماره چک" /></div>
+        <div class="col-md-3">
+            <select class="form-select" @bind="ChequeBankId">
+                <option value="0">— بانک —</option>
+                @foreach (var b in Banks) { <option value="@b.BankId">@b.Title</option> }
+            </select>
+        </div>
+        <div class="col-md-2"><input class="form-control" type="number" @bind="ChequeAmount" placeholder="مبلغ" /></div>
+        <div class="col-md-2">
+            <select class="form-select" @bind="ChequeDirection">
+                <option value="In">دریافتی</option>
+                <option value="Out">پرداختی</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-hermes w-100" @onclick="AddChequeAsync">ثبت چک</button>
+        </div>
+    </div>
+</div>
+
+<div class="h-card h-card-pad">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">بستن روز</h5>
+        <button class="btn btn-hermes" @onclick="CloseDayAsync" disabled="@Busy">بستن روز جاری</button>
+    </div>
+    <p class="h-lead mb-0">جمع نقدی و بانکی امروز در جدول DayCloses ثبت می‌شود. فقط یک‌بار در روز.</p>
+    @if (Message.Length > 0) { <div class="alert alert-success mt-3 mb-0">@Message</div> }
+</div>
+
+@code {
+    List<BankRow> Banks = new();
+    string ChequeNumber = "";
+    int ChequeBankId;
+    decimal ChequeAmount;
+    string ChequeDirection = "In";
+    string Message = "";
+    bool Busy;
+
+    protected override async Task OnInitializedAsync()
+        => Banks = await Request.Request<BankRow>("BankList", new { }) ?? new();
+
+    async Task AddChequeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ChequeNumber) || ChequeAmount <= 0)
+        {
+            await Alert.ShowErrorAsync("خزانه", "شماره و مبلغ چک را وارد کنید");
+            return;
+        }
+        try
+        {
+            await Request.Request<object>("ChequeInsert", new
+            {
+                ChequeNumber,
+                BankId = ChequeBankId == 0 ? (int?)null : ChequeBankId,
+                Amount = ChequeAmount,
+                DueDate = DateTime.Today.AddDays(30),
+                Direction = ChequeDirection
+            }, isExec: true);
+            ChequeNumber = "";
+            ChequeAmount = 0;
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("خزانه", ex.Message); }
+    }
+
+    async Task CloseDayAsync()
+    {
+        Busy = true;
+        Message = "";
+        try
+        {
+            await Request.Request<object>("DayClose", new { CreatedBy = Request.UserToken }, isExec: true);
+            Message = "روز جاری بسته شد.";
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("خزانه", ex.Message); }
+        finally { Busy = false; }
+    }
+}

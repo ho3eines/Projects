@@ -36,6 +36,31 @@ public sealed class SchemaBootstrap : IHostedService
             return;
         }
 
+        // Retry so `docker compose up` survives the SQL Server warm-up window.
+        const int maxAttempts = 12;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await RunAllAsync(cancellationToken);
+                return;
+            }
+            catch (Exception ex)
+            {
+                if (attempt == maxAttempts)
+                {
+                    _log.LogWarning(ex, "Schema bootstrap failed after {Attempts} attempts", maxAttempts);
+                    return;
+                }
+                _log.LogInformation("Schema bootstrap attempt {Attempt}/{Max} failed: {Message} — retrying in 5s",
+                    attempt, maxAttempts, ex.Message);
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+        }
+    }
+
+    private async Task RunAllAsync(CancellationToken cancellationToken)
+    {
         await TryScript("_Ensure", "central");
 
         foreach (var project in _projects.AllActive())

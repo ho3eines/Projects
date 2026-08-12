@@ -1,0 +1,101 @@
+@page "/entry"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>ورود عملیات — خزانه‌داری</PageTitle>
+
+<h1 class="h-page-title">ورود عملیات</h1>
+<p class="h-lead mb-4">ثبت دریافت / پرداخت (صندوق یا بانک).</p>
+
+<div class="h-card h-card-pad">
+    <div class="row g-3">
+        <div class="col-md-2">
+            <label class="form-label" for="dir">جهت</label>
+            <select id="dir" class="form-select" @bind="Direction">
+                <option value="In">دریافت</option>
+                <option value="Out">پرداخت</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="acc">حساب (بانک یا صندوق)</label>
+            <select id="acc" class="form-select" @bind="AccountId">
+                <option value="-1">— صندوق —</option>
+                @foreach (var b in Banks) { <option value="@b.AccountId">🏦 @b.AccountName</option> }
+                <option value="-2">— صندوق بدون حساب —</option>
+                @foreach (var c in Boxes) { <option value="@(-100 - c.CashBoxId)">💵 @c.Title</option> }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="date">تاریخ</label>
+            <input id="date" type="date" class="form-control" @bind="MoveDate" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="amount">مبلغ</label>
+            <input id="amount" type="number" step="1000" min="0" class="form-control" @bind="Amount" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="cur">ارز</label>
+            <select id="cur" class="form-select" @bind="Currency">
+                <option value="IRR">IRR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+            </select>
+        </div>
+        <div class="col-md-10">
+            <label class="form-label" for="desc">شرح</label>
+            <input id="desc" class="form-control" @bind="Description" />
+        </div>
+        <div class="col-12 d-flex gap-2">
+            <button class="btn btn-hermes" @onclick="SaveAsync" disabled="@Busy">ثبت حرکت</button>
+            @if (Message.Length > 0) { <div class="alert alert-success mb-0 py-1 px-3">@Message</div> }
+        </div>
+    </div>
+</div>
+
+@code {
+    List<BankAccountRow> Banks = new();
+    List<CashBoxRow> Boxes = new();
+    string Direction = "In";
+    int AccountId = -1;
+    DateTime MoveDate = DateTime.Today;
+    decimal Amount;
+    string Currency = "IRR";
+    string Description = "";
+    string Message = "";
+    bool Busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Banks = await Request.Request<BankAccountRow>("BankAccountList", new { }) ?? new();
+        Boxes = await Request.Request<CashBoxRow>("CashBoxList", new { }) ?? new();
+    }
+
+    async Task SaveAsync()
+    {
+        if (Amount <= 0) { await Alert.ShowErrorAsync("خزانه", "مبلغ نامعتبر است"); return; }
+        Busy = true;
+        Message = "";
+        try
+        {
+            int? accountId = AccountId > 0 ? AccountId : null;
+            int? cashBoxId = AccountId < -100 ? (-AccountId - 100) : null;
+            await Request.Request<object>("CashMovementInsert", new
+            {
+                MovementDate = MoveDate,
+                Direction,
+                Amount,
+                CurrencyCode = Currency,
+                AccountId = accountId,
+                CashBoxId = cashBoxId,
+                Description = string.IsNullOrWhiteSpace(Description) ? null : Description,
+                SourceReference = (string?)null,
+                CreatedBy = Request.UserToken
+            }, isExec: true);
+            Message = "حرکت نقدی ثبت شد.";
+            Amount = 0;
+            Description = "";
+        }
+        catch (Exception ex) { await Alert.ShowErrorAsync("خزانه", ex.Message); }
+        finally { Busy = false; }
+    }
+}

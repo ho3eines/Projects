@@ -1,0 +1,41 @@
+@page "/dashboard"
+@inject IRequestService Request
+
+<PageTitle>داشبورد — فروشگاه اینترنتی</PageTitle>
+
+<h1 class="h-page-title mb-1">نمای کلی فروشگاه</h1>
+<p class="h-lead mb-4">سفارش‌های امروز، مشتریان و سفارش‌های در انتظار.</p>
+
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">سفارش امروز</div><div class="v">@S.TodayOrders</div></div>
+            <div class="h-stat-ico">🛒</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">مبلغ سفارش امروز</div><div class="v" style="font-size:1.05rem;padding-top:.4rem">@S.TodayAmount.ToString("N0")</div></div>
+            <div class="h-stat-ico">﷼</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">در انتظار رزرو</div><div class="v">@S.PendingOrders</div></div>
+            <div class="h-stat-ico">⏳</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">مشتریان</div><div class="v">@S.TotalCustomers</div></div>
+            <div class="h-stat-ico">👤</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    DashboardSummaryRow S = new();
+
+    protected override async Task OnInitializedAsync()
+        => S = (await Request.Request<DashboardSummaryRow>("DashboardSummary", new { }))?.FirstOrDefault() ?? new();
+}

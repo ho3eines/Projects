@@ -1,0 +1,39 @@
+# Hermes platform — local stack (PRD AC #1)
+# Usage:
+#   docker compose up --build
+#   (SQL Server on :1433, webapi on http://localhost:65222)
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Hermes!Master2026}"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' -b || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q 'SELECT 1' -b"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  webapi:
+    build:
+      context: .
+      dockerfile: webapi/Dockerfile
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=mssql,1433;Database=HermesMaster;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hermes!Master2026};TrustServerCertificate=True;Encrypt=False"
+      # Contract tests / dev clients can reuse the same DB via localhost:1433.
+    ports:
+      - "65222:8080"
+    restart: unless-stopped
+
+volumes:
+  mssql-data:

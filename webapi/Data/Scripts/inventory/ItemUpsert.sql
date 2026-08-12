@@ -1,0 +1,22 @@
+-- =============================================
+-- webapi/Data/Scripts/inventory/ItemUpsert.sql
+-- Schema: inventory
+-- Execute.
+-- =============================================
+IF NOT EXISTS (SELECT 1 FROM [inventory].[Items] WHERE ItemId = @ItemId)
+BEGIN
+    INSERT INTO [inventory].[Items] (ItemCode, ItemTitle, Category, Unit, StockQty, UnitPrice, IsActive, CreatedAt)
+    VALUES (@ItemCode, @ItemTitle, @Category, @Unit, 0, ISNULL(@UnitPrice, 0), ISNULL(@IsActive, 1), SYSUTCDATETIME());
+END
+ELSE
+BEGIN
+    UPDATE [inventory].[Items]
+    SET ItemCode  = ISNULL(@ItemCode, ItemCode),
+        ItemTitle = ISNULL(@ItemTitle, ItemTitle),
+        Category  = @Category,
+        Unit      = ISNULL(@Unit, Unit),
+        UnitPrice = @UnitPrice,
+        IsActive  = ISNULL(@IsActive, IsActive),
+        UpdatedAt = SYSUTCDATETIME()
+    WHERE ItemId = @ItemId;
+END

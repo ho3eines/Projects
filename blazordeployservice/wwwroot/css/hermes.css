@@ -182,6 +182,7 @@ html, body {
 }
 .h-badge.live { background: #e8f6ee; color: var(--h-ok); }
 .h-badge.wait { background: #f4efe4; color: var(--h-warn); }
+.h-badge.danger { background: #fde8e8; color: #c0392b; }
 
 .h-table { width: 100%; border-collapse: collapse; }
 .h-table th {

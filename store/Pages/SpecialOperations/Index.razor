@@ -1,0 +1,60 @@
+@page "/special"
+@inject IRequestService Request
+@inject IAlertService Alert
+
+<PageTitle>عملیات ویژه — فروشگاه اینترنتی</PageTitle>
+
+<h1 class="h-page-title">عملیات ویژه</h1>
+<p class="h-lead mb-4">لغو سفارش و آزادسازی رزرو انبار (جبران ساگا).</p>
+
+<div class="h-card h-card-pad">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label" for="order">سفارش</label>
+            <select id="order" class="form-select" @bind="OrderId">
+                <option value="0">— انتخاب سفارش —</option>
+                @foreach (var o in Orders)
+                {
+                    <option value="@o.OrderId">@o.OrderNumber — @o.CustomerName — @StatusFa(o.Status)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button class="btn btn-hermes w-100" @onclick="CancelAsync" disabled="@Busy">لغو سفارش</button>
+        </div>
+        @if (Message.Length > 0) { <div class="col-12"><div class="alert @(Error ? "alert-danger" : "alert-success") mb-0">@Message</div></div> }
+    </div>
+</div>
+
+@code {
+    List<OrderRow> Orders = new();
+    int OrderId;
+    string Message = "";
+    bool Error;
+    bool Busy;
+
+    protected override async Task OnInitializedAsync()
+        => Orders = await Request.Request<OrderRow>("OrderSearch", new { SkipRows = 0, TakeSize = 50 }) ?? new();
+
+    async Task CancelAsync()
+    {
+        if (OrderId == 0) { await Alert.ShowErrorAsync("فروشگاه", "سفارش را انتخاب کنید"); return; }
+        Busy = true;
+        Message = "";
+        Error = false;
+        try
+        {
+            await Request.Request<object>("OrderCancel", new { OrderId }, isExec: true);
+            Message = "سفارش لغو و رزرو انبار آزاد شد.";
+            Orders = await Request.Request<OrderRow>("OrderSearch", new { SkipRows = 0, TakeSize = 50 }) ?? new();
+        }
+        catch (Exception ex) { Error = true; Message = ex.Message; }
+        finally { Busy = false; }
+    }
+
+    static string StatusFa(string s) => s switch
+    {
+        "Placed" => "ثبت‌شده", "Reserved" => "رزرو شده", "Invoiced" => "فاکتور شده",
+        "Rejected" => "رد شده", "Cancelled" => "لغو شده", _ => s
+    };
+}

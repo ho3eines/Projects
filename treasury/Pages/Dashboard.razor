@@ -1,0 +1,41 @@
+@page "/dashboard"
+@inject IRequestService Request
+
+<PageTitle>داشبورد — خزانه‌داری</PageTitle>
+
+<h1 class="h-page-title mb-1">نمای کلی خزانه</h1>
+<p class="h-lead mb-4">جریان نقد امروز، موجودی بانک‌ها و صندوق‌ها.</p>
+
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">نقدینگی امروز</div><div class="v" style="font-size:1.05rem;padding-top:.4rem">@S.TodayNet.ToString("N0")</div></div>
+            <div class="h-stat-ico">⇄</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">موجودی بانک‌ها</div><div class="v" style="font-size:1.05rem;padding-top:.4rem">@S.BankBalance.ToString("N0")</div></div>
+            <div class="h-stat-ico">🏦</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">موجودی صندوق‌ها</div><div class="v" style="font-size:1.05rem;padding-top:.4rem">@S.CashBalance.ToString("N0")</div></div>
+            <div class="h-stat-ico">💵</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="h-card h-stat">
+            <div><div class="k">چک‌های در انتظار</div><div class="v">@S.PendingCheques</div></div>
+            <div class="h-stat-ico">📃</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    DashboardSummaryRow S = new();
+
+    protected override async Task OnInitializedAsync()
+        => S = (await Request.Request<DashboardSummaryRow>("DashboardSummary", new { }))?.FirstOrDefault() ?? new();
+}
