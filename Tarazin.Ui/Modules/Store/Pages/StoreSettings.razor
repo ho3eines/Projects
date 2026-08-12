@@ -1,6 +1,6 @@
 @page "/store/settings"
 @inject DbService Db
-@inject IDialogService DialogService
+@inject EntityCrudService EntityCrud
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — فروشگاه اینترنتی</PageTitle>
@@ -32,6 +32,10 @@
                         <MudTooltip Text="ویرایش محصول">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                                            OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromProduct(context)))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteAsync(EntityEditorModel.FromProduct(context)))" />
                         </MudTooltip>
                     </MudTd>
                 </RowTemplate>
@@ -66,6 +70,10 @@
                         <MudTooltip Text="ویرایش مشتری">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                                            OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromCustomer(context)))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteAsync(EntityEditorModel.FromCustomer(context)))" />
                         </MudTooltip>
                     </MudTd>
                 </RowTemplate>
@@ -103,10 +111,13 @@
 
     private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
-        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
+        if (await EntityCrud.ShowEditorAsync(model))
+            await LoadAsync();
+    }
+
+    private async Task DeleteAsync(EntityEditorModel model)
+    {
+        if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
     }
 }

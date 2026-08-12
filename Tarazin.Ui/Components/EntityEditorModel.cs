@@ -28,6 +28,7 @@ public sealed class EntityEditorModel
     public bool IsActive { get; set; } = true;
 
     public string DialogTitle => $"{(IsNew ? "ایجاد" : "ویرایش")} {EntityTitle}";
+    public string DisplayLabel => string.IsNullOrWhiteSpace(Title) ? Code : Title;
 
     public string EntityTitle => Kind switch
     {

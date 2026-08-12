@@ -1,6 +1,6 @@
 @page "/accounting/settings"
 @inject DbService Db
-@inject IDialogService DialogService
+@inject EntityCrudService EntityCrud
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — حسابداری</PageTitle>
@@ -33,6 +33,10 @@
                 <MudTooltip Text="ویرایش حساب">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                                    OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromAccount(context)))" />
+                </MudTooltip>
+                <MudTooltip Text="حذف">
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromAccount(context)))" />
                 </MudTooltip>
             </MudTd>
         </RowTemplate>
@@ -72,10 +76,13 @@
 
     private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
-        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
+        if (await EntityCrud.ShowEditorAsync(model))
+            await LoadAsync();
+    }
+
+    private async Task DeleteAsync(EntityEditorModel model)
+    {
+        if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
     }
 }
