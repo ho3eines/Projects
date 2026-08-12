@@ -18,10 +18,10 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore Hermes.slnx
+        run: dotnet restore Tarazin.slnx
 
       - name: Build
-        run: dotnet build Hermes.slnx -c Release --no-restore
+        run: dotnet build Tarazin.slnx -c Release --no-restore
 
       - name: Cross-schema static analysis
         run: bash tools/cross-schema-scan.sh

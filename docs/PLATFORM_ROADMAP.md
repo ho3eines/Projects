@@ -1,4 +1,4 @@
-# Platform Roadmap — 7-Module Hermes Platform (Single Blazor Server)
+# Platform Roadmap — 7-Module Tarazin Platform (Single Blazor Server)
 
 > **Date**: 2026-08-12 · **Branches from**: PRD v2.0 — `docs/PLATFORM_PRD.md`
 > **Decisions**: ADR-001 (single project), ADR-002 (no event backbone), ADR-003 (contracts)
@@ -9,9 +9,9 @@
 ## 0. Target topology (single process)
 
 ```
-dotnet run --project HermesApp   (Blazor Server — https://localhost:65220)
+dotnet run --project TarazinApp   (Blazor Server — https://localhost:65220)
         │
-        └── SQL Server (docker) — HermesMaster
+        └── SQL Server (docker) — TarazinMaster
                 [central] [accounting] [inventory] [treasury]
                 [payroll] [goldshop] [store]
 ```
@@ -22,11 +22,11 @@ No separate ports per product, no webapi, no WASM clients.
 
 | Step | Status | Notes |
 |---|---|---|
-| Delete 11 old projects (webapi, 7 WASM clients, share, blazordeployservice, tests) | ✅ | `Hermes.slnx` → فقط `HermesApp` |
-| Create `HermesApp` (Blazor Server, net10.0) | ✅ | classic `AddServerSideBlazor` + MudBlazor |
+| Delete 11 old projects (webapi, 7 WASM clients, share, blazordeployservice, tests) | ✅ | `Tarazin.slnx` → فقط `TarazinApp` |
+| Create `TarazinApp` (Blazor Server, net10.0) | ✅ | classic `AddServerSideBlazor` + MudBlazor |
 | MudBlazor shell (MainLayout, NavMenu, RTL, providers) | ✅ | `MudThemeProvider/Dialog/Snackbar` |
 | Data layer (`ScriptCatalog`, `DbService`) | ✅ | named TSQL + Dapper, in-process |
-| Move 99 SQL scripts into `HermesApp/Data/Scripts/{schema}` | ✅ | `_Ensure`/`_Seed` run at startup |
+| Move 99 SQL scripts into `TarazinApp/Data/Scripts/{schema}` | ✅ | `_Ensure`/`_Seed` run at startup |
 | Auth (login, bootstrap admin, users page) | ✅ | PBKDF2, per-circuit `UserSession` |
 | Modules 1–7 pages (home/dashboard/entry/reports/special/settings) | ✅ | همه با MudBlazor |
 | Audit page + `AuditService` | ✅ | hash chain in `[central].[AuditLog]` |

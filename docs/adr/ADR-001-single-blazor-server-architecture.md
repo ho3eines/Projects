@@ -28,7 +28,7 @@ per-schema project registry. Pain points observed:
 
 ## Decision
 
-**Delete all of it.** Ship exactly one **Blazor Server** project (`HermesApp`,
+**Delete all of it.** Ship exactly one **Blazor Server** project (`TarazinApp`,
 net10.0). Products become modules (`Modules/{Name}/`), each with its own SQL
 schema (`Data/Scripts/{schema}/`). Data access runs **in the same process** via
 Dapper executing **named TSQL scripts**. UI is **MudBlazor only**.
@@ -39,7 +39,7 @@ Dapper executing **named TSQL scripts**. UI is **MudBlazor only**.
 | 7 WASM clients | `Modules/{7}/Pages` in one app |
 | `share` DTOs | `Models/SharedModels.cs` |
 | `blazordeployservice` NuGet + Bootstrap | MudBlazor package |
-| `tests/Hermes.ContractTests` (webapi-shaped) | removed; CI = build + `tools/cross-schema-scan.sh` |
+| `tests/Tarazin.ContractTests` (webapi-shaped) | removed; CI = build + `tools/cross-schema-scan.sh` |
 | per-project ports 65218–65233 | one port (65220) |
 | Outbox + processor (ADR-002 v1) | retired — see ADR-002 |
 

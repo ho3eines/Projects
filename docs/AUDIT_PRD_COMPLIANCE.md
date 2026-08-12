@@ -13,9 +13,9 @@
 
 | # | معیار | وضعیت | شواهد |
 |---|-------|--------|-------|
-| 1 | `dotnet build Hermes.slnx` فقط با یک پروژه | ⚠️ اجرا نشد — ساختاری پاس | `Hermes.slnx` فقط `HermesApp/HermesApp.csproj` (XML معتبر). هیچ ارجاعی به پروژه‌های حذف‌شده در کد نیست. DI کامل (همهٔ `@inject`ها ثبت شده‌اند). |
+| 1 | `dotnet build Tarazin.slnx` فقط با یک پروژه | ⚠️ اجرا نشد — ساختاری پاس | `Tarazin.slnx` فقط `TarazinApp/TarazinApp.csproj` (XML معتبر). هیچ ارجاعی به پروژه‌های حذف‌شده در کد نیست. DI کامل (همهٔ `@inject`ها ثبت شده‌اند). |
 | 2 | همهٔ ۷ ماژول از یک آدرس | ⚠️ اجرا نشد — مسیرها سالم | ۴۱ مسیر یکتا؛ `NavMenu` و صفحهٔ خانه هر ۷ ماژول را دارند؛ `Program.cs` ترتیب startup کامل است. |
-| 3 | بدون SQL خام و بدون HttpClient برای داده در صفحات | ✅ پاس | grep روی `HermesApp/Modules`: هیچ `HttpClient` و هیچ `SELECT/INSERT/UPDATE/DELETE` در `.razor` (موارد ظاهری فقط `MudSelect` هستند). |
+| 3 | بدون SQL خام و بدون HttpClient برای داده در صفحات | ✅ پاس | grep روی `TarazinApp/Modules`: هیچ `HttpClient` و هیچ `SELECT/INSERT/UPDATE/DELETE` در `.razor` (موارد ظاهری فقط `MudSelect` هستند). |
 | 4 | اسکن مرز اسکیمه | ✅ پاس | `tools/cross-schema-scan.sh` → ۱۰۰ اسکریپت، بدون ارجاع بین‌اسکیمه‌ای غیرمجاز. |
 | 5 | ورود bootstrap (admin/admin) و مدیریت کاربران + ممیزی | ⚠️ اجرا نشد — کد کامل | `AuthService` (PBKDF2) + `UserAuthenticate`/`UserUpsert` + ساخت bootstrap فقط وقتی Users خالی است + **ممیزی خودکار** هر Execute (اصلاح در همین حسابرسی). |
 
@@ -33,7 +33,7 @@
 
 | قانون | وضعیت | شواهد |
 |-------|--------|-------|
-| فقط یک پروژه | ✅ | `Hermes.slnx` تک‌پروژه؛ پوشه‌های قدیمی حذف‌شده |
+| فقط یک پروژه | ✅ | `Tarazin.slnx` تک‌پروژه؛ پوشه‌های قدیمی حذف‌شده |
 | فقط Blazor Server (بدون وب‌سرویس) | ✅ | `Program.cs`: `AddServerSideBlazor`؛ داده فقط `DbService` (Dapper in-process) |
 | MudBlazor تنها UI | ✅ | csproj فقط MudBlazor/Dapper/SqlClient؛ بدون Bootstrap/کامپوننت سفارشی (grep پاس) |
 | اسکریپت نامدار، بدون SQL در صفحات | ✅ | ۱۰۰ اسکریپت در `Data/Scripts/{schema}`؛ `ScriptCatalog` + `DbService` |
@@ -56,12 +56,12 @@ Reportهای هر ۷ ماژول) → **همه مطابق** propertyهای مدل
 |---|-------|-------|
 | 1 | `AuditService` ساخته شده بود ولی **هیچ‌جا صدا زده نمی‌شد** → ممیزی عملاً ثبت نمی‌شد (نقض AC#5) | `DbService.ExecuteAsync` حالا **خودکار** ردیف ممیزی می‌نویسد (Success/Error). برای جلوگیری از وابستگی دور/بازگشت، `AuditService` مستقل شد (اتصال اختصاصی). |
 | 2 | `central/AuditSearch.sql` ستون `RowHash` را برنمی‌گرداند ولی صفحهٔ `/central/audit` آن را نمایش می‌دهد → خطای زمان اجرا | `a.RowHash` به SELECT اضافه شد |
-| 3 | کامنت قدیمی `webapi/Data/Scripts` در `tools/cross-schema-scan.sh` | اصلاح به `HermesApp/Data/Scripts` |
+| 3 | کامنت قدیمی `webapi/Data/Scripts` در `tools/cross-schema-scan.sh` | اصلاح به `TarazinApp/Data/Scripts` |
 | 4 | کلاس اضافی `h-table` روی یک MudTable | حذف شد (CSS آن هم حذف شده بود) |
 
 ## ۶) چک‌های ساختاری انجام‌شده (همه پاس)
 
-- XML: `Hermes.slnx`، `HermesApp.csproj` معتبرند
+- XML: `Tarazin.slnx`، `TarazinApp.csproj` معتبرند
 - JSON: `appsettings.json`، `launchSettings.json` معتبرند
 - ۱۰۰ اسکریپت SQL؛ هر ۷ اسکیمه `_Ensure.sql` + `_Seed.sql` دارند
 - تگ‌های باز/بستهٔ تمام کامپوننت‌های Mud در همهٔ `.razor`ها متعادل‌اند
@@ -73,7 +73,7 @@ Reportهای هر ۷ ماژول) → **همه مطابق** propertyهای مدل
 
 ## ۷) ریسک‌های باقی‌مانده (باید در محیط واقعی بسته شوند)
 
-1. **build اجرا نشد** — اولین قدم: `dotnet restore && dotnet build Hermes.slnx`
+1. **build اجرا نشد** — اولین قدم: `dotnet restore && dotnet build Tarazin.slnx`
    (نسخهٔ MudBlazor 9.8.0 با net10.0 در CI تأیید شود).
 2. **تست E2E با SQL واقعی** — `docker compose up -d` + ورود admin/admin + ثبت
    داده در هر ماژول + مشاهدهٔ گزارش‌ها و ردیف ممیزی.

@@ -1,15 +1,15 @@
 ---
 name: blazor-data-access
-description: Data access in the single Hermes Blazor Server app — DbService + named TSQL + Dapper.
+description: Data access in the single Tarazin Blazor Server app — DbService + named TSQL + Dapper.
 category: blazor
 tags: [blazor, server, dapper, tsql, named-scripts, schema]
 version: 1.0.0
 author: Hermes Agent
 license: MIT
 metadata:
-  hermes:
+  tarazin:
     tags: [blazor, server, dapper, tsql, named-scripts, schema, db]
-    related_skills: [hermes-project-architecture]
+    related_skills: [tarazin-project-architecture]
 ---
 
 # 🔌 Blazor Data Access (DbService + named TSQL)
@@ -42,14 +42,14 @@ await Db.ExecuteAsync(schema, scriptName, params);          // → rows affected
 await Db.ScalarAsync(schema, scriptName, params);           // → object?
 ```
 
-`DbService` opens a connection per call (`DefaultConnection` → `HermesMaster`),
+`DbService` opens a connection per call (`DefaultConnection` → `TarazinMaster`),
 maps results by column-name → property-name, and throws if the script name is
 missing from the catalog (typo = loud failure).
 
 ## Script conventions
 
 ```sql
--- HermesApp/Data/Scripts/{schema}/{Name}.sql
+-- TarazinApp/Data/Scripts/{schema}/{Name}.sql
 -- Cross-schema: central        ← only if you must read another schema
 SELECT ... FROM [{schema}].[Table] t
 WHERE t.Column = @Param AND t.IsDeleted = 0

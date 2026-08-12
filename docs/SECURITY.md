@@ -1,8 +1,8 @@
-# Hermes security (v2 — single Blazor Server)
+# Tarazin security (v2 — single Blazor Server)
 
 Last reviewed: 2026-08-12
 
-Architecture and data rules live in `docs/PROJECT.md` and `.agents/hermes-tsql/SKILL.md`.
+Architecture and data rules live in `docs/PROJECT.md` and `.agents/tarazin-tsql/SKILL.md`.
 This file is the threat model for the **single-process** architecture.
 
 ## Layers
@@ -26,7 +26,7 @@ This file is the threat model for the **single-process** architecture.
 
 ## Remaining considerations (production checklist)
 
-- [ ] Change bootstrap password immediately (`Hermes:BootstrapAdminPassword` in appsettings or env)
+- [ ] Change bootstrap password immediately (`Tarazin:BootstrapAdminPassword` in appsettings or env)
 - [ ] Use a strong SQL Server password and store it in a secret store, not `appsettings.json`
 - [ ] Enforce HTTPS in production (reverse proxy / TLS on the ASP.NET port)
 - [ ] Keep `tools/cross-schema-scan.sh` in CI — it enforces schema isolation
@@ -36,4 +36,4 @@ This file is the threat model for the **single-process** architecture.
 ## Test login (bootstrap, created at first startup only)
 
 - user: `admin`
-- pass: `admin` (`Hermes:BootstrapAdminPassword`)
+- pass: `admin` (`Tarazin:BootstrapAdminPassword`)

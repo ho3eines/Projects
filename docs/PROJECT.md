@@ -1,4 +1,4 @@
-# 📘 Hermes — Master Blueprint (Single Blazor Server)
+# 📘 ترازین — مدیریت هوشمند کسب‌وکار (Master Blueprint — Single Blazor Server)
 
 > **Last updated**: 2026-08-12 (v2.0 — بازطراحی کامل)
 > **قانون طلایی**: یک پروژهٔ Blazor Server + MudBlazor؛ هر محصول یک ماژول و یک اسکیمه.
@@ -7,7 +7,7 @@
 
 ## 🧭 Overview
 
-پلتفرم یکپارچهٔ سازمان با **هفت محصول** در **یک پروژهٔ Blazor Server** (`HermesApp`).
+پلتفرم یکپارچهٔ سازمان با **هفت محصول** در **یک پروژهٔ Blazor Server** (`TarazinApp`).
 داده فقط از طریق **اسکریپت‌های TSQL نامدار** که در همان پروسه با Dapper اجرا
 می‌شوند؛ **هیچ وب‌سرویس، هیچ کلاینت WASM، هیچ لایهٔ HTTP برای داده وجود ندارد**.
 ظاهر کامل با **MudBlazor** (بدون CSS دستی).
@@ -15,15 +15,15 @@
 > 📋 **PRD محصولات**: `PRD.md` · `PRD_All_Projects.md`
 > 🗺️ **برنامهٔ کار**: `docs/PLATFORM_ROADMAP.md`
 > 🧩 **تصمیم‌های معماری**: `docs/adr/` (ADR-001 تک‌پروژه · ADR-002 بدون رویداد · ADR-003 قراردادها)
-> 🤖 **راهنمای عامل**: `.agents/hermes-tsql/SKILL.md`
+> 🤖 **راهنمای عامل**: `.agents/tarazin-tsql/SKILL.md`
 
 ---
 
 ## 🗂️ Directory Layout
 
 ```
-Hermes.slnx                      ← فقط یک پروژه
-HermesApp/                       ← THE پروژه (Blazor Server, net10.0)
+Tarazin.slnx                      ← فقط یک پروژه
+TarazinApp/                       ← THE پروژه (Blazor Server, net10.0)
 ├── Program.cs                   ← AddServerSideBlazor + AddMudServices + startup ensure/seed
 ├── App.razor                    ← Router + MudThemeProvider/Dialog/Snackbar
 ├── Pages/_Host.cshtml           ← قالب اصلی (RTL)
@@ -73,7 +73,7 @@ tools/cross-schema-scan.sh       ← بررسی مرز اسکیمه‌ها
 
 ## 🔑 Key Rules
 
-1. **فقط یک پروژه** — اضافه‌کردن پروژه/پکیج ممنوع؛ هر چیز جدید داخل `HermesApp`.
+1. **فقط یک پروژه** — اضافه‌کردن پروژه/پکیج ممنوع؛ هر چیز جدید داخل `TarazinApp`.
 2. **فقط Blazor Server** — کال‌کردن داده = `DbService`؛ `HttpClient` برای داده ممنوع.
 3. **MudBlazor** — صفحهٔ جدید فقط با کامپوننت‌های Mud؛ Bootstrap/جدول سفارشی ممنوع.
 4. **اسکریپت نامدار** — صفحات SQL خام ندارند؛ همه چیز `Data/Scripts/{schema}/{Name}.sql`.
@@ -100,7 +100,7 @@ tools/cross-schema-scan.sh       ← بررسی مرز اسکیمه‌ها
 - مدیریت کاربران در `/central/users`
 
 ## 🗄️ Data Layer
-- یک ConnectionString: `ConnectionStrings:DefaultConnection` → `HermesMaster`
+- یک ConnectionString: `ConnectionStrings:DefaultConnection` → `TarazinMaster`
 - در استارت‌آپ: `ScriptCatalog.Load` → `EnsureSchemaAsync` (همهٔ `_Ensure.sql`) →
   `SeedAsync` (همهٔ `_Seed.sql`) → ساخت bootstrap admin (اگر Users خالی است)
 - `DbService.QueryAsync<T>(schema, name, @params)` / `ExecuteAsync` / `ScalarAsync`
@@ -114,7 +114,7 @@ tools/cross-schema-scan.sh       ← بررسی مرز اسکیمه‌ها
   schema/script/user/outcome/error.
 
 ## ❌ Explicit Bans
-- ❌ پروژه/کلاس‌کتابخانه/پکیج جدید خارج از `HermesApp`
+- ❌ پروژه/کلاس‌کتابخانه/پکیج جدید خارج از `TarazinApp`
 - ❌ `HttpClient`، controller، وب‌سرویس، توکن، رمزنگاری حمل‌ونقل
 - ❌ Bootstrap دستی، CSS سفارشی زیاد، DataGrid سفارشی (همه MudBlazor)
 - ❌ SQL خام در `.razor`

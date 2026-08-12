@@ -1,4 +1,4 @@
-# Hermes — local stack (SQL Server only)
+# Tarazin — local stack (SQL Server only)
 # Usage:
 #   docker compose up -d
 #   (SQL Server on :1433 — the single Blazor Server app connects to it directly)
@@ -7,7 +7,7 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Hermes!Master2026}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Tarazin!Master2026}"
       MSSQL_PID: "Developer"
     ports:
       - "1433:1433"

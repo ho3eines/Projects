@@ -6,9 +6,9 @@ author: Hossein Esfandyari, Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
-  hermes:
+  tarazin:
     tags: [blazor, architecture, blazor-server, mudblazor, dapper, modules]
-    related_skills: [hermes-project-architecture, blazor-data-access]
+    related_skills: [tarazin-project-architecture, blazor-data-access]
 ---
 
 # Blazor Clean Architecture Skill (v2 — single project)
@@ -18,7 +18,7 @@ layers inside one csproj — no separate Client/Server/Shared projects, no webap
 
 ## When to Use
 
-- Starting a new module in Hermes (or any Blazor Server app) that must be
+- Starting a new module in Tarazin (or any Blazor Server app) that must be
   maintainable and testable
 - Migrating from multi-project / WASM + API to one Blazor Server process
 - Dapper-based data layer with named scripts and schema isolation
@@ -27,7 +27,7 @@ layers inside one csproj — no separate Client/Server/Shared projects, no webap
 ## Solution Structure
 
 ```
-HermesApp/
+TarazinApp/
 ├── Program.cs              # Composition root: services, MudBlazor, startup ensure/seed
 ├── App.razor               # Router + Mud providers
 ├── Pages/_Host.cshtml      # RTL HTML shell
@@ -74,6 +74,6 @@ server-side scripts with a `-- Cross-schema:` header (verified by
 | `tests/` xUnit against API | build + `tools/cross-schema-scan.sh` (CI) |
 
 ## References
-- `hermes-project-architecture` — the master structure skill
+- `tarazin-project-architecture` — the master structure skill
 - `blazor-data-access` — DbService / script conventions
 - `blazor-create-project` — adding a module

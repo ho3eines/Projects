@@ -2,7 +2,7 @@
 # ============================================================
 # Cross-schema static analysis (PRD AC #3 / ADR-003)
 #
-# Every .sql script under HermesApp/Data/Scripts/{schema}/ may only
+# Every .sql script under TarazinApp/Data/Scripts/{schema}/ may only
 # reference its own schema — unless the reference is declared in a
 # header comment:
 #
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPTS="$ROOT/HermesApp/Data/Scripts"
+SCRIPTS="$ROOT/TarazinApp/Data/Scripts"
 
 fail=0
 count=0

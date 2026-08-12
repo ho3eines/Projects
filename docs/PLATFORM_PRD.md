@@ -1,5 +1,5 @@
-# PRD – Unified Multi-Product Platform (Hermes v2 — Single Blazor Server)
-# PRD – پلتفرم یکپارچه چندمحصوله (نسخهٔ هرمس v2)
+# PRD – Tarazin — Smart Business Management Platform (v2 — Single Blazor Server)
+# PRD – ترازین — مدیریت هوشمند کسب‌وکار (نسخهٔ ۲ — تک‌پروژهٔ Blazor Server)
 
 > **Status**: Adopted — 2026-08-12 · **Supersedes**: PRD v1.0 (microservices), v1.5 (single webapi + WASM)
 > **Binding decisions**: [ADR-001](adr/ADR-001-single-blazor-server-architecture.md),
@@ -51,7 +51,7 @@ async event backbone, no message queue.
 | Presentation | All pages/forms/tables/modals | Blazor Server (SignalR) + **MudBlazor** |
 | Application | Orchestration inside pages | `Modules/*/Pages/*.razor` + `Services/` |
 | Data Access | Named-script execution, schema scope | `DbService` + Dapper (in-process) |
-| Data | One DB `HermesMaster`, one schema per product | SQL Server (docker compose) |
+| Data | One DB `TarazinMaster`, one schema per product | SQL Server (docker compose) |
 | Auth & Audit | Login, per-circuit session, hash-chained audit | `AuthService`, `UserSession`, `AuditService` |
 | DevOps | Build + static analysis | `ci/ci.yml`, `tools/cross-schema-scan.sh` |
 
@@ -61,7 +61,7 @@ async event backbone, no message queue.
 
 ## 3. Shared Domain Contracts / قراردادهای دامنه مشترک
 
-Defined as C# models in `HermesApp/Models/SharedModels.cs`; script columns must
+Defined as C# models in `TarazinApp/Models/SharedModels.cs`; script columns must
 match (ADR-003):
 
 | Contract / قرارداد | Owner / مالک | Consumers / مصرف‌کننده‌ها |
@@ -101,7 +101,7 @@ ADR-002 explains why the event backbone was retired.
 
 ## 7. Deployment / استقرار
 * `docker compose up -d` → SQL Server only.
-* `dotnet run --project HermesApp` (or `dotnet publish HermesApp -c Release`).
+* `dotnet run --project TarazinApp` (or `dotnet publish TarazinApp -c Release`).
 * CI: restore + build + `tools/cross-schema-scan.sh` (GitHub Actions).
 
 ## 8. Risks & Mitigations / ریسک‌ها
@@ -112,7 +112,7 @@ ADR-002 explains why the event backbone was retired.
 | Monolith growth | Harder team parallelism | Module folders + schema boundaries + per-module pages |
 
 ## 9. Acceptance Criteria / معیارهای پذیرش
-1. `dotnet build Hermes.slnx` succeeds with exactly one project.
+1. `dotnet build Tarazin.slnx` succeeds with exactly one project.
 2. All 7 modules open from one address and show real data.
 3. No `HttpClient`-for-data and no raw SQL in `.razor` files (static check).
 4. `tools/cross-schema-scan.sh` passes.

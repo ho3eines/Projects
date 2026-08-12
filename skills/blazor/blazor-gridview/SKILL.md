@@ -1,6 +1,6 @@
 ---
 name: blazor-gridview
-description: Data grids in Hermes = MudTable (MudBlazor). No custom grid.
+description: Data grids in Tarazin = MudTable (MudBlazor). No custom grid.
 category: blazor
 tags: [blazor, grid, table, mudtable, pagination, search, export]
 version: 2.0.0
@@ -8,7 +8,7 @@ author: Ho3ein, Hermes Agent
 license: MIT
 platforms: [windows, linux, macos]
 metadata:
-  hermes:
+  tarazin:
     tags: [blazor, grid, table, mudtable, filtering, sorting, edit]
     related_skills: [blazor-clean-architecture, blazor-data-access]
 ---

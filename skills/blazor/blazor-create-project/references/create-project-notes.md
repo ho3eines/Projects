@@ -1,6 +1,6 @@
 # Create Module — Reference Notes (v2)
 
-"Creating a project" in Hermes v2 = **adding a module to the single Blazor
+"Creating a project" in Tarazin v2 = **adding a module to the single Blazor
 Server app**. No API, no `dbo.Projects` registry, no per-project DB.
 
 ## Quick Troubleshooting

@@ -20,7 +20,7 @@ to test over HTTP.
 
 A **contract** is:
 
-1. A C# model in `HermesApp/Models/SharedModels.cs` (or a module models file)
+1. A C# model in `TarazinApp/Models/SharedModels.cs` (or a module models file)
    — property names are the canonical column aliases.
 2. The named TSQL scripts in `Data/Scripts/{schema}/` that produce/consume those
    shapes — script column aliases **must** match the model property names.

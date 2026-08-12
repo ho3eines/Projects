@@ -1,11 +1,11 @@
 ---
 name: project-relationship-management
-description: "Hermes is ONE project — module PRDs, todo lifecycle, status codes 0-4."
+description: "Tarazin is ONE project — module PRDs, todo lifecycle, status codes 0-4."
 version: 2.0
 author: Hermes Agent
 license: MIT
 metadata:
-  hermes:
+  tarazin:
     tags: [project-management, prd, modules, todo]
 trigger:
   - "PRD"
@@ -16,8 +16,8 @@ trigger:
 
 ## Context (v2)
 
-There is **no multi-project coordination anymore**. Hermes is a single Blazor
-Server project (`HermesApp`); products are **modules** (`Modules/{Name}/`) with
+There is **no multi-project coordination anymore**. Tarazin is a single Blazor
+Server project (`TarazinApp`); products are **modules** (`Modules/{Name}/`) with
 their own SQL schema. "Project relationship" now means **module boundaries and
 schema contracts**.
 

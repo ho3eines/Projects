@@ -6,7 +6,7 @@ version: 2.0.0
 author: Hermes Agent
 license: MIT
 metadata:
-  hermes:
+  tarazin:
     tags: [blazor, mudtable, parameter, prerender]
     related_skills: [blazor-gridview]
 ---

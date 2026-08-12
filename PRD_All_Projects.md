@@ -1,4 +1,4 @@
-# PRD – پلتفرم یکپارچه هرمس (نسخهٔ تک‌پروژه‌ای)
+# PRD – پلتفرم یکپارچه ترازین (نسخهٔ تک‌پروژه‌ای)
 **Single Blazor Server + MudBlazor — جایگزین کامل معماری چندپروژه‌ای + WebAPI**
 
 > **وضعیت**: مصوب — ۲۰۲۶/۰۸/۱۲ — **جایگزین** PRD v1.0 (میکروسرویس) و v1.5 (تک‌وب‌سرویس + WASM)
@@ -11,7 +11,7 @@
 
 | مشکل | راه‌حل جدید |
 |------|-------------|
-| ۱۱ پروژه در solution → مدیریت سخت و فایل‌های تکراری زیاد | **یک پروژهٔ Blazor Server** به نام `HermesApp` |
+| ۱۱ پروژه در solution → مدیریت سخت و فایل‌های تکراری زیاد | **یک پروژهٔ Blazor Server** به نام `TarazinApp` |
 | ۷ کلاینت WASM + ۱ وب‌سرویس + ۱ کتابخانهٔ مشترک + ۱ پکیج | همه داخل یک پروژه؛ هر محصول یک **ماژول** |
 | درگیر شدن با وب‌سرویس (handshake، توکن، AES، CORS) | حذف کامل لایهٔ HTTP؛ Dapper مستقیم در همان پروسه |
 | Bootstrap/HTML دستی و کامپوننت‌های سفارشی | **MudBlazor** (طراحی رایگان، RTL، جدول، مودال، فرم) |
@@ -37,7 +37,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  HermesApp (یک پروژهٔ Blazor Server — net10.0)             │
+│  TarazinApp (یک پروژهٔ Blazor Server — net10.0)             │
 │  ┌───────────┐  ┌───────────────┐  ┌────────────────────┐  │
 │  │ MudBlazor │  │ Modules/{7}   │  │ Services           │  │
 │  │ UI kit    │  │ Pages + Models│  │ DbService, Auth…   │  │
@@ -46,20 +46,20 @@
 │               Data/Scripts/{schema}/*.sql ──┘              │
 └───────────────────────────────┬────────────────────────────┘
                                 │ (یک ConnectionString)
-                        SQL Server — HermesMaster
+                        SQL Server — TarazinMaster
                 [central] [accounting] [inventory] [treasury]
                 [payroll] [goldshop] [store]   (اسکیمهٔ جدا)
 ```
 
 - **بدون HTTP برای داده**: `DbService.QueryAsync<T>(schema, scriptName, params)`.
 - **اسکیمه = مرز ماژول**: ماژول حسابداری فقط اسکریپت‌های `accounting/` را صدا می‌زند.
-- **قراردادهای دامنه**: مدل‌های مشترک در `HermesApp/Models/SharedModels.cs`
+- **قراردادهای دامنه**: مدل‌های مشترک در `TarazinApp/Models/SharedModels.cs`
   (Party, ChartOfAccount, CurrencyRate, TaxRule, InventoryMovement, PayrollRun,
   GoldPrice, Order) — ستون‌های اسکریپت‌ها باید با همین نام‌ها هم‌نام باشند (ADR-003).
 
 ## 4. داده و یکپارچگی
 
-- یک دیتابیس `HermesMaster`، یک اسکیمه برای هر ماژول؛ `_Ensure.sql` و `_Seed.sql`
+- یک دیتابیس `TarazinMaster`، یک اسکیمه برای هر ماژول؛ `_Ensure.sql` و `_Seed.sql`
   در استارت‌آپ اجرا می‌شوند (idempotent).
 - عملیات بین‌ماژولی (مثلاً فاکتور فروش → انبار/حسابداری) مستقیم در سمت سرور و در
   همان تراکنش انجام می‌شود؛ **بک‌بون رویدادها حذف شد** (ADR-002).
@@ -75,16 +75,16 @@
 
 ## 6. استقرار و CI
 
-- `docker compose up -d` → فقط SQL Server؛ سپس `dotnet run --project HermesApp`.
+- `docker compose up -d` → فقط SQL Server؛ سپس `dotnet run --project TarazinApp`.
 - CI (`ci/ci.yml`): restore + build تک‌پروژه + `tools/cross-schema-scan.sh`.
 
 ## 7. معیارهای پذیرش
 
-1. `dotnet build Hermes.slnx` با یک پروژه پاس می‌شود.
+1. `dotnet build Tarazin.slnx` با یک پروژه پاس می‌شود.
 2. همهٔ ۷ ماژول از یک آدرس در دسترس‌اند و داده‌ی واقعی نشان می‌دهند.
 3. جستجوی کد: هیچ `HttpClient` برای داده و هیچ SQL خام در `.razor` وجود ندارد.
 4. `tools/cross-schema-scan.sh` پاس (بدون ارجاع بین‌اسکیمه‌ای غیرمجاز).
 5. ورود bootstrap و مدیریت کاربران کار می‌کند؛ ممیزی ردیف ثبت می‌کند.
 
 ---
-*نسخه ۲.۰ — ۱۴۰۵/۰۵/۲۱ — تیم معماری هرمس*
+*نسخه ۲.۰ — ۱۴۰۵/۰۵/۲۱ — تیم معماری ترازین*

@@ -1,4 +1,4 @@
-# Architecture Decision Records — Hermes Platform (v2)
+# Architecture Decision Records — Tarazin Platform (v2)
 
 | # | Decision | Status | Date |
 |---|----------|--------|------|
@@ -9,4 +9,4 @@
 > PRD v2.0 (`docs/PLATFORM_PRD.md`) is the product vision. These ADRs are the
 > binding architectural decisions for this repository. The living spec is
 > `docs/PROJECT.md`; the work plan is `docs/PLATFORM_ROADMAP.md`.
-> The agent-facing data skill is `.agents/hermes-tsql/SKILL.md`.
+> The agent-facing data skill is `.agents/tarazin-tsql/SKILL.md`.

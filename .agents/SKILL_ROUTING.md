@@ -1,6 +1,6 @@
 # Hermes Agent — Skill Routing
 
-**Data + architecture: `.agents/hermes-tsql/SKILL.md`**
+**Data + architecture: `.agents/tarazin-tsql/SKILL.md`**
 
 ```
 Blazor Server page (Modules/*/Pages)

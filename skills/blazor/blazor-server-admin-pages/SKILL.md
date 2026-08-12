@@ -1,22 +1,22 @@
 ---
 name: blazor-server-admin-pages
-description: Build admin/management pages inside the single Hermes Blazor Server app.
+description: Build admin/management pages inside the single Tarazin Blazor Server app.
 category: blazor
 author: Hermes Agent
 license: MIT
 version: 2.0.0
 tags: [blazor, server, admin-ui, mudblazor, razor, dapper]
 metadata:
-  hermes:
+  tarazin:
     tags: [blazor, server, admin-ui, mudblazor, razor, dapper]
-    related_skills: [hermes-project-architecture, blazor-data-access]
+    related_skills: [tarazin-project-architecture, blazor-data-access]
 ---
 
-# 🖥️ Blazor Server Admin Pages (Hermes v2)
+# 🖥️ Blazor Server Admin Pages (Tarazin v2)
 
 ## When to Use
 
-- Creating or editing Razor pages in the single Hermes Blazor Server app
+- Creating or editing Razor pages in the single Tarazin Blazor Server app
   (platform admin: users, news/blog/gallery, audit, base tables per module).
 - User says "صفحات داخل خود پروژه‌ی Blazor Server هستند و احتیاج به کنترلر/وب‌سرویس ندارند".
 - Adding pages to the nav (`Layout/NavMenu.razor`) with routes like `/central/users`.
@@ -44,7 +44,7 @@ await Db.ExecuteAsync("central", "UserUpsert", new
 });
 ```
 
-## 📄 Standard admin pages (Hermes v2)
+## 📄 Standard admin pages (Tarazin v2)
 
 | Route | Page | Purpose |
 |-------|------|---------|
@@ -81,6 +81,6 @@ await Db.ExecuteAsync("central", "UserUpsert", new
    unregistered `HttpClient` throws at runtime.
 
 ## 🧪 Session verification
-- `dotnet build Hermes.slnx` — one project, build succeeded
+- `dotnet build Tarazin.slnx` — one project, build succeeded
 - Open `/central/users` → list + create works
 - Open `/{module}/settings` → base table CRUD works

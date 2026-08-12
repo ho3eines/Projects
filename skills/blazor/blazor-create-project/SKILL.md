@@ -1,8 +1,8 @@
 ---
 name: blazor-create-project
-description: Add a new product module to the single Hermes Blazor Server app.
+description: Add a new product module to the single Tarazin Blazor Server app.
 tags: [blazor, server, module, page, routing, navmenu, mudblazor]
-trigger: Use when creating a new module (product) inside HermesApp — pages, schema, scripts, nav links — or when creating any new page in an existing module.
+trigger: Use when creating a new module (product) inside TarazinApp — pages, schema, scripts, nav links — or when creating any new page in an existing module.
 status: active
 author: Hermes Agent (auto-generated)
 version: 2.0
@@ -10,8 +10,8 @@ version: 2.0
 
 ## Overview
 
-Hermes is **one Blazor Server project**. "Creating a project" now means
-**creating a module** inside `HermesApp`:
+Tarazin is **one Blazor Server project**. "Creating a project" now means
+**creating a module** inside `TarazinApp`:
 
 1. Module folder with pages: `Modules/{Name}/Pages/`
 2. Schema + scripts: `Data/Scripts/{schema}/` (`_Ensure.sql`, `_Seed.sql`, …)
@@ -38,7 +38,7 @@ Hermes is **one Blazor Server project**. "Creating a project" now means
 5. **Register**:
    - `Layout/NavMenu.razor` → `<MudNavLink Href="/{route}">…</MudNavLink>`
    - `Modules/Home/Home.razor` → add a `ModuleCard` entry
-6. **Validate**: `tools/cross-schema-scan.sh` + `dotnet build Hermes.slnx`.
+6. **Validate**: `tools/cross-schema-scan.sh` + `dotnet build Tarazin.slnx`.
 
 ## Page Template (MudBlazor)
 

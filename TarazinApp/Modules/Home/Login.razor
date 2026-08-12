@@ -1,0 +1,60 @@
+@page "/login"
+@inject AuthService Auth
+@inject UserSession Session
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>ورود — ترازین</PageTitle>
+
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="12" sm="8" md="5" lg="4">
+        <MudPaper Elevation="3" Class="pa-8 rounded">
+            <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-1">ورود به ترازین</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center" Class="mb-6">
+                یک حساب برای همهٔ ماژول‌ها — حسابداری، انبار، خزانه، حقوق، طلافروشی و فروشگاه.
+            </MudText>
+
+            <MudForm @ref="_form" @bind-Valid="_valid" ValidateOnClick="true">
+                <MudTextField @bind-Value="_username" Label="نام کاربری" Immediate="true"
+                              For="() => _username" Variant="Variant.Outlined" Class="mb-4" />
+                <MudTextField @bind-Value="_password" Label="رمز عبور" InputType="InputType.Password"
+                              For="() => _password" Variant="Variant.Outlined" Class="mb-6" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                           Disabled="_busy" OnClick="LoginAsync" StartIcon="@Icons.Material.Filled.Login">
+                    @(_busy ? "در حال ورود..." : "ورود")
+                </MudButton>
+            </MudForm>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+    private string _username = "";
+    private string _password = "";
+
+    private async Task LoginAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            var user = await Auth.AuthenticateAsync(_username, _password);
+            if (user is null)
+            {
+                Snackbar.Add("نام کاربری یا رمز عبور صحیح نیست.", Severity.Error);
+                return;
+            }
+
+            Session.SignIn(user.UserId, user.Username, user.DisplayName, user.Role);
+            Snackbar.Add($"خوش آمدید، {user.DisplayName}", Severity.Success);
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
