@@ -28,24 +28,28 @@ public class SystemQueryExecutor : ISystemQueryExecutor
 
     private string ResolveScriptPath(string scriptName, string? schema)
     {
-        var normalized = scriptName.Replace('\\', '/').Replace('.', '/');
-        string fullPath;
+        if (string.IsNullOrWhiteSpace(scriptName))
+            throw new FileNotFoundException($"TSQL script not found: {scriptName}");
 
-        var parts = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
+        // Schema-scoped resolution only: a script always lives under its own
+        // schema folder (Data/Scripts/{schema}/{name}.sql). The caller (session /
+        // outbox route / bootstrap) always supplies the owning schema, so a client
+        // can never reach another product's scripts by passing a path or dot-name —
+        // enforcing the ADR-001 schema lock. ".." is neutralized by a containment
+        // check after GetFullPath normalizes the candidate.
+        var schemaDir = string.IsNullOrWhiteSpace(schema) ? "dbo" : schema;
+        var baseDir = Path.GetFullPath(Path.Combine(_scriptsRoot, schemaDir));
+        var normalized = scriptName.Replace('\\', '/').Replace(".sql", "", StringComparison.OrdinalIgnoreCase);
+        var candidate = Path.GetFullPath(Path.Combine(baseDir, normalized + ".sql"));
+
+        if (!candidate.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(candidate, baseDir, StringComparison.OrdinalIgnoreCase))
         {
-            fullPath = Path.Combine(_scriptsRoot, string.Join('/', parts) + ".sql");
-            if (File.Exists(fullPath)) return fullPath;
+            throw new FileNotFoundException($"TSQL script not found: {scriptName}");
         }
-        if (!string.IsNullOrEmpty(schema))
-        {
-            fullPath = Path.Combine(_scriptsRoot, schema, scriptName + ".sql");
-            if (File.Exists(fullPath)) return fullPath;
-        }
-        fullPath = Path.Combine(_scriptsRoot, scriptName + ".sql");
-        if (!File.Exists(fullPath))
-            throw new FileNotFoundException($"TSQL script not found: {scriptName}", fullPath);
-        return fullPath;
+        if (!File.Exists(candidate))
+            throw new FileNotFoundException($"TSQL script not found: {scriptName}", candidate);
+        return candidate;
     }
 
     private async Task<IDbConnection> OpenConnectionAsync()

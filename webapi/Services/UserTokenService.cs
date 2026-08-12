@@ -36,7 +36,10 @@ public sealed class UserTokenService : IUserTokenService
     public UserTokenService(IOptions<AuthOptions> options)
     {
         _opt = options.Value;
-        var raw = string.IsNullOrWhiteSpace(_opt.Key) ? "HERMES-DEV-KEY-CHANGE-ME-32CHARS-MIN!!" : _opt.Key;
+        if (string.IsNullOrWhiteSpace(_opt.Key))
+            throw new InvalidOperationException(
+                "Auth:Key is not configured. A hard-coded fallback key would be a public secret — refuse to start.");
+        var raw = _opt.Key;
         _key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(raw.PadRight(32)[..Math.Max(32, raw.Length)]));
     }
 

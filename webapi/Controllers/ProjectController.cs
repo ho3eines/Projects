@@ -54,12 +54,14 @@ public class ProjectController : ControllerBase
                 ProjectGuid = p.ProjectGuid,
                 Name = p.Name,
                 Schema = p.Schema,
-                LoginTokenHash = p.LoginTokenHash,
-                EncryptionKey = p.EncryptionKey,
-                ApiKey = p.ApiKey,
+                // Credentials are NEVER returned to clients: LoginTokenHash, EncryptionKey,
+                // ApiKey and ConnectionString are secrets that must not leave the server.
+                LoginTokenHash = "",
+                EncryptionKey = "",
+                ApiKey = "",
                 SessionTimeoutMinutes = p.SessionTimeoutMinutes,
                 IsActive = p.IsActive,
-                ConnectionString = p.ConnectionString,
+                ConnectionString = "",
                 DatabaseName = p.DatabaseName,
                 DatabaseProvider = p.DatabaseProvider,
                 AutoBackupEnabled = p.AutoBackupEnabled,
@@ -85,7 +87,29 @@ public class ProjectController : ControllerBase
         if (!TryValidateApiKey(out var error)) return error;
         var project = await FindProjectAsync(projectGuid);
         if (project is null) return NotFound(new { error = "Project not found" });
-        return Ok(project);
+
+        // Return a DTO with credentials redacted (never leak keys/connection strings).
+        return Ok(new ProjectDefinitionDto
+        {
+            ProjectGuid = project.ProjectGuid,
+            Name = project.Name,
+            Schema = project.Schema,
+            LoginTokenHash = "",
+            EncryptionKey = "",
+            ApiKey = "",
+            SessionTimeoutMinutes = project.SessionTimeoutMinutes,
+            IsActive = project.IsActive,
+            ConnectionString = "",
+            DatabaseName = project.DatabaseName,
+            DatabaseProvider = project.DatabaseProvider,
+            AutoBackupEnabled = project.AutoBackupEnabled,
+            AutoBackupIntervalMinutes = project.AutoBackupIntervalMinutes,
+            AutoBackupTimeUtc = project.AutoBackupTimeUtc,
+            MaxBackupRetention = project.MaxBackupRetention,
+            LastBackupAtUtc = project.LastBackupAtUtc,
+            Description = project.Description,
+            Icon = project.Icon
+        });
     }
 
     [HttpPost]
@@ -254,7 +278,7 @@ WHERE ProjectGuid = @ProjectGuid",
                 FileName = f.Name,
                 SizeBytes = f.Length,
                 CreatedAtUtc = f.LastWriteTimeUtc,
-                DownloadUrl = $"/backup/{projectGuid}/{f.Name}",
+                DownloadUrl = $"/api/projects/{projectGuid}/backups/{Uri.EscapeDataString(f.Name)}",
                 IsAutoBackup = f.Name.Contains("auto", StringComparison.OrdinalIgnoreCase)
             })
             .ToList();
@@ -266,7 +290,10 @@ WHERE ProjectGuid = @ProjectGuid",
     [HttpGet("{projectGuid:guid}/backups/{fileName}")]
     public IActionResult DownloadBackup(Guid projectGuid, string fileName)
     {
-        // دانلود نیاز به API key ندارد تا آسان باشد (فقط نام فایل امن)
+        // Backups contain sensitive data — require the API key like every other
+        // /api/projects operation (was previously unauthenticated).
+        if (!TryValidateApiKey(out var error)) return error;
+
         var safeName = Path.GetFileName(fileName); // جلوگیری از path traversal
         var dir = GetBackupDir(projectGuid);
         var path = Path.Combine(dir, safeName);
@@ -447,7 +474,7 @@ WHERE ProjectGuid = @guid",
             Success = true,
             FileName = fileName,
             SizeBytes = info.Length,
-            DownloadUrl = $"/backup/{project.ProjectGuid}/{fileName}",
+            DownloadUrl = $"/api/projects/{project.ProjectGuid}/backups/{Uri.EscapeDataString(fileName)}",
             CompletedAtUtc = DateTime.UtcNow
         };
     }
