@@ -1,0 +1,503 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                @switch (Model.Kind)
+                {
+                    case EntityEditorKind.News:
+                        <MudItem xs="12">
+                            <MudTextField Label="عنوان خبر" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان خبر الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField Label="خلاصه" @bind-Value="Model.Text" Lines="2" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField Label="متن خبر" @bind-Value="Model.Body" Lines="5" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="7">
+                            <MudTextField Label="آدرس تصویر" @bind-Value="Model.ImageUrl" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="5">
+                            <MudDatePicker Label="تاریخ انتشار" Culture="FaCulture" @bind-Date="Model.Date" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.Blog:
+                        <MudItem xs="12" sm="8">
+                            <MudTextField Label="عنوان پست" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان پست الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField Label="نامک" @bind-Value="Model.Code" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="نویسنده" @bind-Value="Model.Text" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="برچسب‌ها" @bind-Value="Model.Tags" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField Label="متن پست" @bind-Value="Model.Body" Lines="5" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="تاریخ انتشار" Culture="FaCulture" @bind-Date="Model.Date" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.Gallery:
+                        <MudItem xs="12">
+                            <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField Label="توضیح" @bind-Value="Model.Text" Lines="2" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="8">
+                            <MudTextField Label="آدرس تصویر" @bind-Value="Model.ImageUrl" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="Model.SortOrder"
+                                             Min="0" Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.User:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="نام کاربری" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="نام کاربری الزامی است." Disabled="@(!Model.IsNew)"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="نام نمایشی" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="نام نمایشی الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="رمز عبور" @bind-Value="Model.Password" InputType="InputType.Password"
+                                          Required="@Model.IsNew" RequiredError="رمز عبور برای کاربر جدید الزامی است."
+                                          HelperText="@(Model.IsNew ? null : "برای حفظ رمز فعلی، خالی بگذارید.")"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="string" Label="نقش" @bind-Value="Model.Text" Variant="Variant.Outlined">
+                                <MudSelectItem Value="@("User")">کاربر</MudSelectItem>
+                                <MudSelectItem Value="@("Admin")">مدیر</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.Account:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد حساب" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد حساب الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان حساب الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudSelect T="string" Label="نوع حساب" @bind-Value="Model.Text" Variant="Variant.Outlined">
+                                <MudSelectItem Value="@string.Empty">— نوع —</MudSelectItem>
+                                <MudSelectItem Value="@("Asset")">دارایی</MudSelectItem>
+                                <MudSelectItem Value="@("Liability")">بدهی</MudSelectItem>
+                                <MudSelectItem Value="@("Equity")">سرمایه</MudSelectItem>
+                                <MudSelectItem Value="@("Income")">درآمد</MudSelectItem>
+                                <MudSelectItem Value="@("Expense")">هزینه</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.GoldItem:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد (XAU-24)" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudNumericField T="decimal?" Label="عیار" @bind-Value="Model.Amount"
+                                             Min="0" Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.GoldPrice:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد (مثلاً XAU-24)" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد طلا الزامی است." Disabled="@(!Model.IsNew)"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?" Label="قیمت هر گرم (ریال)" @bind-Value="Model.Amount"
+                                             Required="true" RequiredError="قیمت الزامی است."
+                                             Min="@((decimal?)0.01m)" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?" Label="نرخ تبدیل به ریال" @bind-Value="Model.SecondaryAmount"
+                                             Min="0" Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.InventoryItem:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد کالا" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد کالا الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان کالا الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="دسته‌بندی" @bind-Value="Model.Text" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="واحد" @bind-Value="Model.ExtraText" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudNumericField T="decimal?" Label="قیمت واحد" @bind-Value="Model.Amount"
+                                             Min="0" Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.Warehouse:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد انبار" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد انبار الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان انبار الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField Label="موقعیت" @bind-Value="Model.Text" Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.Employee:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد کارمند" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد کارمند الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="نام کامل" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="نام کارمند الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد ملی" @bind-Value="Model.ExtraText" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="دپارتمان" @bind-Value="Model.Text" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudNumericField T="decimal?" Label="حقوق پایه" @bind-Value="Model.Amount"
+                                             Min="0" Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.Product:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد محصول" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد محصول الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="عنوان محصول الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد کالای انبار" @bind-Value="Model.ExtraText" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?" Label="قیمت" @bind-Value="Model.Amount"
+                                             Min="0" Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.Customer:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد مشتری" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد مشتری الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="نام کامل" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="نام مشتری الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="تلفن" @bind-Value="Model.Text" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="ایمیل" @bind-Value="Model.ExtraText" InputType="InputType.Email"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        break;
+
+                    case EntityEditorKind.CurrencyRate:
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="کد ارز" @bind-Value="Model.Code" Required="true"
+                                          RequiredError="کد ارز الزامی است." Disabled="@(!Model.IsNew)"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="نام ارز" @bind-Value="Model.Title" Required="true"
+                                          RequiredError="نام ارز الزامی است." Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?" Label="نرخ به ریال" @bind-Value="Model.Amount"
+                                             Required="true" RequiredError="نرخ ارز الزامی است."
+                                             Min="@((decimal?)0.01m)" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="تاریخ نرخ" Culture="FaCulture" @bind-Date="Model.Date" />
+                        </MudItem>
+                        break;
+                }
+
+                @if (Model.Kind is not (EntityEditorKind.CurrencyRate or EntityEditorKind.GoldPrice))
+                {
+                    <MudItem xs="12">
+                        <MudSwitch T="bool" @bind-Value="Model.IsActive" Color="Color.Success">
+                            فعال
+                        </MudSwitch>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">
+            انصراف
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">
+            @if (_busy)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
+            }
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public EntityEditorModel Model { get; set; } = default!;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null)
+            return;
+
+        await _form.Validate();
+        if (!_isValid)
+            return;
+
+        if ((Model.Kind is EntityEditorKind.CurrencyRate or EntityEditorKind.GoldPrice) &&
+            (Model.Amount ?? 0) <= 0)
+        {
+            Snackbar.Add(Model.Kind == EntityEditorKind.CurrencyRate
+                ? "نرخ ارز باید بیشتر از صفر باشد."
+                : "قیمت طلا باید بیشتر از صفر باشد.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        var wasNew = Model.IsNew;
+        try
+        {
+            switch (Model.Kind)
+            {
+                case EntityEditorKind.News:
+                    await Db.ExecuteAsync("central", "NewsUpsert", new
+                    {
+                        NewsId = Model.Id,
+                        Title = Model.Title.Trim(),
+                        Summary = NullIfWhiteSpace(Model.Text),
+                        Body = NullIfWhiteSpace(Model.Body),
+                        ImageUrl = NullIfWhiteSpace(Model.ImageUrl),
+                        PublishedAt = Model.Date,
+                        Model.IsActive,
+                        CreatedBy = Session.UserName
+                    });
+                    break;
+
+                case EntityEditorKind.Blog:
+                    await Db.ExecuteAsync("central", "BlogUpsert", new
+                    {
+                        PostId = Model.Id,
+                        Title = Model.Title.Trim(),
+                        Slug = NullIfWhiteSpace(Model.Code),
+                        Author = NullIfWhiteSpace(Model.Text),
+                        Tags = NullIfWhiteSpace(Model.Tags),
+                        Body = NullIfWhiteSpace(Model.Body),
+                        PublishedAt = Model.Date,
+                        Model.IsActive,
+                        CreatedBy = Session.UserName
+                    });
+                    break;
+
+                case EntityEditorKind.Gallery:
+                    await Db.ExecuteAsync("central", "GalleryUpsert", new
+                    {
+                        GalleryItemId = Model.Id,
+                        Title = Model.Title.Trim(),
+                        Caption = NullIfWhiteSpace(Model.Text),
+                        ImageUrl = NullIfWhiteSpace(Model.ImageUrl),
+                        Model.SortOrder,
+                        Model.IsActive,
+                        CreatedBy = Session.UserName
+                    });
+                    break;
+
+                case EntityEditorKind.User:
+                    await Db.ExecuteAsync("central", "UserUpsert", new
+                    {
+                        UserId = Model.Id,
+                        Username = Model.Code.Trim(),
+                        PasswordHash = string.IsNullOrWhiteSpace(Model.Password)
+                            ? ""
+                            : PasswordHasher.Hash(Model.Password),
+                        DisplayName = Model.Title.Trim(),
+                        Role = Model.Text,
+                        Model.IsActive,
+                        CreatedBy = Session.UserName
+                    });
+                    break;
+
+                case EntityEditorKind.Account:
+                    await Db.ExecuteAsync("accounting", "ChartOfAccountUpsert", new
+                    {
+                        AccountId = Model.Id,
+                        AccountCode = Model.Code.Trim(),
+                        Title = Model.Title.Trim(),
+                        AccountType = NullIfWhiteSpace(Model.Text),
+                        ParentAccountId = Model.ParentId,
+                        Model.IsActive
+                    });
+                    break;
+
+                case EntityEditorKind.GoldItem:
+                    await Db.ExecuteAsync("goldshop", "GoldItemUpsert", new
+                    {
+                        GoldItemId = Model.Id,
+                        ItemCode = Model.Code.Trim(),
+                        Title = Model.Title.Trim(),
+                        Purity = Model.Amount,
+                        Model.IsActive
+                    });
+                    break;
+
+                case EntityEditorKind.GoldPrice:
+                    await Db.ExecuteAsync("goldshop", "GoldPriceUpsert", new
+                    {
+                        PriceId = Model.Id,
+                        ItemCode = Model.Code.Trim(),
+                        Title = Model.Title.Trim(),
+                        PricePerGram = Model.Amount ?? 0,
+                        RateToIRR = Model.SecondaryAmount
+                    });
+                    break;
+
+                case EntityEditorKind.InventoryItem:
+                    await Db.ExecuteAsync("inventory", "ItemUpsert", new
+                    {
+                        ItemId = Model.Id,
+                        ItemCode = Model.Code.Trim(),
+                        ItemTitle = Model.Title.Trim(),
+                        Category = NullIfWhiteSpace(Model.Text),
+                        Unit = string.IsNullOrWhiteSpace(Model.ExtraText) ? "عدد" : Model.ExtraText.Trim(),
+                        UnitPrice = Model.Amount ?? 0,
+                        Model.IsActive
+                    });
+                    break;
+
+                case EntityEditorKind.Warehouse:
+                    await Db.ExecuteAsync("inventory", "WarehouseUpsert", new
+                    {
+                        WarehouseId = Model.Id,
+                        WarehouseCode = Model.Code.Trim(),
+                        Title = Model.Title.Trim(),
+                        Location = NullIfWhiteSpace(Model.Text),
+                        Model.IsActive
+                    });
+                    break;
+
+                case EntityEditorKind.Employee:
+                    await Db.ExecuteAsync("payroll", "EmployeeUpsert", new
+                    {
+                        EmployeeId = Model.Id,
+                        EmployeeCode = Model.Code.Trim(),
+                        FullName = Model.Title.Trim(),
+                        Department = NullIfWhiteSpace(Model.Text),
+                        NationalId = NullIfWhiteSpace(Model.ExtraText),
+                        BaseSalary = Model.Amount ?? 0,
+                        Model.IsActive
+                    });
+                    break;
+
+                case EntityEditorKind.Product:
+                    await Db.ExecuteAsync("store", "ProductUpsert", new
+                    {
+                        ProductId = Model.Id,
+                        ProductCode = Model.Code.Trim(),
+                        Title = Model.Title.Trim(),
+                        ItemCode = NullIfWhiteSpace(Model.ExtraText),
+                        Price = Model.Amount ?? 0,
+                        Model.IsActive
+                    });
+                    break;
+
+                case EntityEditorKind.Customer:
+                    await Db.ExecuteAsync("store", "CustomerUpsert", new
+                    {
+                        CustomerId = Model.Id,
+                        CustomerCode = Model.Code.Trim(),
+                        FullName = Model.Title.Trim(),
+                        Phone = NullIfWhiteSpace(Model.Text),
+                        Email = NullIfWhiteSpace(Model.ExtraText),
+                        Model.IsActive
+                    });
+                    break;
+
+                case EntityEditorKind.CurrencyRate:
+                    await Db.ExecuteAsync("treasury", "CurrencyRateUpsert", new
+                    {
+                        RateId = Model.Id,
+                        CurrencyCode = Model.Code.Trim(),
+                        CurrencyName = Model.Title.Trim(),
+                        RateToIRR = Model.Amount!.Value,
+                        RateDate = Model.Date ?? DateTime.Today
+                    });
+                    break;
+            }
+
+            Snackbar.Add($"{Model.EntityTitle} با موفقیت {(wasNew ? "ایجاد" : "ویرایش")} شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

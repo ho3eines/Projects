@@ -1,35 +1,21 @@
 @page "/payroll/settings"
 @inject DbService Db
+@inject EntityCrudService EntityCrud
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — حقوق و دستمزد</PageTitle>
 
-<PageHeader Title="امکانات و جداول پایه" Subtitle="مدیریت کارمندان." />
-<MudPaper Elevation="1" Class="pa-4">
-    <MudGrid Class="mb-4">
-        <MudItem xs="12" sm="6" md="3">
-            <MudTextField Label="کد کارمند" @bind-Value="_code" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudTextField Label="نام کامل" @bind-Value="_fullName" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudTextField Label="دپارتمان" @bind-Value="_department" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="حقوق پایه" @bind-Value="_baseSalary" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
-                       OnClick="SaveAsync" Disabled="_busy">
-                ذخیره کارمند
-            </MudButton>
-        </MudItem>
-    </MudGrid>
+<PageHeader Title="امکانات و جداول پایه" Subtitle="مدیریت کارمندان.">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromEmployee()))">
+        کارمند جدید
+    </MudButton>
+</PageHeader>
 
+<MudPaper Elevation="1" Class="pa-4">
     <MudTable Items="_employees" Hover="true" Dense="true" Striped="true" Loading="_loading">
         <HeaderContent>
-            <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>دپارتمان</MudTh><MudTh>حقوق پایه</MudTh><MudTh>وضعیت</MudTh>
+            <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>دپارتمان</MudTh><MudTh>حقوق پایه</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="کد">@context.EmployeeCode</MudTd>
@@ -41,6 +27,16 @@
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
+            <MudTd DataLabel="عملیات">
+                <MudTooltip Text="ویرایش کارمند">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromEmployee(context)))" />
+                </MudTooltip>
+                <MudTooltip Text="حذف">
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromEmployee(context)))" />
+                </MudTooltip>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">کارمندی ثبت نشده است.</MudText></NoRecordsContent>
     </MudTable>
@@ -48,17 +44,14 @@
 
 @code {
     private const string Schema = "payroll";
-
     private List<EmployeeRow> _employees = new();
     private bool _loading = true;
-    private bool _busy;
-    private string _code = "";
-    private string _fullName = "";
-    private string _department = "";
-    private decimal _baseSalary;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList")).ToList();
@@ -73,42 +66,15 @@
         }
     }
 
-    private async Task SaveAsync()
+    private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        if (_busy) return;
-        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_fullName))
-        {
-            Snackbar.Add("کد و نام کارمند الزامی است.", Severity.Warning);
-            return;
-        }
+        if (await EntityCrud.ShowEditorAsync(model))
+            await LoadAsync();
+    }
 
-        _busy = true;
-        try
-        {
-            await Db.ExecuteAsync(Schema, "EmployeeUpsert", new
-            {
-                EmployeeId = 0,
-                EmployeeCode = _code.Trim(),
-                FullName = _fullName.Trim(),
-                Department = _department,
-                BaseSalary = _baseSalary,
-                NationalId = (string?)null,
-                IsActive = true
-            });
-            Snackbar.Add("کارمند ذخیره شد.", Severity.Success);
-            _code = "";
-            _fullName = "";
-            _department = "";
-            _baseSalary = 0;
-            _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList")).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+    private async Task DeleteAsync(EntityEditorModel model)
+    {
+        if (await EntityCrud.ConfirmDeleteAsync(model))
+            await LoadAsync();
     }
 }

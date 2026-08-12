@@ -42,6 +42,7 @@ public class WarehouseRow
     public string WarehouseCode { get; set; } = "";
     public string Title { get; set; } = "";
     public string? Location { get; set; }
+    public bool IsActive { get; set; }
 }
 
 public class StockCardRow

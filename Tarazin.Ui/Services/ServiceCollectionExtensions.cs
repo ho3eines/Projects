@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UiPreferences>();
         services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<UserSession>());
         services.AddScoped<AuthService>();
+        services.AddScoped<EntityCrudService>();
 
         return services;
     }

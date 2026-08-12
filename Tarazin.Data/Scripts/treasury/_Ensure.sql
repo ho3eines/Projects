@@ -67,9 +67,14 @@ BEGIN
         CurrencyName   NVARCHAR(80) NOT NULL,
         RateToIRR      DECIMAL(18,0) NOT NULL DEFAULT 1,
         RateDate       DATE NOT NULL,
+        IsDeleted      BIT NOT NULL DEFAULT 0,
         UpdatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
     );
 END
+
+-- Migration for databases created before soft-delete support.
+IF COL_LENGTH(N'treasury.CurrencyRates', N'IsDeleted') IS NULL
+    ALTER TABLE [treasury].[CurrencyRates] ADD IsDeleted BIT NOT NULL CONSTRAINT DF_CurrencyRates_IsDeleted DEFAULT 0;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t

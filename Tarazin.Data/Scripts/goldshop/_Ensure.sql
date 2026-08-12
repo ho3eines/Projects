@@ -34,10 +34,15 @@ BEGIN
         Title        NVARCHAR(200) NOT NULL,
         PricePerGram DECIMAL(18,0) NOT NULL DEFAULT 0,
         RateToIRR    DECIMAL(18,0) NULL,
+        IsDeleted    BIT NOT NULL DEFAULT 0,
         UpdatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CONSTRAINT FK_GoldPrices_Items FOREIGN KEY (ItemCode) REFERENCES [goldshop].[GoldItems](ItemCode)
     );
 END
+
+-- Migration for databases created before soft-delete support.
+IF COL_LENGTH(N'goldshop.GoldPrices', N'IsDeleted') IS NULL
+    ALTER TABLE [goldshop].[GoldPrices] ADD IsDeleted BIT NOT NULL CONSTRAINT DF_GoldPrices_IsDeleted DEFAULT 0;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t

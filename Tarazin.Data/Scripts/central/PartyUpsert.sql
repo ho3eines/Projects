@@ -5,7 +5,8 @@
 -- =============================================
 DECLARE @PartyCodeLocal NVARCHAR(50) = ISNULL(@PartyCode, N'PRT-' + RIGHT(N'00000' + CAST(ISNULL((SELECT MAX(PartyId) FROM [central].[Parties]), 0) + 1 AS NVARCHAR(10)), 5));
 
-IF NOT EXISTS (SELECT 1 FROM [central].[Parties] WHERE PartyId = @PartyId)
+-- PartyId=0 identifies a new record; every non-zero id is an edit.
+IF @PartyId = 0
 BEGIN
     INSERT INTO [central].[Parties] (PartyCode, PartyType, FullName, NationalId, Phone, Email, IsActive, CreatedAt, CreatedBy)
     VALUES (@PartyCodeLocal, @PartyType, @FullName, @NationalId, @Phone, @Email, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);

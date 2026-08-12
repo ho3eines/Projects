@@ -6,7 +6,8 @@
 DECLARE @EffectiveCode NVARCHAR(30) = ISNULL(NULLIF(@CustomerCode, N''),
     N'CST-' + RIGHT(N'00000' + CAST(ISNULL((SELECT MAX(CustomerId) FROM [store].[Customers]), 0) + 1 AS NVARCHAR(10)), 5));
 
-IF NOT EXISTS (SELECT 1 FROM [store].[Customers] WHERE CustomerId = @CustomerId)
+-- CustomerId=0 identifies a new record; every non-zero id is an edit.
+IF @CustomerId = 0
 BEGIN
     INSERT INTO [store].[Customers] (CustomerCode, FullName, Phone, Email, IsActive, CreatedAt)
     VALUES (@EffectiveCode, @FullName, @Phone, @Email, ISNULL(@IsActive, 1), SYSUTCDATETIME());

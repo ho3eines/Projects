@@ -3,7 +3,7 @@
 -- Schema: inventory
 -- Query.
 -- =============================================
-SELECT w.WarehouseId, w.WarehouseCode, w.Title, w.Location
+SELECT w.WarehouseId, w.WarehouseCode, w.Title, w.Location, w.IsActive
 FROM [inventory].[Warehouses] w
 WHERE w.IsDeleted = 0
 ORDER BY w.Title;

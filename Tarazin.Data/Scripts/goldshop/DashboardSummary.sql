@@ -6,5 +6,6 @@
 SELECT
     (SELECT COUNT(*) FROM [goldshop].[SaleInvoices] WHERE InvoiceDate = CAST(SYSDATETIME() AS DATE)) AS TodaySales,
     (SELECT ISNULL(SUM(TotalAmount), 0) FROM [goldshop].[SaleInvoices] WHERE InvoiceDate = CAST(SYSDATETIME() AS DATE)) AS TodayAmount,
-    (SELECT COUNT(*) FROM [goldshop].[GoldPrices]) AS PriceCount,
-    (SELECT TOP 1 PricePerGram FROM [goldshop].[GoldPrices] WHERE ItemCode = N'XAU-24' ORDER BY UpdatedAt DESC) AS Gold24Price;
+    (SELECT COUNT(*) FROM [goldshop].[GoldPrices] WHERE IsDeleted = 0) AS PriceCount,
+    (SELECT TOP 1 PricePerGram FROM [goldshop].[GoldPrices]
+     WHERE ItemCode = N'XAU-24' AND IsDeleted = 0 ORDER BY UpdatedAt DESC) AS Gold24Price;

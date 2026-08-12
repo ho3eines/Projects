@@ -1,11 +1,12 @@
 -- =============================================
 -- Tarazin.Data/Scripts/goldshop/GoldPriceUpsert.sql
 -- Schema: goldshop | Contract: GoldPrice (producer)
--- Execute. عملیات ویژه: ثبت/به‌روزرسانی قیمت روز + رویداد GoldPriceUpdated
+-- Execute. PriceId=0 identifies a new record; every non-zero id is an edit.
+-- ثبت/به‌روزرسانی قیمت روز + رویداد GoldPriceUpdated
 -- (pub/sub → accounting.RefreshGoldPrice, store.RefreshGoldPrice).
 -- =============================================
 BEGIN TRAN;
-    IF NOT EXISTS (SELECT 1 FROM [goldshop].[GoldPrices] WHERE ItemCode = @ItemCode)
+    IF @PriceId = 0
     BEGIN
         INSERT INTO [goldshop].[GoldPrices] (ItemCode, Title, PricePerGram, RateToIRR, UpdatedAt)
         VALUES (@ItemCode, @Title, @PricePerGram, @RateToIRR, SYSUTCDATETIME());
@@ -13,8 +14,11 @@ BEGIN TRAN;
     ELSE
     BEGIN
         UPDATE [goldshop].[GoldPrices]
-        SET PricePerGram = @PricePerGram, RateToIRR = @RateToIRR, UpdatedAt = SYSUTCDATETIME()
-        WHERE ItemCode = @ItemCode;
+        SET Title = @Title,
+            PricePerGram = @PricePerGram,
+            RateToIRR = @RateToIRR,
+            UpdatedAt = SYSUTCDATETIME()
+        WHERE PriceId = @PriceId;
     END
 
     INSERT INTO [goldshop].[Outbox] (EventType, EventKey, Payload, PayloadVersion)
