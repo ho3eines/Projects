@@ -28,9 +28,9 @@ Dapper. No HTTP, no encryption envelopes, no tokens.
 
 | Piece | File | Role |
 |---|---|---|
-| Script store | `Tarazin.Shared/Services/ScriptCatalog.cs` | loads embedded `Tarazin.Data.Scripts.{schema}.{Name}.sql` (self-loading singleton) |
-| Executor | `Tarazin.Shared/Services/DbService.cs` | `QueryAsync<T>` / `QueryFirstOrDefaultAsync<T>` / `ExecuteAsync` / `ScalarAsync` |
-| Scripts | `Tarazin.Shared/Data/Scripts/{schema}/*.sql` | the data layer (report-first); `EmbeddedResource` → both hosts |
+| Script store | `Tarazin.Data/Services/ScriptCatalog.cs` | loads embedded `Tarazin.Scripts.{schema}.{Name}.sql` (self-loading singleton) |
+| Executor | `Tarazin.Data/Services/DbService.cs` | `QueryAsync<T>` / `QueryFirstOrDefaultAsync<T>` / `ExecuteAsync` / `ScalarAsync` |
+| Scripts | `Tarazin.Data/Scripts/{schema}/*.sql` | the data layer (report-first); `EmbeddedResource` in `Tarazin.Data` → both hosts |
 | Models | `Models/*.cs` | Dapper result shapes (ADR-003) |
 
 ## API
@@ -42,14 +42,14 @@ await Db.ExecuteAsync(schema, scriptName, params);          // → rows affected
 await Db.ScalarAsync(schema, scriptName, params);           // → object?
 ```
 
-`DbService` opens a connection per call (`DefaultConnection` → `TarazinMaster`),
+`DbService` (in `Tarazin.Data`) opens a connection per call (`DefaultConnection` → `TarazinMaster`),
 maps results by column-name → property-name, and throws if the script name is
 missing from the catalog (typo = loud failure).
 
 ## Script conventions
 
 ```sql
--- Tarazin.Shared/Data/Scripts/{schema}/{Name}.sql
+-- Tarazin.Data/Scripts/{schema}/{Name}.sql
 -- Cross-schema: central        ← only if you must read another schema
 SELECT ... FROM [{schema}].[Table] t
 WHERE t.Column = @Param AND t.IsDeleted = 0

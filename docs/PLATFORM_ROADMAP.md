@@ -1,8 +1,7 @@
-# Platform Roadmap — 7-Module Tarazin Platform (Blazor Hybrid)
+# Platform Roadmap — 7-Module Tarazin Platform (Blazor Hybrid — 5 projects)
 
-> **Date**: 2026-08-12 · **Branches from**: PRD v2.1 — `docs/PLATFORM_PRD.md`
-> **Decisions**: ADR-001 (shared core + two hosts), ADR-002 (no event backbone),
-> ADR-003 (contracts), ADR-004 (MAUI Blazor Hybrid)
+> **Date**: 2026-08-12 · **Branches from**: PRD v2.2 — `docs/PLATFORM_PRD.md`
+> **Decisions**: ADR-001..005 (Share/Data/Ui layering + two hosts)
 > **Rule of thumb**: هر ماژول = گزارش‌محور؛ اول تحقیق گزارشات، بعد مدل‌ها و اسکریپت‌ها، بعد صفحات.
 
 ---
@@ -10,7 +9,7 @@
 ## 0. Target topology
 
 ```
-Tarazin.Shared (RCL — UI + data layer, net10.0)
+Tarazin.Share (models) ← Tarazin.Data (data layer, embedded scripts) ← Tarazin.Ui (UI RCL)
 ├── Tarazin.Web   → Blazor Server    https://localhost:65220 (مرورگر)
 └── Tarazin.Maui  → MAUI Blazor Hybrid (BlazorWebView — ویندوز/مک/اندروید/iOS)
         └── SQL Server (docker) — TarazinMaster
@@ -24,12 +23,12 @@ No separate ports per product, no webapi, no WASM clients, no HTTP data layer.
 
 | Step | Status | Notes |
 |---|---|---|
-| Delete 11 old projects (webapi, 7 WASM clients, share, blazordeployservice, tests) | ✅ | `Tarazin.slnx` → ۳ پروژه |
-| Create `Tarazin.Shared` (RCL) + move Modules/Models/Layout/Services/Scripts | ✅ | RootNamespace `Tarazin`؛ ۴۴ مسیر صفحه |
-| Create `Tarazin.Web` (Blazor Server host) | ✅ | `AddServerSideBlazor` + MudBlazor + shared services |
+| Delete 11 old projects (webapi, 7 WASM clients, share, blazordeployservice, tests) | ✅ | `Tarazin.slnx` → ۵ پروژه |
+| Create `Tarazin.Share` (models) + `Tarazin.Data` (data layer) + `Tarazin.Ui` (RCL) | ✅ | وابستگی یک‌طرفه؛ ۴۴ مسیر صفحه |
+| Create `Tarazin.Web` (Blazor Server host) | ✅ | `AddServerSideBlazor` + MudBlazor + `AddTarazinUiServices` |
 | Create `Tarazin.Maui` (MAUI Blazor Hybrid host) | ✅ | BlazorWebView → `Tarazin.App`؛ Platforms/Resources کامل |
-| Scripts as embedded resources (both hosts) | ✅ | `ScriptCatalog` خودکار در ctor؛ `TarazinDbInitializer` مشترک |
-| Data layer (`ScriptCatalog`, `DbService`) | ✅ | named TSQL + Dapper, in-process |
+| Scripts as embedded resources (in `Tarazin.Data`) | ✅ | `ScriptCatalog` خودکار در ctor؛ `TarazinDbInitializer` مشترک |
+| Data layer (`ScriptCatalog`, `DbService`, `ICurrentUser`) | ✅ | named TSQL + Dapper, in-process؛ بدون وابستگی به Ui |
 | Auth (login, bootstrap admin, users page) | ✅ | PBKDF2؛ وب per-circuit / MAUI per-app |
 | Audit page + auto-audit on every Execute | ✅ | hash chain in `[central].[AuditLog]` |
 | CI: build وب (ubuntu) + build MAUI (windows + workload maui) | ✅ | `ci/ci.yml`؛ مسیر اسکن به‌روز |

@@ -12,12 +12,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="~/" />
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
-    @* Shared RCL static asset (Tarazin.Shared/wwwroot/css/app.css) *@
-    <link href="_content/Tarazin.Shared/css/app.css" rel="stylesheet" />
+    @* Shared RCL static asset (Tarazin.Ui/wwwroot/css/app.css) *@
+    <link href="_content/Tarazin.Ui/css/app.css" rel="stylesheet" />
     <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
 </head>
 <body>
-    @* App.razor lives in Tarazin.Shared — one UI for web + MAUI *@
+    @* App.razor lives in Tarazin.Ui — one UI for web + MAUI *@
     <component type="typeof(App)" render-mode="ServerPrerendered" />
 
     <div id="blazor-error-ui">

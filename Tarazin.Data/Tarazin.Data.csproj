@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Tarazin</RootNamespace>
+    <AssemblyName>Tarazin.Data</AssemblyName>
+    <Description>ترازین — لایهٔ داده (Data): DbService + اسکریپت‌های TSQL نامدار</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Data access: Dapper over SQL Server -->
+    <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Contracts/models -->
+    <ProjectReference Include="..\Tarazin.Share\Tarazin.Share.csproj" />
+  </ItemGroup>
+
+  <!--
+    Named TSQL scripts (report-first data layer): embedded so BOTH hosts
+    (web + MAUI packaged app) load them from the assembly. Resource name:
+    {RootNamespace}.Scripts.{schema}.{name}.sql → Tarazin.Scripts.{schema}.{name}.sql
+    (ScriptCatalog in this project reads exactly this prefix).
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\**\*.sql" />
+  </ItemGroup>
+
+</Project>

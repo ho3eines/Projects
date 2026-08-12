@@ -8,10 +8,11 @@
 
 | فاز | وضعیت (0 تا 4) | شرح کار | مسئول |
 |-----|-----------------|---------|--------|
-| 0 | 3 | حذف پروژه‌های قدیمی (webapi، WASMها، share، blazordeployservice، tests) و ساخت سه‌گانهٔ `Tarazin.Shared / Tarazin.Web / Tarazin.Maui` | @arch |
-| 0 | 3 | هستهٔ مشترک: MudBlazor + چیدمان (MudLayout/MudDrawer/NavMenu) + شعار «مدیریت هوشمند کسب‌وکار» | @front |
-| 0 | 3 | لایهٔ داده: ScriptCatalog (Embedded) + DbService (Dapper + اسکریپت نامدار) + ممیزی خودکار | @backend |
-| 0 | 3 | هاست وب (`Tarazin.Web`): Blazor Server + `AddTarazinSharedServices` + init | @backend |
+| 0 | 3 | حذف پروژه‌های قدیمی (webapi، WASMها، share، blazordeployservice، tests) و ساخت پنج‌تایی `Share / Data / Ui / Web / Maui` | @arch |
+| 0 | 3 | **`Tarazin.Share`** (مدل‌ها/قراردادها) + **`Tarazin.Data`** (لایهٔ داده) به‌عنوان پروژه‌های مستقل با وابستگی یک‌طرفه | @arch |
+| 0 | 3 | هستهٔ UI مشترک (`Tarazin.Ui`): MudBlazor + چیدمان (MudLayout/MudDrawer/NavMenu) + شعار «مدیریت هوشمند کسب‌وکار» | @front |
+| 0 | 3 | لایهٔ داده (در `Tarazin.Data`): ScriptCatalog (Embedded) + DbService (Dapper + اسکریپت نامدار) + ممیزی خودکار + ICurrentUser | @backend |
+| 0 | 3 | هاست وب (`Tarazin.Web`): Blazor Server + `AddTarazinUiServices` + init | @backend |
 | 0 | 3 | **هاست MAUI (`Tarazin.Maui`)**: BlazorWebView → `Tarazin.App` + Platforms/Resources کامل | @maui |
 | 0 | 3 | ماژول پلتفرم مشترک: ورود، کاربران، اخبار/بلاگ/گالری، ممیزی | @backend |
 | 1 | 3 | ماژول حسابداری: اسناد روز، ثبت سند، دفتر روزنامه/کل، تراز، بستن دوره، حساب‌ها | @dev_a |
@@ -28,7 +29,7 @@
 
 | # | کار | پیش‌نیاز |
 |---|-----|----------|
-| B1 | `dotnet build Tarazin.Web/Tarazin.Web.csproj` — تأیید build (MudBlazor 9.8.0 روی net10.0) | محیط با SDK |
+| B1 | `dotnet build Tarazin.Web/Tarazin.Web.csproj` — تأیید build پنج‌پروژه (MudBlazor 9.8.0 روی net10.0) | محیط با SDK |
 | B2 | `dotnet workload install maui` + build MAUI (ویندوز) | محیط با SDK/ویندوز |
 | B3 | `docker compose up -d` + تست E2E در وب و MAUI (admin/admin، ثبت داده، گزارش، ممیزی) | SQL Server |
 | B4 | لایهٔ داده برای اندروید/iOS در MAUI (SQLite/EF Core یا سرویس جدید) | تصمیم معماری |

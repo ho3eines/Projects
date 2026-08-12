@@ -4,7 +4,7 @@ Last reviewed: 2026-08-12
 
 Architecture and data rules live in `docs/PROJECT.md` and `.agents/tarazin-tsql/SKILL.md`.
 This file is the threat model for the **shared-core + two hosts** architecture
-(`Tarazin.Shared` RCL, `Tarazin.Web` Blazor Server, `Tarazin.Maui` Blazor Hybrid).
+(`Tarazin.Ui` RCL, `Tarazin.Web` Blazor Server, `Tarazin.Maui` Blazor Hybrid).
 
 ## Layers
 

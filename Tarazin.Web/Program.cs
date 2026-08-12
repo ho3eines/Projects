@@ -1,17 +1,18 @@
 using MudBlazor.Services;
+using Tarazin.Data;
 using Tarazin.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Blazor Server (web host) — the UI itself lives in Tarazin.Shared ─────
+// ── Blazor Server (web host) — the UI itself lives in Tarazin.Ui ─────────
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
 // ── MudBlazor UI kit (providers are rendered by the shared App.razor) ─────
 builder.Services.AddMudServices();
 
-// ── Shared Tarazin services (DbService, ScriptCatalog, Auth, Audit, ...) ──
-builder.Services.AddTarazinSharedServices();
+// ── Tarazin services: UI layer (session/auth) + Data layer (DbService, ...) ─
+builder.Services.AddTarazinUiServices();
 
 var app = builder.Build();
 

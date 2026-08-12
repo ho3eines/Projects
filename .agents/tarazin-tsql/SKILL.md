@@ -10,26 +10,32 @@ module reads/writes data. Load it for any data, auth, or new-module work.
 
 ---
 
-## 1. What Tarazin is (v2.1)
+## 1. What Tarazin is (v2.2)
 
-A **shared core** (`Tarazin.Shared/`, Razor Class Library, net10.0) hosting
-**seven product modules**, served by **two thin hosts**:
+Five projects with one-way dependencies (`Share ← Data ← Ui ← hosts`):
 
-- `Tarazin.Web/` — Blazor Server (browser)
-- `Tarazin.Maui/` — MAUI Blazor Hybrid (BlazorWebView, native)
+- `Tarazin.Share/` — models/contracts only (namespace `Tarazin.Models`)
+- `Tarazin.Data/` — data layer: `DbService`, `ScriptCatalog`, `AuditService`,
+  `PasswordHasher`, `ICurrentUser`, `TarazinDbInitializer` + embedded scripts
+- `Tarazin.Ui/` — Razor Class Library (UI): modules, layout, `UserSession`,
+  `AuthService`, `AddTarazinUiServices`
+- `Tarazin.Web/` — Blazor Server host (browser)
+- `Tarazin.Maui/` — MAUI Blazor Hybrid host (BlazorWebView, native)
 
 UI is **MudBlazor**. Data access is **Dapper over named TSQL scripts** executed
 **in the same process** — there is **no webapi, no WASM, no HTTP data layer**.
-Scripts are **embedded resources** in `Tarazin.Shared` so both hosts work
+Scripts are **embedded resources** in `Tarazin.Data` so both hosts work
 without any content root.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Tarazin.Shared (RCL — Modules/ Models/ Layout/ Services/)     │
+│ Tarazin.Share (models)                                       │
+│ Tarazin.Data (DbService + ScriptCatalog + embedded scripts)  │
+│ Tarazin.Ui (RCL — Modules/ Layout/ Services/)                │
 │   Modules/{Name}/Pages/*.razor  (MudBlazor UI)                │
 │        │ DbService.QueryAsync<T>(schema, script)              │
-│   Data/Scripts/{schema}/{Name}.sql (embedded) ── Dapper ──┐   │
-└────────────────────────────────────────────────────────────┼───┘
+│   Scripts/{schema}/{Name}.sql (embedded in Data) ── Dapper ─┐ │
+└─────────────────────────────────────────────────────────────┼──┘
         host: Tarazin.Web (Blazor Server) / Tarazin.Maui (WebView) ▼
         SQL Server — TarazinMaster (one DB, one schema per product)
         [central] [accounting] [inventory] [treasury]
@@ -67,7 +73,7 @@ var count = await Db.ScalarAsync("central", "UserCount");
 ```
 
 - **Script name only** — the resolver is `ScriptCatalog`, which loads embedded
-  resources `Tarazin.Data.Scripts.{schema}.{Name}.sql` from `Tarazin.Shared`
+  resources `Tarazin.Scripts.{schema}.{Name}.sql` from `Tarazin.Ui`
   (self-loading singleton). Never write inline SQL in a page.
 - **Schema = scope guard** — a module only calls scripts of its own schema.
   Server-side scripts may read other schemas only with a
@@ -110,9 +116,9 @@ Interlocked guard makes it run exactly once.
 ## 7. Rules when adding a new module
 
 1. Research the domain's reports first (report-first).
-2. `Tarazin.Shared/Models/{Module}Models.cs` — models matching script columns (ADR-003).
-3. `Tarazin.Shared/Data/Scripts/{schema}/_Ensure.sql` (+ `_Seed.sql`) — idempotent DDL/data.
-4. Pages under `Tarazin.Shared/Modules/{Name}/Pages/` with MudBlazor only.
+2. `Tarazin.Share/Models/{Module}Models.cs` — models matching script columns (ADR-003).
+3. `Tarazin.Data/Scripts/{schema}/_Ensure.sql` (+ `_Seed.sql`) — idempotent DDL/data.
+4. Pages under `Tarazin.Ui/Modules/{Name}/Pages/` with MudBlazor only.
 5. Add NavMenu entry + Home launcher card.
 6. Run `tools/cross-schema-scan.sh` before committing.
 7. The result automatically appears in BOTH hosts (web + MAUI).

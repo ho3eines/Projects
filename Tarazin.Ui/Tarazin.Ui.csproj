@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Tarazin</RootNamespace>
+    <AssemblyName>Tarazin.Ui</AssemblyName>
+    <Description>ترازین — مدیریت هوشمند کسب‌وکار (هستهٔ UI مشترک وب + MAUI)</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UI kit — shared by the web host and the MAUI Blazor Hybrid host -->
+    <PackageReference Include="MudBlazor" Version="9.8.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Contracts (Share) + data layer (Data) -->
+    <ProjectReference Include="..\Tarazin.Share\Tarazin.Share.csproj" />
+    <ProjectReference Include="..\Tarazin.Data\Tarazin.Data.csproj" />
+  </ItemGroup>
+
+</Project>

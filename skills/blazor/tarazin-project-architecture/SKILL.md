@@ -28,57 +28,73 @@ re-explain these rules.
 ## ⚠️ Path Clarification
 
 - `D:\tarazin\` = user's projects root on D drive
-- The Tarazin platform = **three projects**: `Tarazin.Shared/` (RCL — ALL UI +
-  data layer), `Tarazin.Web/` (web host, Blazor Server), `Tarazin.Maui/` (MAUI
-  Blazor Hybrid host). See `skills/blazor/blazor-maui-hybrid/SKILL.md`.
+- The Tarazin platform = **five projects** with one-way dependencies:
+  `Tarazin.Share/` (models), `Tarazin.Data/` (data layer + embedded scripts),
+  `Tarazin.Ui/` (RCL — ALL UI), `Tarazin.Web/` (web host), `Tarazin.Maui/`
+  (MAUI Blazor Hybrid host). See ADR-005 and
+  `skills/blazor/blazor-maui-hybrid/SKILL.md`.
 
 ## 📁 Directory Structure (FIXED)
 
 ```
-Tarazin.slnx                          ← ۳ پروژه: Shared + Web + Maui
-Tarazin.Shared/                       ← THE core (Razor Class Library, RootNamespace: Tarazin)
-├── Tarazin.Shared.csproj            ← MudBlazor + Dapper + SqlClient؛ اسکریپت‌ها Embedded
-├── App.razor                        ← Router + MudThemeProvider/Dialog/Snackbar + init (مشترک)
-├── _Imports.razor                   ← usingهای مشترک
-├── Layout/                          ← MainLayout (MudLayout) + NavMenu (۷ ماژول)
-├── Models/                          ← ALL models (Shared + one file per module)
-├── Services/                        ← DbService, ScriptCatalog, AuthService, UserSession,
-│                                     AuditService, PasswordHasher, ServiceCollectionExtensions,
-│                                     TarazinDbInitializer
-├── Modules/
-│   ├── Home/Pages/                  ← / and /login
-│   ├── Central/Pages/               ← پلتفرم مشترک
-│   ├── Accounting/Pages/            ← حسابداری
-│   ├── Inventory/Pages/             ← انبار آمل
-│   ├── Treasury/Pages/              ← خزانه‌داری
-│   ├── Payroll/Pages/               ← حقوق و دستمزد
-│   ├── GoldShop/Pages/              ← طلافروشی
-│   └── Store/Pages/                 ← فروشگاه
-├── Data/Scripts/{schema}/           ← named TSQL per product schema (EmbeddedResource)
-└── wwwroot/css/app.css              ← tiny MudBlazor overrides (استاتیک RCL)
-Tarazin.Web/                          ← هاست وب (Blazor Server — فقط پوسته)
-├── Tarazin.Web.csproj              ← ref → Tarazin.Shared
-├── Program.cs                       ← AddServerSideBlazor + AddMudServices + AddTarazinSharedServices
-├── Pages/_Host.cshtml               ← RTL html shell (App از Tarazin.Shared)
-└── appsettings.json
-Tarazin.Maui/                         ← هاست MAUI Blazor Hybrid (فقط پوسته)
-├── Tarazin.Maui.csproj             ← ref → Tarazin.Shared؛ TFM های android/ios/maccatalyst/windows
-├── MauiProgram.cs                   ← AddMauiBlazorWebView + AddMudServices + AddTarazinSharedServices
-├── MainPage.xaml                    ← BlazorWebView → RootComponent {x:Type tarazin:App}
-├── wwwroot/index.html               ← blazor.webview.js + _content/Tarazin.Shared/css/app.css
-├── appsettings.json                 ← Embedded
-├── Resources/                       ← AppIcon, Splash, Styles
-└── Platforms/                       ← Android / iOS / MacCatalyst / Windows
-docker-compose.yml                   ← SQL Server only
-ci/ci.yml                            ← build وب (ubuntu) + build MAUI (windows + workload maui)
-tools/cross-schema-scan.sh           ← schema-boundary gate (Tarazin.Shared/Data/Scripts)
+Tarazin.slnx                          ← ۵ پروژه: Share + Data + Ui + Web + Maui
+│
+├── Tarazin.Share/                    ← لایهٔ ۱: مدل‌ها/قراردادها (بدون وابستگی)
+│   └── Models/*.cs                   ← namespace Tarazin.Models
+│
+├── Tarazin.Data/                     ← لایهٔ ۲: دسترسی به داده
+│   ├── Tarazin.Data.csproj           ← Dapper + SqlClient؛ اسکریپت‌ها Embedded
+│   ├── DbService.cs                  ← Query/Execute/Scalar (Dapper)
+│   ├── ScriptCatalog.cs              ← Embedded: Tarazin.Scripts.{schema}.{name}.sql
+│   ├── AuditService.cs               ← ممیزی با زنجیرهٔ هش
+│   ├── PasswordHasher.cs             ← PBKDF2
+│   ├── ICurrentUser.cs               ← انتزاع کاربر جاری (بدون وابستگی به Ui)
+│   ├── TarazinDbInitializer.cs       ← ensure/seed/bootstrap-admin
+│   ├── DataServiceCollectionExtensions.cs  ← AddTarazinDataServices()
+│   └── Scripts/{schema}/             ← named TSQL per product schema (EmbeddedResource)
+│
+├── Tarazin.Ui/                       ← لایهٔ ۳: رابط کاربری مشترک (RCL، RootNamespace: Tarazin)
+│   ├── Tarazin.Ui.csproj             ← MudBlazor + ref → Share, Data
+│   ├── App.razor                     ← Router + MudThemeProvider/Dialog/Snackbar + init (مشترک)
+│   ├── _Imports.razor                ← usingهای مشترک (Tarazin.Models/Services/Data + MudBlazor)
+│   ├── Layout/                       ← MainLayout (MudLayout) + NavMenu (۷ ماژول)
+│   ├── Services/                     ← UserSession, AuthService, ServiceCollectionExtensions
+│   │                                   (AddTarazinUiServices → +AddTarazinDataServices)
+│   ├── Modules/
+│   │   ├── Home/Pages/               ← / and /login
+│   │   ├── Central/Pages/            ← پلتفرم مشترک
+│   │   ├── Accounting/Pages/         ← حسابداری
+│   │   ├── Inventory/Pages/          ← انبار آمل
+│   │   ├── Treasury/Pages/           ← خزانه‌داری
+│   │   ├── Payroll/Pages/            ← حقوق و دستمزد
+│   │   ├── GoldShop/Pages/           ← طلافروشی
+│   │   └── Store/Pages/              ← فروشگاه
+│   └── wwwroot/css/app.css           ← tiny MudBlazor overrides (استاتیک RCL)
+│
+├── Tarazin.Web/                       ← هاست وب (Blazor Server — فقط پوسته)
+│   ├── Tarazin.Web.csproj            ← ref → Tarazin.Ui
+│   ├── Program.cs                     ← AddServerSideBlazor + AddMudServices + AddTarazinUiServices
+│   ├── Pages/_Host.cshtml             ← RTL html shell (App از Tarazin.Ui)
+│   └── appsettings.json
+│
+└── Tarazin.Maui/                      ← هاست MAUI Blazor Hybrid (فقط پوسته)
+    ├── Tarazin.Maui.csproj            ← ref → Tarazin.Ui؛ TFM های android/ios/maccatalyst/windows
+    ├── MauiProgram.cs                 ← AddMauiBlazorWebView + AddMudServices + AddTarazinUiServices
+    ├── MainPage.xaml                  ← BlazorWebView → RootComponent {x:Type tarazin:App}
+    ├── wwwroot/index.html             ← blazor.webview.js + _content/Tarazin.Ui/css/app.css
+    ├── appsettings.json               ← Embedded
+    ├── Resources/                     ← AppIcon, Splash, Styles
+    └── Platforms/                     ← Android / iOS / MacCatalyst / Windows
+docker-compose.yml                     ← SQL Server only
+ci/ci.yml                              ← build وب (ubuntu) + build MAUI (windows + workload maui)
+tools/cross-schema-scan.sh             ← schema-boundary gate (Tarazin.Data/Scripts)
 ```
 
 ## 🔑 Key Rules
 
-1. **UI فقط در `Tarazin.Shared`.** No webapi, no WASM clients, no `share`
+1. **UI فقط در `Tarazin.Ui`.** No webapi, no WASM clients, no `share`
    library, no NuGet service package, no per-product projects. New code goes
-   inside `Tarazin.Shared/` — always. Hosts (`Tarazin.Web`, `Tarazin.Maui`)
+   inside `Tarazin.Ui/` — always. Hosts (`Tarazin.Web`, `Tarazin.Maui`)
    are thin shells; they only register services and render `Tarazin.App`.
 2. **No web-service involvement.** Data flows through `DbService` (Dapper +
    named TSQL scripts) in the same process. No HttpClient-for-data, no tokens,
@@ -87,10 +103,10 @@ tools/cross-schema-scan.sh           ← schema-boundary gate (Tarazin.Shared/Da
    MudPaper, MudGrid, MudDialog, MudSnackbar, … No Bootstrap, no custom CSS
    framework, no hand-rolled DataGrid/PersianDatePicker.
 4. **Every product = one module + one schema.** Module folder
-   `Tarazin.Shared/Modules/{Name}/Pages/`; schema folder
-   `Tarazin.Shared/Data/Scripts/{schema}/`.
+   `Tarazin.Ui/Modules/{Name}/Pages/`; schema folder
+   `Tarazin.Data/Scripts/{schema}/`.
 5. **Named scripts only (embedded).** Pages never contain inline SQL;
-   `ScriptCatalog` self-loads scripts from embedded resources in `Tarazin.Shared`.
+   `ScriptCatalog` self-loads scripts from embedded resources in `Tarazin.Ui`.
 6. **Reports-first.** Research the domain's reports before models/scripts/pages.
 7. **Login in the app.** `AuthService` + `UserSession`; bootstrap admin
    `admin`/`admin` on first run (shared `TarazinDbInitializer`).
@@ -157,10 +173,10 @@ await Db.ExecuteAsync("accounting", "DocumentInsert", new { LinesJson, ... });
 
 ## ✅ Workflow Before Any Module
 1. Research: what reports does this domain require?
-2. Design models (`Tarazin.Shared/Models/{Module}Models.cs`) accordingly.
-3. Write scripts (`Tarazin.Shared/Data/Scripts/{schema}/` + `_Ensure.sql`/`_Seed.sql`).
-4. Build pages with MudBlazor in `Tarazin.Shared/Modules/{Name}/Pages/`.
-5. Add to `Layout/NavMenu.razor` + `Modules/Home/Home.razor` launcher.
+2. Design models (`Tarazin.Share/Models/{Module}Models.cs`) accordingly.
+3. Write scripts (`Tarazin.Data/Scripts/{schema}/` + `_Ensure.sql`/`_Seed.sql`).
+4. Build pages with MudBlazor in `Tarazin.Ui/Modules/{Name}/Pages/`.
+5. Add to `Tarazin.Ui/Layout/NavMenu.razor` + `Modules/Home/Home.razor` launcher.
 6. Run `tools/cross-schema-scan.sh`.
 7. Result automatically appears in BOTH hosts (web + MAUI) — nothing else to do.
 

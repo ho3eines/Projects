@@ -3,7 +3,7 @@
 ## Topology
 
 ```
-Tarazin.Shared (RCL — UI + data layer)
+Tarazin.Share (models) ← Tarazin.Data (data layer) ← Tarazin.Ui (UI RCL)
 ├── Tarazin.Web   → dotnet run --project Tarazin.Web   https://localhost:65220
 └── Tarazin.Maui  → dotnet build -f net10.0-windows10.0.19041.0 (ویندوز)
         └── SQL Server (docker compose) — TarazinMaster
@@ -16,7 +16,7 @@ One shared core, one connection string
 
 ## Startup sequence (shared)
 
-1. `ScriptCatalog` ctor — loads embedded `Tarazin.Data.Scripts.{schema}.{Name}.sql`
+1. `ScriptCatalog` ctor (in `Tarazin.Data`) — loads embedded `Tarazin.Scripts.{schema}.{Name}.sql`
 2. `TarazinDbInitializer.EnsureInitializedAsync(services)` — runs every
    `{schema}/_Ensure.sql`
 3. `…` → runs every `{schema}/_Seed.sql`

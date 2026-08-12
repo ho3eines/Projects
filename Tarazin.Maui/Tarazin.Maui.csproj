@@ -30,7 +30,7 @@
 
   <ItemGroup>
     <!-- Shared core: all modules/pages/models/services/scripts (embedded) -->
-    <ProjectReference Include="..\Tarazin.Shared\Tarazin.Shared.csproj" />
+    <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
   </ItemGroup>
 
   <ItemGroup>

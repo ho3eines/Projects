@@ -1,36 +1,40 @@
-# PRD – Tarazin — Smart Business Management Platform (v2.1 — Blazor Hybrid)
-# PRD – ترازین — مدیریت هوشمند کسب‌وکار (نسخهٔ ۲.۱ — Blazor Hybrid)
+# PRD – Tarazin — Smart Business Management Platform (v2.2 — Blazor Hybrid, 5 projects)
+# PRD – ترازین — مدیریت هوشمند کسب‌وکار (نسخهٔ ۲.۲ — Blazor Hybrid، ۵ پروژه)
 
 > **Status**: Adopted — 2026-08-12 · **Supersedes**: PRD v1.0 (microservices), v1.5 (single webapi + WASM)
 > **Binding decisions**: [ADR-001](adr/ADR-001-single-blazor-server-architecture.md),
 > [ADR-002](adr/ADR-002-no-event-backbone-direct-sql.md),
 > [ADR-003](adr/ADR-003-contracts-shared-models-and-scripts.md),
-> [ADR-004](adr/ADR-004-maui-blazor-hybrid.md)
+> [ADR-004](adr/ADR-004-maui-blazor-hybrid.md),
+> [ADR-005](adr/ADR-005-share-data-layer-projects.md)
 > **Work plan**: [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md)
 
-**EN** – One shared core (`Tarazin.Shared`, a Razor Class Library) hosts all
-seven business applications. Each product is a *bounded context*: a module
-(`Modules/{Name}/`) and one private SQL schema (`Data/Scripts/{schema}/`,
-embedded resources). The same UI is hosted by **two thin hosts**: the web app
-(`Tarazin.Web`, Blazor Server) and the MAUI app (`Tarazin.Maui`, MAUI Blazor
-Hybrid in a BlazorWebView). There is no web service, no WASM client, no HTTP
-data layer: UI and data access (Dapper + named TSQL scripts) run in the same
-process. The UI is built exclusively with MudBlazor.
+**EN** – Five projects with one-way dependencies host all seven business
+applications: `Tarazin.Share` (models/contracts) ← `Tarazin.Data` (data layer:
+Dapper + embedded named TSQL scripts) ← `Tarazin.Ui` (shared UI, Razor Class
+Library) ← two thin hosts: the web app (`Tarazin.Web`, Blazor Server) and the
+MAUI app (`Tarazin.Maui`, MAUI Blazor Hybrid in a BlazorWebView). Each product
+is a *bounded context*: a module (`Modules/{Name}/` in `Tarazin.Ui`) and one
+private SQL schema (`Data/Scripts/{schema}/` in `Tarazin.Data`, embedded
+resources). There is no web service, no WASM client, no HTTP data layer: UI
+and data access run in the same process. The UI is built exclusively with
+MudBlazor.
 
-**FA** – یک هستهٔ مشترک (`Tarazin.Shared` — Razor Class Library) همهٔ هفت محصول
-تجاری را میزبانی می‌کند. هر محصول یک *bounded context* است: یک ماژول
-(`Modules/{Name}/`) و یک اسکیمهٔ SQL خصوصی (`Data/Scripts/{schema}/` — به‌صورت
-Embedded). همان UI با **دو هاست نازک** ارائه می‌شود: وب (`Tarazin.Web` — Blazor
-Server) و اپ MAUI (`Tarazin.Maui` — MAUI Blazor Hybrid داخل BlazorWebView).
-هیچ وب‌سرویس، هیچ کلاینت WASM و هیچ لایهٔ HTTP برای داده وجود ندارد: UI و لایهٔ
-داده (Dapper + اسکریپت‌های TSQL نامدار) در یک پروسه‌اند. رابط کاربری فقط با
-MudBlazor ساخته می‌شود.
+**FA** – پنج پروژه با وابستگی یک‌طرفه همهٔ هفت محصول تجاری را میزبانی می‌کنند:
+`Tarazin.Share` (مدل‌ها/قراردادها) ← `Tarazin.Data` (لایهٔ داده: Dapper +
+اسکریپت‌های TSQL نامدار Embedded) ← `Tarazin.Ui` (رابط کاربری مشترک — RCL) ←
+دو هاست نازک: وب (`Tarazin.Web` — Blazor Server) و اپ MAUI (`Tarazin.Maui` —
+MAUI Blazor Hybrid داخل BlazorWebView). هر محصول یک *bounded context* است: یک
+ماژول (`Modules/{Name}/` در `Tarazin.Ui`) و یک اسکیمهٔ SQL خصوصی
+(`Data/Scripts/{schema}/` در `Tarazin.Data` — Embedded). هیچ وب‌سرویس، هیچ
+کلاینت WASM و هیچ لایهٔ HTTP برای داده وجود ندارد: UI و لایهٔ داده در یک
+پروسه‌اند. رابط کاربری فقط با MudBlazor ساخته می‌شود.
 
 ---
 
 ## Products / محصولات (7)
 
-| # | Product / محصول | Module / ماژول (در `Tarazin.Shared/`) | Schema / اسکیمه | Route / مسیر | Status |
+| # | Product / محصول | Module / ماژول (در `Tarazin.Ui/`) | Schema / اسکیمه | Route / مسیر | Status |
 |---|---|---|---|---|---|
 | 1 | Accounting / حسابداری | `Modules/Accounting` | `accounting` | `/accounting` | ✅ پیاده‌سازی‌شده |
 | 2 | Warehouse Mgmt – Amol Anbar / انبار آمل | `Modules/Inventory` | `inventory` | `/inventory` | ✅ پیاده‌سازی‌شده |
@@ -56,11 +60,12 @@ async event backbone, no message queue.
 
 | Layer / لایه | Responsibility / وظیفه | Tech / سازوکار |
 |---|---|---|
-| Presentation (مشترک) | All pages/forms/tables/modals | `Tarazin.Shared` (RCL) + **MudBlazor** |
+| Share | Models/contracts (POCO) | `Tarazin.Share` (namespace `Tarazin.Models`) |
+| Data Access | Named-script execution, schema scope | `Tarazin.Data` — `DbService` + Dapper (in-process) |
+| Presentation (مشترک) | All pages/forms/tables/modals | `Tarazin.Ui` (RCL) + **MudBlazor** |
 | Host — Web | Serve the shared UI in the browser | `Tarazin.Web` — Blazor Server (SignalR) |
 | Host — MAUI | Serve the shared UI in a native app | `Tarazin.Maui` — MAUI Blazor Hybrid (BlazorWebView) |
 | Application | Orchestration inside pages | `Modules/*/Pages/*.razor` + `Services/` |
-| Data Access | Named-script execution, schema scope | `DbService` + Dapper (in-process) |
 | Data | One DB `TarazinMaster`, one schema per product | SQL Server (docker compose) |
 | Auth & Audit | Login, session, hash-chained audit | `AuthService`, `UserSession`, `AuditService` |
 | DevOps | Build web + build MAUI + static analysis | `ci/ci.yml`, `tools/cross-schema-scan.sh` |
@@ -71,7 +76,7 @@ async event backbone, no message queue.
 
 ## 3. Shared Domain Contracts / قراردادهای دامنه مشترک
 
-Defined as C# models in `Tarazin.Shared/Models/SharedModels.cs`; script columns must
+Defined as C# models in `Tarazin.Share/Models/SharedModels.cs`; script columns must
 match (ADR-003):
 
 | Contract / قرارداد | Owner / مالک | Consumers / مصرف‌کننده‌ها |

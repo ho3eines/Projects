@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Tarazin</RootNamespace>
+    <AssemblyName>Tarazin.Share</AssemblyName>
+    <Description>ترازین — مدل‌ها و قراردادهای مشترک (Share)</Description>
+  </PropertyGroup>
+
+</Project>

@@ -3,7 +3,7 @@
 ## File location
 
 ```
-Tarazin.Shared/Data/Scripts/
+Tarazin.Data/Scripts/
   accounting/
     _Ensure.sql          ← DDL (schemas/tables), runs at startup
     _Seed.sql            ← idempotent seed data, runs at startup
@@ -21,6 +21,11 @@ Tarazin.Shared/Data/Scripts/
   inventory/  treasury/  payroll/  goldshop/  store/
     ... (same pattern)
 ```
+
+**Embedded**: these files are compiled into `Tarazin.Data` as resources named
+`Tarazin.Scripts.{schema}.{name}.sql`; `ScriptCatalog` self-loads them, so
+both hosts (web + MAUI) work without a content root. The on-disk files remain
+the source of truth for editing and for `tools/cross-schema-scan.sh`.
 
 Schema folder name = SQL schema name = module id.
 

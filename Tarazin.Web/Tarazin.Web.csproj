@@ -15,7 +15,7 @@
 
   <ItemGroup>
     <!-- Shared core: modules, models, services, scripts, layout -->
-    <ProjectReference Include="..\Tarazin.Shared\Tarazin.Shared.csproj" />
+    <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
   </ItemGroup>
 
 </Project>

@@ -13,20 +13,20 @@ version: 2.0
 Tarazin is **one Blazor Server project**. "Creating a project" now means
 **creating a module** inside `Tarazin`:
 
-1. Module folder with pages: `Tarazin.Shared/Modules/{Name}/Pages/`
-2. Schema + scripts: `Tarazin.Shared/Data/Scripts/{schema}/` (`_Ensure.sql`, `_Seed.sql`, …)
-3. Models: `Tarazin.Shared/Models/{Name}Models.cs`
-4. Nav entries: `Tarazin.Shared/Layout/NavMenu.razor` + `Modules/Home/Home.razor` launcher card
+1. Module folder with pages: `Tarazin.Ui/Modules/{Name}/Pages/`
+2. Schema + scripts: `Tarazin.Data/Scripts/{schema}/` (`_Ensure.sql`, `_Seed.sql`, …)
+3. Models: `Tarazin.Share/Models/{Name}Models.cs`
+4. Nav entries: `Tarazin.Ui/Layout/NavMenu.razor` + `Modules/Home/Home.razor` launcher card
 
 ## Step-by-Step
 
 1. **Reports-first**: research what reports the domain must have; write them
    into the module PRD.
-2. **Models**: `Tarazin.Shared/Models/{Name}Models.cs` with rows matching the report shapes
+2. **Models**: `Tarazin.Share/Models/{Name}Models.cs` with rows matching the report shapes
    (ADR-003 — column aliases must equal property names).
-3. **Schema** (inside `Tarazin.Shared`):
-   - `Tarazin.Shared/Data/Scripts/{schema}/_Ensure.sql` — idempotent `CREATE SCHEMA`/`CREATE TABLE`
-   - `Tarazin.Shared/Data/Scripts/{schema}/_Seed.sql` — idempotent seed data
+3. **Schema** (inside `Tarazin.Ui`):
+   - `Tarazin.Data/Scripts/{schema}/_Ensure.sql` — idempotent `CREATE SCHEMA`/`CREATE TABLE`
+   - `Tarazin.Data/Scripts/{schema}/_Seed.sql` — idempotent seed data
    - Named scripts for every query/execute the pages need.
 4. **Pages** (MudBlazor only), standard 6:
    - `{Name}Home.razor` — `@page "/{route}"` — daily list + از تاریخ تا تاریخ filter
@@ -73,7 +73,7 @@ Tarazin is **one Blazor Server project**. "Creating a project" now means
 
 ## Pitfalls
 - Route prefix must be unique; module pages are prefixed `/{route}/…` so they
-  never collide. Pages live in `Tarazin.Shared` — never in a host project.
+  never collide. Pages live in `Tarazin.Ui` — never in a host project.
 - Every data call passes the module's own `schema` — never another module's.
 - RTL: `Culture="CultureInfo.GetCultureInfo("fa-IR")"` on MudDatePicker.
 - Never reference `HttpClient` or old `IRequestService` — use `DbService`.

@@ -29,15 +29,17 @@ per-schema project registry. Pain points observed:
 ## Decision
 
 **Delete all of it.** Ship exactly one **Blazor Server** project (`Tarazin`,
-net10.0). Products become modules (`Modules/{Name}/`), each with its own SQL
-schema (`Data/Scripts/{schema}/`). Data access runs **in the same process** via
-Dapper executing **named TSQL scripts**. UI is **MudBlazor only**.
+net10.0). Products become modules (`Modules/{Name}/` in `Tarazin.Ui`), each
+with its own SQL schema (`Data/Scripts/{schema}/` in `Tarazin.Data`). Models
+live in `Tarazin.Share`; data access runs **in the same process** via Dapper
+executing **named TSQL scripts**. UI is **MudBlazor only**. See ADR-005 for
+the Share/Data split.
 
 | v1.5 component | v2 replacement |
 |---|---|
-| `webapi` controllers + `IRequestService` transport | `DbService` + `ScriptCatalog` (in-process) |
-| 7 WASM clients | `Modules/{7}/Pages` in one app |
-| `share` DTOs | `Models/SharedModels.cs` |
+| `webapi` controllers + `IRequestService` transport | `DbService` + `ScriptCatalog` (in-process, in `Tarazin.Data`) |
+| 7 WASM clients | `Tarazin.Ui/Modules/{7}/Pages` |
+| `share` DTOs | `Tarazin.Share/Models/SharedModels.cs` |
 | `blazordeployservice` NuGet + Bootstrap | MudBlazor package |
 | `tests/Tarazin.ContractTests` (webapi-shaped) | removed; CI = build + `tools/cross-schema-scan.sh` |
 | per-project ports 65218–65233 | one port (65220) |

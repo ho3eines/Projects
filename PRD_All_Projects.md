@@ -1,9 +1,9 @@
-# PRD – پلتفرم یکپارچه ترازین (نسخهٔ Blazor Hybrid)
-**هستهٔ مشترک (RCL) + هاست وب (Blazor Server) + هاست MAUI (Blazor Hybrid) — جایگزین کامل معماری چندپروژه‌ای + WebAPI**
+# PRD – پلتفرم یکپارچه ترازین (نسخهٔ Blazor Hybrid — ۵ پروژه)
+**Share + Data + Ui + هاست وب (Blazor Server) + هاست MAUI (Blazor Hybrid) — جایگزین کامل معماری چندپروژه‌ای + WebAPI**
 
 > **وضعیت**: مصوب — ۲۰۲۶/۰۸/۱۲ — **جایگزین** PRD v1.0 (میکروسرویس) و v1.5 (تک‌وب‌سرویس + WASM)
 > **سند مرجع معماری**: `docs/PROJECT.md` · **برنامهٔ کار**: `docs/PLATFORM_ROADMAP.md`
-> **تصمیم‌ها**: `docs/adr/` (ADR-001 هستهٔ مشترک، ADR-002 بدون رویداد/outbox، ADR-003 قراردادها، ADR-004 MAUI Hybrid)
+> **تصمیم‌ها**: `docs/adr/` (ADR-001..005)
 
 ---
 
@@ -11,8 +11,9 @@
 
 | مشکل | راه‌حل جدید |
 |------|-------------|
-| ۱۱ پروژه در solution → مدیریت سخت و فایل‌های تکراری زیاد | **یک هستهٔ مشترک** (`Tarazin.Shared` RCL) + دو هاست نازک |
-| ۷ کلاینت WASM + ۱ وب‌سرویس + ۱ کتابخانهٔ مشترک + ۱ پکیج | UI یک‌جا در RCL؛ هر محصول یک **ماژول** |
+| ۱۱ پروژه در solution → مدیریت سخت و فایل‌های تکراری زیاد | **۵ پروژه با لایه‌بندی یک‌طرفه**: Share ← Data ← Ui ← {Web, Maui} |
+| ۷ کلاینت WASM + ۱ وب‌سرویس + ۱ کتابخانهٔ مشترک + ۱ پکیج | UI یک‌جا در `Tarazin.Ui`؛ هر محصول یک **ماژول** |
+| نبود تفکیک مدل/داده/ارائه | **`Tarazin.Share`** (مدل‌ها) و **`Tarazin.Data`** (لایهٔ داده) پروژه‌های مستقل |
 | درگیر شدن با وب‌سرویس (handshake، توکن، AES، CORS) | حذف کامل لایهٔ HTTP؛ Dapper مستقیم در همان پروسه |
 | Bootstrap/HTML دستی و کامپوننت‌های سفارشی | **MudBlazor** (طراحی رایگان، RTL، جدول، مودال، فرم) |
 | بک‌بون رویدادها (Outbox، processor) پیچیده | حذف؛ عملیات بین‌ماژولی مستقیم و تراکنشی |
@@ -20,7 +21,7 @@
 
 ## 2. محصولات / ماژول‌ها (7)
 
-| # | محصول | ماژول (در `Tarazin.Shared/Modules/`) | اسکیمه | مسیر |
+| # | محصول | ماژول (در `Tarazin.Ui/Modules/`) | اسکیمه | مسیر |
 |---|--------|-------|--------|------|
 | 1 | حسابداری | `Accounting` | `accounting` | `/accounting` |
 | 2 | انبار آمل | `Inventory` | `inventory` | `/inventory` |
@@ -38,11 +39,23 @@
 ## 3. معماری سطح بالا
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  Tarazin.Shared (RCL — net10.0, RootNamespace: Tarazin)          │
-│  Modules/*  Models/*  Layout/*  Services/*  Data/Scripts/*(embedded)│
-│  App.razor (Router + MudBlazor providers + init)                 │
-└───────────────┬───────────────────────────────┬──────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│ Tarazin.Share (مدل‌ها/قراردادها — بدون وابستگی)                      │
+│   Models/*.cs  (namespace: Tarazin.Models)                          │
+└──────────────────────────┬─────────────────────────────────────────┘
+                           │
+┌──────────────────────────▼─────────────────────────────────────────┐
+│ Tarazin.Data (لایهٔ داده)                                           │
+│   DbService (Dapper) · ScriptCatalog (اسکریپت‌های Embedded)          │
+│   AuditService · PasswordHasher · ICurrentUser · TarazinDbInitializer│
+│   Scripts/{schema}/*.sql  (100 اسکریپت نامدار)                      │
+└──────────────────────────┬─────────────────────────────────────────┘
+                           │
+┌──────────────────────────▼─────────────────────────────────────────┐
+│ Tarazin.Ui (RCL — رابط کاربری مشترک)                                │
+│   Modules/*  Layout/*  Services/{UserSession, AuthService}          │
+│   App.razor (Router + MudBlazor providers + init)                   │
+└───────────────┬───────────────────────────────┬────────────────────┘
                 │                               │
     ┌───────────▼──────────┐       ┌────────────▼───────────┐
     │ Tarazin.Web          │       │ Tarazin.Maui           │
@@ -58,8 +71,9 @@
             [payroll] [goldshop] [store]   (اسکیمهٔ جدا)
 ```
 
+- **وابستگی یک‌طرفه**: `Share ← Data ← Ui ← {Web, Maui}`.
 - **بدون HTTP برای داده**: `DbService.QueryAsync<T>(schema, scriptName, params)`.
-- **قراردادهای دامنه**: مدل‌های مشترک در `Tarazin.Shared/Models/SharedModels.cs`
+- **قراردادهای دامنه**: مدل‌های مشترک در `Tarazin.Share/Models/SharedModels.cs`
   (Party, ChartOfAccount, CurrencyRate, TaxRule, InventoryMovement, PayrollRun,
   GoldPrice, Order) — ستون‌های اسکریپت‌ها باید با همین نام‌ها هم‌نام باشند (ADR-003).
 
@@ -92,7 +106,7 @@
 
 ## 7. معیارهای پذیرش
 
-1. `dotnet build Tarazin.Web/Tarazin.Web.csproj` پاس (شامل `Tarazin.Shared`).
+1. `dotnet build Tarazin.Web/Tarazin.Web.csproj` پاس (شامل `Tarazin.Ui`).
 2. build MAUI (ویندوز) با workload پاس.
 3. همهٔ ۷ ماژول از یک آدرس در دسترس‌اند و دادهٔ واقعی نشان می‌دهند (وب + MAUI).
 4. جستجوی کد: هیچ `HttpClient` برای داده و هیچ SQL خام در `.razor` وجود ندارد.

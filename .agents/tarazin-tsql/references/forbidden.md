@@ -10,8 +10,8 @@ projects or in older versions of this one.
 | `server-client-comm`, Pdd.ir `ICommunicationService`, WebSocket auto-CRUD | That architecture does not exist here |
 | `BlazorDeployService` / `RequestService` / `IRequestService` | The NuGet WASM transport was removed |
 | `webapi` controllers, `SystemQueryExecutor`, `ISystemApi` | The webapi project was deleted |
-| 7 WASM clients (`accounting/`, `store/`, … as projects) | They are modules inside `Tarazin.Shared/Modules/` |
-| Old `share/` library | Models live in `Tarazin.Shared/Models/` |
+| 7 WASM clients (`accounting/`, `store/`, … as projects) | They are modules inside `Tarazin.Ui/Modules/` |
+| Old `share/` library | Models live in `Tarazin.Share/Models/` |
 
 ## Do not write
 

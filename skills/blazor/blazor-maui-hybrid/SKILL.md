@@ -24,7 +24,7 @@ trigger:
 
 # 📱 MAUI Blazor Hybrid — Tarazin Host (کامل و دقیق)
 
-راهنمای مرجع برای هاست MAUI در ترازین. هدف: **یک UI (Tarazin.Shared) که هم در
+راهنمای مرجع برای هاست MAUI در ترازین. هدف: **یک UI (Tarazin.Ui) که هم در
 مرورگر (Blazor Server) و هم در اپ بومی (BlazorWebView) اجرا می‌شود** — بدون
 تکرار هیچ صفحه‌ای.
 
@@ -41,19 +41,22 @@ trigger:
 - برخلاف Blazor Server **هیچ SignalR/سرور لازم نیست**؛ برخلاف WASM **هیچ کلید/رمز
   در باندل کلاینت نمی‌رود** (همه‌چیز در پروسهٔ محلی است).
 
-## 2. ساختار پروژه‌ها (سه‌گانهٔ ترازین)
+## 2. ساختار پروژه‌ها (پنج‌تایی ترازین)
 
 ```
-Tarazin.Shared/   ← RCL: Modules/ Layout/ Models/ Services/ Data/Scripts (EmbeddedResource)
+Tarazin.Share/ ← مدل‌ها/قراردادها (namespace Tarazin.Models)
+Tarazin.Data/  ← لایهٔ داده: DbService + ScriptCatalog + AuditService + Scripts (EmbeddedResource)
+Tarazin.Ui/    ← RCL UI: Modules/ Layout/ Services/{UserSession, AuthService, AddTarazinUiServices}
                   ← App.razor: Router + MudBlazor providers + TarazinDbInitializer
-Tarazin.Web/      ← هاست وب (Blazor Server): Program.cs + Pages/_Host.cshtml
-Tarazin.Maui/     ← هاست بومی (این اسکیل): MauiProgram + MainPage.xaml + Platforms/
+Tarazin.Web/   ← هاست وب (Blazor Server): Program.cs + Pages/_Host.cshtml
+Tarazin.Maui/  ← هاست بومی (این اسکیل): MauiProgram + MainPage.xaml + Platforms/
 ```
 
 هر دو هاست فقط این کارها را می‌کنند:
-1. رجیستر سرویس‌ها: `AddTarazinSharedServices()` (در `Tarazin.Shared/Services/ServiceCollectionExtensions.cs`)
+1. رجیستر سرویس‌ها: `AddTarazinUiServices()` (در `Tarazin.Ui`) — که خودش
+   `AddTarazinDataServices()` (در `Tarazin.Data`) را هم صدا می‌زند
 2. ثبت UI kit: `AddMudServices()`
-3. رندر کردن `Tarazin.App` (در `Tarazin.Shared/App.razor`)
+3. رندر کردن `Tarazin.App` (در `Tarazin.Ui/App.razor`)
 
 ## 3. فایل‌های کلیدی Tarazin.Maui (یک‌به‌یک)
 
@@ -80,7 +83,7 @@ Tarazin.Maui/     ← هاست بومی (این اسکیل): MauiProgram + MainP
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Tarazin.Shared\Tarazin.Shared.csproj" />
+    <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
   </ItemGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#0F766E" />
@@ -126,7 +129,7 @@ public static class MauiProgram
         builder.Services.AddBlazorWebViewDeveloperTools();
 #endif
         builder.Services.AddMudServices();
-        builder.Services.AddTarazinSharedServices();
+        builder.Services.AddTarazinUiServices();
         return builder.Build();
     }
 }
@@ -161,7 +164,7 @@ public partial class App : Application
 ```xml
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:tarazin="clr-namespace:Tarazin;assembly=Tarazin.Shared"
+             xmlns:tarazin="clr-namespace:Tarazin;assembly=Tarazin.Ui"
              x:Class="Tarazin.Maui.MainPage"
              BackgroundColor="{DynamicResource PageBackgroundColor}">
     <BlazorWebView HostPage="wwwroot/index.html">
@@ -171,7 +174,7 @@ public partial class App : Application
     </BlazorWebView>
 </ContentPage>
 ```
-- `ComponentType` = **همان** `App.razor` مشترک (از `Tarazin.Shared`) — «Hybrid» همین است.
+- `ComponentType` = **همان** `App.razor` مشترک (از `Tarazin.Ui`) — «Hybrid» همین است.
 - `Selector="#app"` باید با `<div id="app">` در index.html یکی باشد.
 
 ### 3.5 `wwwroot/index.html` — صفحهٔ میزبان WebView
@@ -184,7 +187,7 @@ public partial class App : Application
     <base href="/" />
     <title>ترازین — مدیریت هوشمند کسب‌وکار</title>
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
-    <link href="_content/Tarazin.Shared/css/app.css" rel="stylesheet" />
+    <link href="_content/Tarazin.Ui/css/app.css" rel="stylesheet" />
 </head>
 <body>
     <div id="app">در حال بارگذاری...</div>
@@ -264,9 +267,9 @@ docker compose up -d   # SQL Server روی localhost:1433
 |---|------|--------|
 | 1 | صفحهٔ سفید در WebView | `_framework/blazor.webview.js` را فراموش کرده‌اید یا `Selector` با `id="app"` نمی‌خواند |
 | 2 | خطای `blazor.server.js` در MAUI | رانتایم Hybrid = `blazor.webview.js` — نه server، نه web |
-| 3 | `_content/...` فایل‌های RCL پیدا نمی‌شوند | مسیر درست: `_content/{AssemblyName}/...` — برای `Tarazin.Shared` می‌شود `_content/Tarazin.Shared/css/app.css` |
+| 3 | `_content/...` فایل‌های RCL پیدا نمی‌شوند | مسیر درست: `_content/{AssemblyName}/...` — برای `Tarazin.Ui` می‌شود `_content/Tarazin.Ui/css/app.css` |
 | 4 | تداخل namespace | RCL = `Tarazin`، هاست وب = `Tarazin.Web`، هاست MAUI = `Tarazin.Maui` — هیچ‌کدام نباید هم‌نام شوند |
-| 5 | اسکریپت‌های SQL در MAUI پیدا نمی‌شوند | آن‌ها EmbeddedResource در RCL هستند؛ `ScriptCatalog` با پیشوند `Tarazin.Data.Scripts.` بارگذاری می‌کند |
+| 5 | اسکریپت‌های SQL در MAUI پیدا نمی‌شوند | آن‌ها EmbeddedResource در RCL هستند؛ `ScriptCatalog` با پیشوند `Tarazin.Scripts.` بارگذاری می‌کند |
 | 6 | خطای SqlClient روی اندروید/iOS | محدودیت پلتفرم (بخش ۵) — ویندوز/مک را هدف بگیرید یا لایهٔ داده را عوض کنید |
 | 7 | `appsettings.json` خوانده نمی‌شود | به‌صورت `EmbeddedResource` با `LogicalName="Tarazin.Maui.appsettings.json"` و `AddJsonStream` |
 | 8 | build بدون workload خطا می‌دهد | `dotnet workload install maui` (CI: `windows-latest`) |
@@ -283,7 +286,7 @@ docker compose up -d   # SQL Server روی localhost:1433
 - [ ] یک فرم ثبت داده (مثلاً سند حسابداری) در MAUI امتحان شده و در گزارش/ممیزی دیده می‌شود
 - [ ] RTL و تاریخ شمسی (MudDatePicker با fa-IR) در WebView درست است
 - [ ] `tools/cross-schema-scan.sh` پاس
-- [ ] صفحه‌های جدید فقط در `Tarazin.Shared/Modules` ساخته شده‌اند
+- [ ] صفحه‌های جدید فقط در `Tarazin.Ui/Modules` ساخته شده‌اند
 - [ ] بدون راز/credential در `Tarazin.Maui/appsettings.json`
 
 ## 9. منابع

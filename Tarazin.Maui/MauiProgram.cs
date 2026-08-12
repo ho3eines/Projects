@@ -7,7 +7,7 @@ using Tarazin.Services;
 namespace Tarazin.Maui;
 
 /// <summary>
-/// MAUI Blazor Hybrid host — the shared UI (Tarazin.Shared) runs inside a
+/// MAUI Blazor Hybrid host — the shared UI (Tarazin.Ui) runs inside a
 /// BlazorWebView with full access to the local .NET runtime. No web server
 /// is involved: components render in-process and talk to SQL Server directly
 /// through the shared DbService (Windows desktop target; see skill notes).
@@ -37,7 +37,7 @@ public static class MauiProgram
         builder.Services.AddMudServices();
 
         // Shared Tarazin services (DbService, ScriptCatalog, Auth, Audit, ...)
-        builder.Services.AddTarazinSharedServices();
+        builder.Services.AddTarazinUiServices();
 
         return builder.Build();
     }

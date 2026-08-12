@@ -22,27 +22,30 @@ DI) can be shared as-is; only host plumbing differs.
 
 ## Decision
 
-Restructure the repo into **three projects**:
+Restructure the repo into **five projects** (see ADR-005 for the Share/Data
+split rationale):
 
 | Project | Kind | Role |
 |---|---|---|
-| `Tarazin.Shared` | Razor Class Library (RCL), `RootNamespace=Tarazin` | ALL UI: `Modules/`, `Layout/`, `Models/`, `Services/`, `Data/Scripts/` (embedded resources), `App.razor` (Router + MudBlazor providers + init) |
+| `Tarazin.Share` | Class library | Models/contracts only (`Tarazin.Models`), no dependencies |
+| `Tarazin.Data` | Class library | Data layer: `DbService`, `ScriptCatalog` (embedded scripts `Tarazin.Scripts.{schema}.{name}.sql`), `AuditService`, `PasswordHasher`, `ICurrentUser`, `TarazinDbInitializer` |
+| `Tarazin.Ui` | Razor Class Library (RCL), `RootNamespace=Tarazin` | ALL UI: `Modules/`, `Layout/`, `Services/` (`UserSession`, `AuthService`, `AddTarazinUiServices`), `App.razor` (Router + MudBlazor providers + init) |
 | `Tarazin.Web` | ASP.NET Core Blazor Server | Thin web shell: `Program.cs`, `Pages/_Host.cshtml`, `appsettings.json` |
 | `Tarazin.Maui` | .NET MAUI (Blazor Hybrid) | Thin native shell: `MauiProgram.cs`, `MainPage.xaml` (BlazorWebView → `Tarazin.App`), `wwwroot/index.html`, `Platforms/`, `Resources/` |
 
 Key mechanisms:
 
-1. **Shared services** — `AddTarazinSharedServices()` in `Tarazin.Shared/Services/ServiceCollectionExtensions.cs` registers `ScriptCatalog` (singleton, self-loads embedded scripts), `DbService`, `AuditService`, `AuthService`, `UserSession` (scoped). Both hosts call it.
-2. **Shared startup** — `TarazinDbInitializer.EnsureInitializedAsync(IServiceProvider)` runs `_Ensure.sql` → `_Seed.sql` → bootstrap admin, guarded by `Interlocked` so both hosts (and web prerender) are safe. Web calls it in `Program.cs`; MAUI via `App.razor` `OnInitializedAsync`.
-3. **Scripts as embedded resources** — `Data/Scripts/**/*.sql` are `EmbeddedResource` in the RCL (`Tarazin.Data.Scripts.{schema}.{name}.sql`); `ScriptCatalog` loads them from the assembly so the packaged MAUI app never needs a content root. Files remain in the repo for editing/tooling (`tools/cross-schema-scan.sh`).
-4. **Shared static assets** — `Tarazin.Shared/wwwroot/css/app.css` is served by both hosts at `_content/Tarazin.Shared/css/app.css` (web static assets + BlazorWebView RCL assets).
-5. **Namespaces** — RCL root `Tarazin` (pages keep `Tarazin.Modules.*`); web host `Tarazin.Web`; MAUI `Tarazin.Maui` — no ambiguity across assemblies.
+1. **Shared services** — `AddTarazinUiServices()` in `Tarazin.Ui/Services/ServiceCollectionExtensions.cs` registers UI services (`UserSession`, `ICurrentUser`, `AuthService`) and delegates to `AddTarazinDataServices()` in `Tarazin.Data` (`ScriptCatalog` singleton self-loading embedded scripts, `DbService`, `AuditService`). Both hosts call it.
+2. **Shared startup** — `TarazinDbInitializer.EnsureInitializedAsync(IServiceProvider)` (in `Tarazin.Data`) runs `_Ensure.sql` → `_Seed.sql` → bootstrap admin, guarded by `Interlocked` so both hosts (and web prerender) are safe. Web calls it in `Program.cs`; MAUI via `App.razor` `OnInitializedAsync`.
+3. **Scripts as embedded resources** — `Tarazin.Data/Scripts/**/*.sql` are `EmbeddedResource` in `Tarazin.Data` (`Tarazin.Scripts.{schema}.{name}.sql`); `ScriptCatalog` loads them from its own assembly so the packaged MAUI app never needs a content root. Files remain in the repo for editing/tooling (`tools/cross-schema-scan.sh`).
+4. **Shared static assets** — `Tarazin.Ui/wwwroot/css/app.css` is served by both hosts at `_content/Tarazin.Ui/css/app.css` (web static assets + BlazorWebView RCL assets).
+5. **Namespaces** — models `Tarazin.Models` (assembly `Tarazin.Share`); data `Tarazin.Data`; RCL root `Tarazin`; web host `Tarazin.Web`; MAUI `Tarazin.Maui` — no ambiguity across assemblies.
 6. **MAUI config** — `Tarazin.Maui/appsettings.json` is embedded and loaded via `builder.Configuration.AddJsonStream(...)` so the shared layer reads `ConnectionStrings`/`Tarazin:*` identically.
 
 ## Consequences
 
 - **One UI, two products**: every new page/module is written once in
-  `Tarazin.Shared` and instantly available in the browser and the native app.
+  `Tarazin.Ui` and instantly available in the browser and the native app.
 - **Platform constraint (important)**: `Microsoft.Data.SqlClient` supports
   Windows/Linux/macOS, **not** Android/iOS. Therefore the MAUI host's data
   features work on **Windows desktop** (and macOS) out of the box; for

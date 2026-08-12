@@ -1,7 +1,7 @@
 # بررسی انطباق با PRD — گزارش حسابرسی (۲۰۲۶/۰۸/۱۲)
 
 > **نتیجهٔ کلی**: PRD نسخهٔ ۲.۱ (Blazor Hybrid) **از نظر ساختاری و ایستا کاملاً
-> پیاده‌سازی شده است** — هستهٔ مشترک `Tarazin.Shared` + هاست وب `Tarazin.Web` +
+> پیاده‌سازی شده است** — هستهٔ مشترک `Tarazin.Ui` + هاست وب `Tarazin.Web` +
 > هاست MAUI `Tarazin.Maui` (ADR-004)؛ موارد اجرایی (build و تست با دیتابیس واقعی)
 > به‌دلیل نبود `dotnet`/`docker` در این sandbox قابل اجرا نبودند و باید در
 > CI/محیط محلی سبز شوند.
@@ -17,7 +17,7 @@
 |---|-------|--------|-------|
 | 1 | `dotnet build Tarazin.slnx` فقط با یک پروژه | ⚠️ اجرا نشد — ساختاری پاس | `Tarazin.slnx` فقط `Tarazin.Web/Tarazin.Web.csproj` (XML معتبر). هیچ ارجاعی به پروژه‌های حذف‌شده در کد نیست. DI کامل (همهٔ `@inject`ها ثبت شده‌اند). |
 | 2 | همهٔ ۷ ماژول از یک آدرس | ⚠️ اجرا نشد — مسیرها سالم | ۴۱ مسیر یکتا؛ `NavMenu` و صفحهٔ خانه هر ۷ ماژول را دارند؛ `Program.cs` ترتیب startup کامل است. |
-| 3 | بدون SQL خام و بدون HttpClient برای داده در صفحات | ✅ پاس | grep روی `Tarazin.Shared/Modules`: هیچ `HttpClient` و هیچ `SELECT/INSERT/UPDATE/DELETE` در `.razor` (موارد ظاهری فقط `MudSelect` هستند). |
+| 3 | بدون SQL خام و بدون HttpClient برای داده در صفحات | ✅ پاس | grep روی `Tarazin.Ui/Modules`: هیچ `HttpClient` و هیچ `SELECT/INSERT/UPDATE/DELETE` در `.razor` (موارد ظاهری فقط `MudSelect` هستند). |
 | 4 | اسکن مرز اسکیمه | ✅ پاس | `tools/cross-schema-scan.sh` → ۱۰۰ اسکریپت، بدون ارجاع بین‌اسکیمه‌ای غیرمجاز. |
 | 5 | ورود bootstrap (admin/admin) و مدیریت کاربران + ممیزی | ⚠️ اجرا نشد — کد کامل | `AuthService` (PBKDF2) + `UserAuthenticate`/`UserUpsert` + ساخت bootstrap فقط وقتی Users خالی است + **ممیزی خودکار** هر Execute (اصلاح در همین حسابرسی). |
 
@@ -58,7 +58,7 @@ Reportهای هر ۷ ماژول) → **همه مطابق** propertyهای مدل
 |---|-------|-------|
 | 1 | `AuditService` ساخته شده بود ولی **هیچ‌جا صدا زده نمی‌شد** → ممیزی عملاً ثبت نمی‌شد (نقض AC#5) | `DbService.ExecuteAsync` حالا **خودکار** ردیف ممیزی می‌نویسد (Success/Error). برای جلوگیری از وابستگی دور/بازگشت، `AuditService` مستقل شد (اتصال اختصاصی). |
 | 2 | `central/AuditSearch.sql` ستون `RowHash` را برنمی‌گرداند ولی صفحهٔ `/central/audit` آن را نمایش می‌دهد → خطای زمان اجرا | `a.RowHash` به SELECT اضافه شد |
-| 3 | کامنت قدیمی `webapi/Data/Scripts` در `tools/cross-schema-scan.sh` | اصلاح به `Tarazin.Shared/Data/Scripts` |
+| 3 | کامنت قدیمی `webapi/Data/Scripts` در `tools/cross-schema-scan.sh` | اصلاح به `Tarazin.Data/Scripts` |
 | 4 | کلاس اضافی `h-table` روی یک MudTable | حذف شد (CSS آن هم حذف شده بود) |
 
 ## ۶) چک‌های ساختاری انجام‌شده (همه پاس)
