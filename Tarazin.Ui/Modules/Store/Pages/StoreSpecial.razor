@@ -1,0 +1,113 @@
+@page "/store/special"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>عملیات ویژه — فروشگاه اینترنتی</PageTitle>
+
+<MudText Typo="Typo.h4">عملیات ویژه سفارش</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    لغو یا رد سفارش.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="سفارش" @bind-Value="_orderId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب سفارش —</MudSelectItem>
+                @foreach (var o in _orders)
+                {
+                    <MudSelectItem Value="o.OrderId">@o.OrderNumber — @o.CustomerName (@o.Status)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Warning" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Cancel" OnClick="CancelAsync" Disabled="_busy">
+                لغو سفارش
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Error" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Block" OnClick="RejectAsync" Disabled="_busy">
+                رد سفارش
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private const string Schema = "store";
+
+    private List<OrderRow> _orders = new();
+    private int _orderId;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _orders = (await Db.QueryAsync<OrderRow>(Schema, "OrderSearch", new
+        {
+            SkipRows = 0,
+            TakeSize = 100
+        })).ToList();
+    }
+
+    private async Task CancelAsync()
+    {
+        if (_orderId == 0)
+        {
+            Snackbar.Add("سفارش را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "OrderCancel", new { OrderId = _orderId });
+            Snackbar.Add("سفارش لغو شد.", Severity.Success);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RejectAsync()
+    {
+        if (_orderId == 0)
+        {
+            Snackbar.Add("سفارش را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "MarkOrderRejected", new { OrderId = _orderId });
+            Snackbar.Add("سفارش رد شد.", Severity.Success);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _orders = (await Db.QueryAsync<OrderRow>(Schema, "OrderSearch", new
+        {
+            SkipRows = 0,
+            TakeSize = 100
+        })).ToList();
+        _orderId = 0;
+    }
+}

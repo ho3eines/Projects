@@ -1,0 +1,114 @@
+@page "/accounting"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>اسناد روز — حسابداری</PageTitle>
+
+<MudText Typo="Typo.h4">اسناد روز</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    از تاریخ / تا تاریخ — پیش‌فرض امروز. کلیک روی ردیف، سند را باز می‌کند.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="جستجو (شماره یا طرف حساب)" @bind-Value="_search" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
+                اعمال فیلتر
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
+              OnRowClick="TableRowClick">
+        <HeaderContent>
+            <MudTh>شماره</MudTh>
+            <MudTh>تاریخ</MudTh>
+            <MudTh>نوع</MudTh>
+            <MudTh>طرف حساب</MudTh>
+            <MudTh>مبلغ</MudTh>
+            <MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="شماره">@context.DocumentNumber</MudTd>
+            <MudTd DataLabel="تاریخ">@context.DocumentDate.ToString("yyyy/MM/dd")</MudTd>
+            <MudTd DataLabel="نوع">@context.DocumentType</MudTd>
+            <MudTd DataLabel="طرف حساب">@context.CounterPartyName</MudTd>
+            <MudTd DataLabel="مبلغ">@context.TotalAmount.ToString("N0")</MudTd>
+            <MudTd DataLabel="وضعیت"><MudChip Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip></MudTd>
+        </RowTemplate>
+        <EmptyContent>
+            <MudText Color="Color.Secondary">سندی در این بازه نیست.</MudText>
+        </EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "accounting";
+
+    private List<DailyDocumentRow> _rows = new();
+    private bool _loading = true;
+    private string _search = "";
+    private DateTime? _from;
+    private DateTime? _to;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _from = DateTime.Today;
+        _to = DateTime.Today;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var from = _from?.Date ?? DateTime.Today;
+            var to = _to?.Date ?? DateTime.Today;
+            _rows = (await Db.QueryAsync<DailyDocumentRow>(Schema, "DailyDocuments", new
+            {
+                FromDate = from,
+                ToDate = to,
+                SearchText = _search ?? "",
+                DocumentType = (string?)null,
+                SkipRows = 0,
+                TakeSize = 100
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void TableRowClick(TableRowClickEventArgs<DailyDocumentRow> e)
+    {
+        if (e.Item is not null)
+            Snackbar.Add($"سند {e.Item.DocumentNumber} باز شد.", Severity.Info);
+    }
+
+    private static Color StatusColor(string? status) => status switch
+    {
+        "Closed" => Color.Success,
+        "Draft" => Color.Warning,
+        _ => Color.Default
+    };
+}

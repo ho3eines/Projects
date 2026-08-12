@@ -1,63 +1,53 @@
-# Hermes security
+# Tarazin security (v2.1 — Blazor Hybrid)
 
 Last reviewed: 2026-08-12
 
-Architecture and wire format live in `.agents/hermes-tsql/SKILL.md`. This file is the threat model.
+Architecture and data rules live in `docs/PROJECT.md` and `.agents/tarazin-tsql/SKILL.md`.
+This file is the threat model for the **shared-core + two hosts** architecture
+(`Tarazin.Ui` RCL, `Tarazin.Web` Blazor Server, `Tarazin.Maui` Blazor Hybrid).
 
 ## Layers
 
-1. **Project handshake** — registered `ProjectGuid` + SharedKey + nonce + timestamp  
-2. **Session AES** — random key per handshake; payloads on `/api/Data` encrypted  
-3. **User JWT** — HMAC-SHA256 (`Auth:Key`), header `X-User-Token`, required when `Hermes:RequireUser=true`  
-4. **Named scripts only** — raw SQL rejected  
-5. **Schema lock** — from registry, not the client  
-6. **CORS allow-list** — `Hermes:CorsOrigins`  
-7. **Sessions** — memory + `[central].[Sessions]` (AES key stored wrapped with `Auth:Key`)
+1. **Login** — username/password → `AuthService` verifies PBKDF2 hash from `[central].[Users]`
+2. **Session** — web: per SignalR circuit (`UserSession`, scoped); MAUI: per-app (scoped ≈ singleton)
+3. **Data access** — named TSQL scripts only (embedded resources); `DbService` scopes by schema; Dapper parameterization
+4. **Audit** — every mutating script recorded to `[central].[AuditLog]` with SHA-256 hash chain
+5. **Bootstrap admin** — created only when `Users` is empty; change on first production login
 
-## Closed gaps
+## What disappeared with the old architecture (why v2 is simpler)
 
-| # | Gap | Fix |
-|---|-----|-----|
-| 1 | Plaintext `/api/system` | Controller is `[NonController]` — not routed |
-| 2 | Raw SQL from client | `NamedScriptRules` on `/api/Data` |
-| 3 | Handshake every call | Session cached ~14 min |
-| 4 | Cleartext Data response | AES(sessionKey) |
-| 5 | Client-chosen schema | Forced from ProjectGuid |
-| 6 | Replay handshake | 90s window + nonce |
-| 7 | Handshake flood | 5/min/IP (+ login 5/min/IP) |
-| 8 | Fake JWT authority `:7001` | Removed. User tokens issued locally |
-| 9 | CORS `AllowAnyOrigin` | Explicit WASM origins |
-| 11 | In-memory sessions only | Persisted to `[central].[Sessions]` (memory fallback if DB down) |
-| 12 | No user identity | `POST /api/auth/login` + `X-User-Token` required |
-| 13 | Raw TSQL on `/api/request/{query\|execute\|scalar}` | All methods now resolve **named scripts only** (`ResolveNamedScriptSqlAsync` + `NamedScriptRules`) — no client SQL is executed (2026-08-12) |
-| 14 | `CHANGE_ME` key | Replaced; still rotate in production |
-| 15 | Cross-schema script path (dot/slash name) in `SystemQueryExecutor` | Schema-scoped resolution + path containment (ADR-001 schema lock) (2026-08-12) |
-| 16 | Client-driven DDL (`Model.SqlType`/`DefaultExpression` injection) | Auto-provisioning disabled — schemas defined by `_Ensure.sql` only (2026-08-12) |
-| 17 | `/api/projects` leaked `EncryptionKey`/`LoginTokenHash`/`ApiKey`/`ConnectionString` | Responses redact all credentials (2026-08-12) |
-| 18 | Backup `.bak` downloadable without auth (static `/backup` + unauthenticated `DownloadBackup`) | Static mapping removed; downloads require the API key via `/api/projects/{guid}/backups/{file}` (2026-08-12) |
-| 19 | Hard-coded fallback `Auth:Key` (`HERMES-DEV-…`) | Refuse to start when `Auth:Key` is unset (2026-08-12) |
+| Old risk (WASM + webapi) | v2 status |
+|---|---|
+| SharedKey / AES keys / API keys extractable from WASM | ✅ Gone — nothing secret is shipped to the browser |
+| Handshake flood / rate limit per IP | ✅ Gone — no public API endpoint at all |
+| Token in URL parameter leaked via logs/referrer | ✅ Gone — no cross-app token hand-off |
+| Client-chosen schema / DDL injection via auto-provisioning | ✅ Gone — schema is a compile-time module constant; DDL only via `_Ensure.sql` |
+| CORS allow-list management | ✅ Gone — same origin (Blazor Server) |
+| Session table + wrapped AES keys | ✅ Gone — per-circuit in-memory session |
 
-## Residual (WASM reality)
+## MAUI Blazor Hybrid notes
 
-| # | Risk | What we do |
-|---|------|------------|
-| 10 | Guid + SharedKey extractable from WASM | SharedKey only wraps handshake. Rotate if leaked. User password is the secret. |
-| — | Default admin password | Seeded only when Users is empty. Change `Hermes:BootstrapAdminPassword` and the admin password after first run. |
-| — | SQL down | Sessions stay in memory of that process only |
-| — | API key / HMAC secret / SharedKey / login token are all extractable from WASM | They now only gate **named-script** execution per project. `/api/projects` (admin: create/restore/backup) is still API-key-gated — for production, move this admin surface behind a real server-side session with the user password (backlog). |
-| — | `GET /api/projects/directory` is public | Returns only Name/Schema/Icon/Description/ClientUrl (no keys, no connection strings). Needed so the launcher can open each product. |
-| — | Login token is a fixed `hermes-admin` for every project | The session is not bound to a per-user password in the v1 client transport. For production, bind sessions to `central.Users` + real login (backlog). |
+- The MAUI app embeds `appsettings.json` (connection string + bootstrap admin)
+  into the package — **do not ship production credentials inside the app**;
+  use per-machine configuration (e.g. `%AppData%`, environment, or a settings
+  screen) before distributing builds.
+- `Microsoft.Data.SqlClient` runs on Windows/macOS only; Android/iOS need a
+  different data provider (backlog) — never ship SQL Server credentials to
+  mobile platforms.
+- The WebView enforces no CORS (in-process) — same security rules as the web
+  host still apply (named scripts, schema scope, audit).
 
-## Test login (always, upserted on webapi start)
+## Remaining considerations (production checklist)
 
-- user: `admin`  
-- pass: `admin` (`Hermes:BootstrapAdminPassword`)
+- [ ] Change bootstrap password immediately (`Tarazin:BootstrapAdminPassword` in appsettings or env)
+- [ ] Use a strong SQL Server password and store it in a secret store, not `appsettings.json`
+- [ ] Enforce HTTPS in production (reverse proxy / TLS on the ASP.NET port)
+- [ ] Keep `tools/cross-schema-scan.sh` in CI — it enforces schema isolation
+- [ ] Review audit rows regularly (tamper-evident hash chain makes silent edits detectable)
+- [ ] SQL Server backups — add scheduled backup outside the app (see roadmap backlog)
+- [ ] MAUI: per-machine config for the connection string; don't bake production secrets in the package
 
-## Production checklist
+## Test login (bootstrap, created at first startup only)
 
-- [ ] New `Auth:Key` (64+ random chars)  
-- [ ] New SharedKeys per project  
-- [ ] Change admin password  
-- [ ] Set `Hermes:CorsOrigins` to real HTTPS hosts  
-- [ ] Real TLS certificate  
-- [ ] SQL backups; never commit `data/` dumps  
+- user: `admin`
+- pass: `admin` (`Tarazin:BootstrapAdminPassword`)

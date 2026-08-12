@@ -1,16 +1,20 @@
 # Hermes Agent — Skill Routing
 
-**Data + architecture: `.agents/hermes-tsql/SKILL.md`**  
-`server-client-comm` is disabled.
+**Data + architecture: `.agents/tarazin-tsql/SKILL.md`**
+**MAUI Blazor Hybrid: `skills/blazor/blazor-maui-hybrid/SKILL.md`**
 
 ```
-IRequestService (Protocol=Hermes)
-  → POST /api/auth/handshake   ProjectGuid
-  → POST /api/auth/login       user JWT (central-client)
-  → POST /api/Data/            AES + named script + X-User-Token
-  → Data/Scripts/{schema-from-guid}/{Name}.sql
+Page (Tarazin.Ui/Modules/*/Pages)
+  → @inject DbService Db
+  → Db.QueryAsync<T>(schema, "ScriptName", @params)
+  → Tarazin.Data/Scripts/{schema}/{Name}.sql   (embedded; Dapper, in-process — no HTTP)
 ```
 
-Forbidden: WebSocket, per-project controllers, raw SQL, `ISystemApi`, `/api/system`.
+Hosts: `Tarazin.Web` (Blazor Server) and `Tarazin.Maui` (MAUI Blazor Hybrid)
+both call `AddTarazinUiServices()` and render the same `Tarazin.App`.
+
+Forbidden: WebApi/webapi, WASM clients, HttpClient-for-data, per-project
+controllers, tokens/AES transport, Outbox events, Bootstrap/CSS design (use
+MudBlazor), pages outside `Tarazin.Ui/Modules`.
 
 Security: `docs/SECURITY.md`

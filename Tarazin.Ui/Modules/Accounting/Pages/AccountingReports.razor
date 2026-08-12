@@ -1,0 +1,177 @@
+@page "/accounting/reports"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>گزارشات — حسابداری</PageTitle>
+
+<MudText Typo="Typo.h4">گزارشات حسابداری</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    دفتر روزنامه، دفتر کل و تراز آزمایشی.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="گزارش" @bind-Value="_report" Variant="Variant.Outlined">
+                <MudSelectItem Value="daily">دفتر روزنامه</MudSelectItem>
+                <MudSelectItem Value="ledger">دفتر کل</MudSelectItem>
+                <MudSelectItem Value="trial">تراز آزمایشی</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        @if (_report == "ledger")
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="int" Label="حساب" @bind-Value="_accountId" Variant="Variant.Outlined">
+                    <MudSelectItem Value="0">— همهٔ حساب‌ها —</MudSelectItem>
+                    @foreach (var a in _accounts)
+                    {
+                        <MudSelectItem Value="a.AccountId">@a.AccountCode — @a.Title</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        }
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+        </MudItem>
+        <MudItem xs="12" sm="12" md="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow"
+                       OnClick="LoadAsync" Disabled="_loading">
+                اجرا
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_report == "daily")
+    {
+        <MudTable Items="_dailyBook" Hover="true" Dense="true" Striped="true">
+            <HeaderContent>
+                <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>طرف حساب</MudTh>
+                <MudTh>حساب</MudTh><MudTh>شرح</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="تاریخ">@context.DocumentDate.ToString("yyyy/MM/dd")</MudTd>
+                <MudTd DataLabel="شماره">@context.DocumentNumber</MudTd>
+                <MudTd DataLabel="طرف حساب">@context.CounterPartyName</MudTd>
+                <MudTd DataLabel="حساب">@context.AccountCode — @context.AccountTitle</MudTd>
+                <MudTd DataLabel="شرح">@context.Description</MudTd>
+                <MudTd DataLabel="بدهکار">@context.Debit.ToString("N0")</MudTd>
+                <MudTd DataLabel="بستانکار">@context.Credit.ToString("N0")</MudTd>
+            </RowTemplate>
+            <EmptyContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></EmptyContent>
+        </MudTable>
+    }
+    else if (_report == "ledger")
+    {
+        <MudTable Items="_ledger" Hover="true" Dense="true" Striped="true">
+            <HeaderContent>
+                <MudTh>کد</MudTh><MudTh>حساب</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="کد">@context.AccountCode</MudTd>
+                <MudTd DataLabel="حساب">@context.AccountTitle</MudTd>
+                <MudTd DataLabel="بدهکار">@context.Debit.ToString("N0")</MudTd>
+                <MudTd DataLabel="بستانکار">@context.Credit.ToString("N0")</MudTd>
+                <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+            </RowTemplate>
+            <EmptyContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></EmptyContent>
+        </MudTable>
+    }
+    else
+    {
+        <MudTable Items="_trial" Hover="true" Dense="true" Striped="true">
+            <HeaderContent>
+                <MudTh>کد</MudTh><MudTh>حساب</MudTh><MudTh>نوع</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="کد">@context.AccountCode</MudTd>
+                <MudTd DataLabel="حساب">@context.AccountTitle</MudTd>
+                <MudTd DataLabel="نوع">@context.AccountType</MudTd>
+                <MudTd DataLabel="بدهکار">@context.Debit.ToString("N0")</MudTd>
+                <MudTd DataLabel="بستانکار">@context.Credit.ToString("N0")</MudTd>
+                <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+            </RowTemplate>
+            <EmptyContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></EmptyContent>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "accounting";
+
+    private List<ChartOfAccountRow> _accounts = new();
+    private List<DailyBookRow> _dailyBook = new();
+    private List<GeneralLedgerRow> _ledger = new();
+    private List<TrialBalanceRow> _trial = new();
+    private string _report = "daily";
+    private int _accountId;
+    private DateTime? _from;
+    private DateTime? _to;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _from = DateTime.Today.AddMonths(-1);
+        _to = DateTime.Today;
+        _accounts = (await Db.QueryAsync<ChartOfAccountRow>(Schema, "ChartOfAccountSearch", new
+        {
+            SearchText = "",
+            SkipRows = 0,
+            TakeSize = 500
+        })).ToList();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var from = _from?.Date ?? DateTime.Today.AddMonths(-1);
+            var to = _to?.Date ?? DateTime.Today;
+
+            switch (_report)
+            {
+                case "daily":
+                    _dailyBook = (await Db.QueryAsync<DailyBookRow>(Schema, "DailyBookReport", new
+                    {
+                        FromDate = from,
+                        ToDate = to
+                    })).ToList();
+                    break;
+                case "ledger":
+                    _ledger = (await Db.QueryAsync<GeneralLedgerRow>(Schema, "GeneralLedgerReport", new
+                    {
+                        AccountId = _accountId == 0 ? (int?)null : _accountId,
+                        FromDate = from,
+                        ToDate = to
+                    })).ToList();
+                    break;
+                default:
+                    _trial = (await Db.QueryAsync<TrialBalanceRow>(Schema, "TrialBalanceReport", new
+                    {
+                        FromDate = from,
+                        ToDate = to
+                    })).ToList();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

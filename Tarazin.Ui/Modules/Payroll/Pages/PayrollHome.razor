@@ -1,0 +1,55 @@
+@page "/payroll"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>دوره‌های حقوق — حقوق و دستمزد</PageTitle>
+
+<MudText Typo="Typo.h4">دوره‌های حقوق</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    آخرین دوره‌های محاسبه و نهایی‌شده.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+        <HeaderContent>
+            <MudTh>دوره</MudTh><MudTh>تعداد کارمند</MudTh><MudTh>خالص کل</MudTh><MudTh>وضعیت</MudTh><MudTh>تاریخ</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="دوره">@context.Period</MudTd>
+            <MudTd DataLabel="تعداد کارمند">@context.EmployeeCount</MudTd>
+            <MudTd DataLabel="خالص کل">@context.NetTotal.ToString("N0")</MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip Size="Size.Small" Color="@(context.Status == "Finalized" ? Color.Success : Color.Default)">@context.Status</MudChip>
+            </MudTd>
+            <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "payroll";
+
+    private List<PayrollRunRow> _rows = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _rows = (await Db.QueryAsync<PayrollRunRow>(Schema, "DailyRuns", new
+            {
+                SkipRows = 0,
+                TakeSize = 100
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

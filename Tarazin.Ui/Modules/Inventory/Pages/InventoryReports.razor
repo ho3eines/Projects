@@ -1,0 +1,140 @@
+@page "/inventory/reports"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>گزارشات — انبار آمل</PageTitle>
+
+<MudText Typo="Typo.h4">گزارشات انبار</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    موجودی کالا (مانده) و کارتکس کالا.
+</MudText>
+
+<MudTabs>
+    <MudTabPanel Text="موجودی کالا">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadBalancesAsync" Class="mb-4">
+                بارگذاری موجودی
+            </MudButton>
+            <MudTable Items="_balances" Loading="_loadingBalances" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>کالا</MudTh><MudTh>واحد</MudTh>
+                    <MudTh>موجودی</MudTh><MudTh>قیمت</MudTh><MudTh>ارزش</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.ItemCode</MudTd>
+                    <MudTd DataLabel="کالا">@context.ItemTitle</MudTd>
+                    <MudTd DataLabel="واحد">@context.Unit</MudTd>
+                    <MudTd DataLabel="موجودی">@context.StockQty.ToString("N0")</MudTd>
+                    <MudTd DataLabel="قیمت">@context.UnitPrice.ToString("N0")</MudTd>
+                    <MudTd DataLabel="ارزش">@context.StockValue.ToString("N0")</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="کارتکس کالا">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="int" Label="کالا" @bind-Value="_cardItemId" Variant="Variant.Outlined">
+                        <MudSelectItem Value="0">— انتخاب کالا —</MudSelectItem>
+                        @foreach (var it in _items)
+                        {
+                            <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadCardAsync">اجرا</MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudTable Items="_card" Loading="_loadingCard" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh>
+                    <MudTh>تعداد</MudTh><MudTh>قیمت</MudTh><MudTh>ارزش</MudTh><MudTh>شرح</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
+                    <MudTd DataLabel="نوع">@context.MovementType</MudTd>
+                    <MudTd DataLabel="تعداد">@context.Qty.ToString("N0")</MudTd>
+                    <MudTd DataLabel="قیمت">@context.UnitPrice.ToString("N0")</MudTd>
+                    <MudTd DataLabel="ارزش">@context.TotalValue.ToString("N0")</MudTd>
+                    <MudTd DataLabel="شرح">@context.Description</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">کارتکسی نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "inventory";
+
+    private List<StockBalanceRow> _balances = new();
+    private List<StockCardRow> _card = new();
+    private List<ItemRow> _items = new();
+    private int _cardItemId;
+    private DateTime? _from = DateTime.Today.AddMonths(-1);
+    private DateTime? _to = DateTime.Today;
+    private bool _loadingBalances;
+    private bool _loadingCard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
+    }
+
+    private async Task LoadBalancesAsync()
+    {
+        _loadingBalances = true;
+        try
+        {
+            _balances = (await Db.QueryAsync<StockBalanceRow>(Schema, "StockBalanceReport")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingBalances = false;
+        }
+    }
+
+    private async Task LoadCardAsync()
+    {
+        if (_cardItemId == 0)
+        {
+            Snackbar.Add("کالا را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        _loadingCard = true;
+        try
+        {
+            _card = (await Db.QueryAsync<StockCardRow>(Schema, "StockCardReport", new
+            {
+                ItemId = _cardItemId,
+                FromDate = _from?.Date ?? DateTime.Today.AddMonths(-1),
+                ToDate = _to?.Date ?? DateTime.Today
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingCard = false;
+        }
+    }
+}

@@ -1,0 +1,85 @@
+@page "/payroll/entry"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>فیش حقوق — حقوق و دستمزد</PageTitle>
+
+<MudText Typo="Typo.h4">فیش حقوق دوره</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    دورهٔ محاسبه را انتخاب کنید تا فیش‌ها نمایش داده شوند.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="دوره" @bind-Value="_runId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب دوره —</MudSelectItem>
+                @foreach (var r in _runs)
+                {
+                    <MudSelectItem Value="r.RunId">@r.Period (@r.Status)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
+                نمایش فیش‌ها
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_slips" Loading="_loading" Hover="true" Dense="true" Striped="true">
+        <HeaderContent>
+            <MudTh>کد کارمند</MudTh><MudTh>نام</MudTh><MudTh>خالص پرداخت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد کارمند">@context.EmployeeId</MudTd>
+            <MudTd DataLabel="نام">@context.EmployeeName</MudTd>
+            <MudTd DataLabel="خالص پرداخت">@context.NetPay.ToString("N0")</MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">دوره‌ای انتخاب نشده یا فیشی نیست.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "payroll";
+
+    private List<PayrollRunRow> _runs = new();
+    private List<PaySlipRow> _slips = new();
+    private int _runId;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _runs = (await Db.QueryAsync<PayrollRunRow>(Schema, "DailyRuns", new
+        {
+            SkipRows = 0,
+            TakeSize = 100
+        })).ToList();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_runId == 0)
+        {
+            Snackbar.Add("دوره را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            _slips = (await Db.QueryAsync<PaySlipRow>(Schema, "PaySlipReport", new { RunId = _runId })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

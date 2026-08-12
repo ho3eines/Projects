@@ -1,160 +1,91 @@
 ---
 name: blazor-clean-architecture
-description: Clean Architecture for Blazor WASM with Client/Server/Shared layers.
-version: 1.0.0
+description: Clean, single-project architecture for Blazor Server + MudBlazor.
+version: 2.0.0
 author: Hossein Esfandyari, Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
-  hermes:
-    tags: [blazor, architecture, clean-architecture, wasm, dapper, jwt]
-    related_skills: [blazor-wasm-bootstrap, blazor-translate-theme-service, blazor-deploy-service]
+  tarazin:
+    tags: [blazor, architecture, blazor-server, mudblazor, dapper, modules]
+    related_skills: [tarazin-project-architecture, blazor-data-access]
 ---
 
-# Blazor Clean Architecture Skill
+# Blazor Clean Architecture Skill (v3 — shared core + hosts)
 
-Implements a production-ready Clean Architecture solution for Blazor WebAssembly with separate Client, Server, Data, Business, and Shared projects.
+Implements a clean, maintainable **shared core** (`Tarazin.Ui` Razor Class
+Library) with clear layers, hosted by two thin shells — `Tarazin.Web` (Blazor
+Server) and `Tarazin.Maui` (MAUI Blazor Hybrid). No webapi, no WASM clients.
 
 ## When to Use
 
-- Starting a new Blazor WASM project that needs maintainable, testable architecture
-- Migrating from monolithic Blazor Server to WASM + API
-- Need Dapper-based data layer with JWT authentication
-- Building enterprise apps with strict separation of concerns
-
-## Prerequisites
-
-- .NET 8/9/10 SDK installed
-- SQL Server instance accessible
-- Basic knowledge of Dapper, JWT, Blazor WASM
+- Starting a new module in Tarazin (or any Blazor Server app) that must be
+  maintainable and testable
+- Migrating from multi-project / WASM + API to one Blazor Server process
+- Dapper-based data layer with named scripts and schema isolation
+- MudBlazor UI with zero hand-rolled design
 
 ## Solution Structure
 
 ```
-MySolution.sln
-├── src/
-│   ├── Client/           # Blazor WASM (net9.0/10.0)
-│   │   ├── Program.cs
-│   │   ├── Services/     # ApiClient, AuthStateProvider, TranslateService, ThemeService
-│   │   ├── Pages/        # Feature pages (Admin/, Public/)
-│   │   ├── Shared/       # Layout, NavMenu, Components/
-│   │   │   └── Components/  # Reusable: PddTable, Modals, Pickers
-│   │   └── wwwroot/      # css/, js/, lang/, resources/
-│   │
-│   ├── Server/           # ASP.NET Core Web API
-│   │   ├── Program.cs
-│   │   ├── Controllers/  # Thin REST endpoints
-│   │   ├── Services/     # JwtService, AuthService, RequestService
-│   │   └── Middleware/   # Encryption, RateLimiting, ErrorHandling
-│   │
-│   ├── Data/             # Data Access Layer (Class Library)
-│   │   ├── IDbService.cs     # QueryAsync, ExecuteAsync, QueryFirstOrDefaultAsync
-│   │   ├── DbService.cs      # Dapper implementation
-│   │   ├── Queries/          # Per entity: UserQueries, ProductQueries
-│   │   └── Migrations/       # TSQL scripts + runner
-│   │
-│   ├── Business/         # Business Logic (Class Library)
-│   │   ├── Services/     # Domain services
-│   │   ├── Models/       # Domain entities
-│   │   └── Validation/   # FluentValidation rules
-│   │
-│   └── Shared/           # Contracts (Class Library)
-│       ├── DTOs/         # Request/Response models
-│       ├── RequestModel.cs  # SqlName, Parameters, RequestType
-│       ├── RequestResult.cs # Success, Data, Error, RowsAffected
-│       └── Enums/        # RequestType, OrderStatus
-│
-├── tests/
-│   ├── UnitTests/
-│   └── IntegrationTests/
-│
-├── docker-compose.yml
-├── Directory.Build.props
-└── README.md
+Tarazin.Share/          # ← models/contracts (class lib, namespace Tarazin.Models)
+└── Models/             # SharedModels.cs + {Module}Models.cs
+
+Tarazin.Data/           # ← data layer (class lib, refs Share)
+├── DbService.cs        # Query/Execute/Scalar (Dapper)
+├── ScriptCatalog.cs    # embedded named scripts (Tarazin.Scripts.{schema}.{name}.sql)
+├── AuditService.cs     # hash-chained audit
+├── ICurrentUser.cs     # current-user abstraction (no UI dependency)
+├── TarazinDbInitializer.cs
+└── Scripts/{schema}/   # named TSQL (embedded resources — report-first)
+
+Tarazin.Ui/             # ← UI core (RCL, RootNamespace: Tarazin; refs Share+Data)
+├── App.razor           # Router + Mud providers + shared init (hosts render this)
+├── _Imports.razor      # shared usings (Tarazin.* + MudBlazor)
+├── Layout/             # MainLayout (MudLayout) + NavMenu (MudNavMenu)
+├── Services/           # UserSession, AuthService, ServiceCollectionExtensions
+├── Modules/{Name}/Pages/   # one folder per product/bounded context
+└── wwwroot/css/app.css # tiny MudBlazor overrides (served by both hosts)
+
+Tarazin.Web/            # thin web host (Blazor Server): Program.cs + _Host.cshtml
+Tarazin.Maui/           # thin MAUI host (Blazor Hybrid): MauiProgram + MainPage.xaml
 ```
 
-## Dependency Rules
+## Dependency Rules (inside the core)
 
-- **Client** → Shared only
-- **Server** → Data, Business, Shared
-- **Data/Business** → No external deps
-- **Shared** → No external deps
+- **Pages** → Services + Models (+ MudBlazor components)
+- **Services** → ScriptCatalog/DbService → SQL Server
+- **Models** → nothing (pure POCOs)
+- **Scripts** → the database (fully schema-qualified, `@param` only)
 
-## Key Patterns
+No page calls another module's schema directly; cross-schema reads happen in
+server-side scripts with a `-- Cross-schema:` header (verified by
+`tools/cross-schema-scan.sh`).
 
-### RequestService (Single API Endpoint)
-```csharp
-// Client/Services/RequestService.cs
-public async Task<RequestResult<T>> Request<T>(string sqlName, object? parameters = null, int isExec = 0)
-{
-    var req = new RequestModel { SqlName = sqlName, Parameters = parameters, Type = (RequestType)isExec };
-    var endpoint = isExec == 0 ? "api/request/query" : "api/request/execute";
-    var resp = await _http.PostAsJsonAsync(endpoint, req);
-    return await resp.Content.ReadFromJsonAsync<RequestResult<T>>() ?? new();
-}
-```
+## Key Principles
 
-### Dapper Data Access
-```csharp
-// Data/DbService.cs
-public async Task<IEnumerable<T>> QueryAsync<T>(string sql, object? param = null)
-{
-    using var conn = new SqlConnection(_connectionString);
-    return await conn.QueryAsync<T>(sql, param);
-}
-```
+1. **Separation of concerns by folder, not by project** — the repo stays one
+   deployable, but layers are visible and enforceable (scan + review).
+2. **Named scripts are the repository layer** — pages describe *what* (script
+   name + params), scripts describe *how* (SQL). Change SQL without touching
+   the page.
+3. **Models are the contract** — Dapper maps columns → properties; the compiler
+   checks page usage, the scan checks schema boundaries.
+4. **MudBlazor components are the only UI primitives** — no hand-rolled grid,
+   date picker, or modal.
 
-### JWT + Refresh Token
-- Access Token: in memory (short-lived)
-- Refresh Token: HttpOnly, Secure, SameSite=Strict cookie
+## Migrating from the old WASM+API layout
 
-## wwwroot Structure (Client)
-```
-wwwroot/
-├── css/
-│   ├── bootstrap.rtl.min.css
-│   ├── bootstrap.min.css
-│   └── app.css              # CSS Variables for theming
-├── js/
-│   ├── bootstrap.bundle.min.js
-│   ├── theme.js             # FOUC prevention + setBootstrapTheme
-│   └── encryption.js        # AES/JS encryption helpers
-├── lang/
-│   ├── en.json
-│   └── fa.json
-└── resources/
-    ├── 001_Create_Tables.tsql
-    ├── 002_Create_Indexes.tsql
-    └── 003_Seed_Data.tsql
-```
+| Old (v1/v1.5) | New (v3) |
+|---|---|
+| `src/Client` WASM | `Tarazin.Ui/Modules/*/Pages` |
+| `src/Server` WebAPI + controllers | `Tarazin.Ui/Services/DbService` (in-process) |
+| `src/Data` class library | `Tarazin.Data/Scripts/` (embedded) + `DbService` |
+| `src/Business` class library | script logic (TSQL) + page handlers |
+| `src/Shared` contracts | `Tarazin.Share/Models/SharedModels.cs` |
+| `tests/` xUnit against API | build + `tools/cross-schema-scan.sh` (CI) |
 
-## Procedure
-
-1. Create solution with `dotnet new sln -n MySolution`
-2. Create projects: `dotnet new wasm -o src/Client`, `dotnet new webapi -o src/Server`, `dotnet new classlib -o src/Data`, `dotnet new classlib -o src/Business`, `dotnet new classlib -o src/Shared`
-3. Add project references per dependency rules
-4. Install NuGet: Dapper, Microsoft.Data.SqlClient, FluentValidation, etc.
-5. Implement IDbService/DbService in Data layer
-6. Implement RequestService pattern in Client/Server
-7. Configure JWT in Server, AuthStateProvider in Client
-8. Add wwwroot assets (local Bootstrap, theme.js, lang files)
-9. Create TSQL migration scripts in wwwroot/resources
-10. Add docker-compose for deployment
-
-## Verification
-
-- [ ] Solution builds with `dotnet build`
-- [ ] Client → Server API calls work
-- [ ] JWT authentication flow works (login → access token → refresh)
-- [ ] Dapper queries execute against SQL Server
-- [ ] TSQL migration runner creates schema
-- [ ] Dark mode + RTL work via theme.js
-- [ ] Docker compose starts all services
-
-## Pitfalls
-
-- Don't put business logic in Controllers — use Services
-- Don't reference Server from Client — use Shared DTOs
-- Don't use CDN for Bootstrap — local assets only
-- Don't store refresh token in localStorage — HttpOnly cookie only
-- TSQL scripts must be idempotent (IF NOT EXISTS)
+## References
+- `tarazin-project-architecture` — the master structure skill
+- `blazor-data-access` — DbService / script conventions
+- `blazor-create-project` — adding a module

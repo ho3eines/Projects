@@ -1,0 +1,131 @@
+@page "/accounting/settings"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>امکانات — حسابداری</PageTitle>
+
+<MudText Typo="Typo.h4">امکانات و جداول پایه</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    مدیریت حساب‌های کل، معین و تفصیلی.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="کد حساب" @bind-Value="_code" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="string" Label="نوع" @bind-Value="_type" Variant="Variant.Outlined">
+                <MudSelectItem Value="">— نوع —</MudSelectItem>
+                <MudSelectItem Value="Asset">دارایی</MudSelectItem>
+                <MudSelectItem Value="Liability">بدهی</MudSelectItem>
+                <MudSelectItem Value="Equity">سرمایه</MudSelectItem>
+                <MudSelectItem Value="Income">درآمد</MudSelectItem>
+                <MudSelectItem Value="Expense">هزینه</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="_busy">
+                ذخیره حساب
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTextField Label="جستجوی حساب" @bind-Value="_search" Variant="Variant.Outlined"
+                  Class="mb-4" Immediate="true" />
+    <MudTable Items="_accounts" Hover="true" Dense="true" Striped="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>نوع</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.AccountCode</MudTd>
+            <MudTd DataLabel="عنوان">@context.Title</MudTd>
+            <MudTd DataLabel="نوع">@context.AccountType</MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                    @(context.IsActive ? "فعال" : "غیرفعال")
+                </MudChip>
+            </MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">حسابی نیست.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "accounting";
+
+    private List<ChartOfAccountRow> _accounts = new();
+    private string _search = "";
+    private bool _loading = true;
+    private bool _busy;
+    private string _code = "";
+    private string _title = "";
+    private string _type = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _accounts = (await Db.QueryAsync<ChartOfAccountRow>(Schema, "ChartOfAccountSearch", new
+            {
+                SearchText = _search ?? "",
+                SkipRows = 0,
+                TakeSize = 500
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_title))
+        {
+            Snackbar.Add("کد و عنوان حساب الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "ChartOfAccountUpsert", new
+            {
+                AccountId = 0,
+                AccountCode = _code.Trim(),
+                Title = _title.Trim(),
+                AccountType = string.IsNullOrWhiteSpace(_type) ? null : _type,
+                ParentAccountId = (int?)null,
+                IsActive = true
+            });
+            Snackbar.Add("حساب ذخیره شد.", Severity.Success);
+            _code = "";
+            _title = "";
+            _type = "";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

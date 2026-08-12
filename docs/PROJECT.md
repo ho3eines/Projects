@@ -1,145 +1,181 @@
-# 📘 Hermes Projects — Master Blueprint
+# 📘 ترازین — مدیریت هوشمند کسب‌وکار (Master Blueprint — Blazor Hybrid)
 
-> **Structure**: `D:\hermes\projects\`
-> **Last updated**: 2026-08-09
+> **Last updated**: 2026-08-12 (v2.2 — لایه‌بندی Share/Data/Ui)
+> **قانون طلایی**: ۵ پروژهٔ تمیز با وابستگی یک‌طرفه — **Share (مدل‌ها) ← Data (داده) ←
+> Ui (رابط مشترک) ← {Web, Maui} (هاست‌ها)**. هر محصول یک ماژول و یک اسکیمه؛ UI = MudBlazor.
 
 ---
 
 ## 🧭 Overview
 
-A **modular ERP ecosystem**: one central Blazor WASM client manages all company projects; every product (accounting, inventory, store, ...) is a **Client-only Blazor WASM app**; all data flows through a **single shared WebAPI** that executes **named TSQL scripts**; every project owns its **own DB schema**.
+پلتفرم یکپارچهٔ سازمان با **هفت محصول** که در **۵ پروژه** با لایه‌بندی روشن ساخته شده:
 
-> 📋 **Platform spec (7 products)**: `docs/PLATFORM_PRD.md` (PRD نسخهٔ هرمس، دوزبانه)
-> 🗺️ **Implementation plan / backlog**: `docs/PLATFORM_ROADMAP.md`
-> 🧩 **Architecture decisions**: `docs/adr/` (ADR-001 single webapi · ADR-002 outbox/audit · ADR-003 contracts & tests)
->
-> هفت محصول: حسابداری (`accounting`, موجود) · انبار آمل (`inventory`, فاز ۱) · خزانه‌داری
-> (`treasury`, فاز ۲) · حقوق و دستمزد (`payroll`, فاز ۳) · طلافروشی (`goldshop`, فاز ۴) ·
-> فروشگاه اینترنتی (`store`, فاز ۵) · پلتفرم مشترک (`central-client` + `webapi` + `share`, فاز ۰).
+1. **`Tarazin.Share`** — مدل‌ها و قراردادهای مشترک (POCO؛ بدون هیچ وابستگی).
+2. **`Tarazin.Data`** — لایهٔ داده: `DbService` (Dapper) + `ScriptCatalog`
+   (اسکریپت‌های TSQL نامدار به‌صورت Embedded) + ممیزی.
+3. **`Tarazin.Ui`** — رابط کاربری مشترک (RCL): همهٔ صفحات ماژول‌ها + چیدمان + سرویس‌های
+   نشست/ورود. **همین UI در هر دو هاست رندر می‌شود.**
+4. **`Tarazin.Web`** — هاست وب (Blazor Server در مرورگر).
+5. **`Tarazin.Maui`** — هاست بومی (MAUI Blazor Hybrid در BlazorWebView).
+
+داده فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded در `Tarazin.Data`) که در
+همان پروسه با Dapper اجرا می‌شوند؛ **هیچ وب‌سرویس، هیچ لایهٔ HTTP برای داده وجود
+ندارد**.
+
+> 📋 **PRD محصولات**: `PRD.md` · `PRD_All_Projects.md`
+> 🗺️ **برنامهٔ کار**: `docs/PLATFORM_ROADMAP.md`
+> 🧩 **تصمیم‌های معماری**: `docs/adr/` (ADR-001..005)
+> 🤖 **راهنمای عامل**: `.agents/tarazin-tsql/SKILL.md`
+> 📱 **راهنمای MAUI**: `skills/blazor/blazor-maui-hybrid/SKILL.md`
 
 ---
 
 ## 🗂️ Directory Layout
 
 ```
-D:\hermes\projects\
+Tarazin.slnx                       ← ۵ پروژه
 │
-├── central-client/          ← هوشمند مرکزی: وبسایت شرکت + مدیریت پروژهها + ویجتها + news/blog/gallery/users
-│   ├── Pages/               (Dashboard, Projects, News, Blog, Gallery, Users, Auth)
-│   ├── Shared/Components/Widgets/   ← ویجتهای قابل نمایش در وبسایت شرکت
-│   └── wwwroot/
+├── Tarazin.Share/                 ← لایهٔ ۱: مدل‌ها/قراردادها (Class Library — بدون وابستگی)
+│   ├── Tarazin.Share.csproj
+│   └── SharedModels.cs, AccountingModels.cs, InventoryModels.cs,
+│       TreasuryModels.cs, PayrollModels.cs, GoldShopModels.cs,
+│       StoreModels.cs, CentralModels.cs      (namespace: Tarazin.Models)
 │
-├── webapi/                  ← تنها API سیستم (مشترک بین همه پروژهها)
-│   ├── Controllers/SystemController.cs   ← /api/system/{query|execute|scalar}
-│   ├── Services/SystemQueryExecutor.cs   ← اجرای فایلهای TSQL نامدار
-│   ├── Data/Scripts/{schema}/{name}.sql  ← اسکریپتهای هر پروژه (اسکیمای مجزا)
-│   ├── Program.cs / appsettings.json
-│   └── wwwroot/ (اختیاری)
+├── Tarazin.Data/                  ← لایهٔ ۲: دسترسی به داده (Class Library)
+│   ├── Tarazin.Data.csproj        ← Dapper + SqlClient؛ اسکریپت‌ها Embedded
+│   ├── DbService.cs               ← Query/Execute/Scalar با اسکریپت نامدار (Dapper)
+│   ├── ScriptCatalog.cs           ← بارگذاری Embedded: Tarazin.Scripts.{schema}.{name}.sql
+│   ├── AuditService.cs            ← ممیزی با زنجیرهٔ هش
+│   ├── PasswordHasher.cs          ← PBKDF2
+│   ├── ICurrentUser.cs            ← انتزاع کاربر جاری (بدون وابستگی به Ui)
+│   ├── TarazinDbInitializer.cs    ← ensure/seed/bootstrap-admin (هر دو هاست)
+│   ├── DataServiceCollectionExtensions.cs  ← AddTarazinDataServices()
+│   └── Scripts/{schema}/*.sql     ← ۱۰۰ اسکریپت نامدار (EmbeddedResource)
 │
-├── share/                   ← کتابخانه اشتراکی (unified models, components, services, helpers)
-│   ├── Models/              (BaseEntity, SystemRequestPayload, ApiResponse, PagedResult, ...)
-│   ├── Components/
+├── Tarazin.Ui/                    ← لایهٔ ۳: رابط کاربری مشترک (Razor Class Library)
+│   ├── Tarazin.Ui.csproj          ← MudBlazor + ref → Share, Data
+│   ├── App.razor                  ← Router + MudThemeProvider/Dialog/Snackbar + init
+│   ├── _Imports.razor             ← usingهای مشترک (Tarazin.Models/Services/Data + MudBlazor)
+│   ├── Layout/
+│   │   ├── MainLayout.razor       ← MudLayout + MudDrawer + MudAppBar
+│   │   └── NavMenu.razor          ← MudNavMenu (۷ ماژول)
 │   ├── Services/
-│   └── Helpers/
+│   │   ├── UserSession.cs         ← نشست (ICurrentUser)
+│   │   ├── AuthService.cs         ← ورود از [central].[Users] (PBKDF2)
+│   │   └── ServiceCollectionExtensions.cs  ← AddTarazinUiServices() (هر دو هاست)
+│   ├── Modules/
+│   │   ├── Home/Pages/            ← / (launcher) و /login
+│   │   ├── Central/Pages/         ← /central, /central/news, /blog, /gallery, /users, /audit
+│   │   ├── Accounting/Pages/      ← /accounting{,/dashboard,/entry,/reports,/special,/settings}
+│   │   ├── Inventory/Pages/       ← /inventory…
+│   │   ├── Treasury/Pages/        ← /treasury…
+│   │   ├── Payroll/Pages/         ← /payroll…
+│   │   ├── GoldShop/Pages/        ← /goldshop…
+│   │   └── Store/Pages/           ← /store…
+│   └── wwwroot/css/app.css        ← استاتیک RCL → _content/Tarazin.Ui/css/app.css
 │
-├── blazordeployservice/     ← پکیج NuGet: سرویسهای عمومی (RequestService, ModalService, ...)
-│   ├── Services/RequestService.cs
-│   ├── Models/
-│   └── wwwroot/{css,js,lib}/
+├── Tarazin.Web/                   ← هاست وب (Blazor Server — فقط پوسته)
+│   ├── Tarazin.Web.csproj         ← ref → Tarazin.Ui
+│   ├── Program.cs                 ← AddServerSideBlazor + AddMudServices + AddTarazinUiServices + init
+│   ├── Pages/_Host.cshtml         ← قالب RTL؛ <component type="typeof(App)"> (از Tarazin.Ui)
+│   ├── _ViewImports.cshtml
+│   └── appsettings.json           ← ConnectionStrings + Tarazin:* (bootstrap admin)
 │
-├── [project-name]/          ← هر محصول = فقط Client
-│   ├── Client/
-│   │   ├── Pages/
-│   │   │   ├── Entry/               (ورود عملیات)
-│   │   │   ├── SpecialOperations/   (عملیات ویژه)
-│   │   │   ├── Reports/             (گزارشات)
-│   │   │   └── Settings/            (امکانات، جداول پایه)
-│   │   ├── Shared/Components/
-│   │   └── wwwroot/{css,js,lang,resources}
-│   └── Shared/Models/               (مدلهای اختصاصی پروژه)
-│
-├── accounting/  inventory/  store/  ...   ← پروژههای واقعی
-│
-└── docs/PROJECT.md
+└── Tarazin.Maui/                  ← هاست MAUI Blazor Hybrid (فقط پوسته)
+    ├── Tarazin.Maui.csproj        ← ref → Tarazin.Ui؛ TFM های android/ios/maccatalyst/windows
+    ├── MauiProgram.cs             ← AddMauiBlazorWebView + AddMudServices + AddTarazinUiServices
+    ├── App.xaml / App.xaml.cs
+    ├── MainPage.xaml              ← BlazorWebView + RootComponent → {x:Type tarazin:App}
+    ├── wwwroot/index.html         ← RTL؛ blazor.webview.js + _content/Tarazin.Ui/css/app.css
+    ├── appsettings.json           ← Embedded
+    ├── Resources/                 ← AppIcon, Splash, Styles
+    └── Platforms/                 ← Android / iOS / MacCatalyst / Windows
+docker-compose.yml                 ← فقط SQL Server
+ci/ci.yml                          ← build وب (ubuntu) + build MAUI (windows + workload maui)
+tools/cross-schema-scan.sh         ← بررسی مرز اسکیمه‌ها (Tarazin.Data/Scripts)
 ```
 
----
-
-## 🔑 Core Rules
-
-| # | Rule |
-|---|------|
-| 1 | هر پروژه = **فقط کلاینت** (Blazor WASM). هیچ API اختصاصی ندارد. |
-| 2 | ارتباط داده = `IRequestService` (Protocol=Hermes): اول handshake با **ProjectGuid**، بعد TSQL نامدار رمزشده. جزئیات: `docs/SECURITY.md`. |
-| 3 | هر پروژه **اسکیمای (Schema) مخصوص خودش** را در دیتابیس دارد. |
-| 4 | `share/` → مدلها/کامپوننتها/سرویسهای **مشترک** همه پروژهها. |
-| 5 | `blazordeployservice/` → منبع **پکیج NuGet** با کامپوننتهای عمومی (RequestService و ...). |
-| 6 | کلاینت مرکزی (`central-client`) → سایت داینامیک شرکت + مدیریت پروژهها + ویجتها. |
-| 7 | **گزارشمحور**: قبل از هر پروژه، تحقیق کنید چه گزارشاتی لازم است، سپس مدلها را بر اساس آن طراحی کنید. |
-| 8 | هر پروژه در API باید **ClientUrl** (لینک ورود به کلاینت) داشته باشد. لانچر و ادمین از `GET /api/projects/directory` همین URL را برای «ورود» می‌خوانند. |
-
----
-
-## 🧩 هر پروژه ۴ بخش دارد
-
-1. **ورود عملیات (Entry)** — عملیات ورودی (مثلاً در حسابداری: ثبت سند، مدیریت اسناد)
-2. **عملیات ویژه (Special Operations)** — عملیات الزامی (مثلاً: تغییر سال مالی)
-3. **گزارشات (Reports)** — همه گزارشات (قبل از طراحی: تحقیق!)
-4. **امکانات (Settings)** — جداول پایه (شرکتها، حسابهای کل/معین/تفصیلی) + امکانات عمومی
-
----
-
-## 🏠 صفحه اصلی هر نرمافزار
-
-- باکس جستجوی اسناد با فیلترها — حتماً **از تاریخ / تا تاریخ** (پیشفرض امروز، قابل تغییر)
-- گرید اسناد روز — کلیک روی ردیف → رفتن به سند
-
-## 📊 داشبورد هر نرمافزار
-- خلاصه و نمای کلی **همه بخشها**
-
----
-
-## 🔐 احراز هویت
-
-- لاگین در **کلاینت مرکزی**
-- توکن از طریق **پارامتر URL** به بخشهای دیگر پروژهها ارسال میشود
-- کلاینت مرکزی: news / blog / gallery / مدیریت کاربران (تعریف کاربر، دسترسیها)
-
----
-
-## 🚦 ارتباطات (Flow)
+## 🔗 وابستگی‌ها (یک‌طرفه — هرگز برعکس)
 
 ```
-central-client ──(login, user token)──► [project]-client
-      │                                        │
-      │         ProjectGuid handshake          │
-      └──────────────► webapi ◄────────────────┘
-                         │
-              session + AES → named TSQL
-                         │
-              SQL Server (schema bound to ProjectGuid)
+Tarazin.Share ──► (هیچ‌کس)
+Tarazin.Data  ──► Tarazin.Share
+Tarazin.Ui    ──► Tarazin.Share + Tarazin.Data
+Tarazin.Web   ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
+Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 ```
 
----
+- **Share** = POCOها (قراردادهای دامنه، ADR-003). هیچ لایه‌ای به آن وابسته نیست جز مصرف.
+- **Data** = فقط داده؛ به UI هیچ‌چیز نمی‌داند (`ICurrentUser` برای نام کاربر در ممیزی).
+- **Ui** = فقط ارائه؛ همهٔ داده از `DbService` (در Data).
+- هاست‌ها فقط ثبت سرویس + رندر `Tarazin.App`.
 
-## ⛔ ممنوعیتها
+## 🔑 Key Rules
 
-- ❌ MudBlazor / Radzen — فقط HTML + Bootstrap 5.3 + CSS/JS
-- ❌ API اختصاصی برای هر پروژه
-- ❌ `server-client-comm` / WebSocket / Controller جدا / SQL خام در `SqlStr`
-- ❌ پرسیدن دوباره ساختار از کاربر
+1. **UI فقط در `Tarazin.Ui`** — صفحات جدید همیشه آنجا ساخته می‌شوند تا وب و MAUI
+   هر دو به‌طور خودکار بگیرندش. هاست‌ها فقط «پوسته» هستند.
+2. **مدل‌ها فقط در `Tarazin.Share`** — namespace ثابت `Tarazin.Models`؛ اسکریپت‌ها
+   باید با همین نام‌ها هم‌نام باشند (ADR-003).
+3. **داده فقط در `Tarazin.Data`** — هیچ `DbService`/SQL در Ui یا هاست‌ها تعریف نمی‌شود.
+4. **دو هاست، یک هسته** — `AddTarazinUiServices()` در `Program.cs` (وب) و
+   `MauiProgram.cs` (MAUI)؛ `App.razor` مشترک در هر دو رندر می‌شود.
+5. **MudBlazor** — صفحهٔ جدید فقط با کامپوننت‌های Mud؛ Bootstrap/جدول سفارشی ممنوع.
+6. **اسکریپت نامدار** — صفحات SQL خام ندارند؛ همه چیز `Tarazin.Data/Scripts/{schema}/{Name}.sql`
+   که در `ScriptCatalog` (EmbeddedResource) بارگذاری می‌شود.
+7. **مرز اسکیمه** — ماژول فقط `{schema}` خودش را صدا می‌زند؛ اسکریپت سرور می‌تواند
+   با `-- Cross-schema:` خواندن بین‌اسکیمه‌ای مجاز انجام دهد.
+8. **Report-first** — قبل از کد: تحقیق گزارش‌های دامنه → مدل‌ها → اسکریپت‌ها → صفحات.
 
-مهارت داده: `.agents/hermes-tsql/SKILL.md`
+## 🧩 چهار بخش استاندارد هر ماژول
+1. **ورود عملیات (Entry)** — عملیات ورود داده (ثبت سند، رسید/حواله، …)
+2. **عملیات ویژه (Special Operations)** — بستن دوره، انبارگردانی، نهایی‌کردن حقوق، …
+3. **گزارشات (Reports)** — همهٔ گزارش‌ها اینجا؛ منبع طراحی مدل‌ها
+4. **امکانات (Settings)** — جداول پایه (حساب‌ها، کالاها، کارمندان، …)
 
----
+## 🏠 صفحهٔ اصلی هر ماژول
+- جعبهٔ جستجوی سند/حرکت با فیلتر **از تاریخ تا تاریخ** (پیش‌فرض امروز)
+- جدول روز (MudTable) — کلیک روی ردیف، آیتم را باز می‌کند
 
-## 🎯 گام بعدی (Todo)
+## 📊 Dashboard
+- خلاصهٔ همهٔ بخش‌های ماژول (کارت‌های آماری MudPaper)
 
-وضعیت: **۵ محصول جدید + پلتفرم (فاز ۰) پیاده‌سازی‌شده** (ببینید `docs/PLATFORM_ROADMAP.md`).
-- [ ] اجرای `docker compose up --build` و `dotnet test` در محیط دارای دسترسی به NuGet (تأیید نهایی)
-- [ ] حسابداری: تحقیق گزارشات → طراحی مدلها → صفحات Entry/Reports کامل
-- [ ] بک‌لاگ P0-08: `/metrics`، feature flags، توکن ۱۵ دقیقه‌ای + refresh rotation، TDE/TLS
-- [ ] بک‌لاگ P6: DAST، اجرای سخت‌گیرانهٔ E2E (<8s)، تصمیم GitOps (ADR-004)
-- [ ] انتقال و بهروزرسانی `DataGridView` به `blazordeployservice`
-- [ ] سرویسهای `ModalService`, `ThemeService`, `TranslateService` عمومی در `blazordeployservice`
-- [ ] ویجتهای مرکزی برای وبسایت شرکت
+## 🔐 Auth
+- ورود `/login` با کاربر bootstrap (`admin`/`admin` — در اولین اجرا ساخته می‌شود)
+- وب: نشست در `UserSession` (هر circuit) — MAUI: نشست در سطح اپ (scoped ≈ singleton)
+- مدیریت کاربران در `/central/users`
+
+## 🗄️ Data Layer
+- یک ConnectionString: `ConnectionStrings:DefaultConnection` → `TarazinMaster`
+  (وب: appsettings.json — MAUI: appsettings.json Embedded)
+- اسکریپت‌ها Embedded در `Tarazin.Data` → هر دو هاست مستقل از دیسک هستند
+- در استارت‌آپ: `TarazinDbInitializer.EnsureInitializedAsync` → `_Ensure.sql` ها →
+  `_Seed.sql` ها → bootstrap admin (اگر Users خالی است)
+- `DbService.QueryAsync<T>(schema, name, @params)` / `ExecuteAsync` / `ScalarAsync`
+
+## 🕵️ Audit
+- **خودکار**: هر `DbService.ExecuteAsync(...)` یک ردیف ممیزی ثبت می‌کند
+  (موفقیت یا خطا) — صفحات نیازی به فراخوانی دستی ندارند.
+- ذخیره در `[central].[AuditLog]` با `PrevHash`/`RowHash` (SHA-256) — مشاهده در `/central/audit`
+- پارامترها ذخیره نمی‌شوند؛ فقط schema/script/user/outcome/error.
+
+## 📱 MAUI Blazor Hybrid (خلاصه)
+- `Tarazin.Maui/MainPage.xaml`: `BlazorWebView` + `RootComponent` → `Tarazin.App` (از `Tarazin.Ui`)
+- `wwwroot/index.html`: اسکریپت رانتایم `_framework/blazor.webview.js` (نه server.js)
+- داده: همان `DbService`؛ توجه: `Microsoft.Data.SqlClient` روی **ویندوز/مک** کار می‌کند؛
+  برای اندروید/iOS به یک لایهٔ دادهٔ دیگر (مثلاً وب‌سرویس) نیاز است — جزییات در
+  `skills/blazor/blazor-maui-hybrid/SKILL.md`.
+
+## ❌ Explicit Bans
+- ❌ پروژه/پکیج جدید خارج از پنج‌تایی `Share / Data / Ui / Web / Maui`
+- ❌ صفحهٔ جدید خارج از `Tarazin.Ui/Modules`؛ مدل جدید خارج از `Tarazin.Share`
+- ❌ وابستگی معکوس (Data → Ui یا Ui → Web) و `HttpClient` برای داده
+- ❌ Bootstrap دستی، CSS سفارشی زیاد، DataGrid سفارشی (همه MudBlazor)
+- ❌ SQL خام در `.razor` و تعریف `DbService` در هاست‌ها
+- ❌ پرسیدن دوبارهٔ ساختار از کاربر
+
+## ✅ Workflow برای هر ماژول جدید
+1. تحقیق گزارش‌های موردنیاز دامنه
+2. طراحی مدل‌ها (`Tarazin.Share/Models/{Module}Models.cs`)
+3. نوشتن اسکریپت‌ها (`Tarazin.Data/Scripts/{schema}/…sql` + `_Ensure`/`_Seed`)
+4. صفحات MudBlazor در `Tarazin.Ui/Modules/{Name}/Pages/` + افزودن به `NavMenu` و `Home`
+5. اجرای `tools/cross-schema-scan.sh` — نتیجه به‌صورت خودکار در وب و MAUI می‌آید

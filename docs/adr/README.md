@@ -1,12 +1,15 @@
-# Architecture Decision Records — Hermes Platform
+# Architecture Decision Records — Tarazin Platform (v2.2)
 
 | # | Decision | Status | Date |
 |---|----------|--------|------|
-| [ADR-001](ADR-001-single-webapi-architecture.md) | The 7-product PRD is realized on the Hermes single-webapi model (no per-product microservices) | Accepted | 2026-08-12 |
-| [ADR-002](ADR-002-events-outbox-and-sagas.md) | Event backbone = per-schema outbox + webapi processor; audit = webapi sidecar with hash chain (no Kafka/CDC) | Accepted | 2026-08-12 |
-| [ADR-003](ADR-003-contracts-and-contract-tests.md) | Shared domain contracts = canonical named scripts + `share` DTOs + `contracts.json` manifest + xUnit contract tests | Accepted | 2026-08-12 |
+| [ADR-001](ADR-001-single-blazor-server-architecture.md) | Shared core + two thin hosts — web (Blazor Server) + MAUI (Blazor Hybrid); no webapi, no WASM clients | Accepted | 2026-08-12 |
+| [ADR-002](ADR-002-no-event-backbone-direct-sql.md) | No event backbone — cross-module work is direct server-side SQL in the same process | Accepted | 2026-08-12 |
+| [ADR-003](ADR-003-contracts-shared-models-and-scripts.md) | Shared domain contracts = C# models + named scripts; compiler + cross-schema scan enforce them | Accepted | 2026-08-12 |
+| [ADR-004](ADR-004-maui-blazor-hybrid.md) | MAUI Blazor Hybrid host — one shared UI (Tarazin.Ui), two hosts (Tarazin.Web + Tarazin.Maui) | Accepted | 2026-08-12 |
+| [ADR-005](ADR-005-share-data-layer-projects.md) | Separate `Tarazin.Share` (models) and `Tarazin.Data` (data access) projects — one-way dependencies | Accepted | 2026-08-12 |
 
-> The PRD (v1.0, 2026-08-12) is the product vision. These ADRs are the binding
-> architectural decisions that map that vision onto this repository. Product
-> teams MUST read ADR-001–003 before starting work. The living spec is
-> `docs/PLATFORM_PRD.md`; the work plan is `docs/PLATFORM_ROADMAP.md`.
+> PRD v2.2 (`docs/PLATFORM_PRD.md`) is the product vision. These ADRs are the
+> binding architectural decisions for this repository. The living spec is
+> `docs/PROJECT.md`; the work plan is `docs/PLATFORM_ROADMAP.md`.
+> The agent-facing data skill is `.agents/tarazin-tsql/SKILL.md`; the
+> MAUI-specific guidance is `skills/blazor/blazor-maui-hybrid/SKILL.md`.

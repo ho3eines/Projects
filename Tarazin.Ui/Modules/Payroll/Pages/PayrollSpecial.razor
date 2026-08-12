@@ -1,0 +1,61 @@
+@page "/payroll/special"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>نهایی‌کردن دوره — حقوق و دستمزد</PageTitle>
+
+<MudText Typo="Typo.h4">محاسبه و نهایی‌کردن دوره</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    یک دورهٔ جدید حقوق ساخته و نهایی می‌کند.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="دوره (مثلاً 1405-05)" @bind-Value="_period" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Calculate" OnClick="FinalizeAsync" Disabled="_busy">
+                نهایی‌کردن دوره
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private const string Schema = "payroll";
+
+    private string _period = DateTime.Now.ToString("yyyy-MM");
+    private bool _busy;
+
+    private async Task FinalizeAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_period))
+        {
+            Snackbar.Add("دوره را وارد کنید.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "PayrollFinalize", new
+            {
+                Period = _period.Trim(),
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add($"دورهٔ {_period} نهایی شد.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

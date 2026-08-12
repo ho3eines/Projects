@@ -1,13 +1,13 @@
-# Hermes platform — local stack (PRD AC #1)
+# Tarazin — local stack (SQL Server only)
 # Usage:
-#   docker compose up --build
-#   (SQL Server on :1433, webapi on http://localhost:65222)
+#   docker compose up -d
+#   (SQL Server on :1433 — the single Blazor Server app connects to it directly)
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Hermes!Master2026}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Tarazin!Master2026}"
       MSSQL_PID: "Developer"
     ports:
       - "1433:1433"
@@ -19,21 +19,6 @@ services:
       timeout: 5s
       retries: 15
       start_period: 30s
-
-  webapi:
-    build:
-      context: .
-      dockerfile: webapi/Dockerfile
-    depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      ASPNETCORE_URLS: "http://+:8080"
-      ConnectionStrings__DefaultConnection: "Server=mssql,1433;Database=HermesMaster;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hermes!Master2026};TrustServerCertificate=True;Encrypt=False"
-      # Contract tests / dev clients can reuse the same DB via localhost:1433.
-    ports:
-      - "65222:8080"
-    restart: unless-stopped
 
 volumes:
   mssql-data:

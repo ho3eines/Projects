@@ -1,0 +1,97 @@
+@page "/treasury"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>گردش روز — خزانه‌داری</PageTitle>
+
+<MudText Typo="Typo.h4">گردش روز صندوق و بانک</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    دریافت‌ها و پرداخت‌ها — از تاریخ / تا تاریخ.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="جستجو (شماره یا شرح)" @bind-Value="_search" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
+                اعمال فیلتر
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+        <HeaderContent>
+            <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh>
+            <MudTh>ارز</MudTh><MudTh>حساب</MudTh><MudTh>شرح</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
+            <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
+            <MudTd DataLabel="جهت">
+                <MudChip Size="Size.Small" Color="@(context.Direction == "In" ? Color.Success : Color.Error)">
+                    @(context.Direction == "In" ? "دریافت" : "پرداخت")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
+            <MudTd DataLabel="حساب">@context.AccountName</MudTd>
+            <MudTd DataLabel="شرح">@context.Description</MudTd>
+            <MudTd DataLabel="وضعیت">@context.Status</MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "treasury";
+
+    private List<DailyCashMovementRow> _rows = new();
+    private bool _loading = true;
+    private string _search = "";
+    private DateTime? _from;
+    private DateTime? _to;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _from = DateTime.Today;
+        _to = DateTime.Today;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _rows = (await Db.QueryAsync<DailyCashMovementRow>(Schema, "DailyCashMovements", new
+            {
+                FromDate = _from?.Date ?? DateTime.Today,
+                ToDate = _to?.Date ?? DateTime.Today,
+                SearchText = _search ?? "",
+                Direction = (string?)null,
+                SkipRows = 0,
+                TakeSize = 100
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

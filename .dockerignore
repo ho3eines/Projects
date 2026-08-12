@@ -1,7 +1,9 @@
+bin/
+obj/
 **/bin/
 **/obj/
-.git/
-**/.git/
 *.user
 artifacts/
 **/appsettings.Development.json
+.git/
+**/.git/

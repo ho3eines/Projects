@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <!--
+        Minimal styles. The whole app UI is MudBlazor rendered in the
+        BlazorWebView, so MAUI-side styling is intentionally kept tiny.
+        Add MAUI styles here only when native chrome (e.g. the status bar)
+        needs customization.
+    -->
+</ResourceDictionary>

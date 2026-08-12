@@ -1,0 +1,56 @@
+@inherits LayoutComponentBase
+@inject UserSession Session
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="ToggleDrawer" aria-label="منو" />
+        @* Responsive display: MudHidden replaces Bootstrap's d-none d-sm-block *@
+        <MudHidden Breakpoint="Breakpoint.Sm">
+            <MudText Typo="Typo.h6" Class="ms-2">ترازین</MudText>
+        </MudHidden>
+        <MudHidden Breakpoint="Breakpoint.Md">
+            <MudText Typo="Typo.subtitle2" Color="Color.Default">مدیریت هوشمند کسب‌وکار</MudText>
+        </MudHidden>
+        <MudSpacer />
+        @if (Session.IsAuthenticated)
+        {
+            <MudChip Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="me-2">
+                @Session.DisplayName
+            </MudChip>
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"
+                           OnClick="Logout" Title="خروج" aria-label="خروج" />
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Href="/login">
+                ورود
+            </MudButton>
+        }
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Variant="Variant.Responsive" ClipMode="DrawerClipMode.Always">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6 px-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void Logout()
+    {
+        Session.SignOut();
+        Snackbar.Add("از حساب خود خارج شدید.", Severity.Info);
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}

@@ -1,0 +1,117 @@
+@page "/goldshop/special"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>قیمت طلا — طلافروشی</PageTitle>
+
+<MudText Typo="Typo.h4">به‌روزرسانی قیمت طلا</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    قیمت روز هر گرم طلا را ثبت کنید.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="کد (مثلاً XAU-24)" @bind-Value="_itemCode" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="decimal" Label="قیمت هر گرم (ریال)" @bind-Value="_price" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="_busy">
+                ثبت قیمت
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+
+    <MudDivider Class="my-6" />
+
+    <MudTable Items="_prices" Hover="true" Dense="true" Striped="true" Loading="_loadingPrices">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت هر گرم</MudTh><MudTh>به‌روزرسانی</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.ItemCode</MudTd>
+            <MudTd DataLabel="عنوان">@context.Title</MudTd>
+            <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
+            <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "goldshop";
+
+    private List<GoldPriceRow> _prices = new();
+    private bool _loadingPrices = true;
+    private bool _busy;
+    private string _itemCode = "";
+    private string _title = "";
+    private decimal _price;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPricesAsync();
+    }
+
+    private async Task LoadPricesAsync()
+    {
+        _loadingPrices = true;
+        try
+        {
+            _prices = (await Db.QueryAsync<GoldPriceRow>(Schema, "GoldPriceSearch", new
+            {
+                SkipRows = 0,
+                TakeSize = 200
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingPrices = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_itemCode) || _price <= 0)
+        {
+            Snackbar.Add("کد و قیمت معتبر الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "GoldPriceUpsert", new
+            {
+                ItemCode = _itemCode.Trim(),
+                Title = _title,
+                PricePerGram = _price,
+                RateToIRR = (decimal?)null
+            });
+            Snackbar.Add("قیمت طلا ثبت شد.", Severity.Success);
+            _itemCode = "";
+            _title = "";
+            _price = 0;
+            await LoadPricesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

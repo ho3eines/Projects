@@ -1,0 +1,110 @@
+@page "/goldshop/settings"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>امکانات — طلافروشی</PageTitle>
+
+<MudText Typo="Typo.h4">امکانات و جداول پایه</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    تعریف اجناس طلا.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="کد (XAU-24)" @bind-Value="_code" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="decimal?" Label="عیار" @bind-Value="_purity" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="_busy">
+                افزودن جنس
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>عیار</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.ItemCode</MudTd>
+            <MudTd DataLabel="عنوان">@context.Title</MudTd>
+            <MudTd DataLabel="عیار">@(context.Purity?.ToString("N2") ?? "—")</MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                    @(context.IsActive ? "فعال" : "غیرفعال")
+                </MudChip>
+            </MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">جنسی تعریف نشده است.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "goldshop";
+
+    private List<GoldItemRow> _items = new();
+    private bool _loading = true;
+    private bool _busy;
+    private string _code = "";
+    private string _title = "";
+    private decimal? _purity;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_title))
+        {
+            Snackbar.Add("کد و عنوان الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "GoldItemUpsert", new
+            {
+                GoldItemId = 0,
+                ItemCode = _code.Trim(),
+                Title = _title.Trim(),
+                Purity = _purity,
+                IsActive = true
+            });
+            Snackbar.Add("جنس طلا ذخیره شد.", Severity.Success);
+            _code = "";
+            _title = "";
+            _purity = null;
+            _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

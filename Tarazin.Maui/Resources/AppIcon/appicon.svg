@@ -1,0 +1,8 @@
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+  <!-- ترازین app icon: rounded tile + balance/taraz motif -->
+  <rect width="456" height="456" rx="96" fill="#0F766E"/>
+  <circle cx="228" cy="228" r="150" fill="none" stroke="#FBBF24" stroke-width="22" opacity="0.9"/>
+  <path d="M128 196 L328 196" stroke="#FBBF24" stroke-width="22" stroke-linecap="round"/>
+  <path d="M228 196 L228 318" stroke="#FBBF24" stroke-width="22" stroke-linecap="round"/>
+  <path d="M128 196 Q118 248 156 258 M328 196 Q338 248 300 258" fill="none" stroke="#FBBF24" stroke-width="20" stroke-linecap="round"/>
+</svg>

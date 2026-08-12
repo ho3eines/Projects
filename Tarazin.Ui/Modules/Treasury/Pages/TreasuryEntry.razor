@@ -1,0 +1,114 @@
+@page "/treasury/entry"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>دریافت / پرداخت — خزانه‌داری</PageTitle>
+
+<MudText Typo="Typo.h4">ثبت دریافت / پرداخت</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    حرکت نقدی صندوق یا بانک.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="string" Label="جهت" @bind-Value="_direction" Variant="Variant.Outlined">
+                <MudSelectItem Value="In">دریافت</MudSelectItem>
+                <MudSelectItem Value="Out">پرداخت</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="decimal" Label="مبلغ" @bind-Value="_amount" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="صندوق / حساب بانکی" @bind-Value="_accountId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var c in _cashBoxes)
+                {
+                    <MudSelectItem Value="c.CashBoxId">صندوق: @c.Title</MudSelectItem>
+                }
+                @foreach (var b in _bankAccounts)
+                {
+                    <MudSelectItem Value="b.AccountId">بانک: @b.AccountName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="ارجاع (اختیاری)" @bind-Value="_reference" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="_busy">
+                ثبت حرکت
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "treasury";
+
+    private List<CashBoxRow> _cashBoxes = new();
+    private List<BankAccountRow> _bankAccounts = new();
+    private string _direction = "In";
+    private DateTime? _date = DateTime.Today;
+    private decimal _amount;
+    private int _accountId;
+    private string _description = "";
+    private string _reference = "";
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cashBoxes = (await Db.QueryAsync<CashBoxRow>(Schema, "CashBoxList")).ToList();
+        _bankAccounts = (await Db.QueryAsync<BankAccountRow>(Schema, "BankAccountList")).ToList();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (_accountId == 0 || _amount <= 0)
+        {
+            Snackbar.Add("صندوق/بانک و مبلغ معتبر الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var cash = _cashBoxes.FirstOrDefault(c => c.CashBoxId == _accountId);
+            await Db.ExecuteAsync(Schema, "CashMovementInsert", new
+            {
+                Direction = _direction,
+                Amount = _amount,
+                CurrencyCode = "IRR",
+                CashBoxId = cash?.CashBoxId,
+                AccountId = cash is null ? _accountId : (int?)null,
+                MovementDate = _date?.Date ?? DateTime.Today,
+                Description = _description,
+                SourceReference = _reference,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("حرکت نقدی ثبت شد.", Severity.Success);
+            _amount = 0;
+            _description = "";
+            _reference = "";
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

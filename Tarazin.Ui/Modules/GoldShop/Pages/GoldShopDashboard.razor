@@ -1,0 +1,64 @@
+@page "/goldshop/dashboard"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>داشبورد — طلافروشی</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">نمای کلی طلافروشی</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">فروش امروز</MudText>
+                <MudText Typo="Typo.h4">@_summary.TodaySales</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">مبلغ امروز</MudText>
+                <MudText Typo="Typo.h5">@_summary.TodayAmount.ToString("N0")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">قیمت‌های ثبت‌شده</MudText>
+                <MudText Typo="Typo.h4">@_summary.PriceCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">قیمت طلای ۲۴</MudText>
+                <MudText Typo="Typo.h5">@_summary.Gold24Price.ToString("N0")</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private const string Schema = "goldshop";
+    private bool _loading = true;
+    private GoldShopDashboardRow _summary = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _summary = await Db.QueryFirstOrDefaultAsync<GoldShopDashboardRow>(Schema, "DashboardSummary")
+                       ?? new GoldShopDashboardRow();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

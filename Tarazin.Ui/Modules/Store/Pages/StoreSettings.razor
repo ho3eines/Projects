@@ -1,0 +1,182 @@
+@page "/store/settings"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>امکانات — فروشگاه اینترنتی</PageTitle>
+
+<MudText Typo="Typo.h4">امکانات و جداول پایه</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    مدیریت محصولات و مشتریان.
+</MudText>
+
+<MudTabs>
+    <MudTabPanel Text="محصولات">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="کد محصول" @bind-Value="_productCode" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="عنوان" @bind-Value="_productTitle" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField T="decimal" Label="قیمت" @bind-Value="_productPrice" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="SaveProductAsync">
+                        ذخیره محصول
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudTable Items="_products" Hover="true" Dense="true" Striped="true" Loading="_loadingProducts">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت</MudTh><MudTh>وضعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.ProductCode</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="قیمت">@context.Price.ToString("N0")</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">محصولی نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="مشتریان">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="کد مشتری" @bind-Value="_customerCode" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="نام کامل" @bind-Value="_customerName" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="تلفن" @bind-Value="_customerPhone" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="SaveCustomerAsync">
+                        ذخیره مشتری
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudTable Items="_customers" Hover="true" Dense="true" Striped="true" Loading="_loadingCustomers">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>تلفن</MudTh><MudTh>ایمیل</MudTh><MudTh>وضعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.CustomerCode</MudTd>
+                    <MudTd DataLabel="نام">@context.FullName</MudTd>
+                    <MudTd DataLabel="تلفن">@context.Phone</MudTd>
+                    <MudTd DataLabel="ایمیل">@context.Email</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">مشتری‌ای نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private const string Schema = "store";
+
+    private List<ProductRow> _products = new();
+    private List<CustomerRow> _customers = new();
+    private bool _loadingProducts = true;
+    private bool _loadingCustomers = true;
+    private string _productCode = "";
+    private string _productTitle = "";
+    private decimal _productPrice;
+    private string _customerCode = "";
+    private string _customerName = "";
+    private string _customerPhone = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
+            _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingProducts = false;
+            _loadingCustomers = false;
+        }
+    }
+
+    private async Task SaveProductAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_productCode) || string.IsNullOrWhiteSpace(_productTitle))
+        {
+            Snackbar.Add("کد و عنوان محصول الزامی است.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "ProductUpsert", new
+            {
+                ProductId = 0,
+                ProductCode = _productCode.Trim(),
+                Title = _productTitle.Trim(),
+                ItemCode = "",
+                Price = _productPrice,
+                IsActive = true
+            });
+            Snackbar.Add("محصول ذخیره شد.", Severity.Success);
+            _productCode = "";
+            _productTitle = "";
+            _productPrice = 0;
+            _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task SaveCustomerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_customerCode) || string.IsNullOrWhiteSpace(_customerName))
+        {
+            Snackbar.Add("کد و نام مشتری الزامی است.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "CustomerUpsert", new
+            {
+                CustomerId = 0,
+                CustomerCode = _customerCode.Trim(),
+                FullName = _customerName.Trim(),
+                Phone = _customerPhone,
+                Email = (string?)null,
+                IsActive = true
+            });
+            Snackbar.Add("مشتری ذخیره شد.", Severity.Success);
+            _customerCode = "";
+            _customerName = "";
+            _customerPhone = "";
+            _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

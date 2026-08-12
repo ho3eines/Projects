@@ -1,0 +1,82 @@
+@page "/central/audit"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>ممیزی — ترازین</PageTitle>
+
+<MudText Typo="Typo.h4">ممیزی سیستم</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    رویدادهای ثبت‌شده با زنجیرهٔ هش (ضد دستکاری).
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="اسکیمه" @bind-Value="_schema" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="نام اسکریپت" @bind-Value="_script" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
+                جستجو
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+        <HeaderContent>
+            <MudTh>#</MudTh><MudTh>اسکیمه</MudTh><MudTh>اسکریپت</MudTh><MudTh>نتیجه</MudTh><MudTh>تاریخ</MudTh><MudTh>هش</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="#">@context.AuditId</MudTd>
+            <MudTd DataLabel="اسکیمه">@context.SchemaName</MudTd>
+            <MudTd DataLabel="اسکریپت">@context.ScriptName</MudTd>
+            <MudTd DataLabel="نتیجه">
+                <MudChip Size="Size.Small" Color="@(context.Outcome == "Success" ? Color.Success : Color.Error)">@context.Outcome</MudChip>
+            </MudTd>
+            <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
+            <MudTd DataLabel="هش" Style="direction:ltr; font-size:.7rem">@context.RowHash[..12]…</MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">رویدادی نیست.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "central";
+
+    private List<AuditRow> _rows = new();
+    private bool _loading = true;
+    private string _schema = "";
+    private string _script = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _rows = (await Db.QueryAsync<AuditRow>(Schema, "AuditSearch", new
+            {
+                SchemaName = string.IsNullOrWhiteSpace(_schema) ? null : _schema.Trim(),
+                ScriptName = string.IsNullOrWhiteSpace(_script) ? null : _script.Trim(),
+                FromDate = (DateTime?)null,
+                ToDate = (DateTime?)null,
+                SkipRows = 0,
+                TakeSize = 200
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

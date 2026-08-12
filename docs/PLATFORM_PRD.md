@@ -1,173 +1,145 @@
-# PRD – Unified Multi-Product Platform (Hermes Edition)
-# PRD – پلتفرم یکپارچه چندمحصوله (نسخهٔ هرمس)
+# PRD – Tarazin — Smart Business Management Platform (v2.2 — Blazor Hybrid, 5 projects)
+# PRD – ترازین — مدیریت هوشمند کسب‌وکار (نسخهٔ ۲.۲ — Blazor Hybrid، ۵ پروژه)
 
-> **Status**: Adopted — 2026-08-12 · **Supersedes**: PRD v1.0 (2026-08-12) architectural assumptions
-> **Binding decisions**: [ADR-001](adr/ADR-001-single-webapi-architecture.md), [ADR-002](adr/ADR-002-events-outbox-and-sagas.md), [ADR-003](adr/ADR-003-contracts-and-contract-tests.md)
+> **Status**: Adopted — 2026-08-12 · **Supersedes**: PRD v1.0 (microservices), v1.5 (single webapi + WASM)
+> **Binding decisions**: [ADR-001](adr/ADR-001-single-blazor-server-architecture.md),
+> [ADR-002](adr/ADR-002-no-event-backbone-direct-sql.md),
+> [ADR-003](adr/ADR-003-contracts-shared-models-and-scripts.md),
+> [ADR-004](adr/ADR-004-maui-blazor-hybrid.md),
+> [ADR-005](adr/ADR-005-share-data-layer-projects.md)
 > **Work plan**: [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md)
 
-**EN** – This document is the original product PRD mapped onto the Hermes
-platform. Every product goal, contract, and integration scenario is preserved;
-the *mechanisms* (microservices, Kafka, Kubernetes, React) are replaced by
-Hermes mechanisms (single webapi + named TSQL, per-schema outbox, docker
-compose, Blazor WASM). Where a mechanism changes, the ADR explains why.
+**EN** – Five projects with one-way dependencies host all seven business
+applications: `Tarazin.Share` (models/contracts) ← `Tarazin.Data` (data layer:
+Dapper + embedded named TSQL scripts) ← `Tarazin.Ui` (shared UI, Razor Class
+Library) ← two thin hosts: the web app (`Tarazin.Web`, Blazor Server) and the
+MAUI app (`Tarazin.Maui`, MAUI Blazor Hybrid in a BlazorWebView). Each product
+is a *bounded context*: a module (`Modules/{Name}/` in `Tarazin.Ui`) and one
+private SQL schema (`Data/Scripts/{schema}/` in `Tarazin.Data`, embedded
+resources). There is no web service, no WASM client, no HTTP data layer: UI
+and data access run in the same process. The UI is built exclusively with
+MudBlazor.
 
-**FA** – این سند همان PRD محصولات است که روی پلتفرم هرمس پیاده می‌شود. تمام
-اهداف محصول، قراردادها و سناریوهای یکپارچگی حفظ شده؛ اما *سازوکارها*
-(میکروسرویس، کافکا، کوبرنیتس، ری‌اکت) با سازوکارهای هرمس (یک webapi +
-اسکریپت‌های TSQL نامدار، outbox به‌ازای هر اسکیمه، docker compose، بلِیزِر WASM)
-جایگزین شده‌اند. هر جا سازوکاری تغییر کرده، ADR دلیلش را توضیح داده است.
+**FA** – پنج پروژه با وابستگی یک‌طرفه همهٔ هفت محصول تجاری را میزبانی می‌کنند:
+`Tarazin.Share` (مدل‌ها/قراردادها) ← `Tarazin.Data` (لایهٔ داده: Dapper +
+اسکریپت‌های TSQL نامدار Embedded) ← `Tarazin.Ui` (رابط کاربری مشترک — RCL) ←
+دو هاست نازک: وب (`Tarazin.Web` — Blazor Server) و اپ MAUI (`Tarazin.Maui` —
+MAUI Blazor Hybrid داخل BlazorWebView). هر محصول یک *bounded context* است: یک
+ماژول (`Modules/{Name}/` در `Tarazin.Ui`) و یک اسکیمهٔ SQL خصوصی
+(`Data/Scripts/{schema}/` در `Tarazin.Data` — Embedded). هیچ وب‌سرویس، هیچ
+کلاینت WASM و هیچ لایهٔ HTTP برای داده وجود ندارد: UI و لایهٔ داده در یک
+پروسه‌اند. رابط کاربری فقط با MudBlazor ساخته می‌شود.
 
 ---
 
 ## Products / محصولات (7)
 
-| # | Product / محصول | Hermes app / پروژه | Schema / اسکیمه | Status / وضعیت |
-|---|---|---|---|---|
-| 1 | Accounting / حسابداری | `accounting/` | `accounting` | ✅ پیاده‌سازی‌شده (قراردادهای ChartOfAccount / TaxRule) |
-| 2 | Warehouse Mgmt – Amol Anbar / انبار آمل | `inventory/` | `inventory` | ✅ پیاده‌سازی‌شده |
-| 3 | Treasury / خزانه‌داری | `treasury/` | `treasury` | ✅ پیاده‌سازی‌شده |
-| 4 | Payroll & HR / حقوق و دستمزد | `payroll/` | `payroll` | ✅ پیاده‌سازی‌شده |
-| 5 | Gold-Shop Mgmt / مدیریت طلافروشی | `goldshop/` | `goldshop` | ✅ پیاده‌سازی‌شده |
-| 6 | E-Commerce Store / فروشگاه اینترنتی | `store/` | `store` | ✅ پیاده‌سازی‌شده |
-| 7 | Core Platform Services / پلتفرم مشترک | `central-client/` + `webapi/` + `share/` + `blazordeployservice/` | `central` | ✅ پیاده‌سازی‌شده (فاز ۰: outbox، audit، قراردادها، compose، CI، تست‌ها) |
-
-> وضعیت «پیاده‌سازی‌شده» = کد/اسکریپت کامل در مخزن؛ تأیید نهایی با
-> `docker compose up` + `dotnet test` در CI (که در این sandbox به دلیل مسدود بودن
-> دسترسی به NuGet/Microsoft قابل اجرا نبود — workflow آماده است).
-
-> **Note**: «انبار امول» در PRD اصلی به‌صورت «امول» نوشته شده؛ نام صحیح فارسی
-> «انبار آمل» است. نام محصول و اسکیمه (`inventory`) تغییری نمی‌کند.
-
----
+| # | Product / محصول | Module / ماژول (در `Tarazin.Ui/`) | Schema / اسکیمه | Route / مسیر | Status |
+|---|---|---|---|---|---|
+| 1 | Accounting / حسابداری | `Modules/Accounting` | `accounting` | `/accounting` | ✅ پیاده‌سازی‌شده |
+| 2 | Warehouse Mgmt – Amol Anbar / انبار آمل | `Modules/Inventory` | `inventory` | `/inventory` | ✅ پیاده‌سازی‌شده |
+| 3 | Treasury / خزانه‌داری | `Modules/Treasury` | `treasury` | `/treasury` | ✅ پیاده‌سازی‌شده |
+| 4 | Payroll & HR / حقوق و دستمزد | `Modules/Payroll` | `payroll` | `/payroll` | ✅ پیاده‌سازی‌شده |
+| 5 | Gold-Shop Mgmt / طلافروشی | `Modules/GoldShop` | `goldshop` | `/goldshop` | ✅ پیاده‌سازی‌شده |
+| 6 | E-Commerce Store / فروشگاه | `Modules/Store` | `store` | `/store` | ✅ پیاده‌سازی‌شده |
+| 7 | Core Platform / پلتفرم مشترک | `Modules/Central` | `central` | `/central` | ✅ پیاده‌سازی‌شده |
 
 ## 1. Vision / دیدگاه کلی
 
-**EN** – Deliver a single, extensible platform that hosts all seven business
-applications. Each product is a *bounded context* — a client-only Blazor WASM
-app and **one private SQL schema** — that communicates only through
-well-versioned named scripts and the event backbone. No product reads another
-product's schema directly: the schema lock in the project registry makes that
-impossible for clients, and the CI cross-schema gate (ADR-003) audits server
-scripts.
+**EN** – Deliver a single, extensible UI core that runs everywhere: browser and
+native desktop/mobile. Each product is a bounded context (module + schema).
+Cross-module work happens directly in server-side scripts, in one process — no
+async event backbone, no message queue.
 
-**FA** – ارائه یک پلتفرم واحد و قابل گسترش که هفت محصول تجاری را میزبانی کند.
-هر محصول یک *bounded context* — یک اپ بلِیزِر WASM (فقط کلاینت) و **یک اسکیمهٔ
-خصوصی SQL** — است که فقط از طریق اسکریپت‌های نامدار نسخه‌دار و بک‌بون رویدادها
-ارتباط برقرار می‌کند. هیچ محصولی مستقیم اسکیمهٔ محصول دیگر را نمی‌خواند: قفل
-اسکیمه در پروژه‌رجیستری این را برای کلاینت‌ها غیرممکن و دروازهٔ CI اسکریپت‌ها را
-حسابرسی می‌کند (ADR-003).
+**FA** – ارائهٔ یک هستهٔ UI واحد و قابل گسترش که همه‌جا اجرا می‌شود: مرورگر و
+دسکتاپ/موبایل بومی. هر محصول یک bounded context است (ماژول + اسکیمه). کار
+بین‌ماژولی مستقیم در اسکریپت‌های سمت سرور و در یک پروسه انجام می‌شود — بدون
+بک‌بون رویداد.
 
 ## 2. High-Level Architecture / معماری سطح بالا
 
-| Layer / لایه | PRD assumption | Hermes realization / پیاده‌سازی هرمس |
+| Layer / لایه | Responsibility / وظیفه | Tech / سازوکار |
 |---|---|---|
-| API Gateway | Kong/Traefik + OIDC | `webapi` — `AuthController` (handshake + login)، `DataController` (اسکریپت نامدار رمزشده)، `HandshakeGuard` (محدودیت ۵/دقیقه/IP)، CORS |
-| Service Mesh | Istio/Linkerd | اعمال نمی‌شود — یک deployable؛ تاب‌آوری با idempotent مصرف‌کننده‌ها + outbox |
-| Event Backbone | Kafka + Avro | جدول `Outbox` در هر اسکیمه + سرویس `OutboxProcessor` در webapi (ADR-002) |
-| Core Services | Party, ChartOfAccounts, Currency, TaxEngine, AuditLog | اسکیمهٔ `central` + DTOهای `share` + اسکریپت‌های نامدار؛ AuditLog به‌صورت sidecar (ADR-002) |
-| Product Services | ۷ سرویس مستقل | ۷ کلاینت WASM در همان solution؛ CI مشترک با تست قرارداد به‌ازای هر محصول |
-| Data Layer | PostgreSQL + CDC | یک SQL Server (`HermesMaster`)؛ یک اسکیمه به‌ازای هر محصول؛ read-model از طریق اسکریپت‌های سمت سرور |
-| Front-End Shell | React 18 + Module Federation | `central-client` (لاuncher) + `blazordeployservice` (UI مشترک، Bootstrap 5.3) |
-| DevOps | Kubernetes + ArgoCD | `docker compose` برای اجرای محلی + GitHub Actions؛ GitOps در فاز ۶ (آینده) |
+| Share | Models/contracts (POCO) | `Tarazin.Share` (namespace `Tarazin.Models`) |
+| Data Access | Named-script execution, schema scope | `Tarazin.Data` — `DbService` + Dapper (in-process) |
+| Presentation (مشترک) | All pages/forms/tables/modals | `Tarazin.Ui` (RCL) + **MudBlazor** |
+| Host — Web | Serve the shared UI in the browser | `Tarazin.Web` — Blazor Server (SignalR) |
+| Host — MAUI | Serve the shared UI in a native app | `Tarazin.Maui` — MAUI Blazor Hybrid (BlazorWebView) |
+| Application | Orchestration inside pages | `Modules/*/Pages/*.razor` + `Services/` |
+| Data | One DB `TarazinMaster`, one schema per product | SQL Server (docker compose) |
+| Auth & Audit | Login, session, hash-chained audit | `AuthService`, `UserSession`, `AuditService` |
+| DevOps | Build web + build MAUI + static analysis | `ci/ci.yml`, `tools/cross-schema-scan.sh` |
 
-> **Rule / قانون** – *No direct DB access across services.* در هرمس: کلاینت فقط
-> اسکریپت‌های اسکیمهٔ خودش را اجرا می‌کند (قفل اسکیمه از رجیستری)؛ هر خواندن
-> بین‌محصولی از طریق اسکریپت‌های سمت سرورِ اسکیمهٔ مالک انجام می‌شود و توسط
-> تست قرارداد و تحلیل ایستا بررسی می‌گردد.
+> **Rule** – No module ever embeds raw SQL or calls another module's schema
+> directly. Cross-schema reads are declared in server-side scripts
+> (`-- Cross-schema: …`).
 
 ## 3. Shared Domain Contracts / قراردادهای دامنه مشترک
 
-| Contract | Owner / مالک | Consumers / مصرف‌کننده‌ها | Hermes artifact / مصنوع هرمس |
-|---|---|---|---|
-| `Party` (Customer, Vendor, Employee) | Core (`central`) | All | `[central].[Parties]` + `PartySearch/PartyUpsert` + DTO `PartyRow` |
-| `ChartOfAccount` | Accounting | Treasury, Payroll, GoldShop, E-Com | `[accounting].[ChartOfAccounts]` + اسکریپت‌ها + DTO `ChartOfAccountRow` |
-| `CurrencyRate` | Treasury | Accounting, GoldShop, E-Com | `[treasury].[CurrencyRates]` + اسکریپت‌ها + DTO `CurrencyRateRow` |
-| `TaxRule` | Accounting | Payroll, GoldShop, E-Com | `[accounting].[TaxRules]` + اسکریپت‌ها + DTO `TaxRuleRow` |
-| `InventoryMovement` | Warehouse | Accounting, GoldShop, E-Com | `[inventory].[InventoryMovements]` + اسکریپت‌ها + DTO `InventoryMovementRow` |
-| `PayrollRun` | Payroll | Accounting, Treasury | `[payroll].[PayrollRuns]` + اسکریپت‌ها + DTO `PayrollRunRow` |
-| `GoldPrice` | GoldShop | Accounting, E-Com | `[goldshop].[GoldPrices]` + اسکریپت‌ها + DTO `GoldPriceRow` |
-| `Order` / `Cart` | E-Com | Warehouse, Accounting, Treasury | `[store].[Orders]` + `[store].[CartItems]` + اسکریپت‌ها + DTO `OrderRow` |
+Defined as C# models in `Tarazin.Share/Models/SharedModels.cs`; script columns must
+match (ADR-003):
 
-- نسخه‌بندی: پسوند `_V2` برای اسکریپت‌ها و DTOهای جدید؛ نگه‌داشتن نسخهٔ قدیمی تا
-  مهاجرت کامل مصرف‌کننده‌ها (فقط افزودن فیلد، هرگز حذف) — ADR-003.
-- رجیستری قراردادها: `contracts.json` سروشده در `/api/contracts`؛ رجیستری
-  اسکیمه‌ها: بخش `Hermes:Projects` در `appsettings.json`.
-
-## 4. Integration Patterns / الگوهای یکپارچگی
-
-| Scenario / سناریو | PRD pattern | Hermes implementation / پیاده‌سازی |
+| Contract / قرارداد | Owner / مالک | Consumers / مصرف‌کننده‌ها |
 |---|---|---|
-| Create Sales Invoice (E-Com → Accounting) | Command → Event | `OrderPlaced` در outbox اسکیمهٔ `store` → `[accounting].[SalesInvoiceFromOrder]` (idempotent روی `OrderId`) |
-| Stock Reservation (Warehouse ← GoldShop/E-Com) | Saga (orchestrated) | اسکریپت سرویس‌محور `StoreReserveStock` → `StockReserved` / `StockRejected`؛ جبران با `[inventory].[ReleaseStock]` |
-| Payroll Posting (Payroll → Accounting + Treasury) | Dual-write via Event | `PayrollFinalized` → دو مصرف‌کننده: `[accounting].[GLPostFromPayroll]` و `[treasury].[CashMoveFromPayroll]` |
-| Daily Gold Price Sync (GoldShop → all) | Pub/Sub | `GoldPriceUpdated` → بازسازی read-modelها (`GoldPriceSnapshot` در accounting و store) |
-| Audit Trail (All) | Side-car CDC | ثبت خودکار هر فراخوانی IsExec در `[central].[AuditLog]` با زنجیرهٔ هش — بدون CDC (ADR-002) |
+| `PartyRow` | central | همهٔ ماژول‌ها |
+| `ChartOfAccountRow` | accounting | treasury, payroll, goldshop, store |
+| `CurrencyRateRow` | treasury | accounting, goldshop, store |
+| `TaxRuleRow` | accounting | payroll, goldshop, store |
+| `InventoryMovementRow` | inventory | accounting, goldshop, store |
+| `PayrollRunRow` | payroll | accounting, treasury |
+| `GoldPriceRow` | goldshop | accounting, store |
+| `OrderRow` / `CartItemRow` | store | inventory, accounting, treasury |
 
-## 5. Security & Compliance / امنیت و انطباق
+## 4. Integration / یکپارچگی (بدون رویداد)
 
-| PRD item | Hermes realization |
-|---|---|
-| Central OIDC (Keycloak) + 15-min JWT | لاگین متمرکز در `central-client` + JWT امضاشده با HMAC (`Auth:Key`)؛ **بک‌لاگ (P0-08)**: کاهش `AccessTokenMinutes` به ۱۵ دقیقه + refresh-token rotation |
-| RBAC + ABAC در گیت‌وی (OPA) | RBAC در `UserDirectory` (نقش روی کاربر)؛ **بک‌لاگ**: جدول `[central].[ScriptPermissions]` برای مجوز به‌ازای اسکریپت |
-| Encryption-at-rest (LUKS/TDE) + TLS 1.3 | رمزنگاری AES حمل‌ونقل (handshake + Data) + HTTPS؛ **بک‌لاگ**: TDE و TLS 1.3 در تولید |
-| Audit (hash-chain) | `[central].[AuditLog]` با زنجیرهٔ هش — از هفتهٔ اول (P0-03) |
-| Persian tax rules + GDPR-style APIs | موتور مالیاتی جدول‌محور در `TaxRules` (بارگذاری مجدد از DB، بدون rebuild)؛ APIهای دادهٔ شخصی در `central-client` (بک‌لاگ) |
+| Scenario / سناریو | Old (v1.5) | New (v2) |
+|---|---|---|
+| Sale invoice → accounting | Event via Outbox | Direct script call in the same process (server-side, transactional) |
+| Stock reservation | Saga events | `ReserveStockForOrder.sql` executed server-side |
+| Payroll posting | `PayrollFinalized` event → dual-write | Server-side call chain |
+| Gold price sync | Pub/Sub topic | `RefreshGoldPrice.sql` called directly |
+| Audit trail | Outbox + sidecar | `AuditService` → `[central].[AuditLog]` (hash chain) |
+
+ADR-002 explains why the event backbone was retired.
+
+## 5. Security & Compliance / امنیت
+
+* **AuthN** – username/password → `AuthService` (PBKDF2) against `[central].[Users]`.
+* **Session** – per SignalR circuit (`UserSession`); nothing secret is shipped to the browser.
+* **Audit** – every mutating script recorded to `[central].[AuditLog]` with SHA-256 hash chain.
+* **Schema isolation** – `DbService` takes the schema; scripts are fully qualified.
+* **Server-side only** – WASM secret-leak class of problems is gone by construction.
 
 ## 6. Observability / نظارت
+* Structured logs via `ILogger` per service; audit log is the business observability surface.
+* `/central/audit` page for filtering operations by schema/script/outcome.
 
-| PRD item | Hermes realization |
-|---|---|
-| Prometheus + Grafana | **P0-08**: endpoint `/metrics` (شمارندهٔ درخواست، تأخیر، عمق outbox) + Grafana |
-| OpenTelemetry → Jaeger | **P0-08**: همبستگی با `RequestId` در لاگ‌های ساخت‌یافته JSON (Serilog) — بدون tracer جدا |
-| Structured JSON → Loki | لاگ‌های JSON ساخت‌یافته با `traceId`/`requestId` (P0-08) |
-| SLOs | تأخیر p99 هر اسکریپت < ۲۰۰ms؛ پردازش رویداد (تخلیهٔ outbox) < ۵ ثانیه؛ سناریوی E2E طلا < ۸ ثانیه (AC #2) |
+## 7. Deployment / استقرار
+* `docker compose up -d` → SQL Server only.
+* `dotnet run --project Tarazin` (or `dotnet publish Tarazin -c Release`).
+* CI: restore + build + `tools/cross-schema-scan.sh` (GitHub Actions).
 
-## 7. Deployment & Release Strategy / استراتژی استقرار
-
-| PRD item | Hermes realization |
-|---|---|
-| Monorepo | همین مخزن: پلتفرم (`webapi`, `central-client`, `share`, `blazordeployservice`) + محصولات در پوشه‌های ریشه |
-| GitOps / ArgoCD | **فاز ۶** (آینده). اکنون: `docker compose up` + GitHub Actions |
-| Canary | به‌ازای محصولات WASM معنادار نیست (کلاینت)؛ برای `webapi` در فاز ۶ |
-| DB Migrations (Flyway) | اسکریپت‌های idempotent `_Ensure.sql` (اجراشده در startup) — معادل Flyway؛ فقط افزودن ستون (backward-compatible) |
-| Feature Flags | **P0-08**: بخش `FeatureFlags` در appsettings (یا جدول `[central].[FeatureFlags]`) |
-
-## 8. Risks & Mitigations / ریسک‌ها و کاهش‌ها
-
-| Risk / ریسک | Impact | Mitigation در هرمس |
-|---|---|---|
-| Schema drift / انحراف اسکیمه بین محصولات | خرابی داده | تست قرارداد + تحلیل ایستا در CI (ADR-003) |
-| Distributed transaction complexity | وضعیت ناسازگار | Saga سرویس‌محور + مصرف‌کننده‌های idempotent (ADR-002) |
-| Team autonomy vs shared platform | گلوگاه | مالکیت صریح: تیم پلتفرم = webapi/central/share؛ تیم محصول = اسکیمه و صفحات خود |
-| Persian tax/legal changes | عدم انطباق | TaxEngine جدول‌محور با بارگذاری مجدد داغ (بدون deploy) |
-| SQL Server تک‌نقطه | قطعی سرویس | healthcheck در compose + بکاپ؛ ریپلیکا در فاز ۶ |
+## 8. Risks & Mitigations / ریسک‌ها
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| One process = one failure domain | All modules down together | Startup health/ensure; audit trail for diagnosis |
+| Script drift across schemas | Broken cross-module flows | `tools/cross-schema-scan.sh` + code review |
+| Monolith growth | Harder team parallelism | Module folders + schema boundaries + per-module pages |
 
 ## 9. Acceptance Criteria / معیارهای پذیرش
-
-| # | PRD criterion | Hermes interpretation / تفسیر هرمس | Where / کجا |
-|---|---|---|---|
-| 1 | All 7 services start via `docker compose up` + contract tests | همهٔ ۷ اپ (۵ محصول جدید + accounting + central) در compose بالا بیایند و `tests/Hermes.ContractTests` سبز باشد | P0-05, P0-06 |
-| 2 | E2E gold order < 8 s | سناریوی تست: ثبت سفارش طلا در store → رزرو انبار → صدور فاکتور حسابداری → ثبت نقد خزانه → به‌روزرسانی قیمت طلا؛ کل مسیر < ۸ ثانیه | P6-01 |
-| 3 | Zero direct DB cross-reads (static analysis) | قفل اسکیمه (رجیستری) + اسکن CI روی اسکریپت‌ها؛ ارجاع بین‌اسکیمه‌ای فقط با اعلان allow-list سربرگ | P0-07 |
-| 4 | All APIs documented (OpenAPI/Protobuf) | `contracts.json` در `/api/contracts` + DTOهای `share` + راهنمای هر محصول در docs | P0-04, P0-07 |
-| 5 | SAST/DAST: 0 critical | اسکن CodeQL (و در ادامه DAST) در CI؛ دروازهٔ ۰ بحرانی | P0-07 |
+1. `dotnet build Tarazin.slnx` succeeds with exactly one project.
+2. All 7 modules open from one address and show real data.
+3. No `HttpClient`-for-data and no raw SQL in `.razor` files (static check).
+4. `tools/cross-schema-scan.sh` passes.
+5. Bootstrap login works; audit rows are recorded and viewable.
 
 ## 10. Glossary / واژه‌نامه
-
-| EN | FA | Hermes meaning |
-|----|----|----------------|
-| Bounded Context | محدودهٔ بندی | یک محصول = یک اپ WASM + یک اسکیمهٔ SQL خصوصی |
-| Event Backbone | بک‌بون رویدادها | جدول `Outbox` هر اسکیمه + `OutboxProcessor` در webapi |
-| Saga | ساگا (تراکنش توزیعی) | زنجیرهٔ اسکریپت‌های سرویس‌محور با جبران (compensation) |
-| CDC | Change Data Capture | استفاده نمی‌شود؛ به‌جای آن audit sidecar در webapi |
-| Micro-frontend | مایکروفرانت‌اند | کلاینت‌های Blazor WASM + `blazordeployservice` |
-| Named script | اسکریپت نامدار | فایل `{schema}/{Name}.sql` — تنها سطح دادهٔ کلاینت |
-| Outbox | صندوق خروجی | جدول رویداد هر محصول که با دادهٔ کسب‌وکار در یک تراکنش نوشته می‌شود |
+| EN | FA |
+|----|----|
+| Bounded Context | محدودهٔ بندی |
+| Module | ماژول |
+| Named script | اسکریپت نامدار |
+| Schema | اسکیمه |
 
 ---
-
-*Document version 2.0 (Hermes Edition) — 2026‑08‑12 · نسخهٔ ۲.۰ — ۱۴۰۵/۰۵/۲۱*
-
-*Prepared by Platform Architecture Team / تهیه‌شده توسط تیم معماری پلتفرم*
-
-> اصلاح: تاریخ شمسی نسخهٔ ۱.۰ (۱۴۰۳/۰۵/۲۱) با تاریخ میلادی آن (۲۰۲۶‑۰۸‑۱۲) ناهماهنگ بود؛ نسخهٔ ۲.۰ از ۱۴۰۵/۰۵/۲۱ استفاده می‌کند که معادل 2026‑08‑12 است.
+*Document version 2.0 – 2026-08-12 · Prepared by Platform Architecture Team*
