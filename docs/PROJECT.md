@@ -116,7 +116,10 @@ central-client ──(login, token)──► [project]-client
 
 - ❌ MudBlazor / Radzen — فقط HTML + Bootstrap 5.3 + CSS/JS
 - ❌ API اختصاصی برای هر پروژه
+- ❌ `server-client-comm` / WebSocket / Controller جدا / SQL خام از کلاینت (`RequestService`)
 - ❌ پرسیدن دوباره ساختار از کاربر
+
+مهارت داده: `.agents/hermes-tsql/SKILL.md`
 
 ---
 

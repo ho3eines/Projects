@@ -11,3 +11,10 @@
         </LayoutView>
     </NotFound>
 </Router>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Api.TrySetTokenFromUri(Nav.Uri);
+    }
+}

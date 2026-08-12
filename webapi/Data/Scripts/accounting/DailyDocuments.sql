@@ -3,7 +3,7 @@
 -- Schema: accounting
 -- Returns today's documents for the main page grid
 -- =============================================
-SELECT TOP (@TakeSize)
+SELECT
     d.DocumentId,
     d.DocumentNumber,
     d.DocumentDate,
