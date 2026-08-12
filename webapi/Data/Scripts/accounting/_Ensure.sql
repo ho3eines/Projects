@@ -20,7 +20,7 @@ BEGIN
         TotalAmount       DECIMAL(18,2) NOT NULL DEFAULT 0,
         CurrencyCode      NVARCHAR(10) NULL,
         Status            NVARCHAR(50) NOT NULL DEFAULT N'Draft',
-        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTDATETIME(),
+        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         UpdatedAt         DATETIME2 NULL,
         CreatedBy         NVARCHAR(100) NULL,
         UpdatedBy         NVARCHAR(100) NULL,

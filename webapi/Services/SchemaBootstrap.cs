@@ -61,17 +61,26 @@ public sealed class SchemaBootstrap : IHostedService
 
     private async Task RunAllAsync(CancellationToken cancellationToken)
     {
-        await TryScript("_Ensure", "central");
+        // _Ensure scripts MUST succeed — they create schemas and tables that
+        // every request depends on.  If any of them fails the exception
+        // propagates to StartAsync's retry loop (fix: previously TryScript
+        // swallowed all errors, so the retry loop never fired and tables
+        // like accounting.Documents were silently missing → 500 on first
+        // query).
+        await EnsureScript("_Ensure", "central");
 
         foreach (var project in _projects.AllActive())
         {
             if (string.Equals(project.Schema, "central", StringComparison.OrdinalIgnoreCase))
                 continue;
-            await TryScript("_Ensure", project.Schema);
+            await EnsureScript("_Ensure", project.Schema);
         }
 
         await UpsertAdminAsync(cancellationToken);
 
+        // _Seed is best-effort: a seed failure should not block startup or
+        // trigger a full retry (the data may already exist from a previous
+        // run, and the operator can re-seed manually).
         await TryScript("_Seed", "central");
         foreach (var project in _projects.AllActive())
         {
@@ -83,6 +92,31 @@ public sealed class SchemaBootstrap : IHostedService
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// Runs an _Ensure script and lets failures propagate so the caller's
+    /// retry loop can recover (e.g. SQL Server still warming up during
+    /// docker compose up).  FileNotFoundException is still swallowed — a
+    /// product that ships without an _Ensure.sql simply has nothing to DDL.
+    /// </summary>
+    private async Task EnsureScript(string name, string schema)
+    {
+        try
+        {
+            await _executor.ExecuteAsync(name, null, schema);
+            _log.LogInformation("Ran {Schema}/{Name}", schema, name);
+        }
+        catch (FileNotFoundException)
+        {
+            _log.LogDebug("No {Schema}/{Name}.sql — skip", schema, name);
+        }
+        // All other exceptions (SqlException, connectivity, DDL errors) propagate
+        // to RunAllAsync → StartAsync retry loop.
+    }
+
+    /// <summary>
+    /// Runs a non-critical script (e.g. _Seed).  Failures are logged but do
+    /// not abort startup.
+    /// </summary>
     private async Task TryScript(string name, string schema)
     {
         try

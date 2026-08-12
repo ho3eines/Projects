@@ -6,5 +6,5 @@
 IF NOT EXISTS (SELECT 1 FROM [store].[InventorySnapshot] WHERE MovementId = @MovementId)
 BEGIN
     INSERT INTO [store].[InventorySnapshot] (MovementId, ItemCode, MovementType, Qty, UnitPrice, MovementDate, CreatedAt)
-    VALUES (@MovementId, @ItemCode, @MovementType, @Qty, @UnitPrice, @MovementDate, SYSUTDATETIME());
+    VALUES (@MovementId, @ItemCode, @MovementType, @Qty, @UnitPrice, @MovementDate, SYSUTCDATETIME());
 END
