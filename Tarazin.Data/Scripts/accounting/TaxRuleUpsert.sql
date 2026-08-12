@@ -3,7 +3,8 @@
 -- Schema: accounting | Contract: TaxRule (producer)
 -- Execute. Hot-reloadable: consumers re-read this table per period.
 -- =============================================
-IF NOT EXISTS (SELECT 1 FROM [accounting].[TaxRules] WHERE TaxRuleId = @TaxRuleId)
+-- TaxRuleId=0 identifies a new record; every non-zero id is an edit.
+IF @TaxRuleId = 0
 BEGIN
     INSERT INTO [accounting].[TaxRules] (RuleCode, Title, Category, RatePercent, EffectiveFrom, IsActive, CreatedAt)
     VALUES (@RuleCode, @Title, @Category, @RatePercent, @EffectiveFrom, ISNULL(@IsActive, 1), SYSUTCDATETIME());

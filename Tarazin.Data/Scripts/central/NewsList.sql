@@ -7,6 +7,7 @@ SELECT
     n.NewsId,
     n.Title,
     n.Summary,
+    n.Body,
     n.ImageUrl,
     n.PublishedAt,
     n.IsActive,

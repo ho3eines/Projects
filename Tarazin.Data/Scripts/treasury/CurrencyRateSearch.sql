@@ -11,5 +11,6 @@ SELECT
     r.RateDate,
     r.UpdatedAt
 FROM [treasury].[CurrencyRates] r
+WHERE r.IsDeleted = 0
 ORDER BY r.CurrencyCode
 OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY;

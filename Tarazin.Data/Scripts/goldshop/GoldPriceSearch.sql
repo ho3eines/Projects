@@ -11,5 +11,6 @@ SELECT
     p.RateToIRR,
     p.UpdatedAt
 FROM [goldshop].[GoldPrices] p
+WHERE p.IsDeleted = 0
 ORDER BY p.ItemCode
 OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY;

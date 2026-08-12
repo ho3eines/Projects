@@ -1,6 +1,7 @@
 @page "/accounting/entry"
 @inject DbService Db
 @inject UserSession Session
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>ثبت سند — حسابداری</PageTitle>
@@ -67,7 +68,8 @@
             </MudTd>
             <MudTd DataLabel="">
                 <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
-                               Size="Size.Small" OnClick="() => RemoveLine(_lines.IndexOf(context))" />
+                               Size="Size.Small" Disabled="@(_lines.Count <= 1)"
+                               OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -123,9 +125,18 @@
 
     private void AddLine() => _lines.Add(new JournalLineRow());
 
-    private void RemoveLine(int index)
+    private async Task ConfirmRemoveLineAsync(int index)
     {
-        if (_lines.Count > 1)
+        if (_lines.Count <= 1 || index < 0 || index >= _lines.Count)
+            return;
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "تأیید حذف",
+            "آیا این ردیف از سند حذف شود؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed is true)
             _lines.RemoveAt(index);
     }
 

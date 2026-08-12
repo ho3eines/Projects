@@ -3,7 +3,8 @@
 -- Schema: accounting | Contract: ChartOfAccount (producer)
 -- Execute.
 -- =============================================
-IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountId = @AccountId)
+-- AccountId=0 identifies a new record; every non-zero id is an edit.
+IF @AccountId = 0
 BEGIN
     INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, ParentAccountId, IsActive, CreatedAt)
     VALUES (@AccountCode, @Title, @AccountType, @ParentAccountId, ISNULL(@IsActive, 1), SYSUTCDATETIME());

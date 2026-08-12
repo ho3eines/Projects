@@ -9,7 +9,7 @@ tags: [blazor, server, admin-ui, mudblazor, razor, dapper]
 metadata:
   tarazin:
     tags: [blazor, server, admin-ui, mudblazor, razor, dapper]
-    related_skills: [tarazin-project-architecture, blazor-data-access]
+    related_skills: [tarazin-project-architecture, blazor-data-access, mudblazor-crud-dialogs]
 ---
 
 # 🖥️ Blazor Server Admin Pages (Tarazin v2)
@@ -57,12 +57,18 @@ await Db.ExecuteAsync("central", "UserUpsert", new
 
 ## 🎨 Admin page conventions (MudBlazor)
 
-- Form area: `MudPaper Elevation="1" Class="pa-4 mb-4"` with a `MudGrid` of
-  `MudTextField` / `MudSelect` / `MudDatePicker`.
+Load `mudblazor-crud-dialogs` for the complete CRUD procedure.
+
+- Create/edit inputs live in a reusable `MudDialog`, never inline above the
+  list. `Id == 0` means create; a non-zero ID means edit.
+- Delete uses `IDialogService.ShowMessageBoxAsync`; execute the named delete
+  script only when the nullable result is exactly `true`.
 - List area: `MudTable Items="..." Loading="..." Hover Dense Striped` with
-  `MudTh`/`MudTd` + `DataLabel` (responsive), `EmptyContent` message.
+  `MudTh`/`MudTd` + `DataLabel` (responsive), `NoRecordsContent`, and an
+  `عملیات` column containing edit/delete icon buttons.
 - Feedback: `ISnackbar` (`Severity.Success` / `Severity.Error` / `Severity.Warning`).
-- Busy state: `bool _busy` guard + `Disabled="_busy"` on buttons.
+- Busy state: `bool _busy` guard + `Disabled="_busy"` on save buttons.
+- Reload the SQL-backed list after successful save or delete.
 
 ## 🧨 Razor Pitfalls (hard-won)
 

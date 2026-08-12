@@ -1,6 +1,7 @@
 # Hermes Agent — Skill Routing
 
 **Data + architecture: `.agents/tarazin-tsql/SKILL.md`**
+**MudBlazor CRUD dialogs + delete prompts: `skills/blazor/mudblazor-crud-dialogs/SKILL.md`**
 **MAUI Blazor Hybrid: `skills/blazor/blazor-maui-hybrid/SKILL.md`**
 
 ```

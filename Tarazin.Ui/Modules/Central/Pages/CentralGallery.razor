@@ -1,35 +1,21 @@
 @page "/central/gallery"
 @inject DbService Db
-@inject UserSession Session
+@inject EntityCrudService EntityCrud
 @inject ISnackbar Snackbar
 
 <PageTitle>گالری — ترازین</PageTitle>
 
-<PageHeader Title="گالری تصاویر" Subtitle="مدیریت آیتم‌های گالری وبسایت." />
-<MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudGrid>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="توضیح" @bind-Value="_caption" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="آدرس تصویر" @bind-Value="_imageUrl" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="AddAsync" Disabled="_busy">
-                افزودن آیتم
-            </MudButton>
-        </MudItem>
-    </MudGrid>
-</MudPaper>
+<PageHeader Title="گالری تصاویر" Subtitle="مدیریت آیتم‌های گالری وبسایت.">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGallery(nextSortOrder: NextSortOrder)))">
+        آیتم جدید
+    </MudButton>
+</PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4">
     <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
         <HeaderContent>
-            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>توضیح</MudTh><MudTh>ترتیب</MudTh><MudTh>وضعیت</MudTh>
+            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>توضیح</MudTh><MudTh>ترتیب</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="#">@context.GalleryItemId</MudTd>
@@ -41,6 +27,16 @@
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
+            <MudTd DataLabel="عملیات">
+                <MudTooltip Text="ویرایش آیتم">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGallery(context)))" />
+                </MudTooltip>
+                <MudTooltip Text="حذف">
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromGallery(context)))" />
+                </MudTooltip>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">آیتمی نیست.</MudText></NoRecordsContent>
     </MudTable>
@@ -48,16 +44,15 @@
 
 @code {
     private const string Schema = "central";
-
     private List<GalleryItemRow> _items = new();
     private bool _loading = true;
-    private bool _busy;
-    private string _title = "";
-    private string _caption = "";
-    private string _imageUrl = "";
+    private int NextSortOrder => _items.Count == 0 ? 1 : _items.Max(x => x.SortOrder) + 1;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _items = (await Db.QueryAsync<GalleryItemRow>(Schema, "GalleryList", new
@@ -76,45 +71,15 @@
         }
     }
 
-    private async Task AddAsync()
+    private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        if (_busy) return;
-        if (string.IsNullOrWhiteSpace(_title))
-        {
-            Snackbar.Add("عنوان آیتم الزامی است.", Severity.Warning);
-            return;
-        }
+        if (await EntityCrud.ShowEditorAsync(model))
+            await LoadAsync();
+    }
 
-        _busy = true;
-        try
-        {
-            await Db.ExecuteAsync(Schema, "GalleryUpsert", new
-            {
-                GalleryItemId = 0,
-                Title = _title.Trim(),
-                Caption = _caption,
-                ImageUrl = _imageUrl,
-                SortOrder = (_items.Count + 1),
-                IsActive = true,
-                CreatedBy = Session.UserName
-            });
-            Snackbar.Add("آیتم گالری افزوده شد.", Severity.Success);
-            _title = "";
-            _caption = "";
-            _imageUrl = "";
-            _items = (await Db.QueryAsync<GalleryItemRow>(Schema, "GalleryList", new
-            {
-                SkipRows = 0,
-                TakeSize = 200
-            })).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+    private async Task DeleteAsync(EntityEditorModel model)
+    {
+        if (await EntityCrud.ConfirmDeleteAsync(model))
+            await LoadAsync();
     }
 }

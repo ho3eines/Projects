@@ -7,6 +7,7 @@ SELECT
     b.PostId,
     b.Title,
     b.Slug,
+    b.Body,
     b.Author,
     b.Tags,
     b.PublishedAt,
