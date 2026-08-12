@@ -3,10 +3,13 @@
 -- Schema: store
 -- Execute.
 -- =============================================
+DECLARE @EffectiveCode NVARCHAR(30) = ISNULL(NULLIF(@CustomerCode, N''),
+    N'CST-' + RIGHT(N'00000' + CAST(ISNULL((SELECT MAX(CustomerId) FROM [store].[Customers]), 0) + 1 AS NVARCHAR(10)), 5));
+
 IF NOT EXISTS (SELECT 1 FROM [store].[Customers] WHERE CustomerId = @CustomerId)
 BEGIN
     INSERT INTO [store].[Customers] (CustomerCode, FullName, Phone, Email, IsActive, CreatedAt)
-    VALUES (@CustomerCode, @FullName, @Phone, @Email, ISNULL(@IsActive, 1), SYSUTDATETIME());
+    VALUES (@EffectiveCode, @FullName, @Phone, @Email, ISNULL(@IsActive, 1), SYSUTDATETIME());
 END
 ELSE
 BEGIN
