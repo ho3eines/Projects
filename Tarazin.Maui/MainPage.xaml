@@ -3,8 +3,20 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:tarazin="clr-namespace:Tarazin;assembly=Tarazin.Ui"
              x:Class="Tarazin.Maui.MainPage"
-             FlowDirection="RightToLeft"
+             FlowDirection="LeftToRight"
              BackgroundColor="#0B3A38">
+
+    <!--
+        نکته مهم — چرا LeftToRight است در حالی که برنامه فارسی است؟
+        در ویندوز، خاصیت FlowDirection روی ContentPage کل درخت بصری WinUI را
+        (از جمله WebView2 داخل BlazorWebView) مثل آینه برعکس می‌کند.
+        برای همین اگر RightToLeft بگذاریم همه چیز آینه‌ای دیده می‌شود.
+        راست‌به‌چپ بودن واقعی باید فقط در لایه وب مدیریت شود:
+          - wwwroot/index.html → <html dir="rtl">
+          - App.razor → <MudRTLProvider RightToLeft="true">
+          - CSS → direction: rtl
+        اینجا باید LTR بماند تا مرورگر داخلی وارونه نشود.
+    -->
 
     <!--
         BlazorWebView hosts the SHARED App.razor (Router + MudBlazor providers)
