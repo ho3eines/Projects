@@ -13,7 +13,7 @@
             <h5 class="mb-3">سبد خرید — @(CustomerId == 0 ? "مشتری را انتخاب کنید" : CustomerName)</h5>
             <div class="row g-2 mb-3">
                 <div class="col-md-5">
-                    <select class="form-select" @bind="CustomerId" @onchange="OnCustomerChanged">
+                    <select class="form-select" value="@CustomerId" @onchange="OnCustomerChanged">
                         <option value="0">— مشتری —</option>
                         @foreach (var c in Customers) { <option value="@c.CustomerId">@c.FullName</option> }
                     </select>
@@ -92,8 +92,10 @@
     async Task LoadCartAsync()
         => Cart = CustomerId == 0 ? new() : (await Request.Request<CartItemRow>("CartView", new { CustomerId }) ?? new());
 
-    async Task OnCustomerChanged()
+    async Task OnCustomerChanged(ChangeEventArgs e)
     {
+        if (int.TryParse(e.Value?.ToString(), out var id))
+            CustomerId = id;
         Message = "";
         await LoadCartAsync();
     }
