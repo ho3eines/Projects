@@ -8,22 +8,24 @@
 <p class="h-lead mb-4">حساب کل (قرارداد ChartOfAccount) و قوانین مالیاتی (قرارداد TaxRule).</p>
 
 <div class="h-card h-card-pad mb-3">
-    <h5 class="mb-3">حساب‌ها</h5>
-    <table class="h-table">
-        <thead>
-            <tr><th>کد</th><th>عنوان</th><th>نوع</th><th>وضعیت</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var a in Accounts)
-            {
-                <tr><td>@a.AccountCode</td><td>@a.Title</td><td>@a.AccountType</td><td>@(a.IsActive ? "فعال" : "غیرفعال")</td></tr>
-            }
-        </tbody>
-    </table>
-    <div class="row g-2 mt-2">
-        <div class="col-md-2"><input class="form-control" @bind="NewAccCode" placeholder="کد" /></div>
-        <div class="col-md-4"><input class="form-control" @bind="NewAccTitle" placeholder="عنوان حساب" /></div>
-        <div class="col-md-3">
+    <h5 class="h-section-title">حساب‌ها</h5>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>کد</th><th>عنوان</th><th>نوع</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var a in Accounts)
+                {
+                    <tr><td>@a.AccountCode</td><td>@a.Title</td><td>@a.AccountType</td><td>@(a.IsActive ? "فعال" : "غیرفعال")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="row g-2 mt-3">
+        <div class="col-md-2 col-sm-4"><input class="form-control" @bind="NewAccCode" placeholder="کد" /></div>
+        <div class="col-md-4 col-sm-8"><input class="form-control" @bind="NewAccTitle" placeholder="عنوان حساب" /></div>
+        <div class="col-md-3 col-sm-6">
             <select class="form-select" @bind="NewAccType">
                 <option value="Asset">Asset</option>
                 <option value="Liability">Liability</option>
@@ -32,33 +34,35 @@
                 <option value="Expense">Expense</option>
             </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6">
             <button class="btn btn-hermes w-100" @onclick="AddAccountAsync">افزودن حساب</button>
         </div>
     </div>
 </div>
 
 <div class="h-card h-card-pad">
-    <h5 class="mb-3">قوانین مالیاتی</h5>
-    <table class="h-table">
-        <thead>
-            <tr><th>کد</th><th>عنوان</th><th>دسته</th><th>درصد</th><th>از تاریخ</th><th>وضعیت</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var t in TaxRules)
-            {
-                <tr>
-                    <td>@t.RuleCode</td><td>@t.Title</td><td>@t.Category</td>
-                    <td>@t.RatePercent.ToString("N2")</td><td>@t.EffectiveFrom.ToString("yyyy/MM/dd")</td>
-                    <td>@(t.IsActive ? "فعال" : "غیرفعال")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-    <div class="row g-2 mt-2">
-        <div class="col-md-2"><input class="form-control" @bind="NewRuleCode" placeholder="کد قانون" /></div>
-        <div class="col-md-3"><input class="form-control" @bind="NewRuleTitle" placeholder="عنوان" /></div>
-        <div class="col-md-2">
+    <h5 class="h-section-title">قوانین مالیاتی</h5>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>کد</th><th>عنوان</th><th>دسته</th><th>درصد</th><th>از تاریخ</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var t in TaxRules)
+                {
+                    <tr>
+                        <td>@t.RuleCode</td><td>@t.Title</td><td>@t.Category</td>
+                        <td>@t.RatePercent.ToString("N2")</td><td>@t.EffectiveFrom.ToString("yyyy/MM/dd")</td>
+                        <td>@(t.IsActive ? "فعال" : "غیرفعال")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="row g-2 mt-3">
+        <div class="col-md-2 col-sm-4"><input class="form-control" @bind="NewRuleCode" placeholder="کد قانون" /></div>
+        <div class="col-md-3 col-sm-8"><input class="form-control" @bind="NewRuleTitle" placeholder="عنوان" /></div>
+        <div class="col-md-2 col-sm-4">
             <select class="form-select" @bind="NewRuleCategory">
                 <option value="Vat">Vat</option>
                 <option value="Payroll">Payroll</option>
@@ -66,8 +70,8 @@
                 <option value="Commerce">Commerce</option>
             </select>
         </div>
-        <div class="col-md-2"><input class="form-control" type="number" step="0.0001" @bind="NewRuleRate" placeholder="درصد" /></div>
-        <div class="col-md-3">
+        <div class="col-md-2 col-sm-4"><input class="form-control" type="number" step="0.0001" @bind="NewRuleRate" placeholder="درصد" /></div>
+        <div class="col-md-3 col-sm-4">
             <button class="btn btn-hermes w-100" @onclick="AddRuleAsync">افزودن قانون</button>
         </div>
     </div>

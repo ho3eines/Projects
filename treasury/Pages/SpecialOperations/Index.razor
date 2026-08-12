@@ -8,31 +8,31 @@
 <p class="h-lead mb-4">ثبت چک دریافتی/پرداختی و بستن روز.</p>
 
 <div class="h-card h-card-pad mb-3">
-    <h5 class="mb-3">ثبت چک</h5>
+    <h5 class="h-section-title">ثبت چک</h5>
     <div class="row g-3">
-        <div class="col-md-3"><input class="form-control" @bind="ChequeNumber" placeholder="شماره چک" /></div>
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6"><input class="form-control" @bind="ChequeNumber" placeholder="شماره چک" /></div>
+        <div class="col-md-3 col-sm-6">
             <select class="form-select" @bind="ChequeBankId">
                 <option value="0">— بانک —</option>
                 @foreach (var b in Banks) { <option value="@b.BankId">@b.Title</option> }
             </select>
         </div>
-        <div class="col-md-2"><input class="form-control" type="number" @bind="ChequeAmount" placeholder="مبلغ" /></div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-6"><input class="form-control" type="number" @bind="ChequeAmount" placeholder="مبلغ" /></div>
+        <div class="col-md-2 col-sm-6">
             <select class="form-select" @bind="ChequeDirection">
                 <option value="In">دریافتی</option>
                 <option value="Out">پرداختی</option>
             </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 col-sm-12">
             <button class="btn btn-hermes w-100" @onclick="AddChequeAsync">ثبت چک</button>
         </div>
     </div>
 </div>
 
 <div class="h-card h-card-pad">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0">بستن روز</h5>
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <h5 class="mb-0 h-section-title" style="margin-bottom:0 !important">بستن روز</h5>
         <button class="btn btn-hermes" @onclick="CloseDayAsync" disabled="@Busy">بستن روز جاری</button>
     </div>
     <p class="h-lead mb-0">جمع نقدی و بانکی امروز در جدول DayCloses ثبت می‌شود. فقط یک‌بار در روز.</p>

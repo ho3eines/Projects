@@ -8,35 +8,37 @@
 
 <div class="h-card h-card-pad mb-3">
     <div class="row g-2">
-        <div class="col-md-3"><input class="form-control" @bind="NewTitle" placeholder="عنوان پست" /></div>
-        <div class="col-md-2"><input class="form-control" @bind="NewSlug" placeholder="slug" /></div>
-        <div class="col-md-2"><input class="form-control" @bind="NewAuthor" placeholder="نویسنده" /></div>
-        <div class="col-md-3"><input class="form-control" @bind="NewTags" placeholder="برچسب‌ها (با ویرگول)" /></div>
-        <div class="col-md-2">
+        <div class="col-md-3 col-sm-6"><input class="form-control" @bind="NewTitle" placeholder="عنوان پست" /></div>
+        <div class="col-md-2 col-sm-6"><input class="form-control" @bind="NewSlug" placeholder="slug" /></div>
+        <div class="col-md-2 col-sm-6"><input class="form-control" @bind="NewAuthor" placeholder="نویسنده" /></div>
+        <div class="col-md-3 col-sm-6"><input class="form-control" @bind="NewTags" placeholder="برچسب‌ها (با ویرگول)" /></div>
+        <div class="col-md-2 col-sm-12">
             <button class="btn btn-hermes w-100" @onclick="AddAsync">افزودن پست</button>
         </div>
     </div>
 </div>
 
 <div class="h-card">
-    <table class="h-table">
-        <thead>
-            <tr><th>#</th><th>عنوان</th><th>نویسنده</th><th>برچسب‌ها</th><th>تاریخ</th><th>وضعیت</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var b in Posts)
-            {
-                <tr>
-                    <td>@b.PostId</td>
-                    <td>@b.Title</td>
-                    <td>@b.Author</td>
-                    <td>@b.Tags</td>
-                    <td>@(b.PublishedAt?.ToString("yyyy/MM/dd") ?? "-")</td>
-                    <td>@(b.IsActive ? "فعال" : "غیرفعال")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>#</th><th>عنوان</th><th>نویسنده</th><th>برچسب‌ها</th><th>تاریخ</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var b in Posts)
+                {
+                    <tr>
+                        <td>@b.PostId</td>
+                        <td>@b.Title</td>
+                        <td>@b.Author</td>
+                        <td>@b.Tags</td>
+                        <td>@(b.PublishedAt?.ToString("yyyy/MM/dd") ?? "-")</td>
+                        <td>@(b.IsActive ? "فعال" : "غیرفعال")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </div>
 
 @code {

@@ -9,7 +9,7 @@
 
 <div class="h-card h-card-pad">
     <div class="row g-3">
-        <div class="col-md-6">
+        <div class="col-md-6 col-sm-12">
             <label class="form-label" for="order">سفارش</label>
             <select id="order" class="form-select" @bind="OrderId">
                 <option value="0">— انتخاب سفارش —</option>
@@ -19,7 +19,7 @@
                 }
             </select>
         </div>
-        <div class="col-md-4 d-flex align-items-end">
+        <div class="col-md-4 col-sm-12 d-flex align-items-end">
             <button class="btn btn-hermes w-100" @onclick="CancelAsync" disabled="@Busy">لغو سفارش</button>
         </div>
         @if (Message.Length > 0) { <div class="col-12"><div class="alert @(Error ? "alert-danger" : "alert-success") mb-0">@Message</div></div> }

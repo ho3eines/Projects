@@ -8,23 +8,26 @@
 <p class="h-lead mb-4">فهرست پرسنل.</p>
 
 <div class="h-card h-card-pad">
-    <table class="h-table">
-        <thead>
-            <tr><th>کد</th><th>نام</th><th>واحد</th><th>حقوق پایه</th><th>وضعیت</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var e in Employees)
-            {
-                <tr>
-                    <td>@e.EmployeeCode</td>
-                    <td>@e.FullName</td>
-                    <td>@e.Department</td>
-                    <td>@e.BaseSalary.ToString("N0")</td>
-                    <td>@(e.IsActive ? "فعال" : "غیرفعال")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <h5 class="h-section-title">پرسنل</h5>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>کد</th><th>نام</th><th>واحد</th><th>حقوق پایه</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var e in Employees)
+                {
+                    <tr>
+                        <td>@e.EmployeeCode</td>
+                        <td>@e.FullName</td>
+                        <td>@e.Department</td>
+                        <td>@e.BaseSalary.ToString("N0")</td>
+                        <td>@(e.IsActive ? "فعال" : "غیرفعال")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </div>
 
 @code {

@@ -6,8 +6,12 @@
 @inject NavigationManager Nav
 
 <div class="h-app">
-    <aside class="h-sidebar">
-        <a class="h-brand" href="/">
+    <!-- Mobile Overlay -->
+    <div class="h-overlay @(SidebarOpen ? "show" : "")" @onclick="CloseSidebar"></div>
+
+    <!-- Sidebar -->
+    <aside class="h-sidebar @(SidebarOpen ? "open" : "")">
+        <a class="h-brand" href="/" @onclick="CloseSidebar">
             <div class="h-brand-mark">H</div>
             <div>
                 <strong>Hermes</strong>
@@ -15,35 +19,59 @@
             </div>
         </a>
 
-        <div class="h-nav-label">منو</div>
-        <nav class="h-nav">
-            <NavLink href="/" Match="NavLinkMatch.All">داشبورد پروژه‌ها</NavLink>
-            <NavLink href="/users">کاربران و دسترسی</NavLink>
-            <NavLink href="/audit">حسابرسی رویدادها</NavLink>
-            <NavLink href="/news">اخبار شرکت</NavLink>
-            <NavLink href="/blog">وبلاگ</NavLink>
-            <NavLink href="/gallery">گالری</NavLink>
-        </nav>
+        <div class="h-nav-section">
+            <div class="h-nav-label">منو</div>
+            <nav class="h-nav">
+                <NavLink href="/" Match="NavLinkMatch.All" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">🏠</span> داشبورد پروژه‌ها
+                </NavLink>
+                <NavLink href="/users" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">👥</span> کاربران و دسترسی
+                </NavLink>
+                <NavLink href="/audit" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">🔍</span> حسابرسی رویدادها
+                </NavLink>
+                <NavLink href="/news" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">📰</span> اخبار شرکت
+                </NavLink>
+                <NavLink href="/blog" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">📝</span> وبلاگ
+                </NavLink>
+                <NavLink href="/gallery" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">🖼️</span> گالری
+                </NavLink>
+            </nav>
+        </div>
 
         <div class="h-sidebar-foot">
             <div class="h-user-chip">
                 <div class="h-avatar">@Initial</div>
                 <div>
-                    <div style="font-weight:600">@DisplayName</div>
-                    <small style="color:#9bb0c3">مدیر سیستم</small>
+                    <div class="h-user-name">@DisplayName</div>
+                    <div class="h-user-status">مدیر سیستم</div>
                 </div>
             </div>
             <button class="btn btn-sm btn-outline-light w-100 mt-2" @onclick="Logout">خروج</button>
         </div>
     </aside>
 
+    <!-- Main Area -->
     <div class="h-main">
         <header class="h-topbar">
-            <div>
-                <div class="h-page-title" style="font-size:1.05rem">مرکز مدیریت Hermes</div>
-                <div class="h-lead" style="font-size:.8rem">ورود یک‌بار → باز کردن همه پروژه‌ها با توکن</div>
+            <div class="h-topbar-right">
+                <button class="h-hamburger" @onclick="ToggleSidebar" aria-label="منو">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div>
+                    <div class="h-page-title" style="font-size:1.05rem">مرکز مدیریت Hermes</div>
+                    <div class="h-lead" style="font-size:.75rem">ورود یک‌بار → باز کردن همه پروژه‌ها با توکن</div>
+                </div>
             </div>
-            <div class="d-flex gap-2 align-items-center">
+            <div class="h-topbar-left">
                 <ThemeSelector />
                 <a class="btn btn-sm btn-outline-secondary" href="/login">حساب</a>
             </div>
@@ -58,6 +86,10 @@
 @code {
     string DisplayName = "کاربر";
     string Initial => string.IsNullOrWhiteSpace(DisplayName) ? "ک" : DisplayName[..1];
+    bool SidebarOpen = false;
+
+    void ToggleSidebar() => SidebarOpen = !SidebarOpen;
+    void CloseSidebar() => SidebarOpen = false;
 
     protected override async Task OnInitializedAsync()
     {

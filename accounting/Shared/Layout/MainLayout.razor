@@ -6,8 +6,12 @@
 @inject NavigationManager Nav
 
 <div class="h-app">
-    <aside class="h-sidebar">
-        <a class="h-brand" href="/">
+    <!-- Mobile Overlay -->
+    <div class="h-overlay @(SidebarOpen ? "show" : "")" @onclick="CloseSidebar"></div>
+
+    <!-- Sidebar -->
+    <aside class="h-sidebar @(SidebarOpen ? "open" : "")">
+        <a class="h-brand" href="/" @onclick="CloseSidebar">
             <div class="h-brand-mark">ح</div>
             <div>
                 <strong>حسابداری</strong>
@@ -15,35 +19,61 @@
             </div>
         </a>
 
-        <div class="h-nav-label">عملیات</div>
-        <nav class="h-nav">
-            <NavLink href="/" Match="NavLinkMatch.All">اسناد روز</NavLink>
-            <NavLink href="/dashboard">داشبورد</NavLink>
-            <NavLink href="/entry">ورود عملیات</NavLink>
-            <NavLink href="/special">عملیات ویژه</NavLink>
-            <NavLink href="/reports">گزارشات</NavLink>
-            <NavLink href="/settings">امکانات</NavLink>
-        </nav>
+        <div class="h-nav-section">
+            <div class="h-nav-label">منوی اصلی</div>
+            <nav class="h-nav">
+                <NavLink href="/" Match="NavLinkMatch.All" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">📄</span> اسناد روز
+                </NavLink>
+                <NavLink href="/dashboard" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">📊</span> داشبورد
+                </NavLink>
+                <NavLink href="/entry" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">✏️</span> ورود عملیات
+                </NavLink>
+                <NavLink href="/special" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">⚡</span> عملیات ویژه
+                </NavLink>
+                <NavLink href="/reports" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">📈</span> گزارشات
+                </NavLink>
+                <NavLink href="/settings" @onclick="CloseSidebar">
+                    <span class="h-nav-icon">⚙️</span> امکانات
+                </NavLink>
+            </nav>
+        </div>
 
         <div class="h-sidebar-foot">
             <a class="btn btn-sm btn-outline-light w-100 mb-2" href="@CentralUrl">بازگشت به مرکز</a>
             <div class="h-user-chip">
                 <div class="h-avatar">@Initial</div>
                 <div>
-                    <div style="font-weight:600">@DisplayName</div>
-                    <small style="color:#9bb0c3">@(LoggedIn ? "نشست فعال" : "بدون توکن")</small>
+                    <div class="h-user-name">@DisplayName</div>
+                    <div class="h-user-status">@(LoggedIn ? "نشست فعال" : "بدون توکن")</div>
                 </div>
             </div>
         </div>
     </aside>
 
+    <!-- Main Area -->
     <div class="h-main">
         <header class="h-topbar">
-            <div>
-                <div class="h-page-title" style="font-size:1.05rem">نرم‌افزار حسابداری</div>
-                <div class="h-lead" style="font-size:.8rem">داده فقط با اسکریپت نام‌دار — schema قفل‌شده روی accounting</div>
+            <div class="h-topbar-right">
+                <button class="h-hamburger" @onclick="ToggleSidebar" aria-label="منو">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div>
+                    <div class="h-page-title" style="font-size:1.05rem">نرم‌افزار حسابداری</div>
+                    <div class="h-lead" style="font-size:.75rem">داده فقط با اسکریپت نام‌دار — schema قفل‌شده روی accounting</div>
+                </div>
             </div>
-            <ThemeSelector />
+            <div class="h-topbar-left">
+                <ThemeSelector />
+            </div>
         </header>
         <main class="h-content">
             @if (!LoggedIn)
@@ -65,6 +95,10 @@
     bool LoggedIn => !string.IsNullOrEmpty(Request.UserToken);
     string CentralUrl => HermesApps.Open(HermesApps.Central, Request.UserToken);
     string CentralLogin => HermesApps.Central.TrimEnd('/') + "/login";
+    bool SidebarOpen = false;
+
+    void ToggleSidebar() => SidebarOpen = !SidebarOpen;
+    void CloseSidebar() => SidebarOpen = false;
 
     protected override async Task OnInitializedAsync()
     {

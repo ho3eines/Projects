@@ -8,51 +8,55 @@
 <p class="h-lead mb-4">تعریف کالا و انبار.</p>
 
 <div class="row g-3">
-    <div class="col-md-7">
+    <div class="col-lg-7 col-12">
         <div class="h-card h-card-pad">
-            <h5 class="mb-3">کالاها</h5>
-            <table class="h-table">
-                <thead>
-                    <tr><th>کد</th><th>عنوان</th><th>دسته</th><th>واحد</th><th>موجودی</th><th>فی</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var i in Items)
-                    {
-                        <tr>
-                            <td>@i.ItemCode</td><td>@i.ItemTitle</td><td>@i.Category</td>
-                            <td>@i.Unit</td><td>@i.StockQty.ToString("N0")</td><td>@i.UnitPrice.ToString("N0")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-            <div class="row g-2 mt-2">
-                <div class="col-md-3"><input class="form-control" @bind="NewItemCode" placeholder="کد کالا" /></div>
-                <div class="col-md-4"><input class="form-control" @bind="NewItemTitle" placeholder="عنوان کالا" /></div>
-                <div class="col-md-2"><input class="form-control" @bind="NewCategory" placeholder="دسته" /></div>
-                <div class="col-md-3">
+            <h5 class="h-section-title">کالاها</h5>
+            <div class="h-table-wrap">
+                <table class="h-table">
+                    <thead>
+                        <tr><th>کد</th><th>عنوان</th><th>دسته</th><th>واحد</th><th>موجودی</th><th>فی</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var i in Items)
+                        {
+                            <tr>
+                                <td>@i.ItemCode</td><td>@i.ItemTitle</td><td>@i.Category</td>
+                                <td>@i.Unit</td><td>@i.StockQty.ToString("N0")</td><td>@i.UnitPrice.ToString("N0")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="row g-2 mt-3">
+                <div class="col-md-3 col-sm-4"><input class="form-control" @bind="NewItemCode" placeholder="کد کالا" /></div>
+                <div class="col-md-4 col-sm-8"><input class="form-control" @bind="NewItemTitle" placeholder="عنوان کالا" /></div>
+                <div class="col-md-2 col-sm-6"><input class="form-control" @bind="NewCategory" placeholder="دسته" /></div>
+                <div class="col-md-3 col-sm-6">
                     <button class="btn btn-hermes w-100" @onclick="AddItemAsync">افزودن کالا</button>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-5">
+    <div class="col-lg-5 col-12">
         <div class="h-card h-card-pad">
-            <h5 class="mb-3">انبارها</h5>
-            <table class="h-table">
-                <thead>
-                    <tr><th>کد</th><th>عنوان</th><th>موقعیت</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var w in Warehouses)
-                    {
-                        <tr><td>@w.WarehouseCode</td><td>@w.Title</td><td>@w.Location</td></tr>
-                    }
-                </tbody>
-            </table>
-            <div class="row g-2 mt-2">
-                <div class="col-md-3"><input class="form-control" @bind="NewWhCode" placeholder="کد انبار" /></div>
-                <div class="col-md-5"><input class="form-control" @bind="NewWhTitle" placeholder="عنوان انبار" /></div>
-                <div class="col-md-4">
+            <h5 class="h-section-title">انبارها</h5>
+            <div class="h-table-wrap">
+                <table class="h-table">
+                    <thead>
+                        <tr><th>کد</th><th>عنوان</th><th>موقعیت</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var w in Warehouses)
+                        {
+                            <tr><td>@w.WarehouseCode</td><td>@w.Title</td><td>@w.Location</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="row g-2 mt-3">
+                <div class="col-md-3 col-sm-4"><input class="form-control" @bind="NewWhCode" placeholder="کد انبار" /></div>
+                <div class="col-md-5 col-sm-8"><input class="form-control" @bind="NewWhTitle" placeholder="عنوان انبار" /></div>
+                <div class="col-md-4 col-sm-12">
                     <button class="btn btn-hermes w-100" @onclick="AddWarehouseAsync">افزودن انبار</button>
                 </div>
             </div>

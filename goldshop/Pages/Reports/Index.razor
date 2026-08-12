@@ -9,42 +9,44 @@
 
 <div class="h-card h-card-pad mb-3">
     <div class="row g-3 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-4 col-sm-6">
             <label class="form-label" for="from">از تاریخ</label>
             <input id="from" type="date" class="form-control" @bind="From" />
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 col-sm-6">
             <label class="form-label" for="to">تا تاریخ</label>
             <input id="to" type="date" class="form-control" @bind="To" />
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 col-sm-12">
             <button class="btn btn-hermes w-100" @onclick="LoadAsync">اجرا</button>
         </div>
     </div>
 </div>
 
 <div class="h-card">
-    <table class="h-table">
-        <thead>
-            <tr><th>تاریخ</th><th>شماره</th><th>مشتری</th><th>جنس</th><th>وزن</th><th>اجرت</th><th>سود</th><th>مالیات</th><th>جمع</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var r in Rows)
-            {
-                <tr>
-                    <td>@r.InvoiceDate.ToString("yyyy/MM/dd")</td>
-                    <td>@r.InvoiceNumber</td>
-                    <td>@r.CustomerName</td>
-                    <td>@r.ItemTitle</td>
-                    <td>@r.WeightGram.ToString("N3")</td>
-                    <td>@r.Workmanship.ToString("N0")</td>
-                    <td>@r.Profit.ToString("N0")</td>
-                    <td>@r.Tax.ToString("N0")</td>
-                    <td><strong>@r.TotalAmount.ToString("N0")</strong></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>تاریخ</th><th>شماره</th><th>مشتری</th><th>جنس</th><th>وزن</th><th>اجرت</th><th>سود</th><th>مالیات</th><th>جمع</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Rows)
+                {
+                    <tr>
+                        <td>@r.InvoiceDate.ToString("yyyy/MM/dd")</td>
+                        <td>@r.InvoiceNumber</td>
+                        <td>@r.CustomerName</td>
+                        <td>@r.ItemTitle</td>
+                        <td>@r.WeightGram.ToString("N3")</td>
+                        <td>@r.Workmanship.ToString("N0")</td>
+                        <td>@r.Profit.ToString("N0")</td>
+                        <td>@r.Tax.ToString("N0")</td>
+                        <td><strong>@r.TotalAmount.ToString("N0")</strong></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
     @if (Rows.Count > 0)
     {
         <div class="h-card-pad border-top">

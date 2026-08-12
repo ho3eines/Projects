@@ -9,40 +9,42 @@
 
 <div class="h-card h-card-pad mb-3">
     <div class="row g-3 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-4 col-sm-6">
             <label class="form-label" for="from">از تاریخ</label>
             <input id="from" type="date" class="form-control" @bind="From" />
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 col-sm-6">
             <label class="form-label" for="to">تا تاریخ</label>
             <input id="to" type="date" class="form-control" @bind="To" />
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 col-sm-12">
             <button class="btn btn-hermes w-100" @onclick="LoadAsync">اجرا</button>
         </div>
     </div>
 </div>
 
 <div class="h-card">
-    <table class="h-table">
-        <thead>
-            <tr><th>سفارش</th><th>تاریخ</th><th>مشتری</th><th>قلم</th><th>تعداد</th><th>فی</th><th>وضعیت</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var r in Rows)
-            {
-                <tr>
-                    <td>@r.OrderNumber</td>
-                    <td>@r.OrderDate.ToString("yyyy/MM/dd")</td>
-                    <td>@r.CustomerName</td>
-                    <td>@r.ProductTitle</td>
-                    <td>@r.Qty.ToString("N0")</td>
-                    <td>@r.UnitPrice.ToString("N0")</td>
-                    <td>@r.Status</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="h-table-wrap">
+        <table class="h-table">
+            <thead>
+                <tr><th>سفارش</th><th>تاریخ</th><th>مشتری</th><th>قلم</th><th>تعداد</th><th>فی</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Rows)
+                {
+                    <tr>
+                        <td>@r.OrderNumber</td>
+                        <td>@r.OrderDate.ToString("yyyy/MM/dd")</td>
+                        <td>@r.CustomerName</td>
+                        <td>@r.ProductTitle</td>
+                        <td>@r.Qty.ToString("N0")</td>
+                        <td>@r.UnitPrice.ToString("N0")</td>
+                        <td>@r.Status</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </div>
 
 @code {
