@@ -1,0 +1,74 @@
+@page "/accounting/dashboard"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>داشبورد — حسابداری</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">نمای کلی</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">اسناد امروز</MudText>
+                <MudText Typo="Typo.h4">@_todayCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">جمع مبلغ</MudText>
+                <MudText Typo="Typo.h5">@_sum.ToString("N0")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">ورود عملیات</MudText>
+                <MudText Typo="Typo.h5">ثبت سند</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">گزارشات</MudText>
+                <MudText Typo="Typo.h5">مرور</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private const string Schema = "accounting";
+    private bool _loading = true;
+    private int _todayCount;
+    private decimal _sum;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var rows = await Db.QueryAsync<DailyDocumentRow>(Schema, "DailyDocuments", new
+            {
+                FromDate = DateTime.Today,
+                ToDate = DateTime.Today,
+                SearchText = "",
+                DocumentType = (string?)null,
+                SkipRows = 0,
+                TakeSize = 200
+            });
+            _todayCount = rows.Count;
+            _sum = rows.Sum(r => r.TotalAmount);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

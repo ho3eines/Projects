@@ -1,55 +1,44 @@
-# Create Project - Reference Notes
+# Create Module — Reference Notes (v2)
+
+"Creating a project" in Hermes v2 = **adding a module to the single Blazor
+Server app**. No API, no `dbo.Projects` registry, no per-project DB.
 
 ## Quick Troubleshooting
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| 401 Unauthorized on POST | Missing or wrong `X-Api-Key` header | Read from config: `Config["RequestService:ApiKeys:0"]` |
-| Database not created | `master` connection failed | Check SQL Server is running, trusted_connection=True |
-| Form validation fail | Empty required fields | Ensure Name, LoginTokenHash, EncryptionKey, ApiKey, ConnectionString, DatabaseName are filled |
-| CREATE DATABASE fails | Already exists, race condition | SQL will silently succeed inside `IF DB_ID IS NULL` block |
+| `Named script 'X' not found for schema 'Y'` | script file missing or wrong name/path | Add `Data/Scripts/{schema}/X.sql`; names are case-insensitive |
+| Table missing at runtime | `_Ensure.sql` didn't run | Run startup ensure (it runs automatically); check the script is idempotent |
+| Duplicate seed data | `_Seed.sql` not guarded | Wrap inserts in `IF NOT EXISTS (SELECT 1 FROM ...)` |
+| Page route collision | two pages share `@page` | Prefix all module routes: `/{route}/...` |
+| `HttpClient`/`IRequestService` not found | old transport removed | Use `DbService` |
 
-## API Endpoints Used
+## Checklist for a new module
 
-| Method | Endpoint | Body | Headers |
-|--------|----------|------|---------|
-| POST | `/api/projects` | `CreateProjectDto` | `X-Api-Key: <central_key>` |
-| GET | `/create-project` | — | — |
+| Step | File(s) |
+|------|---------|
+| 1. Reports research | module PRD section |
+| 2. Models | `Models/{Name}Models.cs` |
+| 3. DDL + seed + named scripts | `Data/Scripts/{schema}/_Ensure.sql`, `_Seed.sql`, `*.sql` |
+| 4. Six MudBlazor pages | `Modules/{Name}/Pages/*.razor` |
+| 5. Register | `Layout/NavMenu.razor`, `Modules/Home/Home.razor` |
+| 6. Validate | `tools/cross-schema-scan.sh`, `dotnet build` |
 
-## Expected Response
+## Database Schema (single DB, per-module schemas)
 
-```json
-// Success (200)
-{
-  "projectGuid": "aaaa...".
-}
+| Schema | Module | Created by |
+|--------|--------|-----------|
+| `central` | پلتفرم مشترک | `central/_Ensure.sql` |
+| `accounting` | حسابداری | `accounting/_Ensure.sql` |
+| `inventory` | انبار آمل | `inventory/_Ensure.sql` |
+| `treasury` | خزانه‌داری | `treasury/_Ensure.sql` |
+| `payroll` | حقوق و دستمزد | `payroll/_Ensure.sql` |
+| `goldshop` | طلافروشی | `goldshop/_Ensure.sql` |
+| `store` | فروشگاه | `store/_Ensure.sql` |
 
-// Error (400/500)
-{
-  "error": "...."
-}
-```
+## Startup sequence (Program.cs)
 
-## Database Schema
-
-Insert column mapping for `dbo.Projects`:
-
-| Json Property | DB Column |
-|--------------|-----------|
-| `ProjectGuid` | `ProjectGuid` (uniqueidentifier) |
-| `Name` | `Name` (nvarchar) |
-| `Schema` | `Schema` (nvarchar, default "dbo") |
-| `LoginTokenHash` | `LoginTokenHash` (nvarchar) |
-| `EncryptionKey` | `EncryptionKey` (nvarchar) |
-| `ApiKey` | `ApiKey` (nvarchar) |
-| `SessionTimeoutMinutes` | `SessionTimeoutMinutes` (int, default 10) |
-| `IsActive` | `IsActive` (bit, default true) |
-| `ConnectionString` | `ConnectionString` (nvarchar) |
-| `DatabaseName` | `DatabaseName` (nvarchar) |
-| `DatabaseProvider` | `DatabaseProvider` (nvarchar, default "SqlServer") |
-| `AutoBackupEnabled` | `AutoBackupEnabled` (bit) |
-| `AutoBackupIntervalMinutes` | `AutoBackupIntervalMinutes` (int, default 1440) |
-| `AutoBackupTimeUtc` | `AutoBackupTimeUtc` (time) |
-| `MaxBackupRetention` | `MaxBackupRetention` (int, default 7) |
-| `Description` | `Description` (nvarchar, nullable) |
-| `CreatedAtUtc` | `CreatedAtUtc` (datetime2, default GETUTCDATE()) |
+1. `ScriptCatalog.Load(root)` — indexes all `Data/Scripts/**/*.sql`
+2. `DbService.EnsureSchemaAsync()` — executes every `_Ensure.sql`
+3. `DbService.SeedAsync()` — executes every `_Seed.sql`
+4. `EnsureBootstrapAdminAsync()` — creates `admin` when `Users` is empty

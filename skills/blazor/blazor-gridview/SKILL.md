@@ -1,51 +1,79 @@
 ---
 name: blazor-gridview
-description: Reusable Blazor grid with search, paging, sorting, export.
+description: Data grids in Hermes = MudTable (MudBlazor). No custom grid.
 category: blazor
-tags: [blazor, grid, table, pagination, search, export]
-version: 1.0.0
+tags: [blazor, grid, table, mudtable, pagination, search, export]
+version: 2.0.0
 author: Ho3ein, Hermes Agent
 license: MIT
 platforms: [windows, linux, macos]
 metadata:
   hermes:
-    tags: [blazor, grid, table, pagination, filtering, sorting, edit, export, csv, excel]
-    related_skills: [blazor-clean-architecture]
+    tags: [blazor, grid, table, mudtable, filtering, sorting, edit]
+    related_skills: [blazor-clean-architecture, blazor-data-access]
 ---
 
-# DataGrid for Blazor
+# Data Grid for Blazor — MudTable
 
-Model-driven Blazor grid component. Works with any POCO model. No DataTable/DataRow — pure C# models + Bootstrap 5.3 + optional JS interop for export.
+**The custom `DataGrid` component is gone.** In the v2 single Blazor Server
+architecture, every grid is a **MudBlazor `MudTable`**. Model-driven, RTL-ready,
+styling is free — no CSS, no hand-rolled pagination/sort/export.
 
 ## When to Use
 
-- You need a data grid that binds to `List<TModel>` (not DataTable)
-- You need search, filter, sort, pagination out of the box
-- You need Excel/CSV export, inline edit, row selection
-- You want pure Bootstrap styling (no MudBlazor/Radzen)
+- Any list of rows in a page (daily documents, movements, orders, reports, …)
+- You need loading state, empty state, hover, dense/striped rows
 
-## Features
+## Basic usage
 
-- Model-driven columns (auto from properties or explicit)
-- Global search + per-column filters
-- Sorting (ASC/DESC)
-- Pagination (page size, page jump)
-- Row selection (single/multi) via checkboxes
-- Inline edit + save/cancel + delete
-- Export: CSV, Excel (JS), Print
-- Skeleton loading + empty state
-- RTL / Dark Mode via CSS variables
-
-## File Map
-
+```razor
+<MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+    <HeaderContent>
+        <MudTh>شماره</MudTh>
+        <MudTh>تاریخ</MudTh>
+        <MudTh>مبلغ</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="شماره">@context.DocumentNumber</MudTd>
+        <MudTd DataLabel="تاریخ">@context.DocumentDate.ToString("yyyy/MM/dd")</MudTd>
+        <MudTd DataLabel="مبلغ">@context.TotalAmount.ToString("N0")</MudTd>
+    </RowTemplate>
+    <EmptyContent>
+        <MudText Color="Color.Secondary">داده‌ای نیست.</MudText>
+    </EmptyContent>
+</MudTable>
 ```
-blazor-gridview/
-├── SKILL.md
-├── templates/
-│   ├── DataGrid.razor               # Main component
-│   ├── DataGridColumn.cs            # Column def
-│   ├── DataGridModels.cs            # EditableEntity, GridResult
-│   └── DataGridPagination.razor     # Pagination UI
-└── references/
-    └── GridUsageExamples.md         # Real usage samples
+
+- `Items` = `IEnumerable<T>`; `Loading` shows the MudBlazor loader.
+- `DataLabel` on each `MudTd` makes the table responsive (headers become labels
+  on small screens).
+- Row click: `OnRowClick="Handler"` where handler takes
+  `TableRowClickEventArgs<T>`.
+
+## Server-side paging / search
+
+Load data yourself with `DbService` and pass the list to `Items`; MudTable also
+supports `ServerData`/`OnServerDataRead` for large sets (see MudBlazor docs).
+
+## Status/state chips
+
+```razor
+<MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+    @(context.IsActive ? "فعال" : "غیرفعال")
+</MudChip>
 ```
+
+## Pitfalls
+
+- **`Items` arriving after prerender**: with `Items` (not `ServerData`) MudTable
+  re-renders when the list reference changes — load in `OnInitializedAsync` and
+  assign a fresh `List<T>`. Don't mutate the same instance in place and expect
+  a re-render; assign a new list or call `StateHasChanged`.
+- **Totals**: show them as `MudText` below the table instead of
+  `FooterContent`/`colspan` (portable across MudBlazor versions).
+- **Inline editing in a row**: `Value="context.X"` + `ValueChanged="v => context.X = v"`.
+- **RTL**: the app is `dir="rtl"` globally; MudTable handles it.
+
+## Related
+- `blazor-datagrid-parameter-handling` — loading/param patterns (MudTable edition)
+- `blazor-data-access` — feeding the table from `DbService`

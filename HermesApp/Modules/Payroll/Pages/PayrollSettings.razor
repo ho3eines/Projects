@@ -1,0 +1,118 @@
+@page "/payroll/settings"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>امکانات — حقوق و دستمزد</PageTitle>
+
+<MudText Typo="Typo.h4">امکانات و جداول پایه</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    مدیریت کارمندان.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="کد کارمند" @bind-Value="_code" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="نام کامل" @bind-Value="_fullName" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="دپارتمان" @bind-Value="_department" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="حقوق پایه" @bind-Value="_baseSalary" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="_busy">
+                ذخیره کارمند
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="_employees" Hover="true" Dense="true" Striped="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>دپارتمان</MudTh><MudTh>حقوق پایه</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.EmployeeCode</MudTd>
+            <MudTd DataLabel="نام">@context.FullName</MudTd>
+            <MudTd DataLabel="دپارتمان">@context.Department</MudTd>
+            <MudTd DataLabel="حقوق پایه">@context.BaseSalary.ToString("N0")</MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                    @(context.IsActive ? "فعال" : "غیرفعال")
+                </MudChip>
+            </MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">کارمندی ثبت نشده است.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "payroll";
+
+    private List<EmployeeRow> _employees = new();
+    private bool _loading = true;
+    private bool _busy;
+    private string _code = "";
+    private string _fullName = "";
+    private string _department = "";
+    private decimal _baseSalary;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_fullName))
+        {
+            Snackbar.Add("کد و نام کارمند الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "EmployeeUpsert", new
+            {
+                EmployeeId = 0,
+                EmployeeCode = _code.Trim(),
+                FullName = _fullName.Trim(),
+                Department = _department,
+                BaseSalary = _baseSalary,
+                NationalId = (string?)null,
+                IsActive = true
+            });
+            Snackbar.Add("کارمند ذخیره شد.", Severity.Success);
+            _code = "";
+            _fullName = "";
+            _department = "";
+            _baseSalary = 0;
+            _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

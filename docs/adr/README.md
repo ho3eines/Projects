@@ -1,12 +1,12 @@
-# Architecture Decision Records — Hermes Platform
+# Architecture Decision Records — Hermes Platform (v2)
 
 | # | Decision | Status | Date |
 |---|----------|--------|------|
-| [ADR-001](ADR-001-single-webapi-architecture.md) | The 7-product PRD is realized on the Hermes single-webapi model (no per-product microservices) | Accepted | 2026-08-12 |
-| [ADR-002](ADR-002-events-outbox-and-sagas.md) | Event backbone = per-schema outbox + webapi processor; audit = webapi sidecar with hash chain (no Kafka/CDC) | Accepted | 2026-08-12 |
-| [ADR-003](ADR-003-contracts-and-contract-tests.md) | Shared domain contracts = canonical named scripts + `share` DTOs + `contracts.json` manifest + xUnit contract tests | Accepted | 2026-08-12 |
+| [ADR-001](ADR-001-single-blazor-server-architecture.md) | The 7-product platform is ONE Blazor Server project — no webapi, no WASM clients, no shared libs | Accepted | 2026-08-12 |
+| [ADR-002](ADR-002-no-event-backbone-direct-sql.md) | No event backbone — cross-module work is direct server-side SQL in the same process | Accepted | 2026-08-12 |
+| [ADR-003](ADR-003-contracts-shared-models-and-scripts.md) | Shared domain contracts = C# models + named scripts; compiler + cross-schema scan enforce them | Accepted | 2026-08-12 |
 
-> The PRD (v1.0, 2026-08-12) is the product vision. These ADRs are the binding
-> architectural decisions that map that vision onto this repository. Product
-> teams MUST read ADR-001–003 before starting work. The living spec is
-> `docs/PLATFORM_PRD.md`; the work plan is `docs/PLATFORM_ROADMAP.md`.
+> PRD v2.0 (`docs/PLATFORM_PRD.md`) is the product vision. These ADRs are the
+> binding architectural decisions for this repository. The living spec is
+> `docs/PROJECT.md`; the work plan is `docs/PLATFORM_ROADMAP.md`.
+> The agent-facing data skill is `.agents/hermes-tsql/SKILL.md`.

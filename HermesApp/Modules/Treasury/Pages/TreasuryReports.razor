@@ -1,0 +1,78 @@
+@page "/treasury/reports"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>گزارشات — خزانه‌داری</PageTitle>
+
+<MudText Typo="Typo.h4">گزارش گردش نقدی</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    دریافت‌ها و پرداخت‌ها در بازهٔ تاریخ.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="LoadAsync" Disabled="_loading">
+                اجرا
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+        <HeaderContent>
+            <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh>
+            <MudTh>ارز</MudTh><MudTh>حساب</MudTh><MudTh>شرح</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
+            <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
+            <MudTd DataLabel="جهت">@(context.Direction == "In" ? "دریافت" : "پرداخت")</MudTd>
+            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
+            <MudTd DataLabel="حساب">@context.AccountName</MudTd>
+            <MudTd DataLabel="شرح">@context.Description</MudTd>
+            <MudTd DataLabel="وضعیت">@context.Status</MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></EmptyContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "treasury";
+
+    private List<CashFlowRow> _rows = new();
+    private DateTime? _from;
+    private DateTime? _to;
+    private bool _loading;
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _rows = (await Db.QueryAsync<CashFlowRow>(Schema, "CashFlowReport", new
+            {
+                FromDate = _from?.Date ?? DateTime.Today.AddMonths(-1),
+                ToDate = _to?.Date ?? DateTime.Today
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

@@ -1,0 +1,126 @@
+@page "/inventory/settings"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>امکانات — انبار آمل</PageTitle>
+
+<MudText Typo="Typo.h4">امکانات و جداول پایه</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    مدیریت کالاها و انبارها.
+</MudText>
+
+<MudTabs>
+    <MudTabPanel Text="کالاها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="کد کالا" @bind-Value="_itemCode" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="عنوان" @bind-Value="_itemTitle" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="دسته‌بندی" @bind-Value="_category" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="SaveItemAsync">
+                        ذخیره کالا
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loadingItems">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>دسته</MudTh><MudTh>واحد</MudTh><MudTh>وضعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.ItemCode</MudTd>
+                    <MudTd DataLabel="عنوان">@context.ItemTitle</MudTd>
+                    <MudTd DataLabel="دسته">@context.Category</MudTd>
+                    <MudTd DataLabel="واحد">@context.Unit</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">کالایی نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="انبارها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_warehouses" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>موقعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.WarehouseCode</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="موقعیت">@context.Location</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">انباری نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private const string Schema = "inventory";
+
+    private List<ItemRow> _items = new();
+    private List<WarehouseRow> _warehouses = new();
+    private bool _loadingItems = true;
+    private string _itemCode = "";
+    private string _itemTitle = "";
+    private string _category = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
+            _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingItems = false;
+        }
+    }
+
+    private async Task SaveItemAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_itemCode) || string.IsNullOrWhiteSpace(_itemTitle))
+        {
+            Snackbar.Add("کد و عنوان کالا الزامی است.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "ItemUpsert", new
+            {
+                ItemId = 0,
+                ItemCode = _itemCode.Trim(),
+                ItemTitle = _itemTitle.Trim(),
+                Category = _category,
+                Unit = "",
+                UnitPrice = 0m,
+                IsActive = true
+            });
+            Snackbar.Add("کالا ذخیره شد.", Severity.Success);
+            _itemCode = "";
+            _itemTitle = "";
+            _category = "";
+            _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

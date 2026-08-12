@@ -6,23 +6,9 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
-    name: Build, scan & contract tests
+  build:
+    name: Build (single Blazor Server project)
     runs-on: ubuntu-latest
-    services:
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "Hermes!Master2026"
-          MSSQL_PID: "Developer"
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Hermes!Master2026' -C -Q 'SELECT 1' -b || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'Hermes!Master2026' -Q 'SELECT 1' -b"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 20
     steps:
       - uses: actions/checkout@v4
 
@@ -37,18 +23,11 @@ jobs:
       - name: Build
         run: dotnet build Hermes.slnx -c Release --no-restore
 
-      - name: Cross-schema static analysis (AC #3)
+      - name: Cross-schema static analysis
         run: bash tools/cross-schema-scan.sh
 
-      - name: Contract tests (AC #1, #4)
-        env:
-          HERMES_TEST_CONNECTION: "Server=localhost,1433;Database=HermesMaster;User Id=sa;Password=Hermes!Master2026;TrustServerCertificate=True;Encrypt=False"
-          HERMES_REPO_ROOT: ${{ github.workspace }}
-          HERMES_STRICT_E2E: "1"
-        run: dotnet test tests/Hermes.ContractTests/Hermes.ContractTests.csproj -c Release --no-build
-
   codeql:
-    name: SAST (AC #5)
+    name: SAST
     runs-on: ubuntu-latest
     permissions:
       security-events: write

@@ -1,16 +1,15 @@
 # Hermes Agent — Skill Routing
 
-**Data + architecture: `.agents/hermes-tsql/SKILL.md`**  
-`server-client-comm` is disabled.
+**Data + architecture: `.agents/hermes-tsql/SKILL.md`**
 
 ```
-IRequestService (Protocol=Hermes)
-  → POST /api/auth/handshake   ProjectGuid
-  → POST /api/auth/login       user JWT (central-client)
-  → POST /api/Data/            AES + named script + X-User-Token
-  → Data/Scripts/{schema-from-guid}/{Name}.sql
+Blazor Server page (Modules/*/Pages)
+  → @inject DbService Db
+  → Db.QueryAsync<T>(schema, "ScriptName", @params)
+  → Data/Scripts/{schema}/{Name}.sql   (Dapper, in-process — no HTTP)
 ```
 
-Forbidden: WebSocket, per-project controllers, raw SQL, `ISystemApi`, `/api/system`.
+Forbidden: WebApi/webapi, WASM, HttpClient-for-data, per-project controllers,
+tokens/AES transport, Outbox events, Bootstrap/CSS design (use MudBlazor).
 
 Security: `docs/SECURITY.md`

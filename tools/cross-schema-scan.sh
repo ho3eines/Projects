@@ -13,7 +13,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPTS="$ROOT/webapi/Data/Scripts"
+SCRIPTS="$ROOT/HermesApp/Data/Scripts"
 
 fail=0
 count=0

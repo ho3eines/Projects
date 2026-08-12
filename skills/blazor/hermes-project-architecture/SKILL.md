@@ -1,151 +1,150 @@
 ---
 name: hermes-project-architecture
-description: Master structure for all Hermes projects.
+description: Master structure for ALL Hermes work — single Blazor Server + MudBlazor.
 category: blazor
-tags: [architecture, hermes, projects, shared, webapi, widget, tsql, schema]
-version: 1.0.0
+tags: [architecture, hermes, blazor-server, mudblazor, modules, dapper, tsql, schema]
+version: 2.0.0
 author: Ho3ein (Hermes Agent)
 license: MIT
 platforms: [windows]
 metadata:
   hermes:
-    tags: [architecture, projects, shared, widgets, tsql, webapi, client]
-    related_skills: [blazor-gridview, blazor-deploy-service, blazor-clean-architecture]
+    tags: [architecture, hermes, blazor-server, mudblazor, modules, schemas, named-scripts, dapper]
+    related_skills: [blazor-create-project, blazor-data-access, blazor-clean-architecture]
 ---
 
-# 🏛 Hermes Master Project Architecture
+# 🏛 Hermes Master Project Architecture (v2)
 
-The canonical, permanent structure for ALL user projects. Read this first before starting any new project, page, component, or service. Do not ask the user to re-explain these rules.
+The canonical, permanent structure for ALL user projects. Read this first before
+starting any new page, module, component, or service. Do not ask the user to
+re-explain these rules.
 
 ## When to Use
 
-- Starting ANY new project, page, component, or service for the user
-- User mentions: project structure, share, webapi, blazordeployservice, widgets, TSQL schema, reports-first
+- Starting ANY new page, component, or module for the user
+- User mentions: project structure, module, schema, MudBlazor, report-first
 - Before writing ANY code, check this skill to confirm the architecture rules
 
 ## ⚠️ Path Clarification
 
-- `D:\hermes\` = user's projects root on D drive (NOT `C:\Users\Ho3ein\AppData\Local\hermes\` which is the agent's own folder)
-- `D:\hermes\projects\` = all project folders live here
-- Each project folder = `D:\hermes\projects\[Project-Name]\`
+- `D:\hermes\` = user's projects root on D drive
+- The Hermes platform lives in this repo at `HermesApp/`
+- **There is exactly ONE project** — `HermesApp/HermesApp.csproj`
 
 ## 📁 Directory Structure (FIXED)
 
 ```
-d:\hermes\projects\
-├── [Project-Name]/              ← Each product = ONE Blazor WASM Client only
-│   ├── Client/                  ← Blazor WASM (UI only — no own API)
-│   │   ├── Pages/
-│   │   ├── Shared/
-│   │   │   ├── Components/
-│   │   │   └── Layouts/
-│   │   └── wwwroot/
-├── share/                       ← Shared library: models, components, services (used by ALL projects)
-│   ├── Models/
-│   ├── Components/
-│   ├── Services/
-│   └── Helpers/
-├── webapi/                      ← ONE public API for ALL projects
-│   ├── Controllers/
-│   ├── Services/
-│   ├── Data/
-│   └── appsettings.json
-├── blazordeployservice/         ← NuGet package source: general components (DataGridView etc.)
-└── docs/
-    └── PROJECT.md
+Hermes.slnx                          ← references ONLY HermesApp
+HermesApp/                           ← THE project (Blazor Server, net10.0)
+├── Program.cs                       ← AddServerSideBlazor + AddMudServices + startup ensure/seed
+├── App.razor                        ← Router + MudThemeProvider / MudDialogProvider / MudSnackbarProvider
+├── Pages/_Host.cshtml               ← RTL html shell
+├── Layout/
+│   ├── MainLayout.razor             ← MudLayout + MudDrawer + MudAppBar
+│   └── NavMenu.razor                ← MudNavMenu with the 7 modules
+├── Models/                          ← ALL models (Shared + one file per module)
+├── Services/                        ← DbService, ScriptCatalog, AuthService, UserSession, AuditService
+├── Modules/
+│   ├── Home/Pages/                  ← / and /login
+│   ├── Central/Pages/               ← پلتفرم مشترک
+│   ├── Accounting/Pages/            ← حسابداری
+│   ├── Inventory/Pages/             ← انبار آمل
+│   ├── Treasury/Pages/              ← خزانه‌داری
+│   ├── Payroll/Pages/               ← حقوق و دستمزد
+│   ├── GoldShop/Pages/              ← طلافروشی
+│   └── Store/Pages/                 ← فروشگاه
+├── Data/Scripts/{schema}/           ← named TSQL per product schema (+ _Ensure/_Seed)
+└── wwwroot/css/app.css              ← tiny MudBlazor overrides only
+docker-compose.yml                   ← SQL Server only
+tools/cross-schema-scan.sh           ← schema-boundary gate
 ```
 
 ## 🔑 Key Rules
 
-1. **Each project = Client-only** (no per-project API). All data goes through the single shared `webapi`.
-2. **webapi ↔ projects communicate via TSQL files** — each project has its OWN schema (tables) in the DB; webapi executes named TSQL files by request.
-3. **share/** holds everything reusable: models, components, services, helpers.
-4. **blazordeployservice/** = NuGet package with general components (DataGridView, etc.) copied/upgraded from the main project. All public features live here.
-5. **Central Blazor WASM app** (مدیریت پروژه‌ها): a fully dynamic company site + widgets for the public website.
+1. **ONE Blazor Server project.** No webapi, no WASM clients, no `share` library,
+   no NuGet service package, no per-product projects. New code goes inside
+   `HermesApp/` — always.
+2. **No web-service involvement.** Data flows through `DbService` (Dapper +
+   named TSQL scripts) in the same process. No HttpClient-for-data, no tokens,
+   no handshake, no AES envelope, no CORS.
+3. **MudBlazor only.** UI = MudTable, MudDatePicker, MudSelect, MudTextField,
+   MudPaper, MudGrid, MudDialog, MudSnackbar, … No Bootstrap, no custom CSS
+   framework, no hand-rolled DataGrid/PersianDatePicker.
+4. **Every product = one module + one schema.** Module folder
+   `Modules/{Name}/Pages/`; schema folder `Data/Scripts/{schema}/`.
+5. **Named scripts only.** Pages never contain inline SQL.
+6. **Reports-first.** Research the domain's reports before models/scripts/pages.
+7. **Login in the same app.** `AuthService` + `UserSession`; bootstrap admin
+   `admin`/`admin` on first run.
 
-## 🧩 Every Project Has 4 Main Sections
+## 🧩 Every Module Has 4 Main Sections
 
-### 1. ورود عملیات (Data Entry)
-- Input operations for the project (e.g. in accounting: ثبت سند، مدیریت اسناد، ...)
+### 1. ورود عملیات (Data Entry) — `/entry`
+Input operations for the module (e.g. حسابداری: ثبت سند).
 
-### 2. عملیات ویژه (Special Operations)
-- Required operations for the project (e.g. تغییر سال مالی)
+### 2. عملیات ویژه (Special Operations) — `/special`
+Required operations (e.g. بستن دوره، انبارگردانی، نهایی‌کردن حقوق).
 
-### 3. گزارشات (Reports)
-- ALL reports must be here. **Before building a project: research what reports that software should have, then design models based on the findings.**
+### 3. گزارشات (Reports) — `/reports`
+ALL reports live here. **Before building a module: research what reports that
+software should have, then design models based on the findings.**
 
-### 4. امکانات (Features/Settings)
-- **جداول پایه (Base Tables):** financial companies, کل (general) accounts, معین (subsidiary) accounts, تفصیلی (detail) accounts, etc.
-- **امکانات عمومی (General Features):** shared across all software.
+### 4. امکانات (Features/Settings) — `/settings`
+**جداول پایه (Base Tables):** حساب‌ها، کالاها، انبارها، کارمندان، …
+**امکانات عمومی (General Features):** shared across all modules.
 
-## 🏠 Main Page of Each Software
-- **Document Search Box** with various filters (must have از تاریخ تا تاریخ — defaulted to today, user can change)
-- **Grid of daily documents** — clicking a row navigates to that document.
+## 🏠 Main Page of Each Module
+- **Document Search Box** with various filters (must have از تاریخ تا تاریخ —
+  defaulted to today, user can change)
+- **Grid of daily documents** (MudTable) — clicking a row opens that document.
 
 ## 📊 Dashboard
-- A page showing ALL sections of the software in summary form.
+- A page showing ALL sections of the module in summary form (MudPaper stat cards).
 
-## 🔐 Login & Token Flow
-- Login exists in the MAIN app. After login, a **token is passed via parameter** to other project parts for navigation.
-- Main app also has: **news, blog, gallery, user management** (user creation, permissions, etc.)
+## 🔐 Login & Session
+- Login exists in the SAME app (`/login`). After login, `UserSession` holds the
+  identity for the whole circuit — no token passed via URL between apps.
+- Platform common features: news, blog, gallery, user management — inside
+  `Modules/Central/`.
 
-## 🧾 Shared Components in blazordeployservice
-- DataGridView (main table), Modal, Toast, FileUpload, PersianDatePicker, Skeleton, PageHeader, etc.
+## 🗄️ Data Access (replaces the old webapi)
 
-## 🧩 Widgets (ویجت‌ها)
-- Each project MUST expose a set of **widgets** for the company's main website.
-- Widgets = small data-display blocks that show specific info from that project (e.g. accounting summary, latest sales, inventory count).
-- The central client app renders these widgets on the company site.
-- Widgets live in a `Widgets/` folder inside each project's Client.
+```csharp
+@inject DbService Db
 
-## 🏢 Central Client App (کلاینت مرکزی)
-- A central Blazor WASM app manages ALL projects.
-- It is the company's fully dynamic website.
-- Contains widgets that are displayable on the main company website.
-- Has: **news, blog, gallery, user management** (user creation, permissions).
-- Login exists here; token passed via parameter when navigating into project apps.
+var rows = (await Db.QueryAsync<DailyDocumentRow>("accounting", "DailyDocuments",
+    new { FromDate, ToDate, SearchText, DocumentType = (string?)null, SkipRows = 0, TakeSize = 100 })).ToList();
+
+await Db.ExecuteAsync("accounting", "DocumentInsert", new { LinesJson, ... });
+```
+
+- `ScriptCatalog` loads all scripts at startup; `DbService` executes them with
+  Dapper; the schema string is the scope guard.
+- Server-side scripts may cross schemas only with a `-- Cross-schema:` header
+  (checked by `tools/cross-schema-scan.sh`).
 
 ## 📈 Reports-First Design (طراحی گزارش‌محور)
-- **Before writing any code** for a new project: research what reports that software category MUST have.
+- **Before writing any code** for a new module: research what reports that
+  software category MUST have.
 - Only after identifying reports → design the data models to support them.
 - All reports live under the "گزارشات" section.
 
 ## ❌ Explicit Bans
-- NO MudBlazor, NO Radzen — only HTML + Bootstrap 5.3 + CSS/JS.
-- NO per-project APIs.
-- NO asking the user to re-explain structure.
+- ❌ NO new projects / libraries / NuGet packages outside `HermesApp`
+- ❌ NO webapi / controllers / HttpClient-for-data / tokens / AES transport
+- ❌ NO raw SQL in `.razor` files
+- ❌ NO Bootstrap / custom CSS design — MudBlazor only
+- ❌ NO asking the user to re-explain the structure
 
-## ✅ Workflow Before Any Project
+## ✅ Workflow Before Any Module
 1. Research: what reports does this domain require?
-2. Design models accordingly.
-3. Build per this architecture (no per-project API).
+2. Design models (`Models/{Module}Models.cs`) accordingly.
+3. Write scripts (`Data/Scripts/{schema}/` + `_Ensure.sql`/`_Seed.sql`).
+4. Build pages with MudBlazor in `Modules/{Name}/Pages/`.
+5. Add to `Layout/NavMenu.razor` + `Modules/Home/Home.razor` launcher.
+6. Run `tools/cross-schema-scan.sh`.
 
-## 🔐 Auth & Session Protocol (RequestService v2)
-1. **Login flow**: client sends `projectGuid` + `loginToken` (AES-encrypted with project's EncryptionKey) → `POST /api/auth/login` → receives `SessionToken`.
-2. **Session**: token valid while client keeps sending requests. **Timeout is in MINUTES (SessionTimeoutMinutes), default 10** — stored per-project in the `Projects` table, adjustable at runtime from webapi UI. If client sends no request longer than the timeout → token expires → login page shows again.
-3. Every request must carry `X-Auth-Token`; API validates via SessionStore (in-memory, touched on each request).
-4. Security headers client→server: `X-API-Key`, `X-Timestamp` (anti-replay, 30s window), `X-Signature` (HMAC-SHA256 over `timestamp|body`), `X-Project-Guid`, `X-Auth-Token`.
-5. RequestService payload (client→server): **tsql + model (schema info) + projectguid + userid**. `userId` optional — only used for models/methods we define; if null it must still run, otherwise reject. Server auto-detects missing table/column from model schema info and creates the table/column with detected SQL types, then executes the TSQL.
-
-## 🗄️ Per-Project Database Management (in webapi)
-- Each project has its **OWN separate database** and its **OWN connection string**, stored in the `Projects` table (editable at runtime from webapi).
-- `Projects` table fields: ProjectGuid, Name, Schema, LoginTokenHash, EncryptionKey, ApiKey, SessionTimeoutMinutes, IsActive, ConnectionString, DatabaseName, DatabaseProvider, AutoBackupEnabled, AutoBackupIntervalMinutes, AutoBackupTimeUtc, MaxBackupRetention, CreatedAtUtc, LastBackupAtUtc, Description, Icon.
-- **Backup**: manual + automatic. Backups stored at `wwwroot/backup/{ProjectGuid}/`. Downloadable via URL, restorable (RESTORE DATABASE with SINGLE_USER).
-- **Auto-backup**: configurable per project (interval minutes / daily time / retention count) — AutoBackupScheduler (IHostedService) checks every 1 minute.
-- API endpoints: `GET/POST/PUT/DELETE /api/projects`, `POST /api/projects/{guid}/backup`, `GET /api/projects/{guid}/backups`, `GET /api/projects/{guid}/backups/{file}`, `POST /api/projects/{guid}/restore`, `PUT /api/projects/{guid}/backup-settings`.
-- The whole webapi is **Blazor Server** so the admin UI (project settings management) lives there.
-
-## 📊 Observability (RequestEvents)
-- Every request is logged into `[audit].[RequestEvents]` table (auto-created): CorrelationId, ApiKey, ProjectGuid, UserId, Endpoint, StatusCode, DurationMs, CpuTimeMs, RamUsedMb, TimestampUtc, ErrorMessage.
-- webapi admin UI can view/filter requests by project, status, error — for troubleshooting and optimization.
-
-## 🔄 Auto-Rename & Auto-Commit (SqlService client-side)
-- **Auto-rename**: `SqlService.InitializeAsync<T>()` stores the table name in localStorage key `PrevTable_{table}`. If the `[Table]` attribute name changes in code, it runs `EXEC sp_rename '{oldTable}', '{newTable}'` (only if old exists and new doesn't).
-- **Auto-commit**: `AppSettings.AutoCommit.Days` (default 7, 0=disabled). After each successful Insert/Update, `MaybeAutoCommitAsync` checks localStorage `LastAutoCommit_{table}`; if older than Days → sends SQL to add `IsCommitted BIT` column (if missing) and mark rows committed.
-- **ProjectController API tested working**: create project ✓, backup .bak ✓ (ничемing `{manual|auto}_{DatabaseName}_{yyyyMMdd_HHmmss}.bak`), list downloads ✓, restore (RESTORE DATABASE ... WITH REPLACE) ✓, download via `/api/projects/{guid}/backups/{file}` ✓.
-- **SQL Server BACKUP pitfall**: use `$"BACKUP DATABASE [{db}] ..."` interpolation (Dapper can't bind object names as `{db}` → error 911). No `STATS = 0` (invalid range error).
-
-## 🖥️ webapi Blazor Server UI (Components/Pages)
-- `Projects.razor` at `/projects` — full management UI: list, create/edit modal, manual backup, backup list + download/restore, delete (double-click confirm).
-- Uses `HttpClient` (registered in Program.cs) with `X-Api-Key` header from `AdminApiKey` config.
-- Program.cs middleware order: `UseStaticFiles(backup)` → `UseAuthentication` → `UseAuthorization` → `UseRouting` → `UseAntiforgery` → `MapControllers` → `MapRazorComponents`.
+## 📚 Related Skills
+- `blazor-create-project` — adding a new module/script/page
+- `blazor-data-access` — DbService / named scripts / Dapper patterns
+- `blazor-clean-architecture` — single-project layering

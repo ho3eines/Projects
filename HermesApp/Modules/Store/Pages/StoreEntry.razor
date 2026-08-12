@@ -1,0 +1,159 @@
+@page "/store/entry"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>ثبت سفارش — فروشگاه اینترنتی</PageTitle>
+
+<MudText Typo="Typo.h4">ثبت سفارش</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    انتخاب مشتری ← افزودن به سبد ← ثبت سفارش.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="مشتری" @bind-Value="_customerId" Variant="Variant.Outlined" OnSelectedValueChanged="OnCustomerChanged">
+                <MudSelectItem Value="0">— انتخاب مشتری —</MudSelectItem>
+                @foreach (var c in _customers)
+                {
+                    <MudSelectItem Value="c.CustomerId">@c.FullName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="محصول" @bind-Value="_productId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب محصول —</MudSelectItem>
+                @foreach (var p in _products)
+                {
+                    <MudSelectItem Value="p.ProductId">@p.Title — @p.Price.ToString("N0")</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudNumericField T="decimal" Label="تعداد" @bind-Value="_qty" Variant="Variant.Outlined" Min="1" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
+                       OnClick="AddToCartAsync" Disabled="_customerId == 0 || _productId == 0">
+                افزودن
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-3">سبد خرید — @(_customerId == 0 ? "مشتری را انتخاب کنید" : CustomerName)</MudText>
+    <MudTable Items="_cart" Hover="true" Dense="true" Striped="true" Loading="_loadingCart">
+        <HeaderContent>
+            <MudTh>کالا</MudTh><MudTh>تعداد</MudTh><MudTh>قیمت</MudTh><MudTh>جمع</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کالا">@context.ProductTitle</MudTd>
+            <MudTd DataLabel="تعداد">@context.Qty</MudTd>
+            <MudTd DataLabel="قیمت">@context.Price.ToString("N0")</MudTd>
+            <MudTd DataLabel="جمع">@context.LineTotal.ToString("N0")</MudTd>
+        </RowTemplate>
+        <EmptyContent><MudText Color="Color.Secondary">سبد خالی است.</MudText></EmptyContent>
+    </MudTable>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ShoppingCart"
+               OnClick="PlaceOrderAsync" Disabled="_busy" Class="mt-4">
+        ثبت سفارش
+    </MudButton>
+</MudPaper>
+
+@code {
+    private const string Schema = "store";
+
+    private List<CustomerRow> _customers = new();
+    private List<ProductRow> _products = new();
+    private List<CartItemRow> _cart = new();
+    private int _customerId;
+    private int _productId;
+    private decimal _qty = 1;
+    private bool _loadingCart;
+    private bool _busy;
+    private string CustomerName => _customers.FirstOrDefault(c => c.CustomerId == _customerId)?.FullName ?? "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList")).ToList();
+        _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
+    }
+
+    private async Task OnCustomerChanged(int id)
+    {
+        _customerId = id;
+        await LoadCartAsync();
+    }
+
+    private async Task LoadCartAsync()
+    {
+        if (_customerId == 0)
+        {
+            _cart = new();
+            return;
+        }
+
+        _loadingCart = true;
+        try
+        {
+            _cart = (await Db.QueryAsync<CartItemRow>(Schema, "CartView", new { CustomerId = _customerId })).ToList();
+        }
+        finally
+        {
+            _loadingCart = false;
+        }
+    }
+
+    private async Task AddToCartAsync()
+    {
+        try
+        {
+            await Db.ExecuteAsync(Schema, "CartUpsert", new
+            {
+                CustomerId = _customerId,
+                ProductId = _productId,
+                Qty = _qty
+            });
+            Snackbar.Add("به سبد اضافه شد.", Severity.Success);
+            await LoadCartAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task PlaceOrderAsync()
+    {
+        if (_busy) return;
+        if (_customerId == 0 || _cart.Count == 0)
+        {
+            Snackbar.Add("سبد خالی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "OrderPlace", new
+            {
+                CustomerId = _customerId,
+                CustomerName = CustomerName,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("سفارش ثبت شد.", Severity.Success);
+            _cart = new();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

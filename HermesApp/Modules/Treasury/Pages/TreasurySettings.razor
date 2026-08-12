@@ -1,0 +1,143 @@
+@page "/treasury/settings"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>امکانات — خزانه‌داری</PageTitle>
+
+<MudText Typo="Typo.h4">امکانات و جداول پایه</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    نرخ ارز، بانک‌ها و صندوق‌ها.
+</MudText>
+
+<MudTabs>
+    <MudTabPanel Text="نرخ ارز">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="کد ارز" @bind-Value="_currencyCode" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField Label="نام ارز" @bind-Value="_currencyName" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField T="decimal" Label="نرخ به ریال" @bind-Value="_rate" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="SaveRateAsync">
+                        ذخیره نرخ
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudTable Items="_rates" Hover="true" Dense="true" Striped="true" Loading="_loadingRates">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>نرخ به ریال</MudTh><MudTh>تاریخ</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.CurrencyCode</MudTd>
+                    <MudTd DataLabel="نام">@context.CurrencyName</MudTd>
+                    <MudTd DataLabel="نرخ">@context.RateToIRR.ToString("N0")</MudTd>
+                    <MudTd DataLabel="تاریخ">@context.RateDate.ToString("yyyy/MM/dd")</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">نرخی ثبت نشده است.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="بانک‌ها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_banks" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.BankCode</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">بانکی نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="صندوق‌ها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_cashBoxes" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>مانده</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.CashBoxCode</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+                </RowTemplate>
+                <EmptyContent><MudText Color="Color.Secondary">صندوقی نیست.</MudText></EmptyContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private const string Schema = "treasury";
+
+    private List<CurrencyRateRow> _rates = new();
+    private List<BankRow> _banks = new();
+    private List<CashBoxRow> _cashBoxes = new();
+    private bool _loadingRates = true;
+    private string _currencyCode = "";
+    private string _currencyName = "";
+    private decimal _rate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _rates = (await Db.QueryAsync<CurrencyRateRow>(Schema, "CurrencyRateSearch", new
+            {
+                SkipRows = 0,
+                TakeSize = 200
+            })).ToList();
+            _banks = (await Db.QueryAsync<BankRow>(Schema, "BankList")).ToList();
+            _cashBoxes = (await Db.QueryAsync<CashBoxRow>(Schema, "CashBoxList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loadingRates = false;
+        }
+    }
+
+    private async Task SaveRateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currencyCode) || _rate <= 0)
+        {
+            Snackbar.Add("کد ارز و نرخ معتبر الزامی است.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "CurrencyRateUpsert", new
+            {
+                CurrencyCode = _currencyCode.Trim(),
+                CurrencyName = _currencyName,
+                RateToIRR = _rate,
+                RateDate = DateTime.Today
+            });
+            Snackbar.Add("نرخ ارز ذخیره شد.", Severity.Success);
+            _currencyCode = "";
+            _currencyName = "";
+            _rate = 0;
+            _rates = (await Db.QueryAsync<CurrencyRateRow>(Schema, "CurrencyRateSearch", new
+            {
+                SkipRows = 0,
+                TakeSize = 200
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

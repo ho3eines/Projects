@@ -1,0 +1,64 @@
+@page "/inventory/dashboard"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>داشبورد — انبار آمل</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">نمای کلی انبار</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">حرکات امروز</MudText>
+                <MudText Typo="Typo.h4">@_summary.TodayMovements</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">کل کالاها</MudText>
+                <MudText Typo="Typo.h4">@_summary.TotalItems</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">ارزش موجودی</MudText>
+                <MudText Typo="Typo.h5">@_summary.StockValue.ToString("N0")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="1" Class="pa-4 h-stat">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">رزرو فعال</MudText>
+                <MudText Typo="Typo.h4">@_summary.ActiveReservations</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private const string Schema = "inventory";
+    private bool _loading = true;
+    private InventoryDashboardRow _summary = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _summary = await Db.QueryFirstOrDefaultAsync<InventoryDashboardRow>(Schema, "DashboardSummary")
+                       ?? new InventoryDashboardRow();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

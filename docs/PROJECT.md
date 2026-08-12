@@ -1,145 +1,125 @@
-# 📘 Hermes Projects — Master Blueprint
+# 📘 Hermes — Master Blueprint (Single Blazor Server)
 
-> **Structure**: `D:\hermes\projects\`
-> **Last updated**: 2026-08-09
+> **Last updated**: 2026-08-12 (v2.0 — بازطراحی کامل)
+> **قانون طلایی**: یک پروژهٔ Blazor Server + MudBlazor؛ هر محصول یک ماژول و یک اسکیمه.
 
 ---
 
 ## 🧭 Overview
 
-A **modular ERP ecosystem**: one central Blazor WASM client manages all company projects; every product (accounting, inventory, store, ...) is a **Client-only Blazor WASM app**; all data flows through a **single shared WebAPI** that executes **named TSQL scripts**; every project owns its **own DB schema**.
+پلتفرم یکپارچهٔ سازمان با **هفت محصول** در **یک پروژهٔ Blazor Server** (`HermesApp`).
+داده فقط از طریق **اسکریپت‌های TSQL نامدار** که در همان پروسه با Dapper اجرا
+می‌شوند؛ **هیچ وب‌سرویس، هیچ کلاینت WASM، هیچ لایهٔ HTTP برای داده وجود ندارد**.
+ظاهر کامل با **MudBlazor** (بدون CSS دستی).
 
-> 📋 **Platform spec (7 products)**: `docs/PLATFORM_PRD.md` (PRD نسخهٔ هرمس، دوزبانه)
-> 🗺️ **Implementation plan / backlog**: `docs/PLATFORM_ROADMAP.md`
-> 🧩 **Architecture decisions**: `docs/adr/` (ADR-001 single webapi · ADR-002 outbox/audit · ADR-003 contracts & tests)
->
-> هفت محصول: حسابداری (`accounting`, موجود) · انبار آمل (`inventory`, فاز ۱) · خزانه‌داری
-> (`treasury`, فاز ۲) · حقوق و دستمزد (`payroll`, فاز ۳) · طلافروشی (`goldshop`, فاز ۴) ·
-> فروشگاه اینترنتی (`store`, فاز ۵) · پلتفرم مشترک (`central-client` + `webapi` + `share`, فاز ۰).
+> 📋 **PRD محصولات**: `PRD.md` · `PRD_All_Projects.md`
+> 🗺️ **برنامهٔ کار**: `docs/PLATFORM_ROADMAP.md`
+> 🧩 **تصمیم‌های معماری**: `docs/adr/` (ADR-001 تک‌پروژه · ADR-002 بدون رویداد · ADR-003 قراردادها)
+> 🤖 **راهنمای عامل**: `.agents/hermes-tsql/SKILL.md`
 
 ---
 
 ## 🗂️ Directory Layout
 
 ```
-D:\hermes\projects\
-│
-├── central-client/          ← هوشمند مرکزی: وبسایت شرکت + مدیریت پروژهها + ویجتها + news/blog/gallery/users
-│   ├── Pages/               (Dashboard, Projects, News, Blog, Gallery, Users, Auth)
-│   ├── Shared/Components/Widgets/   ← ویجتهای قابل نمایش در وبسایت شرکت
-│   └── wwwroot/
-│
-├── webapi/                  ← تنها API سیستم (مشترک بین همه پروژهها)
-│   ├── Controllers/SystemController.cs   ← /api/system/{query|execute|scalar}
-│   ├── Services/SystemQueryExecutor.cs   ← اجرای فایلهای TSQL نامدار
-│   ├── Data/Scripts/{schema}/{name}.sql  ← اسکریپتهای هر پروژه (اسکیمای مجزا)
-│   ├── Program.cs / appsettings.json
-│   └── wwwroot/ (اختیاری)
-│
-├── share/                   ← کتابخانه اشتراکی (unified models, components, services, helpers)
-│   ├── Models/              (BaseEntity, SystemRequestPayload, ApiResponse, PagedResult, ...)
-│   ├── Components/
-│   ├── Services/
-│   └── Helpers/
-│
-├── blazordeployservice/     ← پکیج NuGet: سرویسهای عمومی (RequestService, ModalService, ...)
-│   ├── Services/RequestService.cs
-│   ├── Models/
-│   └── wwwroot/{css,js,lib}/
-│
-├── [project-name]/          ← هر محصول = فقط Client
-│   ├── Client/
-│   │   ├── Pages/
-│   │   │   ├── Entry/               (ورود عملیات)
-│   │   │   ├── SpecialOperations/   (عملیات ویژه)
-│   │   │   ├── Reports/             (گزارشات)
-│   │   │   └── Settings/            (امکانات، جداول پایه)
-│   │   ├── Shared/Components/
-│   │   └── wwwroot/{css,js,lang,resources}
-│   └── Shared/Models/               (مدلهای اختصاصی پروژه)
-│
-├── accounting/  inventory/  store/  ...   ← پروژههای واقعی
-│
-└── docs/PROJECT.md
+Hermes.slnx                      ← فقط یک پروژه
+HermesApp/                       ← THE پروژه (Blazor Server, net10.0)
+├── Program.cs                   ← AddServerSideBlazor + AddMudServices + startup ensure/seed
+├── App.razor                    ← Router + MudThemeProvider/Dialog/Snackbar
+├── Pages/_Host.cshtml           ← قالب اصلی (RTL)
+├── Layout/
+│   ├── MainLayout.razor         ← MudLayout + MudDrawer + MudAppBar
+│   └── NavMenu.razor            ← MudNavMenu (۷ ماژول)
+├── Models/
+│   ├── SharedModels.cs          ← قراردادهای مشترک (Party, ChartOfAccount, …)
+│   ├── AccountingModels.cs      ← مدل‌های اختصاصی هر ماژول
+│   ├── InventoryModels.cs
+│   ├── TreasuryModels.cs
+│   ├── PayrollModels.cs
+│   ├── GoldShopModels.cs
+│   ├── StoreModels.cs
+│   └── CentralModels.cs
+├── Services/
+│   ├── ScriptCatalog.cs         ← بارگذاری Data/Scripts در استارت‌آپ
+│   ├── DbService.cs             ← Query/Execute/Scalar با اسکریپت نامدار (Dapper)
+│   ├── AuthService.cs           ← ورود از [central].[Users] (PBKDF2)
+│   ├── UserSession.cs           ← نشست هر circuit
+│   ├── AuditService.cs          ← ممیزی با زنجیرهٔ هش
+│   └── PasswordHasher.cs
+├── Modules/
+│   ├── Home/Pages/              ← / (launcher) و /login
+│   ├── Central/Pages/           ← /central, /central/news, /blog, /gallery, /users, /audit
+│   ├── Accounting/Pages/        ← /accounting{,/dashboard,/entry,/reports,/special,/settings}
+│   ├── Inventory/Pages/         ← /inventory…
+│   ├── Treasury/Pages/          ← /treasury…
+│   ├── Payroll/Pages/           ← /payroll…
+│   ├── GoldShop/Pages/          ← /goldshop…
+│   └── Store/Pages/             ← /store…
+├── Data/Scripts/
+│   ├── accounting/  *_Ensure.sql, *_Seed.sql, DailyDocuments.sql, …
+│   ├── central/     UserAuthenticate.sql, AuditInsert.sql, NewsUpsert.sql, …
+│   ├── inventory/   …
+│   ├── treasury/    …
+│   ├── payroll/     …
+│   ├── goldshop/    …
+│   └── store/       …
+└── wwwroot/css/app.css          ← فقط tweakهای کوچک روی MudBlazor
+docker-compose.yml               ← فقط SQL Server
+ci/ci.yml                        ← build + cross-schema scan
+tools/cross-schema-scan.sh       ← بررسی مرز اسکیمه‌ها
 ```
 
 ---
 
-## 🔑 Core Rules
+## 🔑 Key Rules
 
-| # | Rule |
-|---|------|
-| 1 | هر پروژه = **فقط کلاینت** (Blazor WASM). هیچ API اختصاصی ندارد. |
-| 2 | ارتباط داده = `IRequestService` (Protocol=Hermes): اول handshake با **ProjectGuid**، بعد TSQL نامدار رمزشده. جزئیات: `docs/SECURITY.md`. |
-| 3 | هر پروژه **اسکیمای (Schema) مخصوص خودش** را در دیتابیس دارد. |
-| 4 | `share/` → مدلها/کامپوننتها/سرویسهای **مشترک** همه پروژهها. |
-| 5 | `blazordeployservice/` → منبع **پکیج NuGet** با کامپوننتهای عمومی (RequestService و ...). |
-| 6 | کلاینت مرکزی (`central-client`) → سایت داینامیک شرکت + مدیریت پروژهها + ویجتها. |
-| 7 | **گزارشمحور**: قبل از هر پروژه، تحقیق کنید چه گزارشاتی لازم است، سپس مدلها را بر اساس آن طراحی کنید. |
-| 8 | هر پروژه در API باید **ClientUrl** (لینک ورود به کلاینت) داشته باشد. لانچر و ادمین از `GET /api/projects/directory` همین URL را برای «ورود» می‌خوانند. |
+1. **فقط یک پروژه** — اضافه‌کردن پروژه/پکیج ممنوع؛ هر چیز جدید داخل `HermesApp`.
+2. **فقط Blazor Server** — کال‌کردن داده = `DbService`؛ `HttpClient` برای داده ممنوع.
+3. **MudBlazor** — صفحهٔ جدید فقط با کامپوننت‌های Mud؛ Bootstrap/جدول سفارشی ممنوع.
+4. **اسکریپت نامدار** — صفحات SQL خام ندارند؛ همه چیز `Data/Scripts/{schema}/{Name}.sql`.
+5. **مرز اسکیمه** — ماژول فقط `{schema}` خودش را صدا می‌زند؛ اسکریپت سرور می‌تواند
+   با `-- Cross-schema:` خواندن بین‌اسکیمه‌ای مجاز انجام دهد (مثل مالیات طلا از حسابداری).
+6. **Report-first** — قبل از کد: تحقیق گزارش‌های دامنه → مدل‌ها → اسکریپت‌ها → صفحات.
 
----
+## 🧩 چهار بخش استاندارد هر ماژول
+1. **ورود عملیات (Entry)** — عملیات ورود داده (ثبت سند، رسید/حواله، …)
+2. **عملیات ویژه (Special Operations)** — بستن دوره، انبارگردانی، نهایی‌کردن حقوق، …
+3. **گزارشات (Reports)** — همهٔ گزارش‌ها اینجا؛ منبع طراحی مدل‌ها
+4. **امکانات (Settings)** — جداول پایه (حساب‌ها، کالاها، کارمندان، …)
 
-## 🧩 هر پروژه ۴ بخش دارد
+## 🏠 صفحهٔ اصلی هر ماژول
+- جعبهٔ جستجوی سند/حرکت با فیلتر **از تاریخ تا تاریخ** (پیش‌فرض امروز)
+- جدول روز (MudTable) — کلیک روی ردیف، آیتم را باز می‌کند
 
-1. **ورود عملیات (Entry)** — عملیات ورودی (مثلاً در حسابداری: ثبت سند، مدیریت اسناد)
-2. **عملیات ویژه (Special Operations)** — عملیات الزامی (مثلاً: تغییر سال مالی)
-3. **گزارشات (Reports)** — همه گزارشات (قبل از طراحی: تحقیق!)
-4. **امکانات (Settings)** — جداول پایه (شرکتها، حسابهای کل/معین/تفصیلی) + امکانات عمومی
+## 📊 Dashboard
+- خلاصهٔ همهٔ بخش‌های ماژول (کارت‌های آماری MudPaper)
 
----
+## 🔐 Auth
+- ورود `/login` با کاربر bootstrap (`admin`/`admin` — در اولین اجرا ساخته می‌شود)
+- نشست در `UserSession` (هر circuit) — بدون توکن، بدون URL parameter
+- مدیریت کاربران در `/central/users`
 
-## 🏠 صفحه اصلی هر نرمافزار
+## 🗄️ Data Layer
+- یک ConnectionString: `ConnectionStrings:DefaultConnection` → `HermesMaster`
+- در استارت‌آپ: `ScriptCatalog.Load` → `EnsureSchemaAsync` (همهٔ `_Ensure.sql`) →
+  `SeedAsync` (همهٔ `_Seed.sql`) → ساخت bootstrap admin (اگر Users خالی است)
+- `DbService.QueryAsync<T>(schema, name, @params)` / `ExecuteAsync` / `ScalarAsync`
+- الگوی صفحات: inject `DbService` + `ISnackbar`؛ بارگذاری در `OnInitializedAsync`
 
-- باکس جستجوی اسناد با فیلترها — حتماً **از تاریخ / تا تاریخ** (پیشفرض امروز، قابل تغییر)
-- گرید اسناد روز — کلیک روی ردیف → رفتن به سند
+## 🕵️ Audit
+- `AuditService.RecordAsync(schema, script, params, user, isExec, outcome, error)`
+- ذخیره در `[central].[AuditLog]` با `PrevHash`/`RowHash` (SHA-256) — مشاهده در `/central/audit`
 
-## 📊 داشبورد هر نرمافزار
-- خلاصه و نمای کلی **همه بخشها**
+## ❌ Explicit Bans
+- ❌ پروژه/کلاس‌کتابخانه/پکیج جدید خارج از `HermesApp`
+- ❌ `HttpClient`، controller، وب‌سرویس، توکن، رمزنگاری حمل‌ونقل
+- ❌ Bootstrap دستی، CSS سفارشی زیاد، DataGrid سفارشی (همه MudBlazor)
+- ❌ SQL خام در `.razor`
+- ❌ پرسیدن دوبارهٔ ساختار از کاربر
 
----
-
-## 🔐 احراز هویت
-
-- لاگین در **کلاینت مرکزی**
-- توکن از طریق **پارامتر URL** به بخشهای دیگر پروژهها ارسال میشود
-- کلاینت مرکزی: news / blog / gallery / مدیریت کاربران (تعریف کاربر، دسترسیها)
-
----
-
-## 🚦 ارتباطات (Flow)
-
-```
-central-client ──(login, user token)──► [project]-client
-      │                                        │
-      │         ProjectGuid handshake          │
-      └──────────────► webapi ◄────────────────┘
-                         │
-              session + AES → named TSQL
-                         │
-              SQL Server (schema bound to ProjectGuid)
-```
-
----
-
-## ⛔ ممنوعیتها
-
-- ❌ MudBlazor / Radzen — فقط HTML + Bootstrap 5.3 + CSS/JS
-- ❌ API اختصاصی برای هر پروژه
-- ❌ `server-client-comm` / WebSocket / Controller جدا / SQL خام در `SqlStr`
-- ❌ پرسیدن دوباره ساختار از کاربر
-
-مهارت داده: `.agents/hermes-tsql/SKILL.md`
-
----
-
-## 🎯 گام بعدی (Todo)
-
-وضعیت: **۵ محصول جدید + پلتفرم (فاز ۰) پیاده‌سازی‌شده** (ببینید `docs/PLATFORM_ROADMAP.md`).
-- [ ] اجرای `docker compose up --build` و `dotnet test` در محیط دارای دسترسی به NuGet (تأیید نهایی)
-- [ ] حسابداری: تحقیق گزارشات → طراحی مدلها → صفحات Entry/Reports کامل
-- [ ] بک‌لاگ P0-08: `/metrics`، feature flags، توکن ۱۵ دقیقه‌ای + refresh rotation، TDE/TLS
-- [ ] بک‌لاگ P6: DAST، اجرای سخت‌گیرانهٔ E2E (<8s)، تصمیم GitOps (ADR-004)
-- [ ] انتقال و بهروزرسانی `DataGridView` به `blazordeployservice`
-- [ ] سرویسهای `ModalService`, `ThemeService`, `TranslateService` عمومی در `blazordeployservice`
-- [ ] ویجتهای مرکزی برای وبسایت شرکت
+## ✅ Workflow برای هر ماژول جدید
+1. تحقیق گزارش‌های موردنیاز دامنه
+2. طراحی مدل‌ها (`Models/{Module}Models.cs`)
+3. نوشتن اسکریپت‌ها (`Data/Scripts/{schema}/…sql` + `_Ensure`/`_Seed`)
+4. صفحات MudBlazor در `Modules/{Name}/Pages/` + افزودن به `NavMenu` و `Home`
+5. اجرای `tools/cross-schema-scan.sh`

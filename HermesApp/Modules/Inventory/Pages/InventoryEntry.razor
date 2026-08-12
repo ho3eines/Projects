@@ -1,0 +1,121 @@
+@page "/inventory/entry"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>حرکت جدید — انبار آمل</PageTitle>
+
+<MudText Typo="Typo.h4">ثبت حرکت انبار</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    رسید / حواله / تعدیل موجودی.
+</MudText>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="کالا" @bind-Value="_itemId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب کالا —</MudSelectItem>
+                @foreach (var it in _items)
+                {
+                    <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب انبار —</MudSelectItem>
+                @foreach (var w in _warehouses)
+                {
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="string" Label="نوع حرکت" @bind-Value="_type" Variant="Variant.Outlined">
+                <MudSelectItem Value="Receipt">رسید</MudSelectItem>
+                <MudSelectItem Value="Issue">حواله</MudSelectItem>
+                <MudSelectItem Value="Adjustment">تعدیل</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="تعداد" @bind-Value="_qty" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="قیمت واحد" @bind-Value="_unitPrice" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="_busy">
+                ثبت حرکت
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "inventory";
+
+    private List<ItemRow> _items = new();
+    private List<WarehouseRow> _warehouses = new();
+    private int _itemId;
+    private int _warehouseId;
+    private string _type = "Receipt";
+    private DateTime? _date = DateTime.Today;
+    private decimal _qty = 1;
+    private decimal _unitPrice;
+    private string _description = "";
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList")).ToList();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (_itemId == 0 || _warehouseId == 0 || _qty <= 0)
+        {
+            Snackbar.Add("کالا، انبار و تعداد معتبر الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var item = _items.First(i => i.ItemId == _itemId);
+            await Db.ExecuteAsync(Schema, "MovementInsert", new
+            {
+                ItemId = _itemId,
+                ItemCode = item.ItemCode,
+                WarehouseId = _warehouseId,
+                MovementType = _type,
+                Qty = _qty,
+                UnitPrice = _unitPrice,
+                MovementDate = _date?.Date ?? DateTime.Today,
+                Description = _description,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("حرکت ثبت شد.", Severity.Success);
+            _qty = 1;
+            _unitPrice = 0;
+            _description = "";
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

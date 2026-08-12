@@ -1,37 +1,43 @@
-# hermes-tsql — Client
+# hermes-tsql — Page / service usage
 
 ## Program.cs
 
 ```csharp
-builder.Services.AddScoped(_ => new HttpClient());
-builder.Services.AddBlazorDeployServices(builder.Configuration);
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor();
+builder.Services.AddMudServices();
+builder.Services.AddSingleton<ScriptCatalog>();
+builder.Services.AddScoped<DbService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<UserSession>();
 ```
 
-`wwwroot/appsettings.json`: `Protocol=Hermes`, `ProjectGuid`, `Encryption` matching `webapi` → `Hermes:Projects`.
-
-## Data
+## Data from a page
 
 ```csharp
-@inject IRequestService Request
-await Request.Request<Row>("DailyDocuments", param);
-await Request.Request<object>("DocumentInsert", param, isExec: true);
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+var rows = (await Db.QueryAsync<DailyDocumentRow>("accounting", "DailyDocuments",
+    new { FromDate = DateTime.Today, ToDate = DateTime.Today, SearchText = "",
+          DocumentType = (string?)null, SkipRows = 0, TakeSize = 100 })).ToList();
+
+await Db.ExecuteAsync("accounting", "DocumentInsert", new { ... });
 ```
 
-## Test login
+Pattern: load in `OnInitializedAsync`; `MudTable Items="..." Loading="..."`;
+errors → `Snackbar.Add(ex.Message, Severity.Error)`.
 
-`admin` / `admin` — upserted every webapi start.
-
-## User token
+## Login
 
 ```csharp
-Request.SetUserToken(jwt);                 // from ?token= or localStorage
-var user = await Request.LoginAsync(u, p); // central-client /login
+var user = await Auth.AuthenticateAsync(username, password);
+if (user is not null) { Session.SignIn(user.UserId, user.Username, user.DisplayName, user.Role); }
 ```
 
-Open accounting: `https://localhost:65218/?token={userToken}`
+## Audit
 
-## Do not
-
-- `ISystemApi`
-- `Request.Request("SELECT …")`
-- pass schema from the client
+```csharp
+await Audit.RecordAsync(schema, scriptName, parameters, Session.UserName);
+```

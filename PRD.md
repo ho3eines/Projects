@@ -1,33 +1,52 @@
-# PRD: Project Relationship Architecture
+# PRD: Hermes — Single Blazor Server Platform
 
 ## Overview
-This document describes how multiple projects interact, share resources, and coordinate deliverables.
+این سند معماری مصوب «هرمس» است: **یک پروژهٔ Blazor Server** که همهٔ محصولات را
+به‌صورت ماژول در خودش دارد. هیچ وب‌سرویس، هیچ کلاینت WASM جدا، هیچ کتابخانهٔ
+اشتراکی جدا و هیچ پکیج NuGet جدا وجود ندارد. رابط کاربری با **MudBlazor**
+ساخته می‌شود تا تیم درگیر طراحی دستی نشود.
 
 ## Scope
-- **Project A**: Core service
-- **Project B**: UI front‑end
-- **Project C**: Data processing
+- **محصولات (7)** — حسابداری، انبار آمل، خزانه‌داری، حقوق و دستمزد، طلافروشی،
+  فروشگاه اینترنتی، پلتفرم مشترک (اخبار/بلاگ/گالری/کاربران/ممیزی).
+- هر محصول = یک **ماژول** (`Modules/{Name}/`) با صفحات، مدل‌ها و یک **اسکیمهٔ SQL
+  مستقل** (`Data/Scripts/{schema}/`).
+- داده فقط از طریق **اسکریپت‌های TSQL نامدار** که در همان پروسهٔ Blazor Server با
+  Dapper اجرا می‌شوند — بدون HTTP، بدون توکن، بدون لایهٔ API.
 
-## Interactions
-- **Project A** exposes a REST API that **Project B** consumes for UI operations.
-- **Project C** pulls processed data from **Project A** and feeds the results to **Project B**.
-- All projects share a central configuration repository.
+## Architecture (High Level)
+| لایه | مسئولیت | سازوکار |
+|------|---------|---------|
+| UI | همهٔ صفحات، فرم‌ها، جداول، مودال، اعتبارسنجی | Blazor Server + MudBlazor |
+| Data access | اجرای اسکریپت‌های نامدار روی SQL Server | `DbService` + Dapper (در همان پروسه) |
+| Scripts | منطق دامنه و گزارش‌ها (report-first) | `HermesApp/Data/Scripts/{schema}/{Name}.sql` |
+| DB | یک دیتابیس `HermesMaster` با اسکیمهٔ جدا برای هر محصول | SQL Server (docker compose) |
+| Auth | ورود با نام کاربری/رمز از جدول `[central].[Users]` | `AuthService` + PBKDF2، نشست هر circuit |
+| Audit | ثبت تمام عملیات با زنجیرهٔ هش | `AuditService` → `[central].[AuditLog]` |
 
-## Assumptions
-- All projects use the same authentication mechanism (OAuth2).
-- API contracts are versioned and backward compatible.
-- Network latency between projects is within acceptable limits.
+## Key Rules (قوانین کلیدی)
+1. **فقط یک پروژه**: `HermesApp/` — همهٔ چیز داخل همین پوشه.
+2. **فقط Blazor Server** — بدون WebAPI، بدون WASM، بدون کال‌کردن `HttpClient` برای داده.
+3. **MudBlazor تنها کتابخانهٔ UI است** — Bootstrap دستی، CSS سفارشی و جدول سفارشی ممنوع.
+4. **هر ماژول فقط اسکیمهٔ خودش را لمس می‌کند** (`DbService` با `{schema}`).
+5. **هیچ SQL خام در صفحات نیست** — همه چیز از `Data/Scripts/{schema}/{Name}.sql`.
+6. **Report-first**: قبل از ساخت هر ماژول، گزارش‌های موردنیاز دامنه تحقیق و سپس مدل‌ها
+   و اسکریپت‌ها طراحی می‌شوند.
+7. چهار بخش استاندارد هر ماژول: **ورود عملیات**، **عملیات ویژه**، **گزارشات**، **امکانات**.
 
-## Risks & Mitigations
-- **Integration complexity**: Use an API gateway to mediate communication.
-- **Data consistency**: Implement event‑driven synchronization with message queues.
-- **Version drift**: Enforce contract version checks in CI pipelines.
+## What was removed (delete-list)
+- همهٔ پروژه‌های قدیمی: `webapi`، ۷ کلاینت WASM، `share`، `blazordeployservice`، `tests`.
+- وب‌سرویس/توکن/هندشیک/رمزنگاری AES بین کلاینت و سرور.
+- بک‌بون رویدادها (Outbox) — cross-module عملیات مستقیماً و تراکنشی انجام می‌شود.
+- Bootstrap سفارشی و کامپوننت‌های دست‌ساز (DataGrid و...) — همه با MudBlazor جایگزین شدند.
 
 ## Acceptance Criteria
-- API latency ≤ 200 ms for 95 % of requests.
-- Data flow is auditable via logs.
-- Documentation is version‑controlled and up‑to‑date.
+1. `dotnet build Hermes.slnx` — بدون خطا، فقط با یک پروژه.
+2. با `docker compose up -d` + `dotnet run` همهٔ ۷ ماژول از یک آدرس باز می‌شوند.
+3. در صفحات، هیچ رشتهٔ SQL و هیچ `HttpClient` برای داده وجود ندارد.
+4. اسکریپت‌های هر اسکیمه از اسکیمهٔ دیگر بدون اعلام قبلی استفاده نمی‌کنند
+   (`tools/cross-schema-scan.sh` پاس شود).
+5. ورود با کاربر bootstrap (admin/admin در اولین اجرا) و مدیریت کاربران کار می‌کند.
 
 ---
-
-*Generated on 2026‑08‑08.*
+*نسخه ۲.۰ — ۲۰۲۶/۰۸/۱۲ — بازطراحی کامل از multi-project + webapi به یک پروژهٔ Blazor Server + MudBlazor.*

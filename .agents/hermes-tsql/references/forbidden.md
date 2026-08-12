@@ -1,37 +1,35 @@
-# hermes-tsql — Forbidden
+# hermes-tsql — Forbidden (v2)
 
-These patterns are **wrong in this repo** even if they exist in other Hossein projects or in `blazordeployservice`.
+These patterns are **wrong in this repo** — even if they exist in other
+projects or in older versions of this one.
 
 ## Do not load / do not copy
 
 | Source | Why |
 |--------|-----|
-| `server-client-comm` | Pdd.ir: WebSocket auto-CRUD, `{Entity}Controller`, `BusinessService`, `ICommunicationService` |
-| `convert-prompts-to-blazor` “MUST use ICommunicationService” | That interface does not exist here. Use `ISystemApi` |
-| BlazorDeploy.ir `POST api/Data/` | Hermes WebAPI has no `Data` controller |
-| Per-project `Controllers/` | Clients are WASM-only |
+| `server-client-comm`, Pdd.ir `ICommunicationService`, WebSocket auto-CRUD | That architecture does not exist here |
+| `BlazorDeployService` / `RequestService` / `IRequestService` | The NuGet WASM transport was removed |
+| `webapi` controllers, `SystemQueryExecutor`, `ISystemApi` | The webapi project was deleted |
+| 7 WASM clients (`accounting/`, `store/`, … as projects) | They are modules inside `HermesApp/Modules/` |
+| Old `share/` library | Models live in `HermesApp/Models/` |
 
 ## Do not write
 
 ```csharp
-// ❌ raw SQL over RequestService
-await Request.Request<Row>("SELECT * FROM Documents", null);
+// ❌ HTTP for data
+var http = new HttpClient();
+await http.PostAsJsonAsync("https://localhost:65222/api/...", payload);
 
-// ❌ SqlService ORM against Hermes tables
-await Sql.InitializeAsync<Document>();
-await Sql.Insert<Document>(new { Title = "x" });
+// ❌ raw SQL inside a page
+await Db.ExecuteAsync("SELECT * FROM Documents WHERE ...", null);
 
-// ❌ new API surface
-// accounting has no server. webapi gets NO new {Entity}Controller.
+// ❌ new API surface / controller / webapi project
 
-// ❌ WebSocket
-builder.Services.AddSingleton<WebSocketHandler>();
+// ❌ token/AES/handshake plumbing (v1.5)
+Request.SetUserToken(fromUrl);
 
-// ❌ DateTime in a new Pdd-style DTO just because that skill said "always long"
-// Follow BaseEntity (DateTime audit) + DATE for document dates.
-// Convert Unix only at PersianDatePicker.
-
-// ❌ MudBlazor / Radzen / Tailwind / shadcn
+// ❌ Bootstrap / hand-rolled CSS classes (h-table, h-card, ...)
+// ❌ custom DataGrid / PersianDatePicker — use MudTable / MudDatePicker
 ```
 
 ```sql
@@ -40,16 +38,17 @@ SELECT * FROM Documents;
 SELECT * FROM dbo.Documents;   -- unless you truly mean dbo
 
 -- ❌ concatenated input
-WHERE Name = '" + search + "'
+WHERE Name = N'" + search + "'
 
--- ❌ dynamic SQL from the client
+-- ❌ reading another schema without a header declaration
+SELECT * FROM [store].[Orders];  -- must declare: -- Cross-schema: store
 ```
 
 ## Do write
 
 ```csharp
-await Request.Request<DailyDocumentRow>("DailyDocuments", param);
-await Request.Request<object>("DocumentInsert", param, isExec: true);
+var rows = await Db.QueryAsync<DailyDocumentRow>("accounting", "DailyDocuments", param);
+await Db.ExecuteAsync("accounting", "DocumentInsert", param);
 ```
 
 ```sql
@@ -58,4 +57,4 @@ SELECT ... FROM [accounting].[Documents] d WHERE d.DocumentId = @Id AND d.IsDele
 
 ## If a tutorial says otherwise
 
-`docs/PROJECT.md` + this skill win. Ignore `server-client-comm`, Pdd.ir READMEs, and BDS `RequestService` samples when the task is Hermes data.
+`docs/PROJECT.md` + this skill win.
