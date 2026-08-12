@@ -1,4 +1,4 @@
-﻿import CryptoJS from './crypto-js-wrapper.js';
+import CryptoJS from './crypto-js-wrapper.js';
 
 export function encryptData(plaintext, key) {
     try {
@@ -59,6 +59,26 @@ export function decryptData(ciphertext, key) {
         console.error("Decryption error", err);
         throw err;
     }
+}
+
+// Encrypted localStorage originally used the managed .NET format
+// "base64(iv):base64(cipher)". Browser/WASM cannot instantiate Aes, so new
+// values use encryptData's single base64 payload. Keep the legacy reader to
+// avoid forcing users with an existing session to log in again.
+export function decryptStoredData(ciphertext, key) {
+    if (typeof ciphertext !== 'string' || !ciphertext.includes(':')) {
+        return decryptData(ciphertext, key);
+    }
+
+    const parts = ciphertext.split(':');
+    if (parts.length !== 2) throw new Error('Invalid encrypted storage format');
+
+    const iv = CryptoJS.enc.Base64.parse(parts[0]);
+    const encrypted = CryptoJS.enc.Base64.parse(parts[1]);
+    if (iv.sigBytes !== 16) throw new Error('Invalid encrypted storage IV');
+
+    const combined = iv.clone().concat(encrypted);
+    return decryptData(CryptoJS.enc.Base64.stringify(combined), key);
 }
 
 export function generateRandomKey(length = 32) {

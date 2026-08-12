@@ -1,4 +1,4 @@
-﻿using Microsoft.JSInterop;
+using Microsoft.JSInterop;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System;
@@ -8,13 +8,26 @@ using System.Text;
 
 namespace BlazorDeployService.Services
 {
-    public class ClientStorageService : IClientStorageService
+    public class ClientStorageService : IClientStorageService, IAsyncDisposable
     {
         private readonly IJSRuntime _js;
+        private Task<IJSObjectReference>? _cryptoModuleTask;
 
         public ClientStorageService(IJSRuntime js)
         {
             _js = js;
+        }
+
+        private Task<IJSObjectReference> GetCryptoModuleAsync()
+        {
+            // System.Security.Cryptography.Aes is not implemented by the
+            // browser/WASM runtime. Use the same CryptoJS module as the request
+            // transport so encrypted localStorage works on the first login too.
+            return _cryptoModuleTask ??= _js
+                .InvokeAsync<IJSObjectReference>(
+                    "import",
+                    "./_content/BlazorDeployService/js/interop.js")
+                .AsTask();
         }
 
         // ----------------------- LocalStorage -----------------------
@@ -46,19 +59,27 @@ namespace BlazorDeployService.Services
         // ----------------------- LocalStorage Encrypted -----------------------
         public async Task SetLocalEncryptedAsync<T>(string key, T value, string secretKey)
         {
+            ArgumentException.ThrowIfNullOrEmpty(secretKey);
+
             var json = JsonSerializer.Serialize(value);
-            var encrypted = EncryptString(json, secretKey);
+            var module = await GetCryptoModuleAsync();
+            var encrypted = await module.InvokeAsync<string>("encryptData", json, secretKey);
             await _js.InvokeVoidAsync("localStorage.setItem", key, encrypted);
         }
 
 
         public async Task<T?> GetLocalEncryptedAsync<T>(string key, string secretKey)
         {
-            var encrypted = await _js.InvokeAsync<string>("localStorage.getItem", key);
+            ArgumentException.ThrowIfNullOrEmpty(secretKey);
+
+            var encrypted = await _js.InvokeAsync<string?>("localStorage.getItem", key);
             if (string.IsNullOrWhiteSpace(encrypted)) return default;
 
-
-            var decrypted = DecryptString(encrypted, secretKey);
+            var module = await GetCryptoModuleAsync();
+            // decryptStoredData also reads the old "base64(iv):base64(cipher)"
+            // format written by the managed AES implementation on non-browser
+            // clients, allowing existing sessions to migrate without a logout.
+            var decrypted = await module.InvokeAsync<string>("decryptStoredData", encrypted, secretKey);
             return JsonSerializer.Deserialize<T>(decrypted);
         }
 
@@ -133,9 +154,17 @@ namespace BlazorDeployService.Services
         // ----------------------- AES Encryption Utilities -----------------------
         public string EncryptString(string plainText, string key)
         {
+            if (OperatingSystem.IsBrowser())
+            {
+                throw new PlatformNotSupportedException(
+                    "Synchronous AES is not supported in browser/WASM. Use SetLocalEncryptedAsync instead.");
+            }
+
             using var aes = Aes.Create();
             var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(key));
             aes.Key = keyBytes;
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
             aes.GenerateIV();
 
 
@@ -151,19 +180,44 @@ namespace BlazorDeployService.Services
 
         public string DecryptString(string cipherText, string key)
         {
+            if (OperatingSystem.IsBrowser())
+            {
+                throw new PlatformNotSupportedException(
+                    "Synchronous AES is not supported in browser/WASM. Use GetLocalEncryptedAsync instead.");
+            }
+
             var parts = cipherText.Split(':');
+            if (parts.Length != 2)
+                throw new FormatException("Encrypted storage value has an invalid format.");
+
             var iv = Convert.FromBase64String(parts[0]);
             var encrypted = Convert.FromBase64String(parts[1]);
-
 
             using var aes = Aes.Create();
             aes.Key = SHA256.HashData(Encoding.UTF8.GetBytes(key));
             aes.IV = iv;
-
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
 
             var decryptor = aes.CreateDecryptor();
             var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
             return Encoding.UTF8.GetString(decrypted);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_cryptoModuleTask is null)
+                return;
+
+            try
+            {
+                var module = await _cryptoModuleTask;
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The browser tab/circuit is already gone.
+            }
         }
     }
 }

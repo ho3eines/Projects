@@ -359,7 +359,10 @@ public class SecureRequestController : ControllerBase
     {
         var dp = new DynamicParameters();
         if (p is not null)
-            foreach (var kv in p) dp.Add(kv.Key, kv.Value ?? DBNull.Value);
+        {
+            foreach (var kv in p)
+                dp.Add(kv.Key, SqlParameterValueNormalizer.Normalize(kv.Value));
+        }
         return dp;
     }
 
