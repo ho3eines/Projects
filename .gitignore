@@ -13,3 +13,5 @@ appsettings.Development.json
 *.nupkg
 project.lock.json
 artifacts/
+.agents/skills
+.agents/skills/
