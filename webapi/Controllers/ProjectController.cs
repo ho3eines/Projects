@@ -143,7 +143,7 @@ VALUES
                 });
 
             var backupDir = GetBackupDir(dto.ProjectGuid);
-            Directory.CreateDirectory(backupDir);
+            System.IO.Directory.CreateDirectory(backupDir);
             await _backupScheduler.Register(dto.ProjectGuid);
 
             return CreatedAtAction(nameof(Get), new { projectGuid = dto.ProjectGuid },
@@ -256,10 +256,10 @@ WHERE ProjectGuid = @ProjectGuid",
         if (project is null) return NotFound(new { error = "Project not found" });
 
         var dir = GetBackupDir(projectGuid);
-        if (!Directory.Exists(dir))
+        if (!System.IO.Directory.Exists(dir))
             return Ok(new BackupListResponse());
 
-        var backups = Directory.GetFiles(dir, "*.bak")
+        var backups = System.IO.Directory.GetFiles(dir, "*.bak")
             .Select(f => new FileInfo(f))
             .OrderByDescending(f => f.LastWriteTimeUtc)
             .Select(f => new BackupInfoDto
@@ -424,7 +424,7 @@ WHERE ProjectGuid = @guid",
     private string GetBackupDir(Guid projectGuid)
     {
         var dir = Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "backup", projectGuid.ToString());
-        Directory.CreateDirectory(dir);
+        System.IO.Directory.CreateDirectory(dir);
         return dir;
     }
 
@@ -463,7 +463,7 @@ WHERE ProjectGuid = @guid",
 
         if (project.MaxBackupRetention > 0)
         {
-            var all = Directory.GetFiles(dir, "*.bak")
+            var all = System.IO.Directory.GetFiles(dir, "*.bak")
                 .Select(f => new FileInfo(f))
                 .OrderByDescending(f => f.LastWriteTimeUtc)
                 .ToList();
