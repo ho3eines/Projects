@@ -333,7 +333,7 @@
     };
 
     /// <summary>ذخیره‌سازی امن — خطای JS حافظه نباید جریان ورود را متوقف کند</summary>
-    static async Task SafeStorage(Task op) { try { await op(); } catch { /* دسترسی به storage ممکن نیست */ } }
+    static async Task SafeStorage(Task op) { try { await op; } catch { /* دسترسی به storage ممکن نیست */ } }
     static async Task<T?> SafeStorage<T>(Func<Task<T?>> op) { try { return await op(); } catch { return default; } }
 
     /// <summary>نمایش امن پیام — خطای toast نباید جلوی هدایت بعد از ورود را بگیرد</summary>
