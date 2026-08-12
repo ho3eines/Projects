@@ -1,5 +1,6 @@
 @page "/store/settings"
 @inject DbService Db
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — فروشگاه اینترنتی</PageTitle>
@@ -8,25 +9,15 @@
 <MudTabs>
     <MudTabPanel Text="محصولات">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudGrid Class="mb-4">
-                <MudItem xs="12" sm="6" md="3">
-                    <MudTextField Label="کد محصول" @bind-Value="_productCode" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudTextField Label="عنوان" @bind-Value="_productTitle" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudNumericField T="decimal" Label="قیمت" @bind-Value="_productPrice" Variant="Variant.Outlined" Min="0" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="SaveProductAsync">
-                        ذخیره محصول
-                    </MudButton>
-                </MudItem>
-            </MudGrid>
-            <MudTable Items="_products" Hover="true" Dense="true" Striped="true" Loading="_loadingProducts">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromProduct()))">
+                    محصول جدید
+                </MudButton>
+            </div>
+            <MudTable Items="_products" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
-                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت</MudTh><MudTh>وضعیت</MudTh>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.ProductCode</MudTd>
@@ -37,6 +28,12 @@
                             @(context.IsActive ? "فعال" : "غیرفعال")
                         </MudChip>
                     </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش محصول">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromProduct(context)))" />
+                        </MudTooltip>
+                    </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">محصولی نیست.</MudText></NoRecordsContent>
             </MudTable>
@@ -45,25 +42,15 @@
 
     <MudTabPanel Text="مشتریان">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudGrid Class="mb-4">
-                <MudItem xs="12" sm="6" md="3">
-                    <MudTextField Label="کد مشتری" @bind-Value="_customerCode" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudTextField Label="نام کامل" @bind-Value="_customerName" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudTextField Label="تلفن" @bind-Value="_customerPhone" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="SaveCustomerAsync">
-                        ذخیره مشتری
-                    </MudButton>
-                </MudItem>
-            </MudGrid>
-            <MudTable Items="_customers" Hover="true" Dense="true" Striped="true" Loading="_loadingCustomers">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                           OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromCustomer()))">
+                    مشتری جدید
+                </MudButton>
+            </div>
+            <MudTable Items="_customers" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
-                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>تلفن</MudTh><MudTh>ایمیل</MudTh><MudTh>وضعیت</MudTh>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>تلفن</MudTh><MudTh>ایمیل</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.CustomerCode</MudTd>
@@ -75,6 +62,12 @@
                             @(context.IsActive ? "فعال" : "غیرفعال")
                         </MudChip>
                     </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش مشتری">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromCustomer(context)))" />
+                        </MudTooltip>
+                    </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">مشتری‌ای نیست.</MudText></NoRecordsContent>
             </MudTable>
@@ -84,20 +77,15 @@
 
 @code {
     private const string Schema = "store";
-
     private List<ProductRow> _products = new();
     private List<CustomerRow> _customers = new();
-    private bool _loadingProducts = true;
-    private bool _loadingCustomers = true;
-    private string _productCode = "";
-    private string _productTitle = "";
-    private decimal _productPrice;
-    private string _customerCode = "";
-    private string _customerName = "";
-    private string _customerPhone = "";
+    private bool _loading = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
@@ -109,70 +97,16 @@
         }
         finally
         {
-            _loadingProducts = false;
-            _loadingCustomers = false;
+            _loading = false;
         }
     }
 
-    private async Task SaveProductAsync()
+    private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        if (string.IsNullOrWhiteSpace(_productCode) || string.IsNullOrWhiteSpace(_productTitle))
-        {
-            Snackbar.Add("کد و عنوان محصول الزامی است.", Severity.Warning);
-            return;
-        }
-
-        try
-        {
-            await Db.ExecuteAsync(Schema, "ProductUpsert", new
-            {
-                ProductId = 0,
-                ProductCode = _productCode.Trim(),
-                Title = _productTitle.Trim(),
-                ItemCode = "",
-                Price = _productPrice,
-                IsActive = true
-            });
-            Snackbar.Add("محصول ذخیره شد.", Severity.Success);
-            _productCode = "";
-            _productTitle = "";
-            _productPrice = 0;
-            _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-    }
-
-    private async Task SaveCustomerAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_customerCode) || string.IsNullOrWhiteSpace(_customerName))
-        {
-            Snackbar.Add("کد و نام مشتری الزامی است.", Severity.Warning);
-            return;
-        }
-
-        try
-        {
-            await Db.ExecuteAsync(Schema, "CustomerUpsert", new
-            {
-                CustomerId = 0,
-                CustomerCode = _customerCode.Trim(),
-                FullName = _customerName.Trim(),
-                Phone = _customerPhone,
-                Email = (string?)null,
-                IsActive = true
-            });
-            Snackbar.Add("مشتری ذخیره شد.", Severity.Success);
-            _customerCode = "";
-            _customerName = "";
-            _customerPhone = "";
-            _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList")).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
+        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
+        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
     }
 }

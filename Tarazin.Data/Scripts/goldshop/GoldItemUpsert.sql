@@ -3,7 +3,8 @@
 -- Schema: goldshop
 -- Execute.
 -- =============================================
-IF NOT EXISTS (SELECT 1 FROM [goldshop].[GoldItems] WHERE GoldItemId = @GoldItemId)
+-- GoldItemId=0 identifies a new record; every non-zero id is an edit.
+IF @GoldItemId = 0
 BEGIN
     INSERT INTO [goldshop].[GoldItems] (ItemCode, Title, Purity, IsActive, CreatedAt)
     VALUES (@ItemCode, @Title, @Purity, ISNULL(@IsActive, 1), SYSUTCDATETIME());

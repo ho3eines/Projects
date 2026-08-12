@@ -3,7 +3,8 @@
 -- Schema: payroll
 -- Execute. اقلام حقوق (پایه، مزایا، کسورات).
 -- =============================================
-IF NOT EXISTS (SELECT 1 FROM [payroll].[SalaryItems] WHERE SalaryItemId = @SalaryItemId)
+-- SalaryItemId=0 identifies a new record; every non-zero id is an edit.
+IF @SalaryItemId = 0
 BEGIN
     INSERT INTO [payroll].[SalaryItems] (EmployeeId, Period, Title, Amount, IsDeduction, CreatedAt)
     VALUES (@EmployeeId, @Period, @Title, @Amount, ISNULL(@IsDeduction, 0), SYSUTCDATETIME());

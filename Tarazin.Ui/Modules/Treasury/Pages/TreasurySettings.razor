@@ -1,5 +1,6 @@
 @page "/treasury/settings"
 @inject DbService Db
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — خزانه‌داری</PageTitle>
@@ -8,31 +9,27 @@
 <MudTabs>
     <MudTabPanel Text="نرخ ارز">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudGrid Class="mb-4">
-                <MudItem xs="12" sm="6" md="3">
-                    <MudTextField Label="کد ارز" @bind-Value="_currencyCode" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudTextField Label="نام ارز" @bind-Value="_currencyName" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudNumericField T="decimal" Label="نرخ به ریال" @bind-Value="_rate" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="SaveRateAsync">
-                        ذخیره نرخ
-                    </MudButton>
-                </MudItem>
-            </MudGrid>
-            <MudTable Items="_rates" Hover="true" Dense="true" Striped="true" Loading="_loadingRates">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => OpenRateEditorAsync(EntityEditorModel.FromCurrencyRate()))">
+                    نرخ جدید
+                </MudButton>
+            </div>
+            <MudTable Items="_rates" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
-                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>نرخ به ریال</MudTh><MudTh>تاریخ</MudTh>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>نرخ به ریال</MudTh><MudTh>تاریخ</MudTh><MudTh>عملیات</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.CurrencyCode</MudTd>
                     <MudTd DataLabel="نام">@context.CurrencyName</MudTd>
                     <MudTd DataLabel="نرخ">@context.RateToIRR.ToString("N0")</MudTd>
                     <MudTd DataLabel="تاریخ">@context.RateDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش نرخ">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenRateEditorAsync(EntityEditorModel.FromCurrencyRate(context)))" />
+                        </MudTooltip>
+                    </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">نرخی ثبت نشده است.</MudText></NoRecordsContent>
             </MudTable>
@@ -41,7 +38,7 @@
 
     <MudTabPanel Text="بانک‌ها">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudTable Items="_banks" Hover="true" Dense="true" Striped="true">
+            <MudTable Items="_banks" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh>
                 </HeaderContent>
@@ -56,7 +53,7 @@
 
     <MudTabPanel Text="صندوق‌ها">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudTable Items="_cashBoxes" Hover="true" Dense="true" Striped="true">
+            <MudTable Items="_cashBoxes" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>مانده</MudTh>
                 </HeaderContent>
@@ -73,17 +70,16 @@
 
 @code {
     private const string Schema = "treasury";
-
     private List<CurrencyRateRow> _rates = new();
     private List<BankRow> _banks = new();
     private List<CashBoxRow> _cashBoxes = new();
-    private bool _loadingRates = true;
-    private string _currencyCode = "";
-    private string _currencyName = "";
-    private decimal _rate;
+    private bool _loading = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _rates = (await Db.QueryAsync<CurrencyRateRow>(Schema, "CurrencyRateSearch", new
@@ -100,40 +96,16 @@
         }
         finally
         {
-            _loadingRates = false;
+            _loading = false;
         }
     }
 
-    private async Task SaveRateAsync()
+    private async Task OpenRateEditorAsync(EntityEditorModel model)
     {
-        if (string.IsNullOrWhiteSpace(_currencyCode) || _rate <= 0)
-        {
-            Snackbar.Add("کد ارز و نرخ معتبر الزامی است.", Severity.Warning);
-            return;
-        }
-
-        try
-        {
-            await Db.ExecuteAsync(Schema, "CurrencyRateUpsert", new
-            {
-                CurrencyCode = _currencyCode.Trim(),
-                CurrencyName = _currencyName,
-                RateToIRR = _rate,
-                RateDate = DateTime.Today
-            });
-            Snackbar.Add("نرخ ارز ذخیره شد.", Severity.Success);
-            _currencyCode = "";
-            _currencyName = "";
-            _rate = 0;
-            _rates = (await Db.QueryAsync<CurrencyRateRow>(Schema, "CurrencyRateSearch", new
-            {
-                SkipRows = 0,
-                TakeSize = 200
-            })).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
+        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
+        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
     }
 }

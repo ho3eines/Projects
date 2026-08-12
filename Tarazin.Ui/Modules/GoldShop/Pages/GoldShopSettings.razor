@@ -1,32 +1,21 @@
 @page "/goldshop/settings"
 @inject DbService Db
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — طلافروشی</PageTitle>
 
-<PageHeader Title="امکانات و جداول پایه" Subtitle="تعریف اجناس طلا." />
-<MudPaper Elevation="1" Class="pa-4">
-    <MudGrid Class="mb-4">
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="کد (XAU-24)" @bind-Value="_code" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudNumericField T="decimal?" Label="عیار" @bind-Value="_purity" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
-                       OnClick="SaveAsync" Disabled="_busy">
-                افزودن جنس
-            </MudButton>
-        </MudItem>
-    </MudGrid>
+<PageHeader Title="امکانات و جداول پایه" Subtitle="تعریف و ویرایش اجناس طلا.">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGoldItem()))">
+        جنس جدید
+    </MudButton>
+</PageHeader>
 
+<MudPaper Elevation="1" Class="pa-4">
     <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
         <HeaderContent>
-            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>عیار</MudTh><MudTh>وضعیت</MudTh>
+            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>عیار</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="کد">@context.ItemCode</MudTd>
@@ -37,6 +26,12 @@
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
+            <MudTd DataLabel="عملیات">
+                <MudTooltip Text="ویرایش جنس">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGoldItem(context)))" />
+                </MudTooltip>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">جنسی تعریف نشده است.</MudText></NoRecordsContent>
     </MudTable>
@@ -44,16 +39,14 @@
 
 @code {
     private const string Schema = "goldshop";
-
     private List<GoldItemRow> _items = new();
     private bool _loading = true;
-    private bool _busy;
-    private string _code = "";
-    private string _title = "";
-    private decimal? _purity;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList")).ToList();
@@ -68,39 +61,12 @@
         }
     }
 
-    private async Task SaveAsync()
+    private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        if (_busy) return;
-        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_title))
-        {
-            Snackbar.Add("کد و عنوان الزامی است.", Severity.Warning);
-            return;
-        }
-
-        _busy = true;
-        try
-        {
-            await Db.ExecuteAsync(Schema, "GoldItemUpsert", new
-            {
-                GoldItemId = 0,
-                ItemCode = _code.Trim(),
-                Title = _title.Trim(),
-                Purity = _purity,
-                IsActive = true
-            });
-            Snackbar.Add("جنس طلا ذخیره شد.", Severity.Success);
-            _code = "";
-            _title = "";
-            _purity = null;
-            _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList")).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
+        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
     }
 }

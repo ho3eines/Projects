@@ -1,35 +1,21 @@
 @page "/central/news"
 @inject DbService Db
-@inject UserSession Session
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>اخبار — ترازین</PageTitle>
 
-<PageHeader Title="اخبار شرکت" Subtitle="مدیریت اخبار نمایش‌داده‌شده در وبسایت مرکزی." />
-<MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudGrid>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="عنوان خبر" @bind-Value="_title" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="خلاصه" @bind-Value="_summary" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudDatePicker Label="تاریخ انتشار" Culture="FaCulture" @bind-Date="_publishedAt" />
-        </MudItem>
-        <MudItem xs="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="AddAsync" Disabled="_busy">
-                افزودن خبر
-            </MudButton>
-        </MudItem>
-    </MudGrid>
-</MudPaper>
+<PageHeader Title="اخبار شرکت" Subtitle="مدیریت اخبار نمایش‌داده‌شده در وبسایت مرکزی.">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromNews()))">
+        خبر جدید
+    </MudButton>
+</PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4">
     <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
         <HeaderContent>
-            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>خلاصه</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh>
+            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>خلاصه</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="#">@context.NewsId</MudTd>
@@ -41,24 +27,27 @@
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
+            <MudTd DataLabel="عملیات">
+                <MudTooltip Text="ویرایش خبر">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromNews(context)))" />
+                </MudTooltip>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">خبری نیست.</MudText></NoRecordsContent>
     </MudTable>
 </MudPaper>
 
 @code {
-    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
     private const string Schema = "central";
-
     private List<NewsRow> _items = new();
     private bool _loading = true;
-    private bool _busy;
-    private string _title = "";
-    private string _summary = "";
-    private DateTime? _publishedAt = DateTime.Today;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _items = (await Db.QueryAsync<NewsRow>(Schema, "NewsList", new
@@ -77,45 +66,12 @@
         }
     }
 
-    private async Task AddAsync()
+    private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        if (_busy) return;
-        if (string.IsNullOrWhiteSpace(_title))
-        {
-            Snackbar.Add("عنوان خبر الزامی است.", Severity.Warning);
-            return;
-        }
-
-        _busy = true;
-        try
-        {
-            await Db.ExecuteAsync(Schema, "NewsUpsert", new
-            {
-                NewsId = 0,
-                Title = _title.Trim(),
-                Summary = _summary,
-                Body = (string?)null,
-                ImageUrl = (string?)null,
-                PublishedAt = _publishedAt,
-                IsActive = true,
-                CreatedBy = Session.UserName
-            });
-            Snackbar.Add("خبر افزوده شد.", Severity.Success);
-            _title = "";
-            _summary = "";
-            _items = (await Db.QueryAsync<NewsRow>(Schema, "NewsList", new
-            {
-                SkipRows = 0,
-                TakeSize = 200
-            })).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
+        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
     }
 }

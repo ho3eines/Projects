@@ -1,40 +1,33 @@
 @page "/goldshop/special"
 @inject DbService Db
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>قیمت طلا — طلافروشی</PageTitle>
 
-<PageHeader Title="به‌روزرسانی قیمت طلا" Subtitle="قیمت روز هر گرم طلا را ثبت کنید." />
+<PageHeader Title="به‌روزرسانی قیمت طلا" Subtitle="قیمت روز هر گرم طلا را ثبت یا ویرایش کنید.">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGoldPrice()))">
+        قیمت جدید
+    </MudButton>
+</PageHeader>
+
 <MudPaper Elevation="1" Class="pa-4">
-    <MudGrid>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="کد (مثلاً XAU-24)" @bind-Value="_itemCode" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudNumericField T="decimal" Label="قیمت هر گرم (ریال)" @bind-Value="_price" Variant="Variant.Outlined" Min="0" />
-        </MudItem>
-        <MudItem xs="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
-                       OnClick="SaveAsync" Disabled="_busy">
-                ثبت قیمت
-            </MudButton>
-        </MudItem>
-    </MudGrid>
-
-    <MudDivider Class="my-6" />
-
-    <MudTable Items="_prices" Hover="true" Dense="true" Striped="true" Loading="_loadingPrices">
+    <MudTable Items="_prices" Hover="true" Dense="true" Striped="true" Loading="_loading">
         <HeaderContent>
-            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت هر گرم</MudTh><MudTh>به‌روزرسانی</MudTh>
+            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت هر گرم</MudTh><MudTh>به‌روزرسانی</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="کد">@context.ItemCode</MudTd>
             <MudTd DataLabel="عنوان">@context.Title</MudTd>
             <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
             <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
+            <MudTd DataLabel="عملیات">
+                <MudTooltip Text="ویرایش قیمت">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGoldPrice(context)))" />
+                </MudTooltip>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></NoRecordsContent>
     </MudTable>
@@ -42,22 +35,14 @@
 
 @code {
     private const string Schema = "goldshop";
-
     private List<GoldPriceRow> _prices = new();
-    private bool _loadingPrices = true;
-    private bool _busy;
-    private string _itemCode = "";
-    private string _title = "";
-    private decimal _price;
+    private bool _loading = true;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadPricesAsync();
-    }
+    protected override Task OnInitializedAsync() => LoadAsync();
 
-    private async Task LoadPricesAsync()
+    private async Task LoadAsync()
     {
-        _loadingPrices = true;
+        _loading = true;
         try
         {
             _prices = (await Db.QueryAsync<GoldPriceRow>(Schema, "GoldPriceSearch", new
@@ -72,42 +57,16 @@
         }
         finally
         {
-            _loadingPrices = false;
+            _loading = false;
         }
     }
 
-    private async Task SaveAsync()
+    private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        if (_busy) return;
-        if (string.IsNullOrWhiteSpace(_itemCode) || _price <= 0)
-        {
-            Snackbar.Add("کد و قیمت معتبر الزامی است.", Severity.Warning);
-            return;
-        }
-
-        _busy = true;
-        try
-        {
-            await Db.ExecuteAsync(Schema, "GoldPriceUpsert", new
-            {
-                ItemCode = _itemCode.Trim(),
-                Title = _title,
-                PricePerGram = _price,
-                RateToIRR = (decimal?)null
-            });
-            Snackbar.Add("قیمت طلا ثبت شد.", Severity.Success);
-            _itemCode = "";
-            _title = "";
-            _price = 0;
-            await LoadPricesAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
+        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
     }
 }

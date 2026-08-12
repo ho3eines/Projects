@@ -1,35 +1,21 @@
 @page "/central/blog"
 @inject DbService Db
-@inject UserSession Session
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>وبلاگ — ترازین</PageTitle>
 
-<PageHeader Title="پست‌های وبلاگ" Subtitle="مدیریت پست‌های وبلاگ شرکت." />
-<MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudGrid>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="نویسنده" @bind-Value="_author" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="برچسب‌ها" @bind-Value="_tags" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="AddAsync" Disabled="_busy">
-                افزودن پست
-            </MudButton>
-        </MudItem>
-    </MudGrid>
-</MudPaper>
+<PageHeader Title="پست‌های وبلاگ" Subtitle="مدیریت پست‌های وبلاگ شرکت.">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromBlog()))">
+        پست جدید
+    </MudButton>
+</PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4">
     <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
         <HeaderContent>
-            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>نویسنده</MudTh><MudTh>برچسب‌ها</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh>
+            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>نویسنده</MudTh><MudTh>برچسب‌ها</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="#">@context.PostId</MudTd>
@@ -42,6 +28,12 @@
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
             </MudTd>
+            <MudTd DataLabel="عملیات">
+                <MudTooltip Text="ویرایش پست">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromBlog(context)))" />
+                </MudTooltip>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">پستی نیست.</MudText></NoRecordsContent>
     </MudTable>
@@ -49,16 +41,14 @@
 
 @code {
     private const string Schema = "central";
-
     private List<BlogRow> _items = new();
     private bool _loading = true;
-    private bool _busy;
-    private string _title = "";
-    private string _author = "";
-    private string _tags = "";
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _items = (await Db.QueryAsync<BlogRow>(Schema, "BlogList", new
@@ -77,47 +67,12 @@
         }
     }
 
-    private async Task AddAsync()
+    private async Task OpenEditorAsync(EntityEditorModel model)
     {
-        if (_busy) return;
-        if (string.IsNullOrWhiteSpace(_title))
-        {
-            Snackbar.Add("عنوان پست الزامی است.", Severity.Warning);
-            return;
-        }
-
-        _busy = true;
-        try
-        {
-            await Db.ExecuteAsync(Schema, "BlogUpsert", new
-            {
-                PostId = 0,
-                Title = _title.Trim(),
-                Slug = (string?)null,
-                Author = _author,
-                Tags = _tags,
-                Body = (string?)null,
-                PublishedAt = DateTime.Today,
-                IsActive = true,
-                CreatedBy = Session.UserName
-            });
-            Snackbar.Add("پست افزوده شد.", Severity.Success);
-            _title = "";
-            _author = "";
-            _tags = "";
-            _items = (await Db.QueryAsync<BlogRow>(Schema, "BlogList", new
-            {
-                SkipRows = 0,
-                TakeSize = 200
-            })).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        var parameters = new DialogParameters { [nameof(EntityEditorDialog.Model)] = model };
+        var dialog = await DialogService.ShowAsync<EntityEditorDialog>(model.DialogTitle, parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
     }
 }

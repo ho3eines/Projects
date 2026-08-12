@@ -1,9 +1,9 @@
 -- =============================================
 -- Tarazin.Data/Scripts/treasury/CurrencyRateUpsert.sql
 -- Schema: treasury | Contract: CurrencyRate (producer)
--- Execute. Idempotent upsert on CurrencyCode.
+-- Execute. RateId=0 identifies a new record; every non-zero id is an edit.
 -- =============================================
-IF NOT EXISTS (SELECT 1 FROM [treasury].[CurrencyRates] WHERE CurrencyCode = @CurrencyCode)
+IF @RateId = 0
 BEGIN
     INSERT INTO [treasury].[CurrencyRates] (CurrencyCode, CurrencyName, RateToIRR, RateDate, UpdatedAt)
     VALUES (@CurrencyCode, @CurrencyName, @RateToIRR, ISNULL(@RateDate, CAST(SYSDATETIME() AS DATE)), SYSUTCDATETIME());
@@ -11,9 +11,10 @@ END
 ELSE
 BEGIN
     UPDATE [treasury].[CurrencyRates]
-    SET CurrencyName = ISNULL(@CurrencyName, CurrencyName),
+    SET CurrencyCode = @CurrencyCode,
+        CurrencyName = ISNULL(@CurrencyName, CurrencyName),
         RateToIRR    = @RateToIRR,
         RateDate     = ISNULL(@RateDate, RateDate),
         UpdatedAt    = SYSUTCDATETIME()
-    WHERE CurrencyCode = @CurrencyCode;
+    WHERE RateId = @RateId;
 END
