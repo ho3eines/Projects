@@ -17,11 +17,11 @@
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
             <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined">
-                <MudSelectItem Value="Journal">سند روزنامه</MudSelectItem>
-                <MudSelectItem Value="Receipt">دریافت</MudSelectItem>
-                <MudSelectItem Value="Payment">پرداخت</MudSelectItem>
-                <MudSelectItem Value="Purchase">خرید</MudSelectItem>
-                <MudSelectItem Value="Sale">فروش</MudSelectItem>
+                <MudSelectItem Value="'Journal'">سند روزنامه</MudSelectItem>
+                <MudSelectItem Value="'Receipt'">دریافت</MudSelectItem>
+                <MudSelectItem Value="'Payment'">پرداخت</MudSelectItem>
+                <MudSelectItem Value="'Purchase'">خرید</MudSelectItem>
+                <MudSelectItem Value="'Sale'">فروش</MudSelectItem>
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="12" md="4">
@@ -55,17 +55,17 @@
             </MudTd>
             <MudTd DataLabel="شرح">
                 <MudTextField Value="@context.Description"
-                              ValueChanged="v => context.Description = v"
+                              ValueChanged="v => { context.Description = v; }"
                               Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudTd>
             <MudTd DataLabel="بدهکار">
                 <MudNumericField T="decimal" Value="@context.Debit"
-                                 ValueChanged="v => context.Debit = v" Variant="Variant.Outlined"
+                                 ValueChanged="v => { context.Debit = v; }" Variant="Variant.Outlined"
                                  Margin="Margin.Dense" Min="0" />
             </MudTd>
             <MudTd DataLabel="بستانکار">
                 <MudNumericField T="decimal" Value="@context.Credit"
-                                 ValueChanged="v => context.Credit = v" Variant="Variant.Outlined"
+                                 ValueChanged="v => { context.Credit = v; }" Variant="Variant.Outlined"
                                  Margin="Margin.Dense" Min="0" />
             </MudTd>
             <MudTd DataLabel="">

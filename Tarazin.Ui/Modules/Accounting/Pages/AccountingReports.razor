@@ -13,9 +13,9 @@
     <MudGrid>
         <MudItem xs="12" sm="6" md="3">
             <MudSelect T="string" Label="گزارش" @bind-Value="_report" Variant="Variant.Outlined">
-                <MudSelectItem Value="daily">دفتر روزنامه</MudSelectItem>
-                <MudSelectItem Value="ledger">دفتر کل</MudSelectItem>
-                <MudSelectItem Value="trial">تراز آزمایشی</MudSelectItem>
+                <MudSelectItem Value="'daily'">دفتر روزنامه</MudSelectItem>
+                <MudSelectItem Value="'ledger'">دفتر کل</MudSelectItem>
+                <MudSelectItem Value="'trial'">تراز آزمایشی</MudSelectItem>
             </MudSelect>
         </MudItem>
         @if (_report == "ledger")
