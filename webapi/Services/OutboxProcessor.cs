@@ -158,18 +158,30 @@ public sealed class OutboxProcessor : BackgroundService
     }
 
     private async Task<List<OutboxRow>> FetchReadyAsync(string schema, CancellationToken ct)
-    {
-        await using var conn = new SqlConnection(_cs);
-        await conn.OpenAsync(ct);
-        var rows = await conn.QueryAsync<OutboxRow>(
-            $@"
-SELECT TOP (@BatchSize) OutboxId, EventType, EventKey, Payload, PayloadVersion
-FROM [{schema}].[Outbox]
-WHERE ProcessedAt IS NULL AND Attempts < @MaxAttempts
-ORDER BY OutboxId",
-            new { BatchSize = _options.BatchSize, MaxAttempts = _options.MaxAttempts });
-        return rows.AsList();
-    }
+        {
+            await using var conn = new SqlConnection(_cs);
+            await conn.OpenAsync(ct);
+        
+            // Check if Outbox table exists in this schema
+            var tableExists = await conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = 'Outbox'",
+                new { schema });
+        
+            if (tableExists == 0)
+            {
+                // No outbox table in this schema - skip silently
+                return new List<OutboxRow>();
+            }
+        
+            var rows = await conn.QueryAsync<OutboxRow>(
+                $@"
+    SELECT TOP (@BatchSize) OutboxId, EventType, EventKey, Payload, PayloadVersion
+    FROM [{schema}].[Outbox]
+    WHERE ProcessedAt IS NULL AND Attempts < @MaxAttempts
+    ORDER BY OutboxId",
+                new { BatchSize = _options.BatchSize, MaxAttempts = _options.MaxAttempts });
+            return rows.AsList();
+        }
 
     private async Task MarkProcessedAsync(string schema, long outboxId)
     {
