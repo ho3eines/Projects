@@ -4,39 +4,23 @@
 
 <PageTitle>داشبورد — خزانه‌داری</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">نمای کلی خزانه</MudText>
+<PageHeader Title="نمای کلی خزانه" Subtitle="مانده‌ها و گردش امروز." Eyebrow="خزانه‌داری" />
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
 }
 else
 {
     <MudGrid>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">خالص امروز</MudText>
-                <MudText Typo="Typo.h5">@_summary.TodayNet.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">مانده بانک</MudText>
-                <MudText Typo="Typo.h5">@_summary.BankBalance.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">مانده صندوق</MudText>
-                <MudText Typo="Typo.h5">@_summary.CashBalance.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">چک‌های در انتظار</MudText>
-                <MudText Typo="Typo.h4">@_summary.PendingCheques</MudText>
-            </MudPaper>
-        </MudItem>
+        <StatCard Label="خالص امروز" Value="@_summary.TodayNet.ToString("N0")"
+                  Icon="@Icons.Material.Filled.SwapVert" Accent="#C49A3C" />
+        <StatCard Label="مانده بانک" Value="@_summary.BankBalance.ToString("N0")"
+                  Icon="@Icons.Material.Filled.AccountBalance" Accent="#1E4B73" />
+        <StatCard Label="مانده صندوق" Value="@_summary.CashBalance.ToString("N0")"
+                  Icon="@Icons.Material.Filled.PointOfSale" Accent="#0E4D4A" />
+        <StatCard Label="چک‌های در انتظار" Value="@_summary.PendingCheques.ToString("N0")"
+                  Icon="@Icons.Material.Filled.ReceiptLong" Accent="#9C3B2E" />
     </MudGrid>
 }
 

@@ -10,7 +10,8 @@ BEGIN TRAN;
     INSERT INTO [treasury].[CashMovements]
         (MovementNumber, MovementDate, Direction, Amount, CurrencyCode, AccountId, CashBoxId, Description, SourceReference, Status, CreatedBy)
     VALUES
-        (N'', @MovementDate, @Direction, @Amount, ISNULL(@CurrencyCode, N'IRR'), @AccountId, @CashBoxId, @Description, @SourceReference, N'Posted', @CreatedBy);
+        (N'', @MovementDate, @Direction, @Amount, ISNULL(@CurrencyCode, N'IRR'), @AccountId, @CashBoxId, @Description,
+         NULLIF(LTRIM(RTRIM(@SourceReference)), N''), N'Posted', @CreatedBy);
 
     DECLARE @Mid INT = SCOPE_IDENTITY();
     UPDATE [treasury].[CashMovements]

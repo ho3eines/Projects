@@ -4,39 +4,23 @@
 
 <PageTitle>داشبورد — طلافروشی</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">نمای کلی طلافروشی</MudText>
+<PageHeader Title="نمای کلی طلافروشی" Subtitle="فروش روز و قیمت طلا." Eyebrow="طلافروشی" />
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
 }
 else
 {
     <MudGrid>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">فروش امروز</MudText>
-                <MudText Typo="Typo.h4">@_summary.TodaySales</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">مبلغ امروز</MudText>
-                <MudText Typo="Typo.h5">@_summary.TodayAmount.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">قیمت‌های ثبت‌شده</MudText>
-                <MudText Typo="Typo.h4">@_summary.PriceCount</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">قیمت طلای ۲۴</MudText>
-                <MudText Typo="Typo.h5">@_summary.Gold24Price.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
+        <StatCard Label="فروش امروز" Value="@_summary.TodaySales.ToString("N0")"
+                  Icon="@Icons.Material.Filled.PointOfSale" Accent="#B8860B" />
+        <StatCard Label="مبلغ امروز" Value="@_summary.TodayAmount.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Payments" Accent="#C49A3C" />
+        <StatCard Label="قیمت‌های ثبت‌شده" Value="@_summary.PriceCount.ToString("N0")"
+                  Icon="@Icons.Material.Filled.ShowChart" Accent="#0E4D4A" />
+        <StatCard Label="قیمت طلای ۲۴" Value="@_summary.Gold24Price.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Diamond" Accent="#9C3B2E" />
     </MudGrid>
 }
 

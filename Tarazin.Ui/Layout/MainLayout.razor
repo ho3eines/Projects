@@ -1,42 +1,82 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject UserSession Session
+@inject UiPreferences Prefs
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
-<MudLayout>
-    <MudAppBar Elevation="1">
+<MudLayout Class="tz-shell">
+    <MudAppBar Elevation="0" Class="tz-appbar" Dense="false">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
-                       OnClick="ToggleDrawer" aria-label="منو" />
-        @* Responsive display: MudHidden replaces Bootstrap's d-none d-sm-block *@
-        <MudHidden Breakpoint="Breakpoint.Sm">
-            <MudText Typo="Typo.h6" Class="ms-2">ترازین</MudText>
-        </MudHidden>
-        <MudHidden Breakpoint="Breakpoint.Md">
-            <MudText Typo="Typo.subtitle2" Color="Color.Default">مدیریت هوشمند کسب‌وکار</MudText>
-        </MudHidden>
+                       OnClick="ToggleDrawer" aria-label="منو" Class="tz-appbar__menu" />
+
+        <a href="/" class="tz-brand" aria-label="خانه ترازین">
+            <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" class="tz-brand__mark" width="36" height="36" />
+            <span class="tz-brand__text">
+                <strong>ترازین</strong>
+                <small>مدیریت هوشمند کسب‌وکار</small>
+            </span>
+        </a>
+
+        @if (_module is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="tz-appbar__mod"
+                     Style="@($"border-color:{_module.Accent};color:{_module.Accent}")">
+                @_module.Title
+            </MudChip>
+        }
+
         <MudSpacer />
+
+        <MudTooltip Text="@(Prefs.IsDarkMode ? "حالت روشن" : "حالت تیره")">
+            <MudIconButton Icon="@(Prefs.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="Prefs.ToggleDarkMode" aria-label="تغییر پوسته" />
+        </MudTooltip>
+
         @if (Session.IsAuthenticated)
         {
-            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="me-2">
-                @Session.DisplayName
-            </MudChip>
-            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"
-                           OnClick="Logout" Title="خروج" aria-label="خروج" />
+            <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Class="tz-user">
+                <ActivatorContent>
+                    <MudAvatar Size="Size.Small" Color="Color.Secondary" Class="tz-user__av">
+                        @Initial
+                    </MudAvatar>
+                    <span class="tz-user__name">@Session.DisplayName</span>
+                    <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" />
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem Disabled="true">@Session.Role</MudMenuItem>
+                    <MudMenuItem Href="/central/users" Icon="@Icons.Material.Filled.ManageAccounts">حساب کاربری</MudMenuItem>
+                    <MudMenuItem Href="/diag" Icon="@Icons.Material.Filled.MonitorHeart">عیب‌یابی اتصال</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="Logout">خروج</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
         }
         else
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Href="/login">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small"
+                       Href="/login" StartIcon="@Icons.Material.Filled.Login" Class="tz-appbar__login">
                 ورود
             </MudButton>
         }
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" ClipMode="DrawerClipMode.Always">
-        <NavMenu />
+    <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive"
+               ClipMode="DrawerClipMode.Always" Anchor="Anchor.Start" Class="tz-drawer"
+               Elevation="0" Breakpoint="Breakpoint.Md">
+        <div class="tz-drawer__head">
+            <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="40" height="40" />
+            <div>
+                <div class="tz-drawer__title">ترازین</div>
+                <div class="tz-drawer__sub">هفت ماژول، یک میز کار</div>
+            </div>
+        </div>
+        <NavMenu CurrentPath="@_path" />
     </MudDrawer>
 
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6 px-4">
+    <MudMainContent Class="tz-main">
+        <ModuleSubNav Module="_module" CurrentPath="@_path" />
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="tz-page">
             @Body
         </MudContainer>
     </MudMainContent>
@@ -44,6 +84,32 @@
 
 @code {
     private bool _drawerOpen = true;
+    private string _path = "";
+    private TarazinModule? _module;
+
+    private string Initial =>
+        string.IsNullOrWhiteSpace(Session.DisplayName) ? "ک" : Session.DisplayName[..1];
+
+    protected override void OnInitialized()
+    {
+        Prefs.Changed += OnPrefsChanged;
+        Nav.LocationChanged += OnLocation;
+        RefreshPath(Nav.Uri);
+    }
+
+    private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnLocation(object? sender, LocationChangedEventArgs e)
+    {
+        RefreshPath(e.Location);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshPath(string uri)
+    {
+        _path = Nav.ToBaseRelativePath(uri);
+        _module = TarazinModules.Match(_path);
+    }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
@@ -52,5 +118,11 @@
         Session.SignOut();
         Snackbar.Add("از حساب خود خارج شدید.", Severity.Info);
         Nav.NavigateTo("/", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        Prefs.Changed -= OnPrefsChanged;
+        Nav.LocationChanged -= OnLocation;
     }
 }

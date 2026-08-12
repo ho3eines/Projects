@@ -1,6 +1,12 @@
+using System.Globalization;
+using MudBlazor;
 using MudBlazor.Services;
 using Tarazin.Data;
 using Tarazin.Services;
+
+var fa = CultureInfo.GetCultureInfo("fa-IR");
+CultureInfo.DefaultThreadCurrentCulture = fa;
+CultureInfo.DefaultThreadCurrentUICulture = fa;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,7 +15,14 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
 // ── MudBlazor UI kit (providers are rendered by the shared App.razor) ─────
-builder.Services.AddMudServices();
+builder.Services.AddMudServices(config =>
+{
+    config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomStart;
+    config.SnackbarConfiguration.NewestOnTop = true;
+    config.SnackbarConfiguration.ShowCloseIcon = true;
+    config.SnackbarConfiguration.VisibleStateDuration = 3500;
+    config.SnackbarConfiguration.PreventDuplicates = false;
+});
 
 // ── Tarazin services: UI layer (session/auth) + Data layer (DbService, ...) ─
 builder.Services.AddTarazinUiServices();

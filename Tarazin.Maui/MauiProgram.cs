@@ -1,6 +1,10 @@
+using System.Globalization;
+using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
+using MudBlazor;
 using MudBlazor.Services;
 using Tarazin.Services;
 
@@ -43,8 +47,19 @@ public static class MauiProgram
         builder.Services.AddBlazorWebViewDeveloperTools();
 #endif
 
+        var fa = CultureInfo.GetCultureInfo("fa-IR");
+        CultureInfo.DefaultThreadCurrentCulture = fa;
+        CultureInfo.DefaultThreadCurrentUICulture = fa;
+
         // MudBlazor UI kit (same as the web host)
-        builder.Services.AddMudServices();
+        builder.Services.AddMudServices(config =>
+        {
+            config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomStart;
+            config.SnackbarConfiguration.NewestOnTop = true;
+            config.SnackbarConfiguration.ShowCloseIcon = true;
+            config.SnackbarConfiguration.VisibleStateDuration = 3500;
+            config.SnackbarConfiguration.PreventDuplicates = false;
+        });
 
         // Shared Tarazin services (DbService, ScriptCatalog, Auth, Audit, ...)
         builder.Services.AddTarazinUiServices();

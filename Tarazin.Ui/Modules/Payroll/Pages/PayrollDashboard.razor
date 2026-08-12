@@ -4,39 +4,23 @@
 
 <PageTitle>داشبورد — حقوق و دستمزد</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">نمای کلی حقوق و دستمزد</MudText>
+<PageHeader Title="نمای کلی حقوق و دستمزد" Subtitle="کارمندان، دوره‌ها و پرداختی." Eyebrow="حقوق و دستمزد" />
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
 }
 else
 {
     <MudGrid>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">کارمندان فعال</MudText>
-                <MudText Typo="Typo.h4">@_summary.ActiveEmployees</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">کل دوره‌ها</MudText>
-                <MudText Typo="Typo.h4">@_summary.TotalRuns</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">کل پرداختی</MudText>
-                <MudText Typo="Typo.h5">@_summary.TotalPaid.ToString("N0")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="1" Class="pa-4 h-stat">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">آخرین دوره</MudText>
-                <MudText Typo="Typo.h5">@_summary.LatestPeriod</MudText>
-            </MudPaper>
-        </MudItem>
+        <StatCard Label="کارمندان فعال" Value="@_summary.ActiveEmployees.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Groups" Accent="#9C3B2E" />
+        <StatCard Label="کل دوره‌ها" Value="@_summary.TotalRuns.ToString("N0")"
+                  Icon="@Icons.Material.Filled.DateRange" Accent="#1E4B73" />
+        <StatCard Label="کل پرداختی" Value="@_summary.TotalPaid.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Payments" Accent="#C49A3C" />
+        <StatCard Label="آخرین دوره" Value="@(_summary.LatestPeriod ?? "—")"
+                  Icon="@Icons.Material.Filled.EventAvailable" Accent="#0E4D4A" />
     </MudGrid>
 }
 

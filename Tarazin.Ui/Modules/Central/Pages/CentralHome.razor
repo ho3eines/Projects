@@ -1,45 +1,41 @@
 @page "/central"
 @inject UserSession Session
+@inject NavigationManager Nav
 
 <PageTitle>پلتفرم مشترک — ترازین</PageTitle>
 
-<MudText Typo="Typo.h4">پلتفرم مشترک</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-    وبسایت شرکت (اخبار، بلاگ، گالری)، مدیریت کاربران و ممیزی.
-</MudText>
+<PageHeader Title="پلتفرم مشترک" Subtitle="وبسایت شرکت، کاربران و ممیزی." Eyebrow="مرکز" />
 
-<MudGrid>
+<div class="tz-modgrid">
     @foreach (var card in Cards)
     {
-        <MudItem xs="12" sm="6" md="3">
-            <div class="h-module-card" @onclick="() => Nav.NavigateTo(card.Url)" role="link" tabindex="0">
-                <MudCard Elevation="2">
-                    <MudCardContent>
-                        <MudText Typo="Typo.h5">@card.Icon</MudText>
-                        <MudText Typo="Typo.h6" Class="mt-2">@card.Title</MudText>
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">@card.Lead</MudText>
-                    </MudCardContent>
-                </MudCard>
+        <button type="button" class="tz-modcard" style="--tz-accent:@card.Accent"
+                @onclick="() => Nav.NavigateTo(card.Url)">
+            <div class="tz-modcard__icon">
+                <MudIcon Icon="@card.Icon" />
             </div>
-        </MudItem>
+            <div class="tz-modcard__body">
+                <h3>@card.Title</h3>
+                <p>@card.Lead</p>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.West" Class="tz-modcard__go" />
+        </button>
     }
-</MudGrid>
+</div>
 
 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-6">
     وضعیت نشست: @(Session.IsAuthenticated ? $"وارد شده — {Session.DisplayName} ({Session.Role})" : "خارج شده")
 </MudText>
 
 @code {
-    [Inject] NavigationManager Nav { get; set; } = default!;
-
-    record CardInfo(string Icon, string Title, string Lead, string Url);
+    record CardInfo(string Icon, string Title, string Lead, string Url, string Accent);
 
     static readonly List<CardInfo> Cards =
     [
-        new("📰", "اخبار", "مدیریت اخبار شرکت", "/central/news"),
-        new("✍️", "وبلاگ", "پست‌های وبلاگ", "/central/blog"),
-        new("🖼️", "گالری", "گالری تصاویر", "/central/gallery"),
-        new("👥", "کاربران", "مدیریت کاربران و نقش‌ها", "/central/users"),
-        new("🕵️", "ممیزی", "ممیزی رویدادهای سیستم", "/central/audit"),
+        new(Icons.Material.Filled.Newspaper, "اخبار", "مدیریت اخبار شرکت", "/central/news", "#1E4B73"),
+        new(Icons.Material.Filled.EditNote, "وبلاگ", "پست‌های وبلاگ", "/central/blog", "#0E4D4A"),
+        new(Icons.Material.Filled.PhotoLibrary, "گالری", "گالری تصاویر", "/central/gallery", "#2B6B7A"),
+        new(Icons.Material.Filled.Group, "کاربران", "مدیریت کاربران و نقش‌ها", "/central/users", "#9C3B2E"),
+        new(Icons.Material.Filled.Policy, "ممیزی", "ممیزی رویدادهای سیستم", "/central/audit", "#C49A3C"),
     ];
 }
