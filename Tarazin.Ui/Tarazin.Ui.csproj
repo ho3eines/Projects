@@ -12,7 +12,7 @@
   <ItemGroup>
     <!-- UI kit — shared by the web host and the MAUI Blazor Hybrid host -->
     <PackageReference Include="MudBlazor" Version="9.8.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
