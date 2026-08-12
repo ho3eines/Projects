@@ -63,6 +63,10 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 
+// .NET 10 serves blazor.server.js (and fingerprinted RCL assets) only through
+// the static-assets endpoint map. UseStaticFiles alone returns 404 for
+// /_framework/blazor.server.js, so the login page never becomes interactive.
+app.MapStaticAssets();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 

@@ -6,6 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Tarazin.Web</RootNamespace>
     <Description>ترازین — مدیریت هوشمند کسب‌وکار (هاست وب Blazor Server)</Description>
+    <!--
+      .NET 10 only ships blazor.server.js when the project has a .razor file
+      or this flag is set. Tarazin.Web is a thin host — all components live
+      in Tarazin.Ui — so without this, /_framework/blazor.server.js is 404
+      and the login page never becomes interactive.
+    -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
 
   <ItemGroup>
