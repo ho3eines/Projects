@@ -1,4 +1,4 @@
-namespace GoldShop.Models;
+namespace Goldshop.Models;
 
 public class DailySaleRow
 {

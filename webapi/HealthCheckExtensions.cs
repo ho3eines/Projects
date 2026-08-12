@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using WebApi.Services;
 
 namespace WebApi;
 
@@ -8,7 +9,8 @@ public static class HealthCheckExtensions
     public static IServiceCollection AddCustomHealthChecks(this IServiceCollection services, IConfiguration config)
     {
         services.AddHealthChecks()
-            .AddSqlServer(config.GetConnectionString("DefaultConnection")!, name: "sql", tags: new[] { "ready" });
+            .AddSqlServer(config.GetConnectionString("DefaultConnection")!, name: "sql", tags: new[] { "ready" })
+            .AddCheck<SchemaBootstrapHealthCheck>("schema-bootstrap", tags: new[] { "ready" });
 
         return services;
     }

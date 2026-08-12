@@ -36,6 +36,11 @@ public sealed class SchemaBootstrap : IHostedService
             return;
         }
 
+        // Run synchronously during host startup so ASP.NET Core does not begin
+        // accepting requests until every product schema has been created.  This
+        // closes the first-request race where central/accounting tables were
+        // still missing and the client got "Invalid object name ...".
+        //
         // Retry so `docker compose up` survives the SQL Server warm-up window.
         const int maxAttempts = 12;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
@@ -43,12 +48,14 @@ public sealed class SchemaBootstrap : IHostedService
             try
             {
                 await RunAllAsync(cancellationToken);
+                Completed = true;
                 return;
             }
             catch (Exception ex)
             {
                 if (attempt == maxAttempts)
                 {
+                    LastError = ex;
                     _log.LogWarning(ex, "Schema bootstrap failed after {Attempts} attempts", maxAttempts);
                     return;
                 }
@@ -56,6 +63,46 @@ public sealed class SchemaBootstrap : IHostedService
                     attempt, maxAttempts, ex.Message);
                 await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
             }
+        }
+    }
+
+    /// <summary>True once all product _Ensure/_Seed scripts have finished.</summary>
+    public bool Completed { get; private set; }
+
+    /// <summary>Populated when bootstrap exhausts its retries; null otherwise.</summary>
+    public Exception? LastError { get; private set; }
+
+    /// <summary>
+    /// Best-effort check that the core tables reported in startup 500s exist.
+    /// The health check uses this so the API stays unready if a previous run
+    /// partially failed or if the database was reset while the app was running.
+    /// </summary>
+    public async Task<bool> CoreTablesExistAsync(CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_cs))
+            return false;
+
+        try
+        {
+            await using var conn = new SqlConnection(_cs);
+            await conn.OpenAsync(cancellationToken);
+            var missing = await conn.QuerySingleAsync<int>(@"
+SELECT COUNT(*)
+FROM (VALUES
+    (N'central', N'News'),
+    (N'accounting', N'Documents')
+) AS v(SchemaName, TableName)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = v.SchemaName AND t.name = v.TableName);");
+            return missing == 0;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Core table existence check failed");
+            return false;
         }
     }
 
