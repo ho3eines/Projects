@@ -5,8 +5,10 @@
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(CentralClient.Shared.Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        <ErrorBoundary @ref="_errorBoundary">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(CentralClient.Shared.Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </ErrorBoundary>
     </Found>
     <NotFound>
         <LayoutView Layout="typeof(CentralClient.Shared.Layout.MainLayout)">
@@ -16,6 +18,10 @@
 </Router>
 
 @code {
+    private ErrorBoundary? _errorBoundary;
+
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
+
     protected override async Task OnInitializedAsync()
     {
         var uri = new Uri(Nav.Uri);

@@ -15,3 +15,6 @@ project.lock.json
 artifacts/
 .agents/skills
 .agents/skills/
+
+# scratch preview (not part of the app)
+preview/

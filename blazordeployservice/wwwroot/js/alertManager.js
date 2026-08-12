@@ -95,9 +95,14 @@ class AlertManager {
     getStyles() {
         return `
             .blazor-alert-container {
-                font-family: 'Vazir', 'Tahoma', 'Arial', sans-serif;
+                font-family: 'Vazirmatn', 'Vazir', 'Tahoma', 'Arial', sans-serif;
                 transition: all 0.3s ease;
-                text-shadow: 2px 2px 30px #000000;
+                z-index: 2147483000;
+                pointer-events: none;
+            }
+
+            .blazor-alert {
+                pointer-events: auto;
             }
 
             .blazor-alert {
@@ -240,6 +245,24 @@ class AlertManager {
                 }
             }
 
+            .blazor-alert-progress {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                border-radius: 0 0 16px 16px;
+                background: linear-gradient(90deg, currentColor, transparent);
+                opacity: 0.45;
+                transform-origin: right;
+                animation: alert-progress linear forwards;
+            }
+
+            @keyframes alert-progress {
+                from { transform: scaleX(1); }
+                to   { transform: scaleX(0); }
+            }
+
             @media (max-width: 768px) {
                 .blazor-alert-container {
                     right: 10px !important;
@@ -328,6 +351,10 @@ class AlertManager {
         }, 100);
 
         if (duration > 0) {
+            const bar = alert.querySelector('.blazor-alert-progress');
+            if (bar) {
+                bar.style.animationDuration = duration + 'ms';
+            }
             setTimeout(() => {
                 this.hideAlert(alert);
             }, duration);
@@ -340,6 +367,7 @@ class AlertManager {
         const alert = document.createElement('div');
         alert.className = `blazor-alert blazor-alert-${type}`;
 
+        alert.setAttribute('role', 'status');
         alert.innerHTML = `
             <div class="blazor-alert-icon">
                 ${this.getIconSVG(type)}
@@ -349,6 +377,7 @@ class AlertManager {
                 <p>${this.escapeHtml(message)}</p>
             </div>
             <button class="blazor-alert-close" aria-label="Close alert">&times;</button>
+            <div class="blazor-alert-progress"></div>
         `;
 
         const closeBtn = alert.querySelector('.blazor-alert-close');

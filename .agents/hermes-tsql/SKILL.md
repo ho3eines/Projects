@@ -137,7 +137,7 @@ New product checklist:
 
 1. New Guid
 2. Row in `Hermes:Projects`
-3. Client `wwwroot/appsettings.json`: `Protocol=Hermes`, same Guid + SharedKey, `BaseUrl=https://localhost:65222/api/`
+3. Client `wwwroot/appsettings.json`: `Protocol=Hermes`, same Guid + SharedKey, `BaseUrl=https://localhost:65222` (بدون اسلش آخر — کلاینت مسیر `/api/...` را خودش اضافه و اسلش‌های تکراری را حذف می‌کند)
 4. Folder `webapi/Data/Scripts/{schema}/`
 5. WASM project referencing `blazordeployservice` + `share`
 6. CORS origin of that client added to `Hermes:CorsOrigins`
