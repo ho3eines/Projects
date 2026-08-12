@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using BlazorDeployService.Helper;
 using BlazorDeployService.Models;
 using BlazorDeployService.Services;
 using Microsoft.Extensions.Options;
@@ -136,7 +137,7 @@ namespace BlazorDeployService.Services
                 private readonly IClientStorageService _storage;
                 private readonly ISessionService _session;
 
-                public string BaseUrl => _settings.ApiSettings.BaseUrl;
+                public string BaseUrl => ApiUrl.NormalizeBase(_settings.ApiSettings.BaseUrl);
                 public string APIKey => _settings.ApiSettings.APIKey;
 
                 public RequestService(
@@ -151,6 +152,13 @@ namespace BlazorDeployService.Services
                     _encryption = encryption;
                     _storage = storage;
                     _session = session;
+
+                    // اعمال مهلت درخواست تنظیم‌شده در appsettings
+                    if (_settings.ApiSettings.Timeout > 0 &&
+                        _http.Timeout != TimeSpan.FromMilliseconds(_settings.ApiSettings.Timeout))
+                    {
+                        _http.Timeout = TimeSpan.FromMilliseconds(_settings.ApiSettings.Timeout);
+                    }
                 }
 
         // ===================== PUBLIC API =====================
@@ -236,15 +244,33 @@ namespace BlazorDeployService.Services
                         // ۳) ساخت هدرهای امنیتی
                         var headers = BuildSecurityHeaders(finalBody);
 
-                        // ۴) ارسال
-                        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.ApiSettings.BaseUrl}/api/request/{endpoint}")
+                        // ۴) ارسال — ساخت URL بدون اسلش تکراری
+                        var url = ApiUrl.Combine(_settings.ApiSettings.BaseUrl, $"/api/request/{endpoint}");
+                        using var request = new HttpRequestMessage(HttpMethod.Post, url)
                         {
                             Content = new StringContent(finalBody, Encoding.UTF8, _settings.Encryption.Enabled ? "text/plain" : "application/json")
                         };
             foreach (var (key, value) in headers)
                 request.Headers.TryAddWithoutValidation(key, value);
 
-            using var response = await _http.SendAsync(request, ct);
+            HttpResponseMessage response;
+            try
+            {
+                response = await _http.SendAsync(request, ct);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new RequestServiceException(
+                    "مهلت درخواست به پایان رسید — سرور پاسخ نداد. لطفاً دوباره تلاش کنید.", "TIMEOUT");
+            }
+            catch (HttpRequestException)
+            {
+                throw new RequestServiceException(
+                    "اتصال به سرور برقرار نشد — وضعیت شبکه یا در دسترس بودن سرور را بررسی کنید.", "NETWORK");
+            }
+
+            using (response)
+            {
                         var raw = await response.Content.ReadAsStringAsync(ct);
 
                         // نشست منقضی یا باطل → UI باید لاگین باز کند
@@ -275,6 +301,7 @@ namespace BlazorDeployService.Services
                         await _session.TouchAsync();
 
                         return result.Data!;
+            }
         }
 
         /// <summary>

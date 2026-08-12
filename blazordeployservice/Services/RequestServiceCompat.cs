@@ -1,5 +1,8 @@
+using System;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BlazorDeployService.Helper;
 using BlazorDeployService.Models;
 
 namespace BlazorDeployService.Services;
@@ -58,13 +61,22 @@ public sealed partial class RequestService
     /// </summary>
     public async Task<HermesLoginResult?> LoginAsync(string username, string password)
     {
-        var response = await EnsureLoginAsync();
-        if (response is null)
-            return null;
+        var loggedIn = _session.Status == SessionStatus.Active && !string.IsNullOrEmpty(_session.SessionToken);
+        if (!loggedIn)
+            loggedIn = await _session.RestoreSessionAsync();
+
+        if (!loggedIn)
+        {
+            var loginToken = _compatUserToken ?? _settings.ApiSettings.LoginToken ?? "hermes-admin";
+            // در صورت خطا، LoginCoreAsync استثنای قابل نمایش پرتاب می‌کند
+            var response = await LoginCoreAsync(loginToken);
+            if (response is null)
+                throw new RequestServiceException("پاسخ سرور معتبر نیست — لطفاً دوباره تلاش کنید.", "EMPTY_RESPONSE");
+        }
 
         return new HermesLoginResult
         {
-            UserToken = response.SessionToken,
+            UserToken = _session.SessionToken ?? "",
             UserId = 0,
             Username = username,
             DisplayName = "مدیر سیستم",
@@ -140,6 +152,7 @@ public sealed partial class RequestService
     }
 
     /// <summary>v2 login: AES-encrypt the login token, POST /api/auth/login.</summary>
+    /// در صورت خطا (شبکه، مهلت یا پاسخ ناموفق سرور) استثنای قابل نمایش پرتاب می‌کند.
     private async Task<LoginResponse?> LoginCoreAsync(string loginToken)
     {
         var encryptedToken = await _encryption.EncryptDataAsync(loginToken, _settings.Encryption.Key);
@@ -151,23 +164,69 @@ public sealed partial class RequestService
             ClientVersion = "1.0.100"
         };
 
-        using var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_settings.ApiSettings.BaseUrl}/api/auth/login")
+        // ساخت URL بدون اسلش تکراری — BaseUrl ممکن است با "/" تمام شده باشد
+        var url = ApiUrl.Combine(_settings.ApiSettings.BaseUrl, "/api/auth/login");
+        using var httpReq = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(request)
         };
         httpReq.Headers.Add("X-Api-Key", _settings.ApiSettings.APIKey);
 
-        using var response = await _http.SendAsync(httpReq);
-        var raw = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(httpReq);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new RequestServiceException("مهلت درخواست ورود به پایان رسید — لطفاً دوباره تلاش کنید.", "TIMEOUT");
+        }
+        catch (HttpRequestException)
+        {
+            throw new RequestServiceException("اتصال به سرور برقرار نشد — وضعیت شبکه یا در دسترس بودن سرور را بررسی کنید.", "NETWORK");
+        }
 
-        if (!response.IsSuccessStatusCode)
-            return null;
+        using (response)
+        {
+            var raw = await response.Content.ReadAsStringAsync();
 
-        var result = JsonSerializer.Deserialize<LoginResponse>(raw, JsonOpts);
-        if (result is null || string.IsNullOrEmpty(result.SessionToken))
-            return null;
+            if (!response.IsSuccessStatusCode)
+                throw new RequestServiceException(
+                    BuildLoginError(raw, (int)response.StatusCode),
+                    response.StatusCode.ToString());
 
-        await _session.StartSessionAsync(result);
-        return result;
+            var result = JsonSerializer.Deserialize<LoginResponse>(raw, JsonOpts);
+            if (result is null || string.IsNullOrEmpty(result.SessionToken))
+                return null;
+
+            await _session.StartSessionAsync(result);
+            return result;
+        }
+    }
+
+    /// <summary>پیام خطای خوانا از پاسخ سرور — فیلد error یا message را استخراج می‌کند</summary>
+    private static string BuildLoginError(string raw, int statusCode)
+    {
+        var fallback = $"ورود ناموفق ({statusCode}) — لطفاً دوباره تلاش کنید.";
+        if (string.IsNullOrWhiteSpace(raw))
+            return fallback;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.TryGetProperty("error", out var err) &&
+                err.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(err.GetString()))
+                return err.GetString()!;
+            if (doc.RootElement.TryGetProperty("message", out var msg) &&
+                msg.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(msg.GetString()))
+                return msg.GetString()!;
+        }
+        catch (JsonException)
+        {
+            // متن ساده است — پایین برمی‌گردد
+        }
+
+        var trimmed = raw.Trim();
+        return trimmed.Length <= 200 ? trimmed : trimmed[..200] + "…";
     }
 }

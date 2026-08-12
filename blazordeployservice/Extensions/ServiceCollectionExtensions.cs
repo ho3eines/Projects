@@ -1,4 +1,4 @@
-﻿using BlazorDeployService.Models;
+using BlazorDeployService.Models;
 using BlazorDeployService.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +16,7 @@ namespace BlazorDeployService.Extensions
                     services.Configure<AppSettings>(configuration.GetSection("BlazorDeploy"));
 
                     services.AddScoped<IAlertService, AlertService>();
+                    services.AddScoped<IErrorDisplayService, ErrorDisplayService>();
                     services.AddScoped<IClientStorageService,ClientStorageService>();
                     services.AddScoped<IClientIdService, ClientIdService>();
                     services.AddScoped<ICultureService,CultureService>();
@@ -36,6 +37,7 @@ namespace BlazorDeployService.Extensions
         public static IServiceCollection AddBlazorDeployServices(this IServiceCollection services)
                 {
                     services.AddScoped<IAlertService, AlertService>();
+                    services.AddScoped<IErrorDisplayService, ErrorDisplayService>();
                     services.AddScoped<IClientStorageService, ClientStorageService>();
                     services.AddScoped<IClientIdService, ClientIdService>();
                     services.AddScoped<ICultureService, CultureService>();

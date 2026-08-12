@@ -7,7 +7,7 @@ namespace Share.Extensions;
 
 public class HermesOptions
 {
-    public string WebApiUrl { get; set; } = "https://localhost:65222/";
+    public string WebApiUrl { get; set; } = "https://localhost:65222";
 }
 
 public static class ServiceCollectionExtensions
@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
         {
             var url = sp.GetRequiredService<IOptions<HermesOptions>>().Value.WebApiUrl;
             if (string.IsNullOrWhiteSpace(url))
-                url = "https://localhost:65222/";
+                url = "https://localhost:65222";
             if (!url.EndsWith('/'))
                 url += "/";
             client.BaseAddress = new Uri(url);

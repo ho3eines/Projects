@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using BlazorDeployService.Helper;
 using BlazorDeployService.Models;
 using Microsoft.Extensions.Options;
 
@@ -39,6 +40,13 @@ public sealed class AuthService : IAuthService
         _settings = settings.Value;
         _encryption = encryption;
         _session = session;
+
+        // اعمال مهلت درخواست تنظیم‌شده در appsettings
+        if (_settings.ApiSettings.Timeout > 0 &&
+            _http.Timeout != TimeSpan.FromMilliseconds(_settings.ApiSettings.Timeout))
+        {
+            _http.Timeout = TimeSpan.FromMilliseconds(_settings.ApiSettings.Timeout);
+        }
     }
 
     public async Task<LoginResponse> LoginAsync(Guid projectGuid, string loginToken, CancellationToken ct = default)
@@ -53,29 +61,47 @@ public sealed class AuthService : IAuthService
             ClientVersion = "1.0.100"
         };
 
-        using var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_settings.ApiSettings.BaseUrl}/api/auth/login")
+        // ساخت URL بدون اسلش تکراری — BaseUrl ممکن است با "/" تمام شده باشد
+        var url = ApiUrl.Combine(_settings.ApiSettings.BaseUrl, "/api/auth/login");
+        using var httpReq = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(request)
         };
         httpReq.Headers.Add("X-Api-Key", _settings.ApiSettings.APIKey);
 
-        using var response = await _http.SendAsync(httpReq, ct);
-        var raw = await response.Content.ReadAsStringAsync(ct);
-
-        if (!response.IsSuccessStatusCode)
+        HttpResponseMessage response;
+        try
         {
-            throw new AuthException(
-                $"ورود ناموفق ({(int)response.StatusCode}): {raw}",
-                (int)response.StatusCode);
+            response = await _http.SendAsync(httpReq, ct);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new AuthException("مهلت درخواست ورود به پایان رسید — لطفاً دوباره تلاش کنید.", 0);
+        }
+        catch (HttpRequestException)
+        {
+            throw new AuthException("اتصال به سرور برقرار نشد — وضعیت شبکه یا در دسترس بودن سرور را بررسی کنید.", 0);
         }
 
-        var result = JsonSerializer.Deserialize<LoginResponse>(raw, JsonOpts);
-        if (result is null || string.IsNullOrEmpty(result.SessionToken))
-            throw new AuthException("پاسخ سرور معتبر نیست", 500);
+        using (response)
+        {
+            var raw = await response.Content.ReadAsStringAsync(ct);
 
-        // ذخیره نشست
-        await _session.StartSessionAsync(result);
-        return result;
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new AuthException(
+                    $"ورود ناموفق ({(int)response.StatusCode}): {raw}",
+                    (int)response.StatusCode);
+            }
+
+            var result = JsonSerializer.Deserialize<LoginResponse>(raw, JsonOpts);
+            if (result is null || string.IsNullOrEmpty(result.SessionToken))
+                throw new AuthException("پاسخ سرور معتبر نیست", 500);
+
+            // ذخیره نشست
+            await _session.StartSessionAsync(result);
+            return result;
+        }
     }
 
     public async Task LogoutAsync()

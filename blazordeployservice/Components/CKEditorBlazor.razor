@@ -1,4 +1,5 @@
-﻿
+
+@using BlazorDeployService.Helper
 @using BlazorDeployService.Services
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
@@ -32,7 +33,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        UrlToPostImage = $"{_req.BaseUrl}Upload/uploadImage/{_req.APIKey}";
+        UrlToPostImage = ApiUrl.Combine(_req.BaseUrl, $"Upload/uploadImage/{_req.APIKey}");
         await LoadScripts();
         
         await base.OnInitializedAsync();
