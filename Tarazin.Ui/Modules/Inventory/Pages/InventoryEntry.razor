@@ -17,7 +17,7 @@
                 <MudSelectItem Value="0">— انتخاب کالا —</MudSelectItem>
                 @foreach (var it in _items)
                 {
-                    <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                    <MudSelectItem Value="@it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
@@ -26,15 +26,15 @@
                 <MudSelectItem Value="0">— انتخاب انبار —</MudSelectItem>
                 @foreach (var w in _warehouses)
                 {
-                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                    <MudSelectItem Value="@w.WarehouseId">@w.Title</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
             <MudSelect T="string" Label="نوع حرکت" @bind-Value="_type" Variant="Variant.Outlined">
-                <MudSelectItem Value="'Receipt'">رسید</MudSelectItem>
-                <MudSelectItem Value="'Issue'">حواله</MudSelectItem>
-                <MudSelectItem Value="'Adjustment'">تعدیل</MudSelectItem>
+                <MudSelectItem Value="@("Receipt")">رسید</MudSelectItem>
+                <MudSelectItem Value="@("Issue")">حواله</MudSelectItem>
+                <MudSelectItem Value="@("Adjustment")">تعدیل</MudSelectItem>
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
