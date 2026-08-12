@@ -24,7 +24,7 @@
                 <tr><th>#</th><th>عنوان</th><th>خلاصه</th><th>تاریخ انتشار</th><th>وضعیت</th></tr>
             </thead>
             <tbody>
-                @foreach (var n in News)
+                @foreach (var n in NewsItems)
                 {
                     <tr>
                         <td>@n.NewsId</td>
@@ -40,7 +40,8 @@
 </div>
 
 @code {
-    List<NewsRow> News = new();
+    // نام کامپوننت از مسیر فایل «News» است؛ نام لیست باید متفاوت باشد.
+    List<NewsRow> NewsItems = new();
     string NewTitle = "";
     string NewSummary = "";
     DateTime? NewPublished = DateTime.Today;
@@ -48,7 +49,7 @@
     protected override async Task OnInitializedAsync() => await ReloadAsync();
 
     async Task ReloadAsync()
-        => News = await Request.Request<NewsRow>("NewsList", new { SkipRows = 0, TakeSize = 100 }) ?? new();
+        => NewsItems = await Request.Request<NewsRow>("NewsList", new { SkipRows = 0, TakeSize = 100 }) ?? new();
 
     async Task AddAsync()
     {
