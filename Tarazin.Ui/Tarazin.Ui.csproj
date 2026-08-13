@@ -17,7 +17,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.1" />
     <!-- چاپ و گزارش با Stimulsoft (PRD BI §121) — Viewer بلزور + موتور رندر؛
          سازگار با net6.0+ و هر دو هاست (وب + MAUI WebView). لایسنس: docs/BI_MODULE.md -->
-    <PackageReference Include="Stimulsoft.Reports.Blazor" Version="2026.1.4" />
+	  <PackageReference Include="Stimulsoft.Reports.Blazor" Version="2024.3.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,5 +25,8 @@
     <ProjectReference Include="..\Tarazin.Share\Tarazin.Share.csproj" />
     <ProjectReference Include="..\Tarazin.Data\Tarazin.Data.csproj" />
   </ItemGroup>
-
+	
+	<Target Name="PostPublish" AfterTargets="AfterPublish">
+		<Warning Text="كپي كردن كرك هاي استيمول توي فولدر پابليش" />
+	</Target>
 </Project>
