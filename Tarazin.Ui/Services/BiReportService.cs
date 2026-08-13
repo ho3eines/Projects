@@ -1,4 +1,5 @@
 using System.Data;
+using System.Drawing;
 using Stimulsoft.Base.Drawing;
 using Stimulsoft.Report;
 using Stimulsoft.Report.Components;
@@ -14,7 +15,9 @@ namespace Tarazin.Services;
 /// - هر گزارش = یک تعریف (BiReportDefinition) شامل اسکریپت + پارامترها + عنوان فارسی ستون‌ها.
 /// - سرویس، DataTable را از خروجی اسکریپت می‌سازد و یک StiReport جدولی (سربرگ + باند داده)
 ///   به‌صورت برنامه‌نویسی می‌سازد؛ سپس در <c>StiBlazorViewer</c> رندر/چاپ/خروجی PDF-Excel می‌شود.
-/// - بدون وابستگی به System.Drawing (سازگار با همهٔ پلتفرم‌ها).
+/// - فونت/رنگ اجزای گزارش از API رسمی Stimulsoft .NET استفاده می‌کند:
+///   <c>StiText.Font</c> از نوع <see cref="Font"/> (System.Drawing) و براش‌ها
+///   <c>StiSolidBrush(Color)</c> هستند؛ System.Drawing.Common وابستگی ترایای خود Stimulsoft است.
 ///
 /// نکتهٔ لایسنس: بدون کلید لایسنس Stimulsoft، خروجی با واترمارک آزمایشی رندر می‌شود؛
 /// برای تولید باید لایسنس خریداری و در Program.cs ثبت شود (مستند در docs/BI_MODULE.md).
@@ -81,10 +84,9 @@ public sealed class BiReportService
         {
             Name = "Title",
             Text = title,
-            FontSize = 14,
-            FontBold = true,
+            Font = new Font("Tahoma", 14, FontStyle.Bold),
             HorAlignment = StiTextHorAlignment.Center,
-            TextBrush = new StiSolidBrush(StiColor.FromArgb(94, 53, 177)),
+            TextBrush = new StiSolidBrush(Color.FromArgb(94, 53, 177)),
             Width = pageWidth, Height = 35, Left = 0, Top = 5
         });
 
@@ -95,9 +97,9 @@ public sealed class BiReportService
         {
             Name = "Meta",
             Text = meta,
-            FontSize = 9,
+            Font = new Font("Tahoma", 9, FontStyle.Regular),
             HorAlignment = StiTextHorAlignment.Center,
-            TextBrush = new StiSolidBrush(StiColor.Gray),
+            TextBrush = new StiSolidBrush(Color.Gray),
             Width = pageWidth, Height = 22, Left = 0, Top = 42
         });
 
@@ -112,11 +114,10 @@ public sealed class BiReportService
             {
                 Name = "Col_" + column.ColumnName,
                 Text = header,
-                FontSize = 10,
-                FontBold = true,
+                Font = new Font("Tahoma", 10, FontStyle.Bold),
                 HorAlignment = StiTextHorAlignment.Center,
-                TextBrush = new StiSolidBrush(StiColor.White),
-                Brush = new StiSolidBrush(StiColor.FromArgb(94, 53, 177)),
+                TextBrush = new StiSolidBrush(Color.White),
+                Brush = new StiSolidBrush(Color.FromArgb(94, 53, 177)),
                 Width = colWidth, Height = colHeight, Left = x, Top = colTop
             });
             x += colWidth;
@@ -136,9 +137,10 @@ public sealed class BiReportService
             dataBand.Components.Add(new StiText
             {
                 Name = "Val_" + column.ColumnName,
-                DataColumnName = column.ColumnName,
-                FontSize = 9,
-                TextBrush = new StiSolidBrush(StiColor.Black),
+                // اتصال به ستون داده از طریق عبارت {Table.Column} انجام می‌شود (الگوی رسمی Stimulsoft)
+                Text = "{" + table.TableName + "." + column.ColumnName + "}",
+                Font = new Font("Tahoma", 9, FontStyle.Regular),
+                TextBrush = new StiSolidBrush(Color.Black),
                 Width = colWidth, Height = dataHeight, Left = x, Top = 0,
                 CanGrow = true
             });

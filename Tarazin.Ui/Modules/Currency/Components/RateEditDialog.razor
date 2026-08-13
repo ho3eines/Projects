@@ -56,18 +56,18 @@
     [Parameter] public PriceRateRow Rate { get; set; } = new();
 
     private decimal _systemRate;
-    private decimal? _manualRate;
-    private decimal? _buyRate;
-    private decimal? _sellRate;
+    private decimal _manualRate;
+    private decimal _buyRate;
+    private decimal _sellRate;
     private string _reason = "";
     private bool _busy;
 
     protected override void OnInitialized()
     {
         _systemRate = Rate.SystemRate;
-        _manualRate = Rate.ManualRate;
-        _buyRate = Rate.BuyRate;
-        _sellRate = Rate.SellRate;
+        _manualRate = Rate.ManualRate ?? 0;
+        _buyRate = Rate.BuyRate ?? 0;
+        _sellRate = Rate.SellRate ?? 0;
     }
 
     private void Cancel() => MudDialog.Close(DialogResult.Cancel());
@@ -99,13 +99,13 @@
             }
 
             // ۲) نرخ دستی (دسترسی: rates.fetch)
-            if (Session.HasPermission(TarazinPermissions.RateFetch) && _manualRate.HasValue && _manualRate.Value > 0 && _manualRate != Rate.ManualRate)
+            if (Session.HasPermission(TarazinPermissions.RateFetch) && _manualRate > 0 && _manualRate != Rate.ManualRate)
             {
                 await Db.ExecuteAsync(Schema, "RateUpsert", new
                 {
                     ItemKey = Rate.ItemKey,
                     RateKind = "Manual",
-                    NewValue = _manualRate.Value,
+                    NewValue = _manualRate,
                     SourceKey = "MANUAL",
                     Reason = string.IsNullOrWhiteSpace(_reason) ? "ورود دستی نرخ" : _reason,
                     ChangedBy = Session.UserName
@@ -113,13 +113,13 @@
             }
 
             // ۳) نرخ خرید (دسترسی: rates.buy)
-            if (Session.HasPermission(TarazinPermissions.RateChangeBuy) && _buyRate.HasValue && _buyRate.Value > 0 && _buyRate != Rate.BuyRate)
+            if (Session.HasPermission(TarazinPermissions.RateChangeBuy) && _buyRate > 0 && _buyRate != Rate.BuyRate)
             {
                 await Db.ExecuteAsync(Schema, "RateUpsert", new
                 {
                     ItemKey = Rate.ItemKey,
                     RateKind = "Buy",
-                    NewValue = _buyRate.Value,
+                    NewValue = _buyRate,
                     SourceKey = "MANUAL",
                     Reason = string.IsNullOrWhiteSpace(_reason) ? "تغییر نرخ خرید" : _reason,
                     ChangedBy = Session.UserName
@@ -127,13 +127,13 @@
             }
 
             // ۴) نرخ فروش (دسترسی: rates.sell)
-            if (Session.HasPermission(TarazinPermissions.RateChangeSell) && _sellRate.HasValue && _sellRate.Value > 0 && _sellRate != Rate.SellRate)
+            if (Session.HasPermission(TarazinPermissions.RateChangeSell) && _sellRate > 0 && _sellRate != Rate.SellRate)
             {
                 await Db.ExecuteAsync(Schema, "RateUpsert", new
                 {
                     ItemKey = Rate.ItemKey,
                     RateKind = "Sell",
-                    NewValue = _sellRate.Value,
+                    NewValue = _sellRate,
                     SourceKey = "MANUAL",
                     Reason = string.IsNullOrWhiteSpace(_reason) ? "تغییر نرخ فروش" : _reason,
                     ChangedBy = Session.UserName

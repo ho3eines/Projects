@@ -165,6 +165,11 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 - داده: همان `DbService`؛ توجه: `Microsoft.Data.SqlClient` روی **ویندوز/مک** کار می‌کند؛
   برای اندروید/iOS به یک لایهٔ دادهٔ دیگر (مثلاً وب‌سرویس) نیاز است — جزییات در
   `skills/blazor/blazor-maui-hybrid/SKILL.md`.
+- **پیش‌نیاز build محلی**: TFMهای `net8.0-android/ios/maccatalyst/windows` نیازمند
+  workload مربوط به MAUI هستند؛ بدون آن restore با خطای `NU1012` (Platform version is not
+  present) شکست می‌خورد. نصب: `dotnet workload install maui` (یا نصب
+  «Mobile development with .NET» در Visual Studio). CI این کار را در job `build-maui`
+  انجام می‌دهد؛ build وب (`Tarazin.Web`) به MAUI وابسته نیست.
 
 ## ❌ Explicit Bans
 - ❌ پروژه/پکیج جدید خارج از پنج‌تایی `Share / Data / Ui / Web / Maui`
