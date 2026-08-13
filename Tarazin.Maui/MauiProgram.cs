@@ -22,6 +22,23 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
 
+        // === Stimulsoft License ===
+        string licensePath = Path.Combine(
+            AppContext.BaseDirectory,
+            "wwwroot",
+            "License",
+            "Stimul20240302.key");
+
+        if (File.Exists(licensePath))
+        {
+            Stimulsoft.Base.StiLicense.LoadFromFile(licensePath);
+        }
+        else
+        {
+            // برای دیباگ
+            System.Diagnostics.Debug.WriteLine($"License file not found: {licensePath}");
+        }
+
         // Load the embedded appsettings.json so the shared layer can read
         // ConnectionStrings:DefaultConnection and Tarazin:* settings.
         //
@@ -64,17 +81,7 @@ public static class MauiProgram
         // Shared Tarazin services (DbService, ScriptCatalog, Auth, Audit, ...)
         builder.Services.AddTarazinUiServices();
 
-        // === Stimulsoft License ===
-        string licensePath = Path.Combine(
-            AppContext.BaseDirectory,
-            "wwwroot",
-            "License",
-            "Stimul20240302.key");
-
-        if (File.Exists(licensePath))
-        {
-            Stimulsoft.Base.StiLicense.LoadFromFile(licensePath);
-        }
+        
 
         return builder.Build();
     }

@@ -10,7 +10,22 @@ CultureInfo.DefaultThreadCurrentUICulture = fa;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// === Stimulsoft License ===
+string licensePath = Path.Combine(
+    AppContext.BaseDirectory,
+    "wwwroot",
+    "License",
+    "Stimul20240302.key");
 
+if (File.Exists(licensePath))
+{
+    Stimulsoft.Base.StiLicense.LoadFromFile(licensePath);
+}
+else
+{
+    // برای دیباگ
+    System.Diagnostics.Debug.WriteLine($"License file not found: {licensePath}");
+}
 
 // ── Blazor Server (web host) — the UI itself lives in Tarazin.Ui ─────────
 builder.Services.AddRazorPages();
@@ -29,7 +44,7 @@ builder.Services.AddMudServices(config =>
 // ── Tarazin services: UI layer (session/auth) + Data layer (DbService, ...) ─
 builder.Services.AddTarazinUiServices();
 
-Stimulsoft.Base.StiLicense.LoadFromFile(builder.Environment.WebRootPath + "\\License\\Stimul20240302.key");
+
 
 var app = builder.Build();
 
@@ -41,17 +56,17 @@ using (var scope = app.Services.CreateScope())
     var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Tarazin.Startup");
     var (raw, source) = TarazinConnection.ResolveRaw(app.Configuration);
 
-    logger.LogInformation("رشتهٔ اتصال — منبع: {Source} | مقدار: {Value}",
+    logger.LogInformation("ConncetionString: {Source} | Value: {Value}",
         source, TarazinConnection.Mask(raw));
 
     try
     {
         await TarazinDbInitializer.EnsureInitializedAsync(scope.ServiceProvider);
-        logger.LogInformation("راه‌اندازی دیتابیس با موفقیت انجام شد.");
+        logger.LogInformation("DataBase Started!");
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "راه‌اندازی دیتابیس ناموفق بود. برای جزئیات به /diag بروید.");
+        logger.LogError(ex, "DataBase Error");
 
         if (Environment.GetEnvironmentVariable("TARAZIN_FAIL_FAST") == "1")
             throw;
