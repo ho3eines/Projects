@@ -1,0 +1,121 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-3">@(Asset.AssetId == 0 ? "ثبت دارایی ثابت" : $"ویرایش دارایی — {Asset.AssetCode}")</MudText>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="کد دارایی" @bind-Value="_code" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="عنوان" @bind-Value="_title" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="دسته (ماشین‌آلات/تجهیزات/ساختمان/…)" @bind-Value="_category" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Label="تاریخ خرید" Culture="FaCulture" @bind-Date="_purchaseDate" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Label="بهای خرید (ریال)" @bind-Value="_cost" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int" Label="عمر مفید (ماه)" @bind-Value="_lifeMonths" Variant="Variant.Outlined" Min="1" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Label="ارزش اسقاط (ریال)" @bind-Value="_residual" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="string" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Active")">فعال</MudSelectItem>
+                    <MudSelectItem Value="@("Scrapped")">اسقاطی</MudSelectItem>
+                    <MudSelectItem Value="@("Transferred")">منتقل‌شده</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Save">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "assets";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public FixedAssetRow Asset { get; set; } = new();
+
+    private string _code = "";
+    private string _title = "";
+    private string _category = "";
+    private DateTime? _purchaseDate = DateTime.Today;
+    private decimal _cost;
+    private int _lifeMonths = 60;
+    private decimal _residual;
+    private string _status = "Active";
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _code = Asset.AssetCode;
+        _title = Asset.Title;
+        _category = Asset.Category ?? "";
+        _purchaseDate = Asset.PurchaseDate == default ? DateTime.Today : Asset.PurchaseDate;
+        _cost = Asset.PurchaseCost;
+        _lifeMonths = Asset.UsefulLifeMonths > 0 ? Asset.UsefulLifeMonths : 60;
+        _residual = Asset.ResidualValue;
+        _status = Asset.Status;
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_title))
+        {
+            Snackbar.Add("کد و عنوان دارایی الزامی است.", Severity.Warning);
+            return;
+        }
+        if (_cost <= 0 || _lifeMonths <= 0)
+        {
+            Snackbar.Add("بها و عمر مفید معتبر وارد کنید.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "FixedAssetUpsert", new
+            {
+                AssetId = Asset.AssetId,
+                AssetCode = _code.Trim(),
+                Title = _title.Trim(),
+                Category = string.IsNullOrWhiteSpace(_category) ? null : _category.Trim(),
+                PurchaseDate = _purchaseDate?.Date ?? DateTime.Today,
+                PurchaseCost = _cost,
+                UsefulLifeMonths = _lifeMonths,
+                ResidualValue = _residual,
+                Status = _status,
+                IsActive = true,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("دارایی ثابت ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

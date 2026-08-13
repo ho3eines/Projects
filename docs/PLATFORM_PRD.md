@@ -128,7 +128,7 @@ ADR-002 explains why the event backbone was retired.
 
 ## 9. Acceptance Criteria / معیارهای پذیرش
 1. `dotnet build Tarazin.slnx` succeeds with exactly one project.
-2. All 7 modules open from one address and show real data.
+2. All 9 modules open from one address and show real data.
 3. No `HttpClient`-for-data and no raw SQL in `.razor` files (static check).
 4. `tools/cross-schema-scan.sh` passes.
 5. Bootstrap login works; audit rows are recorded and viewable.

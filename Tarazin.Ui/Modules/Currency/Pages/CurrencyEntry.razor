@@ -1,0 +1,257 @@
+@page "/currency/entry"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>خرید و فروش ارز — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="خرید و فروش ارز" Subtitle="ثبت معاملهٔ ارز — موجودی، خزانه، طرف حساب و سند حسابداری به‌صورت خودکار به‌روزرسانی می‌شوند (§37)."
+            Eyebrow="ارز و معاملات ارزی" />
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="نوع معامله" @bind-Value="_type" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("Buy")">خرید ارز</MudSelectItem>
+                <MudSelectItem Value="@("Sell")">فروش ارز</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="ارز" @bind-Value="_currencyCode" Variant="Variant.Outlined" @bind-Value:after="OnCurrencyChanged">
+                <MudSelectItem Value="@("")">— انتخاب ارز —</MudSelectItem>
+                @foreach (var c in _currencies.Where(c => c.ItemKey != "IRR" && c.ItemKey != "TOMAN"))
+                {
+                    <MudSelectItem Value="c.ItemKey">@c.ItemKey — @c.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="مشتری/فروشنده" @bind-Value="_partyName" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_selected is not null)
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">نرخ جاری (@_selected.ItemKey) — §54</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Medium">
+                    نرخ آنلاین: @(_selected.OnlineRate?.ToString("N0") ?? "—")
+                </MudChip>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudButton Variant="Variant.Text" Color="Color.Secondary" Size="Size.Small"
+                           OnClick="@(() => UseSystemRate())" Disabled="@(_selected.SystemRate <= 0)"
+                           StartIcon="@Icons.Material.Filled.Download">
+                    نرخ سیستم: @_selected.SystemRate.ToString("N0") — کلیک برای استفاده
+                </MudButton>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Outlined" Size="Size.Medium">
+                    منبع: @(_selected.SourceTitle ?? _selected.SourceKey ?? "دستی")
+                </MudChip>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="مقدار ارز" @bind-Value="_quantity" Variant="Variant.Outlined" Min="0"
+                             HelperText="@(string.IsNullOrEmpty(_currencyCode) ? \"واحد: —\" : $\"واحد: {_currencyCode} — هر مبلغ با واحد مشخص ثبت می‌شود (§35)\")" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="نرخ معامله (قفل می‌شود §48)" @bind-Value="_rate" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="معادل ریالی" @bind-Value="_amountRial" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTimePicker Label="ساعت" @bind-Time="_time" Culture="FaCulture" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="نحوهٔ تسویه" @bind-Value="_fundType" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("")">— بدون تسویهٔ نقدی —</MudSelectItem>
+                <MudSelectItem Value="@("Cash")">صندوق</MudSelectItem>
+                <MudSelectItem Value="@("Bank")">بانک</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="int" Label="صندوق / بانک" @bind-Value="_fundId" Variant="Variant.Outlined" Disabled="@(string.IsNullOrEmpty(_fundType))">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var f in _funds.Where(f => string.IsNullOrEmpty(_fundType) || f.FundType == _fundType))
+                {
+                    <MudSelectItem Value="f.FundId">@(f.FundType == "Cash" ? "صندوق" : "بانک") — @f.FundTitle</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudTextField Label="توضیحات" @bind-Value="_description" Variant="Variant.Outlined" MaxLength="300" />
+        </MudItem>
+    </MudGrid>
+
+    <div class="d-flex align-center mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Save" Class="me-2">
+            ثبت معامله
+        </MudButton>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @(_type == "Buy" ? "با ثبت خرید، موجودی ارز افزایش و موجودی ریالی کاهش می‌یابد." : "با ثبت فروش، موجودی ارز کاهش و سود/زیان معامله محاسبه می‌شود.")
+        </MudText>
+    </div>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "currency";
+
+    private List<PriceRateRow> _currencies = new();
+    private List<FundRow> _funds = new();
+    private List<WalletRow> _wallets = new();
+
+    private string _type = "Buy";
+    private string _currencyCode = "";
+    private string _partyName = "";
+    private DateTime? _date = DateTime.Today;
+    private TimeSpan? _time = DateTime.Now.TimeOfDay;
+    private decimal _quantity;
+    private decimal _rate;
+    private decimal _amountRial;
+    private string _fundType = "";
+    private int _fundId;
+    private string _description = "";
+    private bool _busy;
+
+    private PriceRateRow? _selected =>
+        _currencies.FirstOrDefault(c => c.ItemKey == _currencyCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currencies = (await Db.QueryAsync<PriceRateRow>(Schema, "RateBoard", new
+        {
+            ItemType = "Currency",
+            ItemKey = (string?)null
+        })).ToList();
+
+        _funds = (await Db.QueryAsync<FundRow>(Schema, "FundList")).ToList();
+
+        _wallets = (await Db.QueryAsync<WalletRow>(Schema, "WalletList", new
+        {
+            FromDate = (DateTime?)null,
+            ToDate = (DateTime?)null,
+            OnlyNonZero = 0
+        })).ToList();
+    }
+
+    private void OnCurrencyChanged()
+    {
+        if (_selected is not null && _selected.SystemRate > 0)
+            _rate = _selected.SystemRate;
+    }
+
+    private void UseSystemRate()
+    {
+        if (_selected is not null && _selected.SystemRate > 0)
+        {
+            _rate = _selected.SystemRate;
+            Snackbar.Add($"نرخ سیستم {_selected.SystemRate:N0} در معامله قرار گرفت (§54).", Severity.Info);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+
+        if (string.IsNullOrEmpty(_currencyCode))
+        {
+            Snackbar.Add("ارز را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+        if (_quantity <= 0 || _rate <= 0)
+        {
+            Snackbar.Add("مقدار و نرخ معتبر الزامی است.", Severity.Warning);
+            return;
+        }
+
+        // معادل ریالی = مقدار × نرخ (§37)
+        _amountRial = decimal.Round(_quantity * _rate, 0);
+        if (_amountRial <= 0)
+        {
+            Snackbar.Add("معادل ریالی معتبر نیست.", Severity.Warning);
+            return;
+        }
+
+        if (_type == "Sell")
+        {
+            var wallet = _wallets.FirstOrDefault(w => w.CurrencyCode == _currencyCode);
+            if (wallet is null || wallet.Quantity < _quantity)
+            {
+                Snackbar.Add($"موجودی {_currencyCode} برای فروش کافی نیست (موجودی: {(wallet?.Quantity ?? 0):N2}).", Severity.Warning);
+                return;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(_fundType) && _fundId == 0)
+        {
+            Snackbar.Add("صندوق یا بانک تسویه را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "FxTransactionCreate", new
+            {
+                TransactionType = _type,
+                PartyName = _partyName.Trim(),
+                TransactionDate = _date?.Date ?? DateTime.Today,
+                TransactionTime = _time ?? DateTime.Now.TimeOfDay,
+                CurrencyCode = _currencyCode,
+                Quantity = _quantity,
+                Rate = _rate,
+                FundType = string.IsNullOrEmpty(_fundType) ? (string?)null : _fundType,
+                FundId = _fundId == 0 ? (int?)null : _fundId,
+                AmountRial = _amountRial,
+                Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                CreatedBy = Session.UserName
+            });
+
+            Snackbar.Add($"معاملهٔ {(_type == "Buy" ? "خرید" : "فروش")} {_currencyCode} ثبت شد؛ سند حسابداری و گردش خزانه به‌روزرسانی شد.", Severity.Success);
+
+            _quantity = 0;
+            _rate = 0;
+            _amountRial = 0;
+            _partyName = "";
+            _description = "";
+
+            // به‌روزرسانی موجودی‌ها
+            _wallets = (await Db.QueryAsync<WalletRow>(Schema, "WalletList", new
+            {
+                FromDate = (DateTime?)null,
+                ToDate = (DateTime?)null,
+                OnlyNonZero = 0
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FundRow
+    {
+        public string FundType { get; set; } = "";
+        public int FundId { get; set; }
+        public string FundTitle { get; set; } = "";
+    }
+}

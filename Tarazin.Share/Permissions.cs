@@ -30,11 +30,25 @@ public static class TarazinPermissions
     public const string Audit = "system.audit";
     public const string SystemAdmin = "system.admin";
 
+    // ── دسترسی‌های ویژهٔ نرخ‌ها و قیمت‌ها (PRD §55) ─────────────────────
+    // نرخ‌ها قلب قیمت‌گذاری سیستم‌اند؛ تغییر/Override فقط برای کاربران مجاز.
+    public const string RateView = "rates.view";              // مشاهده نرخ
+    public const string RateFetch = "rates.fetch";            // دریافت نرخ (آنلاین/دستی)
+    public const string RateChange = "rates.change";          // تغییر نرخ (سیستم)
+    public const string RateOverride = "rates.override";      // Override نرخ آنلاین ← سیستم
+    public const string RateChangeBuy = "rates.buy";          // تغییر نرخ خرید
+    public const string RateChangeSell = "rates.sell";        // تغییر نرخ فروش
+    public const string RateChangeGold = "rates.gold";        // تغییر نرخ طلا
+    public const string RateChangeCurrency = "rates.currency";// تغییر نرخ ارز
+    public const string RateHistory = "rates.history";        // مشاهدهٔ تاریخچه نرخ
+    public const string RateConfirm = "rates.confirm";        // تأیید نرخ
+
     /// <summary>کلید ماژول‌های کسب‌وکار (همان اسکیمه‌ها).</summary>
     public static readonly string[] Modules =
     [
         "central", "accounting", "inventory", "treasury",
-        "payroll", "goldshop", "store"
+        "payroll", "goldshop", "store", "currency", "bi",
+        "assets", "branch"
     ];
 
     /// <summary>اقدامات استاندارد هر ماژول.</summary>
@@ -63,6 +77,11 @@ public static class TarazinPermissions
         ["payroll"] = "حقوق و دستمزد",
         ["goldshop"] = "طلافروشی",
         ["store"] = "فروشگاه",
+        ["currency"] = "ارز و معاملات ارزی",
+        ["bi"] = "داشبورد و هوش تجاری",
+        ["assets"] = "اموال و دارایی ثابت",
+        ["branch"] = "شعب",
+        ["rates"] = "نرخ‌ها و قیمت‌ها",
         ["system"] = "سیستم و مدیریت",
     };
 
@@ -94,6 +113,18 @@ public static class TarazinPermissions
         list.Add(new PermissionDef(Roles, "مدیریت نقش‌ها و دسترسی‌ها", "system"));
         list.Add(new PermissionDef(Audit, "مشاهدهٔ ممیزی سیستم", "system"));
         list.Add(new PermissionDef(SystemAdmin, "مدیریت کامل سیستم", "system"));
+
+        // دسترسی‌های ویژهٔ نرخ‌ها و قیمت‌ها (PRD §55) — منبع واحد برای seed و UI.
+        list.Add(new PermissionDef(RateView, "مشاهده نرخ", "rates"));
+        list.Add(new PermissionDef(RateFetch, "دریافت نرخ (آنلاین/دستی)", "rates"));
+        list.Add(new PermissionDef(RateChange, "تغییر نرخ سیستم", "rates"));
+        list.Add(new PermissionDef(RateOverride, "Override نرخ آنلاین", "rates"));
+        list.Add(new PermissionDef(RateChangeBuy, "تغییر نرخ خرید", "rates"));
+        list.Add(new PermissionDef(RateChangeSell, "تغییر نرخ فروش", "rates"));
+        list.Add(new PermissionDef(RateChangeGold, "تغییر نرخ طلا", "rates"));
+        list.Add(new PermissionDef(RateChangeCurrency, "تغییر نرخ ارز", "rates"));
+        list.Add(new PermissionDef(RateHistory, "مشاهده تاریخچه نرخ", "rates"));
+        list.Add(new PermissionDef(RateConfirm, "تأیید نرخ", "rates"));
 
         return list;
     }
@@ -161,18 +192,33 @@ public static class TarazinRoles
                     TarazinPermissions.For("goldshop", TarazinActions.Reports),
                     TarazinPermissions.For("payroll", TarazinActions.View),
                     TarazinPermissions.For("payroll", TarazinActions.Reports),
+                    TarazinPermissions.For("currency", TarazinActions.View),
+                    TarazinPermissions.For("currency", TarazinActions.Reports),
+                    TarazinPermissions.RateView,
+                    TarazinPermissions.RateHistory,
+                    TarazinPermissions.RateConfirm,
                     TarazinPermissions.For("central", TarazinActions.View),
                     TarazinPermissions.Audit,
                 }).ToList()),
 
             new("Cashier", "صندوق‌دار",
-                "خزانه‌داری کامل + فروش و طلافروشی.", false,
+                "خزانه‌داری کامل + فروش و طلافروشی + نرخ‌ها.", false,
                 Full("treasury").Concat(new[]
                 {
                     TarazinPermissions.For("goldshop", TarazinActions.View),
                     TarazinPermissions.For("goldshop", TarazinActions.Entry),
                     TarazinPermissions.For("store", TarazinActions.View),
                     TarazinPermissions.For("store", TarazinActions.Entry),
+                    TarazinPermissions.For("currency", TarazinActions.View),
+                    TarazinPermissions.For("currency", TarazinActions.Entry),
+                    TarazinPermissions.For("currency", TarazinActions.Reports),
+                    TarazinPermissions.RateView,
+                    TarazinPermissions.RateFetch,
+                    TarazinPermissions.RateChange,
+                    TarazinPermissions.RateChangeBuy,
+                    TarazinPermissions.RateChangeSell,
+                    TarazinPermissions.RateChangeCurrency,
+                    TarazinPermissions.RateHistory,
                     TarazinPermissions.For("central", TarazinActions.View),
                 }).ToList()),
 
@@ -186,11 +232,13 @@ public static class TarazinRoles
                 }).ToList()),
 
             new("Sales", "فروشنده",
-                "فروشگاه کامل + ثبت فاکتور طلا.", false,
+                "فروشگاه کامل + ثبت فاکتور طلا + مشاهده نرخ.", false,
                 Full("store").Concat(new[]
                 {
                     TarazinPermissions.For("goldshop", TarazinActions.View),
                     TarazinPermissions.For("goldshop", TarazinActions.Entry),
+                    TarazinPermissions.For("currency", TarazinActions.View),
+                    TarazinPermissions.RateView,
                     TarazinPermissions.For("central", TarazinActions.View),
                 }).ToList()),
 
@@ -204,11 +252,16 @@ public static class TarazinRoles
 
             new("Auditor", "حسابرس",
                 "فقط مشاهده و گزارش تمام بخش‌ها + ممیزی.", false,
-                viewReports.Concat(new[] { TarazinPermissions.Audit }).ToList()),
+                viewReports.Concat(new[]
+                {
+                    TarazinPermissions.RateView,
+                    TarazinPermissions.RateHistory,
+                    TarazinPermissions.Audit,
+                }).ToList()),
 
             new("Viewer", "فقط مشاهده",
                 "مشاهده و گزارش تمام بخش‌ها بدون ثبت عملیات.", false,
-                viewReports.ToList()),
+                viewReports.Concat(new[] { TarazinPermissions.RateView }).ToList()),
 
             // نقش پایهٔ پیش‌فرض — اسکریپت‌های fallback/backfill به آن ارجاع می‌دهند.
             // باید همیشه وجود داشته باشد تا هیچ کاربری بدون نقش/دسترسی نماند.

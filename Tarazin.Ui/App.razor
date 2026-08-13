@@ -1,6 +1,7 @@
 @using System.Globalization
 @implements IDisposable
 @inject UiPreferences Prefs
+@inject PriceFeedScheduler FeedScheduler
 
 @* Shared App shell — hosted by BOTH the web host (Tarazin.Web/_Host.cshtml)
    and the MAUI Blazor Hybrid host (Tarazin.Maui/MainPage.xaml root component). *@
@@ -51,6 +52,8 @@
         try
         {
             await TarazinDbInitializer.EnsureInitializedAsync(ServiceProvider);
+            // بروزرسانی خودکار نرخ‌ها (PRD §56) — یک بار در فرایند، در هر دو هاست.
+            FeedScheduler.Start();
         }
         catch (Exception ex)
         {

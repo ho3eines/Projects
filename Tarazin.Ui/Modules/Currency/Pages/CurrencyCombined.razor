@@ -1,0 +1,278 @@
+@page "/currency/combined"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>معامله ترکیبی — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="معامله ترکیبی طلا + ارز + ریال" Subtitle="فروش طلا + دریافت دلار، خرید آب‌شده + پرداخت یورو، تهاتر طلا با ارز و … — اثر مالی هر بخش جداگانه ثبت می‌شود (§38)."
+            Eyebrow="ارز و معاملات ارزی" />
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="طرف حساب" @bind-Value="_partyName" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
+        </MudItem>
+        <MudItem xs="12" sm="4" md="4">
+            <MudTimePicker Label="ساعت" @bind-Time="_time" Culture="FaCulture" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-3">پاهای معامله (هر بخش: دارایی، جهت، مقدار، نرخ، معادل ریالی)</MudText>
+
+    <MudTable Items="_legs" Hover="true" Dense="true" Class="mb-4">
+        <HeaderContent>
+            <MudTh>نوع</MudTh><MudTh>دارایی</MudTh><MudTh>جهت</MudTh><MudTh>مقدار</MudTh>
+            <MudTh>نرخ</MudTh><MudTh>معادل ریالی</MudTh><MudTh>تسویه (ریال)</MudTh><MudTh>شرح</MudTh><MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="نوع">
+                <MudSelect T="string" Value="@context.LegType"
+                           ValueChanged="v => OnLegTypeChanged(_legs.IndexOf(context), v)"
+                           Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="@("Currency")">ارز</MudSelectItem>
+                    <MudSelectItem Value="@("Gold")">طلا</MudSelectItem>
+                    <MudSelectItem Value="@("Coin")">سکه</MudSelectItem>
+                    <MudSelectItem Value="@("Metal")">فلز</MudSelectItem>
+                    <MudSelectItem Value="@("Rial")">ریال نقد</MudSelectItem>
+                </MudSelect>
+            </MudTd>
+            <MudTd DataLabel="دارایی">
+                @if (context.LegType == "Rial")
+                {
+                    <MudText Typo="Typo.body2">ریال (IRR)</MudText>
+                }
+                else
+                {
+                    <MudSelect T="string" Value="@context.ItemKey"
+                               ValueChanged="v => OnLegItemChanged(_legs.IndexOf(context), v)"
+                               Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="@("")">— انتخاب —</MudSelectItem>
+                        @foreach (var it in _items.Where(i => i.ItemType == context.LegType
+                                                              && (context.LegType != "Currency" || (it.ItemKey != "IRR" && it.ItemKey != "TOMAN"))))
+                        {
+                            <MudSelectItem Value="it.ItemKey">@it.ItemKey — @it.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+            </MudTd>
+            <MudTd DataLabel="جهت">
+                <MudSelect T="string" @bind-Value="context.Direction" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="@("In")">ورود</MudSelectItem>
+                    <MudSelectItem Value="@("Out")">خروج</MudSelectItem>
+                </MudSelect>
+            </MudTd>
+            <MudTd DataLabel="مقدار">
+                <MudNumericField T="decimal" Value="@context.Quantity" ValueChanged="v => { context.Quantity = Convert.ToDecimal(v); RecalcLeg(_legs.IndexOf(context)); }"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudTd>
+            <MudTd DataLabel="نرخ">
+                <MudNumericField T="decimal" Value="@context.Rate" ValueChanged="v => { context.Rate = Convert.ToDecimal(v); RecalcLeg(_legs.IndexOf(context)); }"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudTd>
+            <MudTd DataLabel="معادل ریالی">
+                <MudNumericField T="decimal" Value="@context.AmountRial" ValueChanged="v => context.AmountRial = Convert.ToDecimal(v)"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudTd>
+            <MudTd DataLabel="تسویه">
+                @if (context.LegType == "Rial")
+                {
+                    <MudSelect T="string" Value="@context.FundType"
+                               ValueChanged="v => context.FundType = v"
+                               Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="@("")">— صندوق/بانک —</MudSelectItem>
+                        <MudSelectItem Value="@("Cash")">صندوق</MudSelectItem>
+                        <MudSelectItem Value="@("Bank")">بانک</MudSelectItem>
+                    </MudSelect>
+                }
+            </MudTd>
+            <MudTd DataLabel="شرح">
+                <MudTextField T="string" Value="@context.Description" ValueChanged="v => context.Description = v"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudTd>
+            <MudTd DataLabel="">
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                               Disabled="@(_legs.Count <= 1)" OnClick="@(() => _legs.RemoveAt(_legs.IndexOf(context)))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="4">
+            <MudChip T="string" Color="Color.Success" Size="Size.Small">جمع ورودها: @TotalIn.ToString("N0")</MudChip>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudChip T="string" Color="Color.Error" Size="Size.Small">جمع خروج‌ها: @TotalOut.ToString("N0")</MudChip>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudChip T="string" Color="@(IsBalanced ? Color.Success : Color.Warning)" Size="Size.Small">
+                @(IsBalanced ? "✔ متوازن (تفاوت به سود/هزینه می‌رود)" : "✘ نامتوازن — تفاوت به سود/هزینه‌ها منتقل می‌شود")
+            </MudChip>
+        </MudItem>
+    </MudGrid>
+
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLeg" StartIcon="@Icons.Material.Filled.Add">
+        + پای معامله
+    </MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+               StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
+        ثبت معامله ترکیبی
+    </MudButton>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "currency";
+
+    private List<PriceRateRow> _items = new();
+    private List<LegLine> _legs = new();
+    private string _partyName = "";
+    private DateTime? _date = DateTime.Today;
+    private TimeSpan? _time = DateTime.Now.TimeOfDay;
+    private bool _busy;
+
+    private decimal TotalIn => _legs.Where(l => l.Direction == "In").Sum(l => l.AmountRial);
+    private decimal TotalOut => _legs.Where(l => l.Direction == "Out").Sum(l => l.AmountRial);
+    private bool IsBalanced => TotalIn > 0 && TotalOut > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = (await Db.QueryAsync<PriceRateRow>(Schema, "RateBoard", new
+        {
+            ItemType = (string?)null,
+            ItemKey = (string?)null
+        })).ToList();
+
+        _legs.Add(NewLeg());
+        _legs.Add(NewLeg());
+    }
+
+    private LegLine NewLeg() => new()
+    {
+        LegType = "Currency",
+        Direction = "Out",
+        FundType = ""
+    };
+
+    private void AddLeg() => _legs.Add(NewLeg());
+
+    private void OnLegTypeChanged(int index, string value)
+    {
+        var leg = _legs[index];
+        leg.LegType = value;
+        leg.ItemKey = "";
+        leg.Rate = 0;
+        leg.AmountRial = 0;
+        if (value == "Rial")
+        {
+            leg.ItemKey = "IRR";
+            leg.Quantity = 0;
+            leg.Rate = 0;
+        }
+    }
+
+    private void OnLegItemChanged(int index, string value)
+    {
+        var leg = _legs[index];
+        leg.ItemKey = value;
+        var item = _items.FirstOrDefault(i => i.ItemKey == value);
+        if (item is not null)
+        {
+            leg.Title = item.Title;
+            if (item.SystemRate > 0)
+            {
+                leg.Rate = item.SystemRate;
+                RecalcLeg(index);
+            }
+        }
+    }
+
+    private void RecalcLeg(int index)
+    {
+        var leg = _legs[index];
+        if (leg.LegType != "Rial" && leg.Quantity > 0 && leg.Rate > 0)
+            leg.AmountRial = decimal.Round(leg.Quantity * leg.Rate, 0);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+
+        foreach (var leg in _legs)
+        {
+            if (string.IsNullOrEmpty(leg.ItemKey))
+            {
+                Snackbar.Add("در همهٔ پاها دارایی انتخاب کنید.", Severity.Warning);
+                return;
+            }
+            if (leg.AmountRial <= 0)
+            {
+                Snackbar.Add("معادل ریالی همهٔ پاها باید بزرگ‌تر از صفر باشد.", Severity.Warning);
+                return;
+            }
+            if (leg.LegType == "Rial" && string.IsNullOrEmpty(leg.FundType))
+            {
+                Snackbar.Add("پای ریالی نیاز به صندوق یا بانک دارد.", Severity.Warning);
+                return;
+            }
+        }
+
+        var legsJson = System.Text.Json.JsonSerializer.Serialize(_legs.Select(l => new
+        {
+            l.LegType,
+            l.ItemKey,
+            l.Direction,
+            l.Quantity,
+            l.Rate,
+            l.AmountRial,
+            l.FundType,
+            l.FundId,
+            l.Description
+        }));
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "FxCombinedCreate", new
+            {
+                PartyName = _partyName.Trim(),
+                TransactionDate = _date?.Date ?? DateTime.Today,
+                TransactionTime = _time ?? DateTime.Now.TimeOfDay,
+                Description = "معامله ترکیبی",
+                LegsJson = legsJson,
+                CreatedBy = Session.UserName
+            });
+
+            Snackbar.Add("معاملهٔ ترکیبی ثبت شد؛ کیف پول/دارایی‌ها و سند حسابداری به‌روزرسانی شد.", Severity.Success);
+            _partyName = "";
+            _legs = new List<LegLine> { NewLeg(), NewLeg() };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class LegLine
+    {
+        public string LegType { get; set; } = "Currency";
+        public string ItemKey { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Direction { get; set; } = "In";
+        public decimal Quantity { get; set; }
+        public decimal Rate { get; set; }
+        public decimal AmountRial { get; set; }
+        public string FundType { get; set; } = "";
+        public int? FundId { get; set; }
+        public string Description { get; set; } = "";
+    }
+}

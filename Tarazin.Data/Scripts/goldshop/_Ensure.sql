@@ -127,5 +127,9 @@ IF COL_LENGTH(N'goldshop.SaleInvoices', N'UpdatedAt') IS NULL
 IF COL_LENGTH(N'goldshop.SaleInvoices', N'UpdatedBy') IS NULL
     ALTER TABLE [goldshop].[SaleInvoices] ADD UpdatedBy NVARCHAR(100) NULL;
 
+-- Migration: اتصال فاکتور فروش به شعبه (ماژول branch — BI §86).
+IF COL_LENGTH(N'goldshop.SaleInvoices', N'BranchId') IS NULL
+    ALTER TABLE [goldshop].[SaleInvoices] ADD BranchId INT NULL;
+
 IF COL_LENGTH(N'goldshop.InventorySnapshot', N'UpdatedAt') IS NULL
     ALTER TABLE [goldshop].[InventorySnapshot] ADD UpdatedAt DATETIME2 NULL;

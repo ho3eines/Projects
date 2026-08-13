@@ -5,11 +5,11 @@
 
 <PageTitle>فاکتور فروش — طلافروشی</PageTitle>
 
-<PageHeader Title="ثبت فاکتور فروش طلا" Subtitle="مالیات بر اساس نرخ فعال درج‌شده در حسابداری محاسبه می‌شود." />
+<PageHeader Title="ثبت فاکتور فروش طلا" Subtitle="نرخ جاری طلا از مرکز نرخ‌ها (§54) — با یک کلیک در فاکتور قرار می‌گیرد؛ مالیات بر اساس نرخ فعال درج‌شده در حسابداری محاسبه می‌شود." />
 <MudPaper Elevation="1" Class="pa-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="جنس طلا" @bind-Value="_itemId" Variant="Variant.Outlined">
+            <MudSelect T="int" Label="جنس طلا" @bind-Value="_itemId" Variant="Variant.Outlined" @bind-Value:after="OnItemChanged">
                 <MudSelectItem Value="0">— انتخاب جنس —</MudSelectItem>
                 @foreach (var g in _items)
                 {
@@ -23,11 +23,40 @@
         <MudItem xs="12" sm="6" md="4">
             <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
         </MudItem>
+    </MudGrid>
+
+    @if (_selectedRate is not null)
+    {
+        <MudPaper Elevation="0" Class="pa-3 mb-3" Style="background: rgba(0,0,0,.04);border-radius:8px">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">نرخ جاری — @_selectedRate.Title (منبع: @(_selectedRate.SourceKey ?? "دستی"))</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Medium">
+                        نرخ آنلاین: @(_selectedRate.OnlineRate?.ToString("N0") ?? "—") ریال
+                    </MudChip>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" Size="Size.Small"
+                               OnClick="@(() => UseSystemRate())" Disabled="@(_selectedRate.SystemRate <= 0)"
+                               StartIcon="@Icons.Material.Filled.Download">
+                        نرخ سیستم: @_selectedRate.SystemRate.ToString("N0") — کلیک برای استفاده
+                    </MudButton>
+                </MudItem>
+                <MudItem xs="12" sm="4" md="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        آخرین بروزرسانی: @(_selectedRate.LastFetchAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    }
+
+    <MudGrid>
         <MudItem xs="12" sm="6" md="3">
             <MudNumericField T="decimal" Label="وزن (گرم)" @bind-Value="_weight" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="قیمت هر گرم" @bind-Value="_pricePerGram" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="قیمت هر گرم (ریال)" @bind-Value="_pricePerGram" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudNumericField T="decimal" Label="اجرت" @bind-Value="_workmanship" Variant="Variant.Outlined" Min="0" />
@@ -49,6 +78,7 @@
     private const string Schema = "goldshop";
 
     private List<GoldItemRow> _items = new();
+    private List<GoldRateBoardRow> _goldRates = new();
     private int _itemId;
     private string _customerName = "";
     private DateTime? _date = DateTime.Today;
@@ -58,9 +88,50 @@
     private decimal _profit;
     private bool _busy;
 
+    private GoldRateBoardRow? _selectedRate =>
+        _itemId == 0 ? null : _goldRates.FirstOrDefault(r =>
+            string.Equals(r.ItemKey, _items.FirstOrDefault(g => g.GoldItemId == _itemId)?.ItemCode, StringComparison.OrdinalIgnoreCase));
+
     protected override async Task OnInitializedAsync()
     {
         _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList")).ToList();
+        // نرخ جاری طلا از «مرکز نرخ‌ها و قیمت‌ها» (PRD §54/§60) — اسکریپت goldshop/GoldRateBoard
+        _goldRates = (await Db.QueryAsync<GoldRateBoardRow>(Schema, "GoldRateBoard", new
+        {
+            ItemType = "Gold"
+        })).ToList();
+    }
+
+    private void OnItemChanged()
+    {
+        if (_selectedRate is not null && _selectedRate.SystemRate > 0)
+            _pricePerGram = _selectedRate.SystemRate;
+    }
+
+    private void UseSystemRate()
+    {
+        if (_selectedRate is not null && _selectedRate.SystemRate > 0)
+        {
+            _pricePerGram = _selectedRate.SystemRate;
+            Snackbar.Add($"نرخ سیستم {_selectedRate.Title} ({_selectedRate.SystemRate:N0}) در فاکتور قرار گرفت (§54).", Severity.Info);
+        }
+    }
+
+    /// <summary>ردیف تابلو نرخ طلا از مرکز قیمت (قرارداد مشترک).</summary>
+    private sealed class GoldRateBoardRow
+    {
+        public string ItemKey { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? Unit { get; set; }
+        public decimal? OnlineRate { get; set; }
+        public decimal SystemRate { get; set; }
+        public decimal? BuyRate { get; set; }
+        public decimal? SellRate { get; set; }
+        public decimal? AccountingRate { get; set; }
+        public DateTime? LastFetchAt { get; set; }
+        public DateTime? LastChangeAt { get; set; }
+        public string? SourceKey { get; set; }
+        public bool IsValid { get; set; }
     }
 
     private async Task SaveAsync()

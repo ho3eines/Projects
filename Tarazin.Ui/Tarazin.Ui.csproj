@@ -15,6 +15,9 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
     <!-- صفحهٔ /diag منبع رشتهٔ اتصال را از IConfiguration می‌خواند -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.1" />
+    <!-- چاپ و گزارش با Stimulsoft (PRD BI §121) — Viewer بلزور + موتور رندر؛
+         سازگار با net6.0+ و هر دو هاست (وب + MAUI WebView). لایسنس: docs/BI_MODULE.md -->
+    <PackageReference Include="Stimulsoft.Reports.Blazor" Version="2026.1.4" />
   </ItemGroup>
 
   <ItemGroup>

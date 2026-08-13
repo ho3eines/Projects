@@ -1,0 +1,92 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-3">@(Branch.BranchId == 0 ? "ثبت شعبه" : $"ویرایش شعبه — {Branch.BranchCode}")</MudText>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="کد شعبه" @bind-Value="_code" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="عنوان شعبه" @bind-Value="_title" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="آدرس" @bind-Value="_location" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="مدیر شعبه" @bind-Value="_manager" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudSwitch T="bool" Label="فعال" @bind-Value="_isActive" Color="Color.Primary" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Save">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const string Schema = "branch";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public BranchRow Branch { get; set; } = new();
+
+    private string _code = "";
+    private string _title = "";
+    private string _location = "";
+    private string _manager = "";
+    private bool _isActive = true;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _code = Branch.BranchCode;
+        _title = Branch.Title;
+        _location = Branch.Location ?? "";
+        _manager = Branch.Manager ?? "";
+        _isActive = Branch.IsActive;
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_title))
+        {
+            Snackbar.Add("کد و عنوان شعبه الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "BranchUpsert", new
+            {
+                BranchId = Branch.BranchId,
+                BranchCode = _code.Trim(),
+                Title = _title.Trim(),
+                Location = string.IsNullOrWhiteSpace(_location) ? null : _location.Trim(),
+                Manager = string.IsNullOrWhiteSpace(_manager) ? null : _manager.Trim(),
+                IsActive = _isActive,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("شعبه ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

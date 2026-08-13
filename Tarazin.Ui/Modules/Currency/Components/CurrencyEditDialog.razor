@@ -1,0 +1,100 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-3">@(Currency.CurrencyId == 0 ? "تعریف ارز جدید (§34)" : $"ویرایش ارز — {Currency.CurrencyCode}")</MudText>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="کد ارز (USD, EUR, …)" @bind-Value="_code" Variant="Variant.Outlined"
+                              Disabled="@(Currency.CurrencyId != 0)" MaxLength="10" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="نام ارز" @bind-Value="_name" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="نماد" @bind-Value="_symbol" Variant="Variant.Outlined" MaxLength="10" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Label="ضریب نسبت به ریال" @bind-Value="_unitFactor" Variant="Variant.Outlined"
+                                 Min="0.0001" HelperText="ریال=۱، تومان=۱۰ (§35)" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                    واحد حسابداری پایهٔ سیستم <b>ریال</b> است؛ همهٔ ارزها و مبالغ در نهایت بر مبنای ریال
+                    ارزش‌گذاری و گزارش می‌شوند. پس از تعریف ارز جدید، ردیف آن در «مرکز نرخ‌ها» ساخته
+                    می‌شود و باید برای آن نرخ سیستم تعیین شود.
+                </MudAlert>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Save">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const string Schema = "currency";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public CurrencyDefRow Currency { get; set; } = new();
+
+    private string _code = "";
+    private string _name = "";
+    private string _symbol = "";
+    private decimal _unitFactor = 1;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _code = Currency.CurrencyCode;
+        _name = Currency.CurrencyName;
+        _symbol = Currency.Symbol ?? "";
+        _unitFactor = Currency.UnitFactor > 0 ? Currency.UnitFactor : 1;
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_name))
+        {
+            Snackbar.Add("کد و نام ارز الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "CurrencyUpsert", new
+            {
+                CurrencyId = Currency.CurrencyId,
+                CurrencyCode = _code.Trim().ToUpperInvariant(),
+                CurrencyName = _name.Trim(),
+                Symbol = string.IsNullOrWhiteSpace(_symbol) ? null : _symbol.Trim(),
+                UnitFactor = _unitFactor,
+                IsBase = Currency.IsBase,
+                IsActive = true,
+                CreatedBy = Session.UserName
+            });
+
+            Snackbar.Add(Currency.CurrencyId == 0
+                ? $"ارز {_code} تعریف شد؛ اکنون در مرکز نرخ‌ها نرخ سیستم آن را تعیین کنید."
+                : $"ارز {_code} ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

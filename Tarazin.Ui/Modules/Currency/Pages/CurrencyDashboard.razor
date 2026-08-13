@@ -1,0 +1,123 @@
+@page "/currency/dashboard"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>داشبورد ارز — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="داشبورد ارز" Subtitle="تفکیک سود معاملات طلا و ارز، تغییر ارزش دارایی‌ها و وضعیت کیف پول."
+            Eyebrow="ارز و معاملات ارزی" />
+
+<MudGrid Class="mb-4">
+    <StatCard Label="ارزش ارز (ریال)" Value="@TotalCurrencyValue.ToString("N0")" Accent="#2E7D32"
+              Icon="@Icons.Material.Filled.AccountBalanceWallet" />
+    <StatCard Label="سود محقق‌شده ارز" Value="@RealizedFx.ToString("N0")" Accent="@PnlColor(RealizedFx)"
+              Icon="@Icons.Material.Filled.TrendingUp" />
+    <StatCard Label="سود محقق‌نشده" Value="@Unrealized.ToString("N0")" Accent="@PnlColor(Unrealized)"
+              Icon="@Icons.Material.Filled.ShowChart" />
+    <StatCard Label="معاملات امروز" Value="@TodayCount.ToString("N0")" Accent="#1E4B73"
+              Icon="@Icons.Material.Filled.ReceiptLong" />
+</MudGrid>
+
+<MudGrid>
+    <MudItem xs="12" md="7">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">تفکیک سود و زیان (§53)</MudText>
+            <MudTable Items="_pnl" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh><MudTh>مبلغ (ریال)</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان">
+                        @if (context.PnlKey == "net")
+                        {
+                            <b>@context.Title</b>
+                        }
+                        else
+                        {
+                            @context.Title
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="مبلغ">
+                        <MudText Typo="@(context.PnlKey == "net" ? Typo.subtitle1 : Typo.body2)"
+                                 Color="@(context.Amount >= 0 ? Color.Success : Color.Error)">
+                            @context.Amount.ToString("N0")
+                        </MudText>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="5">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">کیف پول ارزها (§36)</MudText>
+            <MudTable Items="_wallets" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>ارز</MudTh><MudTh>موجودی</MudTh><MudTh>ارزش ریالی</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="ارز">@context.CurrencyCode — @context.CurrencyName</MudTd>
+                    <MudTd DataLabel="موجودی">@context.Quantity.ToString("N2")</MudTd>
+                    <MudTd DataLabel="ارزش">@context.RialValue.ToString("N0")</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">کیف پولی نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private const string Schema = "currency";
+
+    private List<PnlBreakdownRow> _pnl = new();
+    private List<WalletRow> _wallets = new();
+    private bool _loading = true;
+
+    private decimal TotalCurrencyValue => _wallets.Sum(w => w.RialValue);
+    private decimal RealizedFx => _pnl.FirstOrDefault(p => p.PnlKey == "fx_trade")?.Amount ?? 0;
+    private decimal Unrealized => _pnl.FirstOrDefault(p => p.PnlKey == "fx_unreal")?.Amount ?? 0;
+    private int TodayCount => _todayCount;
+
+    private int _todayCount;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var from = DateTime.Today.AddDays(-30);
+            var to = DateTime.Today;
+
+            _pnl = (await Db.QueryAsync<PnlBreakdownRow>(Schema, "PnlSummary", new { FromDate = from, ToDate = to })).ToList();
+            _wallets = (await Db.QueryAsync<WalletRow>(Schema, "WalletList", new
+            {
+                FromDate = (DateTime?)null,
+                ToDate = (DateTime?)null,
+                OnlyNonZero = 1
+            })).ToList();
+
+            var todayTxs = await Db.QueryAsync<FxTransactionRow>(Schema, "FxTransactionList", new
+            {
+                FromDate = DateTime.Today,
+                ToDate = DateTime.Today,
+                TransactionType = (string?)null,
+                SearchText = "",
+                SkipRows = 0,
+                TakeSize = 10000
+            });
+            _todayCount = todayTxs.Count;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string PnlColor(decimal value) => value >= 0 ? "#2E7D32" : "#C62828";
+}

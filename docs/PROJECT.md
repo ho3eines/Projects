@@ -58,7 +58,7 @@ Tarazin.slnx                       ← ۵ پروژه
 │   ├── _Imports.razor             ← usingهای مشترک (Tarazin.Models/Services/Data + MudBlazor)
 │   ├── Layout/
 │   │   ├── MainLayout.razor       ← MudLayout + MudDrawer + MudAppBar
-│   │   └── NavMenu.razor          ← MudNavMenu (۷ ماژول)
+│   │   └── NavMenu.razor          ← MudNavMenu (۹ ماژول)
 │   ├── Services/
 │   │   ├── UserSession.cs         ← نشست (ICurrentUser)
 │   │   ├── AuthService.cs         ← ورود از [central].[Users] (PBKDF2)
@@ -71,7 +71,8 @@ Tarazin.slnx                       ← ۵ پروژه
 │   │   ├── Treasury/Pages/        ← /treasury…
 │   │   ├── Payroll/Pages/         ← /payroll…
 │   │   ├── GoldShop/Pages/        ← /goldshop…
-│   │   └── Store/Pages/           ← /store…
+│   │   ├── Store/Pages/           ← /store…
+│   │   └── Currency/Pages/        ← /currency (ارز و معاملات ارزی — PRD §34–§63)
 │   └── wwwroot/css/app.css        ← استاتیک RCL → _content/Tarazin.Ui/css/app.css
 │
 ├── Tarazin.Web/                   ← هاست وب (Blazor Server — فقط پوسته)

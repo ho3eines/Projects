@@ -1,0 +1,184 @@
+@page "/currency/wallets"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>کیف پول و موجودی ارز — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="کیف پول و موجودی ارز" Subtitle="موجودی، نرخ متوسط خرید، ارزش ریالی و سود/زیان هر ارز — گردش ارز نیز در زیر نمایش داده می‌شود (§36)."
+            Eyebrow="ارز و معاملات ارزی">
+    @if (Session.HasPermission(Perm("currency", TarazinActions.Entry)))
+    {
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="OpenMovementDialogAsync"
+                   StartIcon="@Icons.Material.Filled.SwapVert">
+            ثبت گردش دستی (ورود/خروج/انتقال/تعدیل)
+        </MudButton>
+    }
+</PageHeader>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="LoadAsync" Disabled="_loading">
+                اجرا
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudTabs>
+    <MudTabPanel Text="موجودی ارزها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_wallets" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>ارز</MudTh>
+                    <MudTh>موجودی</MudTh>
+                    <MudTh>نرخ متوسط خرید</MudTh>
+                    <MudTh>نرخ سیستم</MudTh>
+                    <MudTh>ارزش ریالی</MudTh>
+                    <MudTh>سود/زیان ارزی</MudTh>
+                    <MudTh>موجودی اول دوره</MudTh>
+                    <MudTh>ورود</MudTh>
+                    <MudTh>خروج</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="ارز"><b>@context.CurrencyCode</b> — @context.CurrencyName</MudTd>
+                    <MudTd DataLabel="موجودی">@context.Quantity.ToString("N2")</MudTd>
+                    <MudTd DataLabel="نرخ متوسط">@context.AvgBuyRate?.ToString("N0")</MudTd>
+                    <MudTd DataLabel="نرخ سیستم">@context.SystemRate.ToString("N0")</MudTd>
+                    <MudTd DataLabel="ارزش ریالی"><b>@context.RialValue.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="سود/زیان">
+                        <MudText Typo="Typo.body2" Color="@(context.UnrealizedPnl >= 0 ? Color.Success : Color.Error)">
+                            @context.UnrealizedPnl.ToString("N0")
+                        </MudText>
+                    </MudTd>
+                    <MudTd DataLabel="اول دوره">@context.OpeningQty.ToString("N2")</MudTd>
+                    <MudTd DataLabel="ورود">@context.InQty.ToString("N2")</MudTd>
+                    <MudTd DataLabel="خروج">@context.OutQty.ToString("N2")</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">کیف پولی نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="گردش ارز">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_movements" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh><MudTh>جهت</MudTh>
+                    <MudTh>ارز</MudTh><MudTh>مقدار</MudTh><MudTh>نرخ</MudTh><MudTh>معادل ریالی</MudTh>
+                    <MudTh>طرف حساب</MudTh><MudTh>تسویه</MudTh><MudTh>شرح</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
+                    <MudTd DataLabel="نوع">@MovementTypeText(context.MovementType)</MudTd>
+                    <MudTd DataLabel="جهت">
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(context.Direction == "In" ? Color.Success : Color.Error)"
+                                 Variant="Variant.Outlined">@(context.Direction == "In" ? "ورود" : "خروج")</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
+                    <MudTd DataLabel="مقدار">@context.Quantity.ToString("N2")</MudTd>
+                    <MudTd DataLabel="نرخ">@context.Rate.ToString("N0")</MudTd>
+                    <MudTd DataLabel="معادل">@context.AmountRial.ToString("N0")</MudTd>
+                    <MudTd DataLabel="طرف">@context.CounterPartyName</MudTd>
+                    <MudTd DataLabel="تسویه">@FundText(context)</MudTd>
+                    <MudTd DataLabel="شرح">@context.Description</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">گردشی ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "currency";
+
+    private List<WalletRow> _wallets = new();
+    private List<CurrencyMovementRow> _movements = new();
+    private DateTime? _from;
+    private DateTime? _to;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _wallets = (await Db.QueryAsync<WalletRow>(Schema, "WalletList", new
+            {
+                FromDate = _from,
+                ToDate = _to,
+                OnlyNonZero = 0
+            })).ToList();
+
+            _movements = (await Db.QueryAsync<CurrencyMovementRow>(Schema, "WalletMovements", new
+            {
+                CurrencyCode = (string?)null,
+                Direction = (string?)null,
+                FromDate = _from,
+                ToDate = _to,
+                SkipRows = 0,
+                TakeSize = 300
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string MovementTypeText(string type) => type switch
+    {
+        "Buy" => "خرید",
+        "Sell" => "فروش",
+        "In" => "ورود",
+        "Out" => "خروج",
+        "Transfer" => "انتقال",
+        "Conversion" => "تبدیل",
+        "Combined" => "ترکیبی",
+        "Adjustment" => "تعدیل",
+        _ => type
+    };
+
+    private static string FundText(CurrencyMovementRow m) =>
+        m.FundType switch
+        {
+            "Cash" => $"صندوق: {m.FundTitle}",
+            "Bank" => $"بانک: {m.FundTitle}",
+            _ => "—"
+        };
+
+    private static string Perm(string module, string action) => TarazinPermissions.For(module, action);
+
+    private async Task OpenMovementDialogAsync()
+    {
+        var parameters = new DialogParameters<WalletMovementDialog>
+        {
+            { x => x.DefaultCurrencyCode, _selectedCurrency }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<WalletMovementDialog>("ثبت گردش دستی کیف پول", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private string _selectedCurrency = "";
+}

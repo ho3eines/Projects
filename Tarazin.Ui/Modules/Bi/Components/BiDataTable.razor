@@ -1,0 +1,54 @@
+@inject NavigationManager Nav
+
+@* جدول تحلیلی مشترک BI — هر ردیف Drill-down دارد (§18/§67/§37) *@
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <MudText Typo="Typo.subtitle1" Class="mb-3">@Title</MudText>
+    }
+    <MudTable Items="Rows" Hover="true" Dense="true" Striped="true" Loading="Loading">
+        <HeaderContent>
+            @foreach (var header in Headers)
+            {
+                <MudTh>@header</MudTh>
+            }
+            @if (ShowDrillDown)
+            {
+                <MudTh></MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="@Headers[0]">@context.Col1</MudTd>
+            @if (Headers.Count > 1) { <MudTd DataLabel="@Headers[1]">@context.Col2</MudTd> }
+            @if (Headers.Count > 2) { <MudTd DataLabel="@Headers[2]">@context.Col3</MudTd> }
+            @if (Headers.Count > 3) { <MudTd DataLabel="@Headers[3]">@context.Col4</MudTd> }
+            @if (Headers.Count > 4) { <MudTd DataLabel="@Headers[4]">@context.Col5</MudTd> }
+            @if (Headers.Count > 5) { <MudTd DataLabel="@Headers[5]">@FormatAmount(context)</MudTd> }
+            @if (Headers.Count > 6 && context.Date1.HasValue) { <MudTd DataLabel="@Headers[6]">@context.Date1.Value.ToString("yyyy/MM/dd")</MudTd> }
+            @if (ShowDrillDown)
+            {
+                <MudTd DataLabel="">
+                    @if (!string.IsNullOrWhiteSpace(context.Link))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Primary"
+                                       OnClick="@(() => Nav.NavigateTo(context.Link!))" />
+                    }
+                </MudTd>
+            }
+        </RowTemplate>
+        <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public IReadOnlyList<string> Headers { get; set; } = Array.Empty<string>();
+    [Parameter] public IReadOnlyList<BiTableRow> Rows { get; set; } = Array.Empty<BiTableRow>();
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public bool ShowDrillDown { get; set; } = true;
+
+    private static string FormatAmount(BiTableRow row) =>
+        Math.Abs(row.Amount) >= 1_000_000_000m ? (row.Amount / 1_000_000_000m).ToString("0.00") + " میلیارد"
+        : Math.Abs(row.Amount) >= 1_000_000m ? (row.Amount / 1_000_000m).ToString("0.0") + " میلیون"
+        : row.Amount.ToString("N0");
+}

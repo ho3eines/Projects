@@ -181,6 +181,10 @@ IF COL_LENGTH(N'store.Orders', N'CreatedBy') IS NULL
 IF COL_LENGTH(N'store.Orders', N'UpdatedBy') IS NULL
     ALTER TABLE [store].[Orders] ADD UpdatedBy NVARCHAR(100) NULL;
 
+-- Migration: اتصال سفارش به شعبه (ماژول branch — BI §86).
+IF COL_LENGTH(N'store.Orders', N'BranchId') IS NULL
+    ALTER TABLE [store].[Orders] ADD BranchId INT NULL;
+
 IF COL_LENGTH(N'store.GoldPriceSnapshot', N'CreatedAt') IS NULL
     ALTER TABLE [store].[GoldPriceSnapshot] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_store_GoldPriceSnapshot_CreatedAt DEFAULT SYSUTCDATETIME();
 

@@ -39,6 +39,24 @@ BEGIN
         (N'5000', N'هزینه حقوق',         N'Expense',  1, SYSUTCDATETIME());
 END
 
+-- حساب‌های ویژهٔ ماژول ارز و معاملات ارزی (PRD §34–§63) — افزودنی امن
+-- برای دیتابیس‌های موجود (هر کد جداگانه بررسی می‌شود تا seed قدیمی را نشکند).
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1030' AND IsDeleted = 0)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
+    VALUES (N'1030', N'موجودی ارز', N'Asset', 1, SYSUTCDATETIME());
+
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1040' AND IsDeleted = 0)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
+    VALUES (N'1040', N'موجودی طلا و سکه', N'Asset', 1, SYSUTCDATETIME());
+
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6000' AND IsDeleted = 0)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
+    VALUES (N'6000', N'سود و زیان تسعیر ارز', N'Income', 1, SYSUTCDATETIME());
+
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6100' AND IsDeleted = 0)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
+    VALUES (N'6100', N'کارمزد و سایر هزینه‌ها', N'Expense', 1, SYSUTCDATETIME());
+
 IF NOT EXISTS (SELECT 1 FROM [accounting].[TaxRules])
 BEGIN
     INSERT INTO [accounting].[TaxRules] (RuleCode, Title, Category, RatePercent, EffectiveFrom, IsActive, CreatedAt)

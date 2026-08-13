@@ -42,7 +42,7 @@ without any content root.
         [payroll] [goldshop] [store]
 ```
 
-## 2. Modules (7)
+## 2. Modules (9)
 
 | Module | Route prefix | Schema |
 |---|---|---|
@@ -53,8 +53,15 @@ without any content root.
 | Payroll (حقوق و دستمزد) | `/payroll` | `payroll` |
 | GoldShop (طلافروشی) | `/goldshop` | `goldshop` |
 | Store (فروشگاه) | `/store` | `store` |
+| Currency (ارز و معاملات ارزی) | `/currency` | `currency` |
+| BI (داشبورد و هوش تجاری) | `/bi` | `bi` |
 
 Each module = 6 pages: home (روزانه), dashboard, entry, reports, special, settings.
+The Currency module additionally has `/currency/prices` (مرکز نرخ‌ها و قیمت‌ها),
+`/currency/wallets` (کیف پول), `/currency/convert` (تبدیل ارز) and
+`/currency/combined` (معاملات ترکیبی) — see `docs/CURRENCY_MODULE.md`.
+The BI module has `/bi` (مرکز فرماندهی — ۱۴ تب)، `/bi/alerts` (هشدارها) and
+`/bi/reports` (چاپ با Stimulsoft) — see `docs/BI_MODULE.md`.
 
 ## 3. Data protocol (all modules, same)
 

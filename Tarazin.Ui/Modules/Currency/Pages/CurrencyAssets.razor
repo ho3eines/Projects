@@ -1,0 +1,176 @@
+@page "/currency/assets"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>ارزش لحظه‌ای دارایی — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="ارزش لحظه‌ای دارایی" Subtitle="هر دارایی با واحد اصلی خودش نگهداری می‌شود؛ ارزش همه بر مبنای ریال با نرخ جاری سیستم (§50/§51)."
+            Eyebrow="ارز و معاملات ارزی">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SnapshotAsync" Disabled="_busy"
+               StartIcon="@Icons.Material.Filled.SaveAlt">
+        ثبت اسنپ‌شات روز
+    </MudButton>
+</PageHeader>
+
+<MudGrid Class="mb-4">
+    <StatCard Label="ارزش کل دارایی (ریال)" Value="@Summary.TotalRial.ToString("N0")" Accent="#1E4B73" Icon="@Icons.Material.Filled.DonutLarge" />
+    <StatCard Label="ارزش روز گذشته" Value="@Summary.YesterdayTotal.ToString("N0")" Accent="#4A6B3A" Icon="@Icons.Material.Filled.History" />
+    <StatCard Label="افزایش/کاهش" Value="@Summary.Change.ToString("+0;-0;0")" Accent="@(Summary.Change >= 0 ? "#2E7D32" : "#C62828")" Icon="@Icons.Material.Filled.TrendingUp" />
+    <StatCard Label="درصد تغییر" Value="@Summary.ChangePercent.ToString("+0.00;-0.00;0.00")٪" Accent="@(Summary.Change >= 0 ? "#2E7D32" : "#C62828")" Icon="@Icons.Material.Filled.ShowChart" />
+</MudGrid>
+
+<MudGrid>
+    <MudItem xs="12" md="8">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">ترکیب دارایی‌ها</MudText>
+            <MudTable Items="_rows" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>گروه</MudTh><MudTh>دارایی</MudTh><MudTh>مقدار</MudTh><MudTh>نرخ</MudTh>
+                    <MudTh>ارزش ریالی</MudTh><MudTh>سود/زیان</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="گروه">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GroupColor(context.GroupKey)">
+                            @GroupTitle(context.GroupKey)
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="دارایی">@context.Title</MudTd>
+                    <MudTd DataLabel="مقدار">
+                        @(context.Quantity.HasValue ? context.Quantity.Value.ToString("N2") + (context.Unit is null ? "" : " " + context.Unit) : "—")
+                    </MudTd>
+                    <MudTd DataLabel="نرخ">@(context.Rate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="ارزش"><b>@context.RialValue.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="سود/زیان">
+                        @if (context.UnrealizedPnl.HasValue)
+                        {
+                            <MudText Typo="Typo.body2" Color="@(context.UnrealizedPnl.Value >= 0 ? Color.Success : Color.Error)">
+                                @context.UnrealizedPnl.Value.ToString("N0")
+                            </MudText>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">دارایی‌ای ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudText Typo="Typo.h6" Class="mb-3">تفکیک گروه‌ها</MudText>
+            <MudText Typo="Typo.body2">نقد (ریال): <b>@Summary.CashPart.ToString("N0")</b></MudText>
+            <MudText Typo="Typo.body2">ارزها: <b>@Summary.CurrencyPart.ToString("N0")</b></MudText>
+            <MudText Typo="Typo.body2">طلا: <b>@Summary.GoldPart.ToString("N0")</b></MudText>
+            <MudText Typo="Typo.body2">سکه: <b>@Summary.CoinPart.ToString("N0")</b></MudText>
+            <MudText Typo="Typo.body2">فلزات: <b>@Summary.MetalPart.ToString("N0")</b></MudText>
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle1">ارزش کل: <b>@Summary.TotalRial.ToString("N0") ریال</b></MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">تاریخچهٔ ارزش (§51)</MudText>
+            <MudTable Items="_history" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh><MudTh>ارزش کل</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="تاریخ">@context.SnapshotDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd DataLabel="ارزش">@context.TotalRial.ToString("N0")</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">اسنپ‌شاتی ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private const string Schema = "currency";
+
+    private List<AssetValuationRow> _rows = new();
+    private List<AssetValuationSnapshotRow> _history = new();
+    private bool _loading = true;
+    private bool _busy;
+
+    private AssetValuationSummaryRow Summary { get; } = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _rows = (await Db.QueryAsync<AssetValuationRow>(Schema, "AssetValuation")).ToList();
+            _history = (await Db.QueryAsync<AssetValuationSnapshotRow>(Schema, "AssetValuationHistoryList", new
+            {
+                TakeSize = 30
+            })).ToList();
+
+            var today = _history.FirstOrDefault();
+            var yesterday = _history.Count > 1 ? _history[1] : null;
+
+            Summary.CashPart = _rows.Where(r => r.GroupKey == "Cash").Sum(r => r.RialValue);
+            Summary.CurrencyPart = _rows.Where(r => r.GroupKey == "Currency").Sum(r => r.RialValue);
+            Summary.GoldPart = _rows.Where(r => r.GroupKey == "Gold").Sum(r => r.RialValue);
+            Summary.CoinPart = _rows.Where(r => r.GroupKey == "Coin").Sum(r => r.RialValue);
+            Summary.MetalPart = _rows.Where(r => r.GroupKey == "Metal").Sum(r => r.RialValue);
+            Summary.TotalRial = Summary.CashPart + Summary.CurrencyPart + Summary.GoldPart + Summary.CoinPart + Summary.MetalPart;
+            Summary.YesterdayTotal = yesterday?.TotalRial ?? (today?.TotalRial ?? 0);
+            Summary.Change = Summary.TotalRial - Summary.YesterdayTotal;
+            Summary.ChangePercent = Summary.YesterdayTotal != 0
+                ? (Summary.TotalRial - Summary.YesterdayTotal) * 100m / Summary.YesterdayTotal
+                : 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SnapshotAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "AssetValuationSnapshot", new { CreatedBy = Session.UserName });
+            Snackbar.Add("اسنپ‌شات ارزش امروز ثبت شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string GroupTitle(string group) => group switch
+    {
+        "Cash" => "نقد",
+        "Currency" => "ارز",
+        "Gold" => "طلا",
+        "Coin" => "سکه",
+        "Metal" => "فلز",
+        _ => group
+    };
+
+    private static Color GroupColor(string group) => group switch
+    {
+        "Cash" => Color.Secondary,
+        "Currency" => Color.Primary,
+        "Gold" => Color.Warning,
+        "Coin" => Color.Success,
+        "Metal" => Color.Info,
+        _ => Color.Default
+    };
+}
