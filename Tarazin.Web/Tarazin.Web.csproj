@@ -33,5 +33,14 @@
     <!-- Shared core: modules, models, services, scripts, layout -->
     <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
   </ItemGroup>
-
+	<Target Name="PostPublish" AfterTargets="AfterPublish">
+		<Warning Text="كپي كردن كرك هاي استيمول توي فولدر پابليش" />
+	</Target>
+	<ItemGroup>
+		<!-- کپی تمام DLLها از پوشه CrackDLL به خروجی -->
+		<None Include="..\Tarazin.Web\CrackDLL\*.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+	</ItemGroup>
 </Project>

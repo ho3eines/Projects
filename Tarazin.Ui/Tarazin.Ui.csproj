@@ -29,7 +29,5 @@
     <ProjectReference Include="..\Tarazin.Data\Tarazin.Data.csproj" />
   </ItemGroup>
 	
-	<Target Name="PostPublish" AfterTargets="AfterPublish">
-		<Warning Text="كپي كردن كرك هاي استيمول توي فولدر پابليش" />
-	</Target>
+	
 </Project>
