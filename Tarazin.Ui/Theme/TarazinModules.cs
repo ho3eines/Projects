@@ -41,7 +41,7 @@ public static class TarazinModules
                 new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment, Perm("accounting", TarazinActions.Reports)),
                 new("امکانات", "/accounting/settings", Icons.Material.Filled.Tune, Perm("accounting", TarazinActions.Settings)),
             ]),
-        new("inventory", "انبار آمل", "رسید و حواله، کارتکس، موجودی کالا",
+        new("inventory", "انبار", "رسید و حواله، کارتکس، موجودی کالا",
             "/inventory", Icons.Material.Filled.Inventory2, "#4A6B3A",
             [
                 new("داشبورد", "/inventory/dashboard", Icons.Material.Filled.Dashboard, Perm("inventory", TarazinActions.View)),
