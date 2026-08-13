@@ -64,6 +64,13 @@ public static class MauiProgram
         // Shared Tarazin services (DbService, ScriptCatalog, Auth, Audit, ...)
         builder.Services.AddTarazinUiServices();
 
+        // === Load Stimulsoft License ===
+        var stimulLicensePath = Path.Combine(AppContext.BaseDirectory, "wwwroot", "License", "Stimul20240302.key");
+        if (File.Exists(stimulLicensePath))
+        {
+            Stimulsoft.Base.StiLicense.LoadFromFile(stimulLicensePath);
+        }
+
         return builder.Build();
     }
 }

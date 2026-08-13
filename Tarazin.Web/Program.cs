@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using MudBlazor;
 using MudBlazor.Services;
 using Tarazin.Data;
@@ -28,6 +29,13 @@ builder.Services.AddMudServices(config =>
 builder.Services.AddTarazinUiServices();
 
 var app = builder.Build();
+
+// === Load Stimulsoft License ===
+var stimulLicensePath = Path.Combine(builder.Environment.WebRootPath, "License", "Stimul20240302.key");
+if (File.Exists(stimulLicensePath))
+{
+    Stimulsoft.Base.StiLicense.LoadFromFile(stimulLicensePath);
+}
 
 // ── Startup: ensure database/schemas, seed idempotently, bootstrap admin ──
 // اگر SQL در دسترس نباشد، برنامه به‌جای crash با پیام گنگ، بالا می‌آید و
