@@ -150,6 +150,8 @@ public sealed class BiReportService
 
         // دادهٔ واقعی ← ثبت و رندر
         report.RegData(table.TableName, table);
+        // همگام‌سازی دیکشنری با دادهٔ ثبت‌شده تا DataBand به ستون‌ها دسترسی داشته باشد
+        report.Dictionary.Synchronize();
         report.Render();
 
         return report;

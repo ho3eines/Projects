@@ -17,7 +17,7 @@
     <StatCard Label="ارزش کل دارایی (ریال)" Value="@Summary.TotalRial.ToString("N0")" Accent="#1E4B73" Icon="@Icons.Material.Filled.DonutLarge" />
     <StatCard Label="ارزش روز گذشته" Value="@Summary.YesterdayTotal.ToString("N0")" Accent="#4A6B3A" Icon="@Icons.Material.Filled.History" />
     <StatCard Label="افزایش/کاهش" Value="@Summary.Change.ToString("+0;-0;0")" Accent="@(Summary.Change >= 0 ? "#2E7D32" : "#C62828")" Icon="@Icons.Material.Filled.TrendingUp" />
-    <StatCard Label="درصد تغییر" Value="@Summary.ChangePercent.ToString("+0.00;-0.00;0.00")٪" Accent="@(Summary.Change >= 0 ? "#2E7D32" : "#C62828")" Icon="@Icons.Material.Filled.ShowChart" />
+    <StatCard Label="درصد تغییر" Value="@ChangePercentText" Accent="@(Summary.Change >= 0 ? "#2E7D32" : "#C62828")" Icon="@Icons.Material.Filled.ShowChart" />
 </MudGrid>
 
 <MudGrid>
@@ -95,6 +95,8 @@
     private bool _busy;
 
     private AssetValuationSummaryRow Summary { get; } = new();
+
+    private string ChangePercentText => Summary.ChangePercent.ToString("+0.00;-0.00;0.00") + "٪";
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 

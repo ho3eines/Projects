@@ -59,20 +59,19 @@
 
 @if (!_busy)
 {
-    @* Viewer همیشه رندر می‌شود تا @ref به نمونهٔ زنده بچسبد؛ پس از ساخت،
-       Report به آن نسبت داده می‌شود و Viewer گزارش را نمایش/چاپ می‌کند. *@
-    <StiBlazorViewer @ref="_viewer" Width="100%" Height="820px" />
+    @* Viewer با اتصال پارامتری Report رندر می‌شود؛ پس از ساخت، تخصیص _report
+       باعث رندر مجدد والد و نمایش/چاپ گزارش در Viewer می‌شود (الگوی رسمی Stimulsoft). *@
+    <StiBlazorViewer Report="@_report" Width="100%" Height="820px" />
 }
 
 @code {
     private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
 
-    private StiBlazorViewer _viewer = new();
+    private StiReport _report = new();
     private string _selectedKey = "wallet";
     private DateTime? _from = DateTime.Today.AddMonths(-1);
     private DateTime? _to = DateTime.Today;
     private bool _busy;
-    private bool _built;
     private string? _error;
 
     private static readonly IReadOnlyList<BiReportDefinition> Reports = new List<BiReportDefinition>
@@ -146,7 +145,6 @@
         if (_busy) return;
         _busy = true;
         _error = null;
-        _built = false;
         try
         {
             var def = Reports.First(r => r.Key == _selectedKey);
@@ -161,8 +159,7 @@
             def = def with { Params = parameters };
 
             var report = await ReportService.BuildAsync(def);
-            _viewer.Report = report;
-            _built = true;
+            _report = report;
             Snackbar.Add("گزارش ساخته شد — برای چاپ از دکمهٔ چاپ Viewer استفاده کنید.", Severity.Success);
         }
         catch (Exception ex)
