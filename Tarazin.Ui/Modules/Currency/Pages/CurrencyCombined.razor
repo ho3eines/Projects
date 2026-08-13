@@ -54,9 +54,9 @@
                                Variant="Variant.Outlined" Margin="Margin.Dense">
                         <MudSelectItem Value="@("")">— انتخاب —</MudSelectItem>
                         @foreach (var it in _items.Where(i => i.ItemType == context.LegType
-                                                              && (context.LegType != "Currency" || (it.ItemKey != "IRR" && it.ItemKey != "TOMAN"))))
+                                                              && (context.LegType != "Currency" || (i.ItemKey != "IRR" && i.ItemKey != "TOMAN"))))
                         {
-                            <MudSelectItem Value="it.ItemKey">@it.ItemKey — @it.Title</MudSelectItem>
+                            <MudSelectItem Value="@it.ItemKey">@it.ItemKey — @it.Title</MudSelectItem>
                         }
                     </MudSelect>
                 }
