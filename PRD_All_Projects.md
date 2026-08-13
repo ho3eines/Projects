@@ -101,7 +101,7 @@
 - `docker compose up -d` → فقط SQL Server.
 - **وب**: `dotnet run --project Tarazin.Web` (یا publish).
 - **MAUI**: `dotnet workload install maui` سپس
-  `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net10.0-windows10.0.19041.0`
+  `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0`
   (روی ویندوز؛ سایر TFMها در VS/دستگاه‌های مربوطه).
 - CI (`ci/ci.yml`): build وب (ubuntu) + build MAUI (windows + workload) +
   `tools/cross-schema-scan.sh`.

@@ -63,10 +63,9 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 
-// .NET 10 serves blazor.server.js (and fingerprinted RCL assets) only through
-// the static-assets endpoint map. UseStaticFiles alone returns 404 for
-// /_framework/blazor.server.js, so the login page never becomes interactive.
-app.MapStaticAssets();
+// مدل Blazor Server کلاسیک (net8): blazor.server.js و دارایی‌های استاتیک
+// MudBlazor/Tarazin.Ui از طریق static web assets و UseStaticFiles سرو می‌شوند.
+// (MapStaticAssets که در net9+ اضافه شد، در net8 وجود ندارد و لازم هم نیست.)
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 

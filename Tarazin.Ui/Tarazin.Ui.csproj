@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Tarazin</RootNamespace>
@@ -11,12 +11,15 @@
 
   <ItemGroup>
     <!-- UI kit — shared by the web host and the MAUI Blazor Hybrid host -->
+    <!-- MudBlazor 9.8.0.targets include net8.0 (also net9.0/net10.0) so it stays unchanged. -->
     <PackageReference Include="MudBlazor" Version="9.8.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
     <!-- صفحهٔ /diag منبع رشتهٔ اتصال را از IConfiguration می‌خواند -->
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
     <!-- چاپ و گزارش با Stimulsoft (PRD BI §121) — Viewer بلزور + موتور رندر؛
-         سازگار با net6.0+ و هر دو هاست (وب + MAUI WebView). لایسنس: docs/BI_MODULE.md -->
+         این نسخه (2024.3.2) تا net8.0 را پشتیبانی می‌کند (دلیل پایین آوردن
+         کل سولوشن روی net8.0). سازگار با هر دو هاست (وب + MAUI WebView).
+         لایسنس: docs/BI_MODULE.md -->
 	  <PackageReference Include="Stimulsoft.Reports.Blazor" Version="2024.3.2" />
   </ItemGroup>
 
