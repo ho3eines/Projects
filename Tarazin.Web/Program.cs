@@ -10,6 +10,8 @@ CultureInfo.DefaultThreadCurrentUICulture = fa;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+
 // ── Blazor Server (web host) — the UI itself lives in Tarazin.Ui ─────────
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
@@ -26,6 +28,8 @@ builder.Services.AddMudServices(config =>
 
 // ── Tarazin services: UI layer (session/auth) + Data layer (DbService, ...) ─
 builder.Services.AddTarazinUiServices();
+
+Stimulsoft.Base.StiLicense.LoadFromFile(builder.Environment.WebRootPath + "\\License\\Stimul20240302.key");
 
 var app = builder.Build();
 
@@ -68,5 +72,7 @@ app.UseRouting();
 // (MapStaticAssets که در net9+ اضافه شد، در net8 وجود ندارد و لازم هم نیست.)
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
+
+
 
 app.Run();
