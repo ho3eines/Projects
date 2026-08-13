@@ -82,7 +82,11 @@
             Session.SignIn(user.UserId, user.Username, user.DisplayName,
                 user.Role, user.RoleTitle, user.RoleId, permissions);
             Snackbar.Add($"خوش آمدید، {user.DisplayName}", Severity.Success);
-            Nav.NavigateTo("/", forceLoad: true);
+
+            // UserSession در Blazor Server به‌ازای circuit ثبت شده است. بارگذاری
+            // اجباری صفحه circuit را عوض می‌کند و نشست/دسترسی‌هایی را که همین‌جا
+            // تنظیم شدند از بین می‌برد. مسیریابی داخلی همان نشست را حفظ می‌کند.
+            Nav.NavigateTo("/");
         }
         finally
         {
