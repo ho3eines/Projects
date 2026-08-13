@@ -13,17 +13,12 @@
     {
         <MudText Typo="Typo.body2" Color="Color.Secondary">داده‌ای برای نمایش وجود ندارد.</MudText>
     }
-    else if (Type is ChartType.Donut or ChartType.Pie)
-    {
-        <MudChart ChartType="@Type" ChartData="@SingleSeries" ChartLabels="@Labels" Width="100%" Height="@Height" />
-    }
-    else if (MultiSeries)
-    {
-        <MudChart ChartType="@Type" ChartSeries="@ChartSeries" XAxisLabels="@Labels" Width="100%" Height="@Height" />
-    }
     else
     {
-        <MudChart ChartType="@Type" ChartData="@SingleSeries" XAxisLabels="@Labels" Width="100%" Height="@Height" />
+        @* MudBlazor 9: MudChart<T> — دادهٔ همهٔ انواع نمودار (Line/Bar/Donut/Pie) از
+           ChartSeries + ChartLabels می‌آید؛ T نوع عددی سری‌هاست (اینجا double). *@
+        <MudChart T="double" ChartType="@Type" ChartSeries="@ChartSeries" ChartLabels="@Labels"
+                  Width="100%" Height="@Height" />
     }
 </MudPaper>
 
@@ -40,21 +35,18 @@
     [Parameter] public string Series2Name { get; set; } = "سری ۲";
     [Parameter] public string Series3Name { get; set; } = "سری ۳";
 
-    private bool MultiSeries => Series2 != 0;
-
-    private double[] SingleSeries => Rows.Select(r => (double)ValueOf(r, Series1)).ToArray();
-
-    private List<ChartSeries> ChartSeries
+    private List<ChartSeries<double>> ChartSeries
     {
         get
         {
-            var list = new List<ChartSeries>
+            var list = new List<ChartSeries<double>>
             {
-                new() { Name = Series1Name, Data = Rows.Select(r => (double)ValueOf(r, Series1)).ToArray() },
-                new() { Name = Series2Name, Data = Rows.Select(r => (double)ValueOf(r, Series2)).ToArray() }
+                new() { Name = Series1Name, Data = Rows.Select(r => (double)ValueOf(r, Series1)).ToArray() }
             };
+            if (Series2 != 0)
+                list.Add(new ChartSeries<double> { Name = Series2Name, Data = Rows.Select(r => (double)ValueOf(r, Series2)).ToArray() });
             if (Series3 != 0)
-                list.Add(new ChartSeries { Name = Series3Name, Data = Rows.Select(r => (double)ValueOf(r, Series3)).ToArray() });
+                list.Add(new ChartSeries<double> { Name = Series3Name, Data = Rows.Select(r => (double)ValueOf(r, Series3)).ToArray() });
             return list;
         }
     }

@@ -64,7 +64,7 @@
     <MudGrid>
         <MudItem xs="12" sm="6" md="3">
             <MudNumericField T="decimal" Label="مقدار ارز" @bind-Value="_quantity" Variant="Variant.Outlined" Min="0"
-                             HelperText="@(string.IsNullOrEmpty(_currencyCode) ? \"واحد: —\" : $\"واحد: {_currencyCode} — هر مبلغ با واحد مشخص ثبت می‌شود (§35)\")" />
+                             HelperText="@QuantityHelperText" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudNumericField T="decimal" Label="نرخ معامله (قفل می‌شود §48)" @bind-Value="_rate" Variant="Variant.Outlined" Min="0" />
@@ -118,6 +118,12 @@
     private string _type = "Buy";
     private string _currencyCode = "";
     private string _partyName = "";
+
+    private string QuantityHelperText =>
+        string.IsNullOrEmpty(_currencyCode)
+            ? "واحد: —"
+            : $"واحد: {_currencyCode} — هر مبلغ با واحد مشخص ثبت می‌شود (§35)";
+
     private DateTime? _date = DateTime.Today;
     private TimeSpan? _time = DateTime.Now.TimeOfDay;
     private decimal _quantity;

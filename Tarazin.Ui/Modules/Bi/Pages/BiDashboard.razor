@@ -47,7 +47,7 @@
         <MudGrid>
             @foreach (var insight in _insights)
             {
-                <MudItem xs="12" md="6" Class="tz-bi-insight tz-bi-insight--@insight.Kind">
+                <MudItem xs="12" md="6" Class="@InsightClass(insight)">
                     <div class="d-flex align-center">
                         <MudIcon Icon="@InsightIcon(insight.Kind)" Size="Size.Small" Color="@InsightColor(insight.Kind)" Class="ms-1" />
                         <MudText Typo="Typo.body2"><b>@insight.Title:</b> @insight.Detail</MudText>
@@ -503,7 +503,8 @@
     {
         <BiKpiGrid Rows="_treasuryKpis" Md="3" />
         <BiChartCard Title="جریان نقدی (§14)" Type="ChartType.Line" Rows="_cashFlow" Series1="1" Series2="2" />
-        <BiChartCard Title="پیش‌بینی ماندهٔ نقدی ۳۰ روز آینده (§15)" Type="ChartType.Area" Rows="_forecast" Series1="1" />
+        @* MudBlazor 9 دیگر ChartType.Area ندارد (حذف شده) — روند پیش‌بینی با Line رسم می‌شود. *@
+        <BiChartCard Title="پیش‌بینی ماندهٔ نقدی ۳۰ روز آینده (§15)" Type="ChartType.Line" Rows="_forecast" Series1="1" />
         <BiDataTable Title="وضعیت بانک‌ها و صندوق‌ها (§64/§65)" Headers="@FundStatusHeaders"
                      Rows="_funds" />
         <BiDataTable Title="تقویم چک — ۳۰ روز آینده (§67)" Headers="@ChequeHeaders"
@@ -700,7 +701,7 @@
                         </MudText>
                     </MudTd>
                     <MudTd DataLabel="درصد تحقق">
-                        <MudProgressLinear Value="@(double)context.ProgressPercent" Color="@ProgressColor(context)" Rounded="true" />
+                        <MudProgressLinear Value="@((double)context.ProgressPercent)" Color="@ProgressColor(context)" Rounded="true" />
                         <MudText Typo="Typo.caption">@context.ProgressPercent.ToString("0.0")٪</MudText>
                     </MudTd>
                     <MudTd DataLabel="وضعیت">
@@ -801,6 +802,9 @@
         "متوسط" => Color.Warning,
         _ => Color.Error
     };
+
+    private static string InsightClass(BiInsightRow insight) =>
+        $"tz-bi-insight tz-bi-insight--{insight.Kind}";
 
     private static string InsightIcon(string kind) => kind switch
     {

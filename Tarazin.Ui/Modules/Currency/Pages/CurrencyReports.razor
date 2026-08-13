@@ -137,7 +137,7 @@
         {
             <MudPaper Elevation="1" Class="pa-4 mb-4">
                 <MudText Typo="Typo.h6" Class="mb-3">نمودار تغییرات نرخ — @_historyItemKey</MudText>
-                <MudChart ChartType="ChartType.Line" ChartData="@_chartData" XAxisLabels="@_chartLabels"
+                <MudChart T="double" ChartType="ChartType.Line" ChartSeries="@(_chartData.AsChartDataSet())" ChartLabels="@_chartLabels"
                           Width="100%" Height="320px" />
             </MudPaper>
         }

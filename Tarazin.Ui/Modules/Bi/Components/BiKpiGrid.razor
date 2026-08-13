@@ -5,7 +5,7 @@
     @foreach (var kpi in Rows)
     {
         <MudItem xs="12" sm="6" md="@Md">
-            <MudPaper Elevation="1" Class="tz-bi-kpi @(kpi.Status == "Bad" ? "tz-bi-kpi--bad" : kpi.Status == "Good" ? "tz-bi-kpi--good" : "")"
+            <MudPaper Elevation="1" Class="@KpiClass(kpi)"
                       Style="@($"border-top:3px solid {KpiColor(kpi)}")">
                 <div class="d-flex justify-space-between align-center">
                     <MudText Typo="Typo.body2" Color="Color.Secondary">@kpi.Title</MudText>
@@ -52,6 +52,9 @@
     [Parameter] public IReadOnlyList<BiKpiRow> Rows { get; set; } = Array.Empty<BiKpiRow>();
     [Parameter] public int Md { get; set; } = 3;
     [Parameter] public bool ShowDefinition { get; set; } = true;
+
+    private static string KpiClass(BiKpiRow kpi) =>
+        $"tz-bi-kpi {(kpi.Status == "Bad" ? "tz-bi-kpi--bad" : kpi.Status == "Good" ? "tz-bi-kpi--good" : "")}";
 
     private static string KpiColor(BiKpiRow kpi) => kpi.Status switch
     {
