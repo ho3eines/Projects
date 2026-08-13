@@ -57,7 +57,7 @@ Tarazin.slnx                          ← ۵ پروژه: Share + Data + Ui + Web
 │   ├── Tarazin.Ui.csproj             ← MudBlazor + ref → Share, Data
 │   ├── App.razor                     ← Router + MudThemeProvider/Dialog/Snackbar + init (مشترک)
 │   ├── _Imports.razor                ← usingهای مشترک (Tarazin.Models/Services/Data + MudBlazor)
-│   ├── Layout/                       ← MainLayout (MudLayout) + NavMenu (۷ ماژول)
+│   ├── Layout/                       ← MainLayout (MudLayout) + NavMenu (۹ ماژول)
 │   ├── Services/                     ← UserSession, AuthService, ServiceCollectionExtensions
 │   │                                   (AddTarazinUiServices → +AddTarazinDataServices)
 │   ├── Modules/
@@ -68,7 +68,9 @@ Tarazin.slnx                          ← ۵ پروژه: Share + Data + Ui + Web
 │   │   ├── Treasury/Pages/           ← خزانه‌داری
 │   │   ├── Payroll/Pages/            ← حقوق و دستمزد
 │   │   ├── GoldShop/Pages/           ← طلافروشی
-│   │   └── Store/Pages/              ← فروشگاه
+│   │   ├── Store/Pages/              ← فروشگاه
+│   │   └── Currency/Pages/           ← ارز و معاملات ارزی (PRD §34–§63)
+│   │       └── Components/           ← RateEditDialog, CurrencyEditDialog, PriceSourceEditDialog
 │   └── wwwroot/css/app.css           ← tiny MudBlazor overrides (استاتیک RCL)
 │
 ├── Tarazin.Web/                       ← هاست وب (Blazor Server — فقط پوسته)

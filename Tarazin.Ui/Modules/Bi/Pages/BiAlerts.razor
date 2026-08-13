@@ -1,0 +1,89 @@
+@page "/bi/alerts"
+@inject DbService Db
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>هشدارها — داشبورد و BI</PageTitle>
+
+<PageHeader Title="مرکز هشدار" Subtitle="ریسک‌ها و هشدارهای سیستم از دادهٔ واقعی — Critical / Warning / Information (§100/§102)."
+            Eyebrow="داشبورد و BI">
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync" Disabled="_loading"
+               StartIcon="@Icons.Material.Filled.Refresh">
+        بروزرسانی
+    </MudButton>
+</PageHeader>
+
+<MudPaper Elevation="1" Class="pa-4">
+    @if (_loading)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    }
+    else if (_alerts.Count == 0)
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Outlined">
+            هشدار فعالی وجود ندارد — وضعیت کسب‌وکار عادی است.
+        </MudAlert>
+    }
+    else
+    {
+        @foreach (var alert in _alerts)
+        {
+            <MudAlert Severity="@SeverityOf(alert)" Variant="Variant.Outlined" Class="mb-2">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <b>@alert.Title</b>
+                        @if (alert.Amount.HasValue)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text" Class="ms-2">
+                                @alert.Amount.Value.ToString("N0") ریال
+                            </MudChip>
+                        }
+                        <MudText Typo="Typo.body2">@alert.Detail</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            منبع: @alert.Source
+                            @if (alert.OccurredAt.HasValue) { <text>| زمان: @alert.OccurredAt.Value.ToString("yyyy/MM/dd HH:mm")</text> }
+                            | اقدام پیشنهادی: @alert.Action
+                        </MudText>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(alert.Link))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Primary"
+                                       OnClick="@(() => Nav.NavigateTo(alert.Link!))" />
+                    }
+                </div>
+            </MudAlert>
+        }
+    }
+</MudPaper>
+
+@code {
+    private const string Schema = "bi";
+    private List<BiAlertRow> _alerts = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _alerts = (await Db.QueryAsync<BiAlertRow>(Schema, "BiAlerts")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static Severity SeverityOf(BiAlertRow alert) => alert.Severity switch
+    {
+        "Critical" => Severity.Error,
+        "Warning" => Severity.Warning,
+        _ => Severity.Info
+    };
+}

@@ -1,0 +1,880 @@
+@page "/bi"
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>مرکز فرماندهی — داشبورد و BI</PageTitle>
+
+<PageHeader Title="داشبورد و Business Intelligence" Subtitle="مرکز فرماندهی نرم‌افزار — همهٔ اعداد از دادهٔ واقعی سیستم؛ هر KPI قابل کلیک و Drill-down است (§120)."
+            Eyebrow="داشبورد و BI" />
+
+@* ── فیلتر سراسری (§2) ── *@
+<MudPaper Elevation="1" Class="pa-4 mb-4" Style="border-right:4px solid #5E35B1">
+    <MudGrid Class="align-center">
+        <MudItem xs="12" md="2">
+            <MudText Typo="Typo.subtitle2">فیلتر سراسری داشبورد (§2)</MudText>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="بازهٔ آماده" @bind-Value="_rangePreset" Variant="Variant.Outlined" @bind-Value:after="ApplyPresetAsync">
+                @foreach (var p in Presets)
+                {
+                    <MudSelectItem Value="p.Key">@p.Label</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_rangeFrom" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_rangeTo" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="ApplyFilterAsync" Disabled="_loading"
+                       StartIcon="@Icons.Material.Filled.FilterAlt">اعمال</MudButton>
+        </MudItem>
+        <MudItem xs="12" md="2">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">بازه روی نمودارها/جداول/گزارش‌ها اعمال می‌شود؛ کارت‌های KPI وضعیت دورهٔ جاری را نشان می‌دهند.</MudText>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@* ── تحلیل هوشمند امروز (§103) ── *@
+@if (_insightsLoaded && _insights.Count > 0)
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4 tz-bi-insights">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.Psychology" Class="ms-1" /> تحلیل هوشمند امروز
+        </MudText>
+        <MudGrid>
+            @foreach (var insight in _insights)
+            {
+                <MudItem xs="12" md="6" Class="tz-bi-insight tz-bi-insight--@insight.Kind">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@InsightIcon(insight.Kind)" Size="Size.Small" Color="@InsightColor(insight.Kind)" Class="ms-1" />
+                        <MudText Typo="Typo.body2"><b>@insight.Title:</b> @insight.Detail</MudText>
+                        @if (!string.IsNullOrWhiteSpace(insight.Link))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" OnClick="@(() => Navigate(insight.Link!))" />
+                        }
+                    </div>
+                </MudItem>
+            }
+        </MudGrid>
+    </MudPaper>
+}
+
+<MudTabs ActivePanelIndex="@_activeTab" ActivePanelIndexChanged="OnTabChanged" Class="tz-bi-tabs">
+    <MudTabPanel Text="اجرایی" Icon="@Icons.Material.Filled.SpaceDashboard">
+        @if (_execLoaded) { @RenderExecutive() }
+    </MudTabPanel>
+    <MudTabPanel Text="مالی" Icon="@Icons.Material.Filled.AccountBalance">
+        @if (_financialLoaded) { @RenderFinancial() }
+    </MudTabPanel>
+    <MudTabPanel Text="فروش" Icon="@Icons.Material.Filled.ShoppingCart">
+        @if (_salesLoaded) { @RenderSales() }
+    </MudTabPanel>
+    <MudTabPanel Text="خزانه" Icon="@Icons.Material.Filled.AccountBalanceWallet">
+        @if (_treasuryLoaded) { @RenderTreasury() }
+    </MudTabPanel>
+    <MudTabPanel Text="طلا" Icon="@Icons.Material.Filled.Diamond">
+        @if (_goldLoaded) { @RenderGold() }
+    </MudTabPanel>
+    <MudTabPanel Text="ارز" Icon="@Icons.Material.Filled.Payments">
+        @if (_currencyLoaded) { @RenderCurrency() }
+    </MudTabPanel>
+    <MudTabPanel Text="انبار" Icon="@Icons.Material.Filled.Inventory2">
+        @if (_inventoryLoaded) { @RenderInventory() }
+    </MudTabPanel>
+    <MudTabPanel Text="مشتریان" Icon="@Icons.Material.Filled.Group">
+        @if (_customerLoaded) { @RenderCustomers() }
+    </MudTabPanel>
+    <MudTabPanel Text="بدهی‌ها" Icon="@Icons.Material.Filled.ReceiptLong">
+        @if (_payablesLoaded) { @RenderPayables() }
+    </MudTabPanel>
+    <MudTabPanel Text="حقوق" Icon="@Icons.Material.Filled.Badge">
+        @if (_payrollLoaded) { @RenderPayroll() }
+    </MudTabPanel>
+    <MudTabPanel Text="خرید" Icon="@Icons.Material.Filled.ShoppingBasket">
+        @if (_purchaseLoaded) { @RenderPurchase() }
+    </MudTabPanel>
+    <MudTabPanel Text="پرسنل" Icon="@Icons.Material.Filled.Groups">
+        @if (_hrLoaded) { @RenderHr() }
+    </MudTabPanel>
+    <MudTabPanel Text="هزینه‌ها" Icon="@Icons.Material.Filled.PaymentsOutlined">
+        @if (_expenseLoaded) { @RenderExpense() }
+    </MudTabPanel>
+    <MudTabPanel Text="فروشگاه" Icon="@Icons.Material.Filled.Storefront">
+        @if (_ecomLoaded) { @RenderEcommerce() }
+    </MudTabPanel>
+    <MudTabPanel Text="دارایی ثابت" Icon="@Icons.Material.Filled.HomeWork">
+        @if (_assetsLoaded) { @RenderAssets() }
+    </MudTabPanel>
+    <MudTabPanel Text="شعب" Icon="@Icons.Material.Filled.Apartment">
+        @if (_branchLoaded) { @RenderBranch() }
+    </MudTabPanel>
+    <MudTabPanel Text="اهداف" Icon="@Icons.Material.Filled.TrackChanges">
+        @if (_targetsLoaded) { @RenderTargets() }
+    </MudTabPanel>
+    <MudTabPanel Text="مالیات" Icon="@Icons.Material.Filled.RequestQuote">
+        @if (_taxLoaded) { @RenderTax() }
+    </MudTabPanel>
+    <MudTabPanel Text="هشدارها" Icon="@Icons.Material.Filled.NotificationsActive">
+        @if (_alertsLoaded) { @RenderAlerts() }
+    </MudTabPanel>
+    <MudTabPanel Text="تحلیل هوشمند" Icon="@Icons.Material.Filled.Psychology">
+        @if (_insightsLoaded) { @RenderInsights() }
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "bi";
+
+    private int _activeTab;
+
+    // ── فیلتر سراسری (§2) ──────────────────────────────────────────────
+    private static readonly IReadOnlyList<(string Key, string Label)> Presets = new List<(string, string)>
+    {
+        ("today", "امروز"), ("yesterday", "دیروز"), ("7d", "۷ روز اخیر"), ("30d", "۳۰ روز اخیر"),
+        ("month", "ماه جاری"), ("prevmonth", "ماه قبل"), ("year", "سال جاری"), ("prevyear", "سال قبل"),
+        ("3m", "۳ ماه اخیر"), ("6m", "۶ ماه اخیر"), ("12m", "۱۲ ماه اخیر"),
+    };
+    private string _rangePreset = "30d";
+    private DateTime? _rangeFrom = DateTime.Today.AddDays(-29);
+    private DateTime? _rangeTo = DateTime.Today;
+
+    private async Task ApplyPresetAsync()
+    {
+        var today = DateTime.Today;
+        (_rangeFrom, _rangeTo) = _rangePreset switch
+        {
+            "today" => (today, today),
+            "yesterday" => (today.AddDays(-1), today.AddDays(-1)),
+            "7d" => (today.AddDays(-6), today),
+            "month" => (new DateTime(today.Year, today.Month, 1), today),
+            "prevmonth" => (new DateTime(today.Year, today.Month, 1).AddMonths(-1), new DateTime(today.Year, today.Month, 1).AddDays(-1)),
+            "year" => (new DateTime(today.Year, 1, 1), today),
+            "prevyear" => (new DateTime(today.Year - 1, 1, 1), new DateTime(today.Year, 1, 1).AddDays(-1)),
+            "3m" => (today.AddMonths(-2), today),
+            "6m" => (today.AddMonths(-5), today),
+            "12m" => (today.AddMonths(-11), today),
+            _ => (today.AddDays(-29), today)
+        };
+        await ApplyFilterAsync();
+    }
+
+    private async Task ApplyFilterAsync()
+    {
+        // بازنشانی همهٔ تب‌ها تا با بازهٔ جدید بارگذاری شوند (KPIهای وضعیت جاری ثابت‌اند)
+        _execLoaded = _financialLoaded = _salesLoaded = _treasuryLoaded = _goldLoaded = false;
+        _currencyLoaded = _inventoryLoaded = _customerLoaded = _payablesLoaded = _payrollLoaded = false;
+        _ecomLoaded = _targetsLoaded = _taxLoaded = false;
+        await OnTabChanged(_activeTab);
+        Snackbar.Add("فیلتر سراسری اعمال شد — تب فعال با بازهٔ جدید بارگذاری شد.", Severity.Info);
+    }
+
+    // ── بارگذاری تنبل هر تب ─────────────────────────────────────────────
+    private bool _execLoaded, _financialLoaded, _salesLoaded, _treasuryLoaded,
+                 _goldLoaded, _currencyLoaded, _inventoryLoaded, _customerLoaded,
+                 _payablesLoaded, _payrollLoaded, _ecomLoaded, _targetsLoaded,
+                 _taxLoaded, _alertsLoaded, _insightsLoaded,
+                 _purchaseLoaded, _hrLoaded, _expenseLoaded, _assetsLoaded, _branchLoaded;
+    private bool _loading;
+
+    private List<BiKpiRow> _execKpis = new(), _treasuryKpis = new(), _goldKpis = new(),
+                           _currencyKpis = new(), _inventoryKpis = new(), _customerKpis = new(),
+                           _payablesKpis = new(), _payrollKpis = new(), _ecomKpis = new(),
+                           _ratios = new(), _taxKpis = new(), _convStats = new(),
+                           _purchaseKpis = new(), _hrKpis = new(), _expenseKpis = new(),
+                           _assetKpis = new(), _workingCapital = new();
+    private List<BiSeriesRow> _salesTrend = new(), _profitTrend = new(), _cashFlow = new(),
+                              _forecast = new(), _goldTrade = new(), _customerGrowth = new(),
+                              _purchaseTrend = new(), _assetDep = new();
+    private List<BiCompositionRow> _assetMix = new(), _incomeMix = new(), _receivablesAging = new(),
+                                   _payablesAging = new(), _stockHealth = new(), _goldKarat = new(),
+                                   _salesChannel = new(), _expenseMix = new(), _customerSeg = new();
+    private List<BiTableRow> _chequeCalendar = new(), _deadStock = new(), _topDebtors = new(),
+                             _currencyPosition = new(), _topSuppliers = new(), _topProducts = new(),
+                             _topCustomers = new(), _topAccounts = new(),
+                             _warehouses = new(), _funds = new(), _branches = new(), _branchRanking = new();
+    private List<BiAlertRow> _alerts = new();
+    private List<BiInsightRow> _insights = new();
+    private BiHealthRow _health = new();
+    private List<BiTargetVsActualRow> _targetVsActual = new();
+    private List<BiTargetRow> _targets = new();
+    private string _salesGranularity = "Month";
+    private string _goldPriceItem = "XAU-18";
+    private string _currencyPriceItem = "USD";
+    private List<BiPricePointRow> _goldPricePoints = new(), _currencyPricePoints = new();
+
+    private IReadOnlyList<BiSeriesRow> GoldPriceSeries => PriceSeries(_goldPricePoints, _goldPriceItem);
+    private IReadOnlyList<BiSeriesRow> CurrencyPriceSeries => PriceSeries(_currencyPricePoints, _currencyPriceItem);
+
+    private IReadOnlyList<BiKpiRow> FinancialKpis => new List<BiKpiRow>
+    {
+        new() { KpiKey = "rev", Title = "درآمد (دفتر کل)", Amount = _profitTrend.Sum(r => r.Value1), Unit = "IRR", Link = "/accounting/reports", Formula = "جمع بستانکار حساب‌های درآمدی", Source = "accounting" },
+        new() { KpiKey = "exp", Title = "هزینه (دفتر کل)", Amount = _profitTrend.Sum(r => r.Value2), Unit = "IRR", Link = "/accounting/reports", Formula = "جمع بدهکار حساب‌های هزینه", Source = "accounting" },
+        new() { KpiKey = "net", Title = "سود خالص", Amount = _profitTrend.Sum(r => r.Value3), Unit = "IRR", Link = "/accounting/reports", Formula = "درآمد − هزینه", Source = "accounting" },
+        new() { KpiKey = "op", Title = "سود عملیاتی طلا/ارز", Amount = _profitTrend.Sum(r => r.Value4), Unit = "IRR", Link = "/currency/dashboard", Formula = "اجرت+سود طلا + سود ارز", Source = "goldshop/currency" },
+    };
+
+    private async Task OnTabChanged(int index)
+    {
+        _activeTab = index;
+        try
+        {
+            switch (index)
+            {
+                case 0 when !_execLoaded:
+                    _execLoaded = true; _loading = true;
+                    _execKpis = (await Q<BiKpiRow>("BiExecutiveKpis")).ToList();
+                    _assetMix = (await Q<BiCompositionRow>("BiAssetComposition")).ToList();
+                    _incomeMix = (await Q<BiCompositionRow>("BiIncomeComposition")).ToList();
+                    _health = (await Db.QueryFirstOrDefaultAsync<BiHealthRow>(Schema, "BiHealthScore")) ?? new();
+                    await LoadSalesTrendAsync();
+                    await LoadInsightsAsync();
+                    StateHasChanged();
+                    break;
+                case 1 when !_financialLoaded:
+                    _financialLoaded = true; _loading = true;
+                    _profitTrend = (await Q<BiSeriesRow>("BiProfitTrend", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    _ratios = (await Q<BiKpiRow>("BiFinancialRatios")).ToList();
+                    _topAccounts = (await Q<BiTableRow>("BiTopAccounts", new { TakeSize = 10, FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    StateHasChanged();
+                    break;
+                case 2 when !_salesLoaded:
+                    _salesLoaded = true; _loading = true;
+                    await LoadSalesTrendAsync();
+                    _salesChannel = (await Q<BiCompositionRow>("BiSalesChannel")).ToList();
+                    _topProducts = (await Q<BiTableRow>("BiTopProducts", new { TakeSize = 10 })).ToList();
+                    _topCustomers = (await Q<BiTableRow>("BiTopCustomers", new { TakeSize = 10 })).ToList();
+                    StateHasChanged();
+                    break;
+                case 3 when !_treasuryLoaded:
+                    _treasuryLoaded = true; _loading = true;
+                    _treasuryKpis = (await Q<BiKpiRow>("BiTreasuryKpis")).ToList();
+                    _cashFlow = (await Q<BiSeriesRow>("BiCashFlowTrend", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    _chequeCalendar = (await Q<BiTableRow>("BiChequeCalendar")).ToList();
+                    _forecast = (await Q<BiSeriesRow>("BiCashForecast")).ToList();
+                    _funds = (await Q<BiTableRow>("BiFundStatus", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    StateHasChanged();
+                    break;
+                case 4 when !_goldLoaded:
+                    _goldLoaded = true; _loading = true;
+                    _goldKpis = (await Q<BiKpiRow>("BiGoldKpis")).ToList();
+                    _goldKarat = (await Q<BiCompositionRow>("BiGoldKarat")).ToList();
+                    _goldTrade = (await Q<BiSeriesRow>("BiGoldTradeTrend", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    await LoadGoldPriceAsync();
+                    StateHasChanged();
+                    break;
+                case 5 when !_currencyLoaded:
+                    _currencyLoaded = true; _loading = true;
+                    _currencyKpis = (await Q<BiKpiRow>("BiCurrencyKpis")).ToList();
+                    _currencyPosition = (await Q<BiTableRow>("BiCurrencyPosition")).ToList();
+                    _convStats = (await Q<BiKpiRow>("BiConversionStats")).ToList();
+                    await LoadCurrencyPriceAsync();
+                    StateHasChanged();
+                    break;
+                case 6 when !_inventoryLoaded:
+                    _inventoryLoaded = true; _loading = true;
+                    _inventoryKpis = (await Q<BiKpiRow>("BiInventoryKpis")).ToList();
+                    _deadStock = (await Q<BiTableRow>("BiDeadStock", new { DeadDays = 90 })).ToList();
+                    _stockHealth = (await Q<BiCompositionRow>("BiStockHealth", new { DeadDays = 90 })).ToList();
+                    _warehouses = (await Q<BiTableRow>("BiWarehouseComparison", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    StateHasChanged();
+                    break;
+                case 7 when !_customerLoaded:
+                    _customerLoaded = true; _loading = true;
+                    _customerKpis = (await Q<BiKpiRow>("BiCustomerKpis")).ToList();
+                    _topDebtors = (await Q<BiTableRow>("BiTopDebtors", new { TakeSize = 10 })).ToList();
+                    _receivablesAging = (await Q<BiCompositionRow>("BiReceivablesAging")).ToList();
+                    _customerGrowth = (await Q<BiSeriesRow>("BiCustomerGrowth", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    _customerSeg = (await Q<BiCompositionRow>("BiCustomerSegmentation")).ToList();
+                    StateHasChanged();
+                    break;
+                case 8 when !_payablesLoaded:
+                    _payablesLoaded = true; _loading = true;
+                    _payablesKpis = (await Q<BiKpiRow>("BiPayablesKpis")).ToList();
+                    _payablesAging = (await Q<BiCompositionRow>("BiPayablesAging")).ToList();
+                    _topSuppliers = (await Q<BiTableRow>("BiTopSuppliers", new { TakeSize = 10 })).ToList();
+                    StateHasChanged();
+                    break;
+                case 9 when !_payrollLoaded:
+                    _payrollLoaded = true; _loading = true;
+                    _payrollKpis = (await Q<BiKpiRow>("BiPayrollKpis")).ToList();
+                    StateHasChanged();
+                    break;
+                case 10 when !_purchaseLoaded:
+                    _purchaseLoaded = true; _loading = true;
+                    _purchaseKpis = (await Q<BiKpiRow>("BiPurchaseKpis")).ToList();
+                    _purchaseTrend = (await Q<BiSeriesRow>("BiPurchaseTrend", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    _topSuppliers = (await Q<BiTableRow>("BiTopSuppliers", new { TakeSize = 10 })).ToList();
+                    StateHasChanged();
+                    break;
+                case 11 when !_hrLoaded:
+                    _hrLoaded = true; _loading = true;
+                    _hrKpis = (await Q<BiKpiRow>("BiHrKpis")).ToList();
+                    _payrollKpis = (await Q<BiKpiRow>("BiPayrollKpis")).ToList();
+                    StateHasChanged();
+                    break;
+                case 12 when !_expenseLoaded:
+                    _expenseLoaded = true; _loading = true;
+                    _expenseKpis = (await Q<BiKpiRow>("BiExpenseKpis")).ToList();
+                    _expenseMix = (await Q<BiCompositionRow>("BiExpenseComposition", new { FromDate = _rangeFrom, ToDate = _rangeTo })).ToList();
+                    StateHasChanged();
+                    break;
+                case 13 when !_ecomLoaded:
+                    _ecomLoaded = true; _loading = true;
+                    _ecomKpis = (await Q<BiKpiRow>("BiEcommerceKpis")).ToList();
+                    StateHasChanged();
+                    break;
+                case 14 when !_assetsLoaded:
+                    _assetsLoaded = true; _loading = true;
+                    _assetKpis = (await Q<BiKpiRow>("BiAssetKpis")).ToList();
+                    _assetDep = (await Q<BiSeriesRow>("BiAssetDepreciation")).ToList();
+                    _workingCapital = (await Q<BiKpiRow>("BiWorkingCapital")).ToList();
+                    StateHasChanged();
+                    break;
+                case 15 when !_branchLoaded:
+                    _branchLoaded = true; _loading = true;
+                    _branches = (await Q<BiTableRow>("BiBranchKpis")).ToList();
+                    _branchRanking = (await Q<BiTableRow>("BiBranchRanking")).ToList();
+                    StateHasChanged();
+                    break;
+                case 16 when !_targetsLoaded:
+                    _targetsLoaded = true; _loading = true;
+                    await LoadTargetsAsync();
+                    StateHasChanged();
+                    break;
+                case 17 when !_taxLoaded:
+                    _taxLoaded = true; _loading = true;
+                    _taxKpis = (await Q<BiKpiRow>("BiTaxKpis")).ToList();
+                    StateHasChanged();
+                    break;
+                case 18 when !_alertsLoaded:
+                    _alertsLoaded = true; _loading = true;
+                    _alerts = (await Q<BiAlertRow>("BiAlerts")).ToList();
+                    StateHasChanged();
+                    break;
+                case 19 when !_insightsLoaded:
+                    _insightsLoaded = true; _loading = true;
+                    await LoadInsightsAsync();
+                    StateHasChanged();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task<IReadOnlyList<T>> Q<T>(string script, object? p = null) =>
+        await Db.QueryAsync<T>(Schema, script, p);
+
+    private async Task LoadInsightsAsync() => _insights = (await Q<BiInsightRow>("BiInsights")).ToList();
+
+    private async Task LoadSalesTrendAsync()
+    {
+        var defaultFrom = _salesGranularity switch
+        {
+            "Day" => DateTime.Today.AddDays(-30),
+            "Week" => DateTime.Today.AddDays(-90),
+            "Quarter" => DateTime.Today.AddMonths(-18),
+            "Year" => DateTime.Today.AddYears(-4),
+            _ => DateTime.Today.AddMonths(-11)
+        };
+        var from = _rangeFrom ?? defaultFrom;
+        var to = _rangeTo ?? DateTime.Today;
+        _salesTrend = (await Q<BiSeriesRow>("BiSalesTrend", new { Granularity = _salesGranularity, From = from, To = to })).ToList();
+    }
+
+    private async Task LoadGoldPriceAsync()
+    {
+        _goldPricePoints = (await Q<BiPricePointRow>("BiGoldPriceChart", new
+        {
+            FromDate = _rangeFrom ?? DateTime.Today.AddMonths(-1),
+            ToDate = _rangeTo.HasValue ? _rangeTo.Value.AddDays(1) : DateTime.Now
+        })).ToList();
+    }
+
+    private async Task LoadCurrencyPriceAsync()
+    {
+        _currencyPricePoints = (await Q<BiPricePointRow>("BiCurrencyPriceChart", new
+        {
+            FromDate = _rangeFrom ?? DateTime.Today.AddMonths(-1),
+            ToDate = _rangeTo.HasValue ? _rangeTo.Value.AddDays(1) : DateTime.Now
+        })).ToList();
+    }
+
+    private async Task LoadTargetsAsync()
+    {
+        _targets = (await Q<BiTargetRow>("BiTargetsList", new { PeriodYear = DateTime.Today.Year, PeriodMonth = (int?)DateTime.Today.Month })).ToList();
+        _targetVsActual = (await Q<BiTargetVsActualRow>("BiTargetVsActual")).ToList();
+    }
+
+    private static IReadOnlyList<BiSeriesRow> PriceSeries(IReadOnlyList<BiPricePointRow> points, string itemKey) =>
+        points.Where(p => string.Equals(p.ItemKey, itemKey, StringComparison.OrdinalIgnoreCase))
+              .OrderBy(p => p.ChangedAt)
+              .Select(p => new BiSeriesRow { Label = p.ChangedAt.ToLocalTime().ToString("MM/dd HH:mm"), Value1 = p.NewValue })
+              .ToList();
+
+    // ── Render تب‌ها ────────────────────────────────────────────────────
+    private RenderFragment RenderExecutive() => __builder =>
+    {
+        <MudPaper Elevation="1" Class="pa-4 mb-4" Style="border-right:4px solid #5E35B1">
+            <MudGrid>
+                <MudItem xs="12" md="3" Class="d-flex align-center">
+                    <div class="me-4" Style="text-align:center">
+                        <MudText Typo="Typo.h4" Color="@HealthColor(_health.Grade)" Class="tz-num">@_health.Score</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">از ۱۰۰</MudText>
+                    </div>
+                    <div>
+                        <MudText Typo="Typo.subtitle1">امتیاز سلامت کسب‌وکار (§119)</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@HealthColor(_health.Grade)" Variant="Variant.Filled">
+                            @_health.Grade
+                        </MudChip>
+                    </div>
+                </MudItem>
+                <MudItem xs="12" md="9">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_health.Summary</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+        <BiKpiGrid Rows="_execKpis" Md="3" />
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <BiChartCard Title="ترکیب دارایی (§11)" Type="ChartType.Donut" Rows="CompositionSeries(_assetMix)" Series1="1" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <BiChartCard Title="ترکیب درآمد (§10)" Type="ChartType.Donut" Rows="CompositionSeries(_incomeMix)" Series1="1" />
+            </MudItem>
+            <MudItem xs="12">
+                <BiChartCard Title="روند فروش (§5)" Type="ChartType.Line" Rows="_salesTrend" Series1="1" />
+            </MudItem>
+        </MudGrid>;
+    };
+
+    private RenderFragment RenderFinancial() => __builder =>
+    {
+        <BiKpiGrid Rows="FinancialKpis" Md="3" ShowDefinition="true" />
+        <BiKpiGrid Rows="_ratios" Md="4" ShowDefinition="true" />
+        <BiKpiGrid Rows="_workingCapital" Md="4" ShowDefinition="true" />
+        <BiChartCard Title="درآمد در برابر هزینه (§8)" Type="ChartType.Bar" Rows="_profitTrend" Series1="1" Series2="2" />
+        <BiChartCard Title="سود خالص و سود طلا/ارز (§9)" Type="ChartType.Line" Rows="_profitTrend" Series1="3" Series2="4" />
+        <BiDataTable Title="پرگردش‌ترین حساب‌ها — دفتر کل (§92)" Headers="@TopAccountsHeaders"
+                     Rows="_topAccounts" />;
+    };
+
+    private RenderFragment RenderSales() => __builder =>
+    {
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Label="بازهٔ نمایش (§5)" @bind-Value="_salesGranularity" Variant="Variant.Outlined" @bind-Value:after="ReloadSalesAsync">
+                        <MudSelectItem Value="@("Day")">روزانه (۳۰ روز)</MudSelectItem>
+                        <MudSelectItem Value="@("Week")">هفتگی (۱۳ هفته)</MudSelectItem>
+                        <MudSelectItem Value="@("Month")">ماهانه (۱۲ ماه)</MudSelectItem>
+                        <MudSelectItem Value="@("Quarter")">فصلی</MudSelectItem>
+                        <MudSelectItem Value="@("Year")">سالانه</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+        <BiChartCard Title="روند فروش (§5)" Type="ChartType.Line" Rows="_salesTrend" Series1="1" />
+        <BiChartCard Title="تعداد فاکتور و مشتری (§5)" Type="ChartType.Bar" Rows="_salesTrend" Series1="2" Series2="3" />
+        <BiChartCard Title="کانال‌های فروش (§30)" Type="ChartType.Donut" Rows="CompositionSeries(_salesChannel)" Series1="1" />
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <BiDataTable Title="پرفروش‌ترین اقلام (§28)" Headers="@TopProductsHeaders"
+                             Rows="_topProducts" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <BiDataTable Title="مشتریان برتر (§29)" Headers="@TopCustomersHeaders"
+                             Rows="_topCustomers" />
+            </MudItem>
+        </MudGrid>;
+    };
+
+    private RenderFragment RenderTreasury() => __builder =>
+    {
+        <BiKpiGrid Rows="_treasuryKpis" Md="3" />
+        <BiChartCard Title="جریان نقدی (§14)" Type="ChartType.Line" Rows="_cashFlow" Series1="1" Series2="2" />
+        <BiChartCard Title="پیش‌بینی ماندهٔ نقدی ۳۰ روز آینده (§15)" Type="ChartType.Area" Rows="_forecast" Series1="1" />
+        <BiDataTable Title="وضعیت بانک‌ها و صندوق‌ها (§64/§65)" Headers="@FundStatusHeaders"
+                     Rows="_funds" />
+        <BiDataTable Title="تقویم چک — ۳۰ روز آینده (§67)" Headers="@ChequeHeaders"
+                     Rows="_chequeCalendar" />;
+    };
+
+    private RenderFragment RenderGold() => __builder =>
+    {
+        <BiKpiGrid Rows="_goldKpis" Md="3" />
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <BiChartCard Title="ارزش به تفکیک عیار (§41/§48)" Type="ChartType.Donut" Rows="CompositionSeries(_goldKarat)" Series1="1" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <BiChartCard Title="خرید در برابر فروش طلا (§46)" Type="ChartType.Bar" Rows="_goldTrade" Series1="1" Series2="2"
+                             Series1Name="خرید" Series2Name="فروش" />
+            </MudItem>
+        </MudGrid>
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Label="آیتم (§44)" @bind-Value="_goldPriceItem" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("XAU-18")">طلای ۱۸ عیار</MudSelectItem>
+                        <MudSelectItem Value="@("XAU-24")">طلای ۲۴ عیار</MudSelectItem>
+                        <MudSelectItem Value="@("MISGHAL")">مثقال</MudSelectItem>
+                        <MudSelectItem Value="@("OUNCE")">انس جهانی</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+        <BiChartCard Title="قیمت طلا — ۳۰ روز گذشته (§44)" Type="ChartType.Line" Rows="GoldPriceSeries" Series1="1" />;
+    };
+
+    private RenderFragment RenderCurrency() => __builder =>
+    {
+        <BiKpiGrid Rows="_currencyKpis" Md="3" />
+        <BiKpiGrid Rows="_convStats" Md="3" ShowDefinition="true" />
+        <BiDataTable Title="وضعیت دارایی ارزی (§57)" Headers="@CurrencyPositionHeaders"
+                     Rows="_currencyPosition" />
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Label="آیتم (§55)" @bind-Value="_currencyPriceItem" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("USD")">دلار آمریکا</MudSelectItem>
+                        <MudSelectItem Value="@("EUR")">یورو</MudSelectItem>
+                        <MudSelectItem Value="@("AED")">درهم</MudSelectItem>
+                        <MudSelectItem Value="@("GBP")">پوند</MudSelectItem>
+                        <MudSelectItem Value="@("TRY")">لیر</MudSelectItem>
+                        <MudSelectItem Value="@("CNY")">یوان</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+        <BiChartCard Title="قیمت ارز — ۳۰ روز گذشته (§55)" Type="ChartType.Line" Rows="CurrencyPriceSeries" Series1="1" />;
+    };
+
+    private RenderFragment RenderInventory() => __builder =>
+    {
+        <BiKpiGrid Rows="_inventoryKpis" Md="3" />
+        <BiChartCard Title="سلامت موجودی (§38)" Type="ChartType.Donut" Rows="CompositionSeries(_stockHealth)" Series1="1" />
+        <BiDataTable Title="مقایسه انبارها (§39)" Headers="@WarehouseHeaders"
+                     Rows="_warehouses" />
+        <BiDataTable Title="کالاهای راکد — بدون حرکت ۹۰ روز (§37)" Headers="@DeadStockHeaders"
+                     Rows="_deadStock" />;
+    };
+
+    private RenderFragment RenderCustomers() => __builder =>
+    {
+        <BiKpiGrid Rows="_customerKpis" Md="3" />
+        <BiChartCard Title="رشد مشتریان (§83)" Type="ChartType.Line" Rows="_customerGrowth" Series1="1" />
+        <BiChartCard Title="تقسیم‌بندی مشتریان (§84)" Type="ChartType.Donut" Rows="CompositionSeries(_customerSeg)" Series1="1" />
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <BiChartCard Title="Aging مطالبات (§17)" Type="ChartType.Bar" Rows="CompositionSeries(_receivablesAging)" Series1="1" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <BiDataTable Title="Top Debtors — بدهکاران بزرگ (§18)" Headers="@TopDebtorsHeaders"
+                             Rows="_topDebtors" />
+            </MudItem>
+        </MudGrid>;
+    };
+
+    private RenderFragment RenderPayables() => __builder =>
+    {
+        <BiKpiGrid Rows="_payablesKpis" Md="3" />
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <BiChartCard Title="Aging بدهی‌ها (§22)" Type="ChartType.Bar" Rows="CompositionSeries(_payablesAging)" Series1="1" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <BiDataTable Title="تأمین‌کنندگان برتر (§23)" Headers="@TopSuppliersHeaders"
+                             Rows="_topSuppliers" />
+            </MudItem>
+        </MudGrid>;
+    };
+
+    private RenderFragment RenderPayroll() => __builder =>
+    {
+        <BiKpiGrid Rows="_payrollKpis" Md="3" />;
+    };
+
+    private RenderFragment RenderPurchase() => __builder =>
+    {
+        <BiKpiGrid Rows="_purchaseKpis" Md="3" />
+        <BiChartCard Title="روند خرید (§32)" Type="ChartType.Line" Rows="_purchaseTrend" Series1="1" Series2="2"
+                     Series1Name="مبلغ خرید" Series2Name="تعداد فاکتور" />
+        <BiDataTable Title="تأمین‌کنندگان برتر (§33)" Headers="@TopSuppliersHeaders"
+                     Rows="_topSuppliers" />;
+    };
+
+    private RenderFragment RenderHr() => __builder =>
+    {
+        <BiKpiGrid Rows="_hrKpis" Md="3" />;
+    };
+
+    private RenderFragment RenderExpense() => __builder =>
+    {
+        <BiKpiGrid Rows="_expenseKpis" Md="3" />
+        <BiChartCard Title="ترکیب هزینه به تفکیک حساب (§70)" Type="ChartType.Donut" Rows="CompositionSeries(_expenseMix)" Series1="1" />;
+    };
+
+    private RenderFragment RenderAssets() => __builder =>
+    {
+        <BiKpiGrid Rows="_assetKpis" Md="3" ShowDefinition="true" />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-4"
+                   Href="/bi/assets" StartIcon="@Icons.Material.Filled.HomeWork">
+            مدیریت اموال و دارایی ثابت
+        </MudButton>
+        <BiChartCard Title="استهلاک ۱۲ ماه آینده (§74)" Type="ChartType.Line" Rows="_assetDep" Series1="1" Series2="2"
+                     Series1Name="استهلاک ماهانه" Series2Name="استهلاک انباشته" />;
+    };
+
+    private RenderFragment RenderBranch() => __builder =>
+    {
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-4"
+                   Href="/bi/branches" StartIcon="@Icons.Material.Filled.Apartment">
+            مدیریت شعب
+        </MudButton>
+        <BiDataTable Title="فروش هر شعبه (§86)" Headers="@BranchHeaders"
+                     Rows="_branches" />
+        <BiDataTable Title="رتبه‌بندی شعب (§87)" Headers="@BranchRankingHeaders"
+                     Rows="_branchRanking" />;
+    };
+
+    private RenderFragment RenderEcommerce() => __builder =>
+    {
+        <BiKpiGrid Rows="_ecomKpis" Md="3" />;
+    };
+
+    private RenderFragment RenderTax() => __builder =>
+    {
+        <BiKpiGrid Rows="_taxKpis" Md="3" ShowDefinition="true" />;
+    };
+
+    private RenderFragment RenderTargets() => __builder =>
+    {
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">تعریف هدف (§117)</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="string" Label="نوع هدف" @bind-Value="_targetKey" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Sales")">فروش</MudSelectItem>
+                        <MudSelectItem Value="@("Profit")">سود</MudSelectItem>
+                        <MudSelectItem Value="@("Expense")">هزینه</MudSelectItem>
+                        <MudSelectItem Value="@("Collection")">وصول</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField T="decimal" Label="مبلغ هدف (ریال)" @bind-Value="_targetAmount" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudDatePicker Label="ماه هدف" Culture="FaCulture" @bind-Date="_targetMonth" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveTargetAsync" Disabled="_loading"
+                               StartIcon="@Icons.Material.Filled.Save">ثبت هدف</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">هدف در برابر عملکرد واقعی — ماه جاری</MudText>
+            <MudTable Items="_targetVsActual" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh><MudTh>هدف</MudTh><MudTh>عملکرد واقعی</MudTh><MudTh>اختلاف</MudTh>
+                    <MudTh>درصد تحقق</MudTh><MudTh>وضعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="هدف">@context.TargetAmount.ToString("N0")</MudTd>
+                    <MudTd DataLabel="واقعی">@context.ActualAmount.ToString("N0")</MudTd>
+                    <MudTd DataLabel="اختلاف">
+                        <MudText Typo="Typo.body2" Color="@VarianceColor(context)">
+                            @context.Variance.ToString("N0")
+                        </MudText>
+                    </MudTd>
+                    <MudTd DataLabel="درصد تحقق">
+                        <MudProgressLinear Value="@(double)context.ProgressPercent" Color="@ProgressColor(context)" Rounded="true" />
+                        <MudText Typo="Typo.caption">@context.ProgressPercent.ToString("0.0")٪</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@TargetStatusColor(context)" Variant="Variant.Outlined">
+                            @TargetStatusText(context)
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">هدف‌ای برای ماه جاری تعریف نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>;
+    };
+
+    private RenderFragment RenderAlerts() => __builder =>
+    {
+        <MudPaper Elevation="1" Class="pa-4">
+            @if (_alerts.Count == 0)
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined">هشدار فعالی وجود ندارد.</MudAlert>
+            }
+            @foreach (var alert in _alerts)
+            {
+                <MudAlert Severity="@AlertSeverity(alert)" Variant="Variant.Outlined" Class="mb-2">
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <b>@alert.Title</b> — @alert.Detail
+                            @if (alert.Amount.HasValue)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text" Class="ms-2">
+                                    @alert.Amount.Value.ToString("N0") ریال
+                                </MudChip>
+                            }
+                            @if (alert.OccurredAt.HasValue)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@alert.OccurredAt.Value.ToString("yyyy/MM/dd")</MudText>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(alert.Link))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" OnClick="@(() => Navigate(alert.Link!))" />
+                        }
+                    </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">اقدام پیشنهادی: @alert.Action</MudText>
+                </MudAlert>
+            }
+        </MudPaper>;
+    };
+
+    private RenderFragment RenderInsights() => __builder =>
+    {
+        <MudPaper Elevation="1" Class="pa-4">
+            @if (_insights.Count == 0)
+            {
+                <MudText Color="Color.Secondary">تحلیلی برای نمایش نیست.</MudText>
+            }
+            @foreach (var insight in _insights)
+            {
+                <MudAlert Severity="@InsightSeverity(insight.Kind)" Variant="Variant.Outlined" Class="mb-2">
+                    <div class="d-flex justify-space-between align-center">
+                        <div><b>@insight.Title:</b> @insight.Detail</div>
+                        @if (!string.IsNullOrWhiteSpace(insight.Link))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" OnClick="@(() => Navigate(insight.Link!))" />
+                        }
+                    </div>
+                </MudAlert>
+            }
+        </MudPaper>;
+    };
+
+    // ── توابع کمکی ──────────────────────────────────────────────────────
+    private static readonly string[] ChequeHeaders = { "شماره", "بانک", "جهت", "وضعیت", "مبلغ", "سررسید" };
+    private static readonly string[] CurrencyPositionHeaders = { "ارز", "نرخ فعلی", "ارزش ریالی", "سود/زیان" };
+    private static readonly string[] DeadStockHeaders = { "کد", "عنوان", "موجودی", "آخرین حرکت", "ارزش" };
+    private static readonly string[] TopDebtorsHeaders = { "طرف حساب", "تعداد سند", "آخرین سند", "تأخیر (روز)", "مانده" };
+    private static readonly string[] TopSuppliersHeaders = { "نام", "تعداد سند", "آخرین خرید", "میانگین", "مجموع" };
+    private static readonly string[] TopProductsHeaders = { "کد", "عنوان", "تعداد", "میانگین", "فروش" };
+    private static readonly string[] TopCustomersHeaders = { "نام", "تعداد خرید", "آخرین خرید", "میانگین", "مجموع" };
+    private static readonly string[] TopAccountsHeaders = { "کد", "حساب", "بدهکار", "بستانکار", "گردش کل" };
+    private static readonly string[] FundStatusHeaders = { "نوع", "عنوان", "دریافت دوره", "پرداخت دوره", "موجودی" };
+    private static readonly string[] WarehouseHeaders = { "انبار", "ورود", "خروج", "تعداد کالا", "گردش خالص" };
+    private static readonly string[] BranchHeaders = { "شعبه", "فروش طلا (ماه)", "فروش فروشگاه (ماه)", "توضیح", "مجموع" };
+    private static readonly string[] BranchRankingHeaders = { "رتبه", "شعبه", "فروش ماه", "مدیر", "فروش" };
+
+    private static List<BiSeriesRow> CompositionSeries(IReadOnlyList<BiCompositionRow> rows) =>
+        rows.Select(r => new BiSeriesRow { Label = r.Title, Value1 = r.Value, Value2 = 0, Value3 = 0, Value4 = 0 }).ToList();
+
+    private async Task ReloadSalesAsync() => await LoadSalesTrendAsync();
+
+    private void Navigate(string link) => NavigationManager.NavigateTo(link);
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    private static Color HealthColor(string grade) => grade switch
+    {
+        "عالی" => Color.Success,
+        "خوب" => Color.Primary,
+        "متوسط" => Color.Warning,
+        _ => Color.Error
+    };
+
+    private static string InsightIcon(string kind) => kind switch
+    {
+        "Good" => Icons.Material.Filled.CheckCircle,
+        "Bad" => Icons.Material.Filled.Error,
+        "Action" => Icons.Material.Filled.Bolt,
+        _ => Icons.Material.Filled.Info
+    };
+
+    private static Color InsightColor(string kind) => kind switch
+    {
+        "Good" => Color.Success,
+        "Bad" => Color.Error,
+        "Action" => Color.Warning,
+        _ => Color.Info
+    };
+
+    private static Severity AlertSeverity(BiAlertRow alert) => alert.Severity switch
+    {
+        "Critical" => Severity.Error,
+        "Warning" => Severity.Warning,
+        _ => Severity.Info
+    };
+
+    private static Severity InsightSeverity(string kind) => kind switch
+    {
+        "Good" => Severity.Success,
+        "Bad" => Severity.Error,
+        "Action" => Severity.Warning,
+        _ => Severity.Info
+    };
+
+    private static Color VarianceColor(BiTargetVsActualRow row) => row.Variance >= 0 ? Color.Success : Color.Error;
+    private static Color ProgressColor(BiTargetVsActualRow row) => row.Status == "Good" ? Color.Success : Color.Error;
+    private static Color TargetStatusColor(BiTargetVsActualRow row) => row.Status == "Good" ? Color.Success : Color.Warning;
+    private static string TargetStatusText(BiTargetVsActualRow row) => row.Status == "Good" ? "رسیده به هدف" : "کمتر از هدف";
+
+    // ── فرم هدف ─────────────────────────────────────────────────────────
+    private string _targetKey = "Sales";
+    private decimal _targetAmount;
+    private DateTime? _targetMonth = DateTime.Today;
+
+    private async Task SaveTargetAsync()
+    {
+        if (_targetAmount <= 0)
+        {
+            Snackbar.Add("مبلغ هدف معتبر وارد کنید.", Severity.Warning);
+            return;
+        }
+        try
+        {
+            var month = _targetMonth?.Date ?? DateTime.Today;
+            await Db.ExecuteAsync(Schema, "BiTargetUpsert", new
+            {
+                TargetKey = _targetKey,
+                Title = _targetKey switch
+                {
+                    "Sales" => "هدف فروش",
+                    "Profit" => "هدف سود",
+                    "Expense" => "سقف هزینه",
+                    _ => "هدف وصول"
+                },
+                Period = "Month",
+                PeriodYear = month.Year,
+                PeriodMonth = month.Month,
+                TargetAmount = _targetAmount,
+                CreatedBy = "admin"
+            });
+            Snackbar.Add("هدف ثبت شد.", Severity.Success);
+            await LoadTargetsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

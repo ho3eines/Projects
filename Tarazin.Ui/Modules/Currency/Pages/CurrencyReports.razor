@@ -1,0 +1,315 @@
+@page "/currency/reports"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>گزارشات — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="گزارشات ارز" Subtitle="معاملات ارز، گردش ارز، سود و زیان، تاریخچهٔ نرخ‌ها و نمودار تغییرات (§49/§52)."
+            Eyebrow="ارز و معاملات ارزی" />
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="LoadAsync" Disabled="_loading">
+                اجرا
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudTabs>
+    <MudTabPanel Text="معاملات ارز">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_transactions" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh><MudTh>طرف حساب</MudTh>
+                    <MudTh>مبلغ ریالی</MudTh><MudTh>سند حسابداری</MudTh><MudTh>پاها</MudTh><MudTh>وضعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="تاریخ">@context.TransactionDate.ToString("yyyy/MM/dd") @context.TransactionTime</MudTd>
+                    <MudTd DataLabel="شماره">@context.TransactionNumber</MudTd>
+                    <MudTd DataLabel="نوع">@TransactionTypeText(context.TransactionType)</MudTd>
+                    <MudTd DataLabel="طرف">@context.PartyName</MudTd>
+                    <MudTd DataLabel="مبلغ"><b>@context.TotalRial.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="سند">@context.DocumentNumber</MudTd>
+                    <MudTd DataLabel="پاها">@context.LegCount</MudTd>
+                    <MudTd DataLabel="وضعیت">@context.Status</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">معامله‌ای نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="گردش ارز">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_movements" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>جهت</MudTh><MudTh>ارز</MudTh><MudTh>مقدار</MudTh>
+                    <MudTh>نرخ</MudTh><MudTh>معادل ریالی</MudTh><MudTh>طرف حساب</MudTh><MudTh>شرح</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd") @context.MovementTime</MudTd>
+                    <MudTd DataLabel="نوع">@MovementTypeText(context.MovementType)</MudTd>
+                    <MudTd DataLabel="جهت">@(context.Direction == "In" ? "ورود" : "خروج")</MudTd>
+                    <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
+                    <MudTd DataLabel="مقدار">@context.Quantity.ToString("N2")</MudTd>
+                    <MudTd DataLabel="نرخ">@context.Rate.ToString("N0")</MudTd>
+                    <MudTd DataLabel="معادل">@context.AmountRial.ToString("N0")</MudTd>
+                    <MudTd DataLabel="طرف">@context.CounterPartyName</MudTd>
+                    <MudTd DataLabel="شرح">@context.Description</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">گردشی نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="سود و زیان (§52/§53)">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_pnl" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh><MudTh>مبلغ (ریال)</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان">
+                        @if (context.PnlKey == "net")
+                        {
+                            <b>@context.Title</b>
+                        }
+                        else
+                        {
+                            @context.Title
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="مبلغ">
+                        <MudText Typo="@(context.PnlKey == "net" ? Typo.subtitle1 : Typo.body2)"
+                                 Color="@(context.Amount >= 0 ? Color.Success : Color.Error)">
+                            @context.Amount.ToString("N0")
+                        </MudText>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="تاریخچهٔ نرخ (§49)">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="string" Label="آیتم (نمودار و تاریخچه)" @bind-Value="_historyItemKey" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("USD")">دلار آمریکا</MudSelectItem>
+                        <MudSelectItem Value="@("EUR")">یورو</MudSelectItem>
+                        <MudSelectItem Value="@("AED")">درهم</MudSelectItem>
+                        <MudSelectItem Value="@("XAU-18")">طلای ۱۸ عیار</MudSelectItem>
+                        <MudSelectItem Value="@("XAU-24")">طلای ۲۴ عیار</MudSelectItem>
+                        <MudSelectItem Value="@("SIKKEH-EMAMI")">سکه امامی</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="string" Label="نوع نرخ" @bind-Value="_historyKind" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("")">همه</MudSelectItem>
+                        <MudSelectItem Value="@("Online")">آنلاین</MudSelectItem>
+                        <MudSelectItem Value="@("System")">سیستم</MudSelectItem>
+                        <MudSelectItem Value="@("Manual")">دستی</MudSelectItem>
+                        <MudSelectItem Value="@("Buy")">خرید</MudSelectItem>
+                        <MudSelectItem Value="@("Sell")">فروش</MudSelectItem>
+                        <MudSelectItem Value="@("Transaction")">معامله</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadHistoryAsync" Disabled="_loading"
+                               StartIcon="@Icons.Material.Filled.PlayArrow">
+                        نمایش
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (_chartPoints.Count > 1)
+        {
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-3">نمودار تغییرات نرخ — @_historyItemKey</MudText>
+                <MudChart ChartType="ChartType.Line" ChartData="@_chartData" XAxisLabels="@_chartLabels"
+                          Width="100%" Height="320px" />
+            </MudPaper>
+        }
+
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="_history" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>تاریخ و ساعت</MudTh><MudTh>آیتم</MudTh><MudTh>نوع نرخ</MudTh><MudTh>نرخ قبلی</MudTh>
+                    <MudTh>نرخ جدید</MudTh><MudTh>نوع تغییر</MudTh><MudTh>منبع</MudTh><MudTh>کاربر</MudTh><MudTh>دلیل</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="زمان">@context.ChangedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</MudTd>
+                    <MudTd DataLabel="آیتم">@context.ItemKey</MudTd>
+                    <MudTd DataLabel="نوع">@RateKindText(context.RateKind)</MudTd>
+                    <MudTd DataLabel="قبلی">@(context.PrevValue?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="جدید"><b>@context.NewValue.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="تغییر">@ChangeTypeText(context.ChangeType)</MudTd>
+                    <MudTd DataLabel="منبع">@context.SourceKey</MudTd>
+                    <MudTd DataLabel="کاربر">@context.ChangedBy</MudTd>
+                    <MudTd DataLabel="دلیل">@context.Reason</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">تاریخچه‌ای نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "currency";
+
+    private List<FxTransactionRow> _transactions = new();
+    private List<CurrencyMovementRow> _movements = new();
+    private List<PnlBreakdownRow> _pnl = new();
+    private List<RateHistoryRow> _history = new();
+    private List<RateChartRow> _chartPoints = new();
+
+    private DateTime? _from;
+    private DateTime? _to;
+    private string _historyItemKey = "USD";
+    private string _historyKind = "";
+    private bool _loading;
+
+    private double[] _chartData = Array.Empty<double>();
+    private string[] _chartLabels = Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _transactions = (await Db.QueryAsync<FxTransactionRow>(Schema, "FxTransactionList", new
+            {
+                FromDate = _from,
+                ToDate = _to,
+                TransactionType = (string?)null,
+                SearchText = "",
+                SkipRows = 0,
+                TakeSize = 300
+            })).ToList();
+
+            _movements = (await Db.QueryAsync<CurrencyMovementRow>(Schema, "WalletMovements", new
+            {
+                CurrencyCode = (string?)null,
+                Direction = (string?)null,
+                FromDate = _from,
+                ToDate = _to,
+                SkipRows = 0,
+                TakeSize = 300
+            })).ToList();
+
+            _pnl = (await Db.QueryAsync<PnlBreakdownRow>(Schema, "PnlSummary", new
+            {
+                FromDate = _from,
+                ToDate = _to
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        _loading = true;
+        try
+        {
+            _history = (await Db.QueryAsync<RateHistoryRow>(Schema, "RateHistory", new
+            {
+                ItemType = (string?)null,
+                ItemKey = _historyItemKey,
+                RateKind = string.IsNullOrEmpty(_historyKind) ? (string?)null : _historyKind,
+                FromDate = _from,
+                ToDate = _to,
+                SkipRows = 0,
+                TakeSize = 200
+            })).ToList();
+
+            var points = (await Db.QueryAsync<RateChartRow>(Schema, "RateHistoryChart", new
+            {
+                ItemKey = _historyItemKey,
+                RateKind = string.IsNullOrEmpty(_historyKind) ? (string?)null : _historyKind,
+                Limit = 120
+            })).ToList();
+
+            // مرتب‌سازی صعودی برای نمودار
+            points.Reverse();
+            _chartPoints = points;
+            _chartData = points.Select(p => (double)p.NewValue).ToArray();
+            _chartLabels = points.Select(p => p.ChangedAt.ToLocalTime().ToString("MM/dd HH:mm")).ToArray();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string TransactionTypeText(string type) => type switch
+    {
+        "Buy" => "خرید",
+        "Sell" => "فروش",
+        "Conversion" => "تبدیل",
+        "Combined" => "ترکیبی",
+        "Transfer" => "انتقال",
+        _ => type
+    };
+
+    private static string MovementTypeText(string type) => type switch
+    {
+        "Buy" => "خرید",
+        "Sell" => "فروش",
+        "In" => "ورود",
+        "Out" => "خروج",
+        "Transfer" => "انتقال",
+        "Conversion" => "تبدیل",
+        "Combined" => "ترکیبی",
+        _ => type
+    };
+
+    private static string RateKindText(string kind) => kind switch
+    {
+        "Online" => "آنلاین",
+        "System" => "سیستم",
+        "Manual" => "دستی",
+        "Buy" => "خرید",
+        "Sell" => "فروش",
+        "Accounting" => "حسابداری",
+        "Transaction" => "معامله",
+        _ => kind
+    };
+
+    private static string ChangeTypeText(string type) => type switch
+    {
+        "AutoFetch" => "دریافت خودکار",
+        "Manual" => "دستی",
+        "Override" => "Override",
+        "Transaction" => "معامله",
+        _ => type
+    };
+}

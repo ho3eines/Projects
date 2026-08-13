@@ -1,0 +1,253 @@
+@page "/currency/special"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject PriceFeedService Feed
+@inject ISnackbar Snackbar
+
+<PageTitle>عملیات ویژه — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="عملیات ویژه — منابع قیمت و بروزرسانی خودکار" Subtitle="مدیریت منابع دریافت آنلاین نرخ، اولویت، فاصلهٔ بروزرسانی و وضعیت اتصال (§44/§56/§57/§58/§61)."
+            Eyebrow="ارز و معاملات ارزی">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="FetchAllAsync" Disabled="_fetching"
+               StartIcon="@Icons.Material.Filled.CloudDownload">
+        دریافت نرخ از همهٔ منابع
+    </MudButton>
+</PageHeader>
+
+@if (_fetchResult is not null)
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-2">نتیجهٔ آخرین دریافت</MudText>
+        @foreach (var r in _fetchResult.Results)
+        {
+            <MudAlert Severity="@(r.Success ? Severity.Success : Severity.Error)" Variant="Variant.Outlined" Class="mb-2">
+                <b>@r.Title</b> — @(r.Success
+                    ? $"{r.ItemCount} نرخ دریافت و در نرخ آنلاین اعمال شد."
+                    : $"دریافت ناموفق: {r.Error} — آخرین نرخ معتبر حفظ شد (§57)")
+            </MudAlert>
+        }
+    </MudPaper>
+}
+
+<MudTabs>
+    <MudTabPanel Text="منابع قیمت">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => OpenSourceEditorAsync(new PriceSourceRow()))"
+                           Disabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))">
+                    منبع جدید
+                </MudButton>
+            </div>
+            <MudTable Items="_sources" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh><MudTh>کلید</MudTh><MudTh>اولویت</MudTh><MudTh>فاصله (ثانیه)</MudTh>
+                    <MudTh>وضعیت</MudTh><MudTh>آخرین دریافت</MudTh><MudTh>خطا</MudTh><MudTh>Endpoint</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان"><b>@context.Title</b></MudTd>
+                    <MudTd DataLabel="کلید">@context.SourceKey</MudTd>
+                    <MudTd DataLabel="اولویت">@context.Priority</MudTd>
+                    <MudTd DataLabel="فاصله">@context.FetchIntervalSeconds</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@SourceStatusColor(context)" Variant="Variant.Outlined">
+                            @SourceStatusText(context)
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="آخرین دریافت">
+                        @(context.LastFetchAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")
+                    </MudTd>
+                    <MudTd DataLabel="خطا">@context.LastError</MudTd>
+                    <MudTd DataLabel="Endpoint" Style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                        @context.Endpoint
+                    </MudTd>
+                    <MudTd DataLabel="">
+                        @if (Session.HasPermission(TarazinPermissions.RateFetch))
+                        {
+                            <MudTooltip Text="دریافت از این منبع">
+                                <MudIconButton Icon="@Icons.Material.Filled.CloudDownload" Color="Color.Primary" Size="Size.Small"
+                                               Disabled="@(context.SourceKey == "MANUAL" || _fetching)"
+                                               OnClick="@(() => FetchSourceAsync(context))" />
+                            </MudTooltip>
+                            <MudTooltip Text="ویرایش منبع">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" Size="Size.Small"
+                                               OnClick="@(() => OpenSourceEditorAsync(context))" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">منبعی ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="بروزرسانی خودکار و خط مشی نرخ (§56)">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudNumericField T="int" Label="فاصلهٔ بروزرسانی خودکار (ثانیه — ۱۰/۳۰/۶۰/۳۰۰ …)"
+                                     @bind-Value="_intervalValue" Variant="Variant.Outlined" Min="10" />
+                </MudItem>
+                <MudItem xs="12" md="6" Class="d-flex align-center">
+                    <MudSwitch T="bool" Label="همگام‌سازی خودکار نرخ آنلاین → نرخ سیستم"
+                               @bind-Value="_autoPromote" Color="Color.Primary"
+                               HelperText="پیش‌فرض خاموش: نرخ آنلاین ابتدا فقط در بخش آنلاین می‌نشیند و با تأیید مدیر وارد نرخ سیستم می‌شود (§46)." />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSettingsAsync" Disabled="_busy"
+                               StartIcon="@Icons.Material.Filled.Save">
+                        ذخیرهٔ تنظیمات
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+                <b>قانون مهم (§46/§56/§57):</b> نرخ آنلاین هرگز مستقیماً وارد معاملات نمی‌شود.
+                ابتدا در بخش «نرخ آنلاین» نمایش داده می‌شود؛ پس از مشاهده/ویرایش توسط مدیر به «نرخ سیستم»
+                تبدیل می‌شود (Override) و معاملات فقط از نرخ سیستم استفاده می‌کنند. در صورت قطع منبع،
+                آخرین نرخ معتبر حفظ می‌شود و هرگز مقدار صفر/نامعتبر وارد معامله نمی‌شود.
+            </MudAlert>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private const string Schema = "currency";
+
+    private List<PriceSourceRow> _sources = new();
+    private PriceFeedResult? _fetchResult;
+    private bool _loading = true;
+    private bool _fetching;
+    private bool _busy;
+    private int _intervalValue = 300;
+    private bool _autoPromote;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _sources = (await Db.QueryAsync<PriceSourceRow>(Schema, "PriceSourceList", new { OnlyActive = 0 })).ToList();
+
+            var settings = (await Db.QueryAsync<CurrencySettingRow>(Schema, "SettingsList")).ToList();
+            var interval = settings.FirstOrDefault(s => s.SettingKey == "DefaultUpdateIntervalSeconds")?.SettingValue;
+            if (int.TryParse(interval, out var iv) && iv >= 10)
+                _intervalValue = iv;
+            _autoPromote = settings.FirstOrDefault(s => s.SettingKey == "AutoPromoteOnlineToSystem")?.SettingValue == "1";
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task FetchAllAsync()
+    {
+        if (_fetching) return;
+        _fetching = true;
+        try
+        {
+            _fetchResult = await Feed.FetchAllAsync();
+            Snackbar.Add($"دریافت نرخ پایان یافت: {_fetchResult.SuccessCount}/{_fetchResult.TotalCount} منبع موفق.", Severity.Info);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _fetching = false;
+        }
+    }
+
+    private async Task FetchSourceAsync(PriceSourceRow source)
+    {
+        if (_fetching) return;
+        _fetching = true;
+        try
+        {
+            var result = await Feed.FetchSourceAsync(source);
+            _fetchResult = new PriceFeedResult { Results = { result } };
+            Snackbar.Add(result.Success
+                ? $"{source.Title}: {result.ItemCount} نرخ دریافت شد."
+                : $"{source.Title}: دریافت ناموفق — {result.Error}", result.Success ? Severity.Success : Severity.Error);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _fetching = false;
+        }
+    }
+
+    private async Task OpenSourceEditorAsync(PriceSourceRow source)
+    {
+        var parameters = new DialogParameters<PriceSourceEditDialog>
+        {
+            { x => x.Source, source }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<PriceSourceEditDialog>(
+            source.SourceId == 0 ? "ایجاد منبع قیمت" : $"ویرایش منبع — {source.Title}", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "SettingsUpsert", new
+            {
+                SettingKey = "DefaultUpdateIntervalSeconds",
+                SettingValue = _intervalValue.ToString(),
+                Description = "فاصلهٔ پیش‌فرض بروزرسانی خودکار نرخ‌ها (ثانیه)"
+            });
+            await Db.ExecuteAsync(Schema, "SettingsUpsert", new
+            {
+                SettingKey = "AutoPromoteOnlineToSystem",
+                SettingValue = _autoPromote ? "1" : "0",
+                Description = "همگام‌سازی خودکار نرخ آنلاین → نرخ سیستم"
+            });
+            Snackbar.Add("تنظیمات بروزرسانی نرخ ذخیره شد.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static Color SourceStatusColor(PriceSourceRow s) => s.Status switch
+    {
+        "Online" => Color.Success,
+        "Offline" => Color.Error,
+        "Disabled" => Color.Default,
+        _ => Color.Warning
+    };
+
+    private static string SourceStatusText(PriceSourceRow s) => s.Status switch
+    {
+        "Online" => "آنلاین",
+        "Offline" => "قطع",
+        "Disabled" => "غیرفعال",
+        _ => "نامشخص"
+    };
+}

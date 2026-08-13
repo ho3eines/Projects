@@ -1,0 +1,215 @@
+@page "/currency/prices"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>مرکز نرخ‌ها و قیمت‌ها — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="مرکز نرخ‌ها و قیمت‌ها" Subtitle="مرکز کنترل تمام قیمت‌های سیستم — طلا، سکه، ارز و فلزات؛ همهٔ معاملات از همین مرکز تغذیه می‌شوند (§43/§60)."
+            Eyebrow="ارز و معاملات ارزی">
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync" Disabled="_loading"
+               StartIcon="@Icons.Material.Filled.Refresh">
+        بروزرسانی
+    </MudButton>
+</PageHeader>
+
+<MudTabs>
+    <MudTabPanel Text="ارز">
+        @RenderBoard("Currency")
+    </MudTabPanel>
+    <MudTabPanel Text="طلا">
+        @RenderBoard("Gold")
+    </MudTabPanel>
+    <MudTabPanel Text="سکه">
+        @RenderBoard("Coin")
+    </MudTabPanel>
+    <MudTabPanel Text="فلزات">
+        @RenderBoard("Metal")
+    </MudTabPanel>
+    <MudTabPanel Text="مقایسهٔ منابع (§59)">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                نرخ منابع مختلف کنار هم — TabloTala | Matisa | نرخ سیستم — تا اختلاف منابع دیده و نرخ موردنظر انتخاب شود.
+            </MudText>
+            <MudTable Items="_comparison" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh><MudTh>TabloTala</MudTh><MudTh>Matisa</MudTh><MudTh>سایر</MudTh><MudTh>نرخ سیستم</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان">@context.ItemKey — @context.Title</MudTd>
+                    <MudTd DataLabel="تابلو">
+                        @(context.TabloRate?.ToString("N0") ?? "—")
+                        @if (context.TabloAt.HasValue)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.TabloAt.Value.ToLocalTime().ToString("HH:mm")</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="ماتیسا">
+                        @(context.MatisaRate?.ToString("N0") ?? "—")
+                        @if (context.MatisaAt.HasValue)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.MatisaAt.Value.ToLocalTime().ToString("HH:mm")</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="سایر">@(context.OtherRate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="سیستم"><b>@context.SystemRate.ToString("N0")</b></MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private const string Schema = "currency";
+
+    private List<PriceRateRow> _rows = new();
+    private List<RateComparisonRow> _comparison = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _rows = (await Db.QueryAsync<PriceRateRow>(Schema, "RateBoard", new
+            {
+                ItemType = (string?)null,
+                ItemKey = (string?)null
+            })).ToList();
+
+            _comparison = (await Db.QueryAsync<RateComparisonRow>(Schema, "RateComparison", new
+            {
+                ItemType = (string?)null
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private RenderFragment RenderBoard(string itemType) => __builder =>
+    {
+        var rows = _rows.Where(r => r.ItemType == itemType).ToList();
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudTable Items="rows" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh>
+                    <MudTh>آنلاین</MudTh>
+                    <MudTh>دستی</MudTh>
+                    <MudTh>سیستم</MudTh>
+                    <MudTh>خرید</MudTh>
+                    <MudTh>فروش</MudTh>
+                    <MudTh>میانی</MudTh>
+                    <MudTh>حسابداری</MudTh>
+                    <MudTh>اسپرد</MudTh>
+                    <MudTh>منبع</MudTh>
+                    <MudTh>وضعیت</MudTh>
+                    <MudTh>آخرین تغییر</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان"><b>@context.Title</b></MudTd>
+                    <MudTd DataLabel="آنلاین">@(context.OnlineRate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="دستی">@(context.ManualRate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="سیستم"><b>@context.SystemRate.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="خرید">@(context.BuyRate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="فروش">@(context.SellRate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="میانی">@(context.MidRate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="حسابداری">@(context.AccountingRate?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="اسپرد">@(context.Spread?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="منبع">@(context.SourceTitle ?? context.SourceKey ?? "دستی")</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context)" Variant="Variant.Outlined">
+                            @StatusText(context)
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="آخرین تغییر">
+                        @(context.LastChangeAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "—")
+                    </MudTd>
+                    <MudTd DataLabel="">
+                        @if (Session.HasAny(TarazinPermissions.RateChange, TarazinPermissions.RateChangeBuy, TarazinPermissions.RateChangeSell))
+                        {
+                            <MudTooltip Text="ویرایش نرخ">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                               OnClick="@(() => OpenRateEditorAsync(context))" />
+                            </MudTooltip>
+                        }
+                        @if (context.OnlineRate.HasValue && Session.HasPermission(TarazinPermissions.RateOverride))
+                        {
+                            <MudTooltip Text="Override (نرخ آنلاین ← نرخ سیستم)">
+                                <MudIconButton Icon="@Icons.Material.Filled.Download" Color="Color.Secondary" Size="Size.Small"
+                                               OnClick="@(() => OverrideAsync(context))" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">آیتمی نیست.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>;
+    };
+
+    private async Task OpenRateEditorAsync(PriceRateRow rate)
+    {
+        var parameters = new DialogParameters<RateEditDialog>
+        {
+            { x => x.Rate, rate }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<RateEditDialog>($"اصلاح نرخ — {rate.Title}", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task OverrideAsync(PriceRateRow rate)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "تأیید Override نرخ",
+            $"نرخ سیستم «{rate.Title}» به نرخ آنلاین {rate.OnlineRate:N0} تغییر کند؟ (§46)",
+            yesText: "تأیید و اعمال", cancelText: "انصراف");
+
+        if (confirmed is not true) return;
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "RateOverride", new
+            {
+                ItemKey = rate.ItemKey,
+                SourceKey = rate.SourceKey,
+                Reason = "تأیید مدیر در مرکز نرخ‌ها",
+                ChangedBy = Session.UserName
+            });
+            Snackbar.Add($"نرخ سیستم {rate.Title} بروزرسانی شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private static Color StatusColor(PriceRateRow r) => r.Status switch
+    {
+        "Active" => Color.Success,
+        "Stale" => Color.Warning,
+        "Offline" => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string StatusText(PriceRateRow r) => r.Status switch
+    {
+        "Active" => "فعال",
+        "Stale" => "قدیمی",
+        "Offline" => "قطع",
+        _ => r.Status
+    };
+}

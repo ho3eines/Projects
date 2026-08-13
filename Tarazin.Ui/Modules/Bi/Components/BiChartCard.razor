@@ -1,0 +1,72 @@
+@* کارت نمودار مشترک BI — Line/Bar/Donut با دادهٔ واقعی (بدون نمودار تزئینی).
+   مولتی‌سری با ChartSeries به MudChart داده می‌شود (§5/§6/§8/§14). *@
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.subtitle1">@Title</MudText>
+        @if (Extra is not null)
+        {
+            @Extra
+        }
+    </div>
+
+    @if (Rows.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">داده‌ای برای نمایش وجود ندارد.</MudText>
+    }
+    else if (Type is ChartType.Donut or ChartType.Pie)
+    {
+        <MudChart ChartType="@Type" ChartData="@SingleSeries" ChartLabels="@Labels" Width="100%" Height="@Height" />
+    }
+    else if (MultiSeries)
+    {
+        <MudChart ChartType="@Type" ChartSeries="@ChartSeries" XAxisLabels="@Labels" Width="100%" Height="@Height" />
+    }
+    else
+    {
+        <MudChart ChartType="@Type" ChartData="@SingleSeries" XAxisLabels="@Labels" Width="100%" Height="@Height" />
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public ChartType Type { get; set; } = ChartType.Line;
+    [Parameter] public IReadOnlyList<BiSeriesRow> Rows { get; set; } = Array.Empty<BiSeriesRow>();
+    [Parameter] public RenderFragment? Extra { get; set; }
+    [Parameter] public string Height { get; set; } = "300px";
+    [Parameter] public int Series1 { get; set; } = 1;              // کدام Value برای سری اول
+    [Parameter] public int Series2 { get; set; } = 0;              // 0 = تک‌سری
+    [Parameter] public int Series3 { get; set; } = 0;              // سری سوم (اختیاری)
+    [Parameter] public string Series1Name { get; set; } = "سری ۱";
+    [Parameter] public string Series2Name { get; set; } = "سری ۲";
+    [Parameter] public string Series3Name { get; set; } = "سری ۳";
+
+    private bool MultiSeries => Series2 != 0;
+
+    private double[] SingleSeries => Rows.Select(r => (double)ValueOf(r, Series1)).ToArray();
+
+    private List<ChartSeries> ChartSeries
+    {
+        get
+        {
+            var list = new List<ChartSeries>
+            {
+                new() { Name = Series1Name, Data = Rows.Select(r => (double)ValueOf(r, Series1)).ToArray() },
+                new() { Name = Series2Name, Data = Rows.Select(r => (double)ValueOf(r, Series2)).ToArray() }
+            };
+            if (Series3 != 0)
+                list.Add(new ChartSeries { Name = Series3Name, Data = Rows.Select(r => (double)ValueOf(r, Series3)).ToArray() });
+            return list;
+        }
+    }
+
+    private string[] Labels => Rows.Select(r => r.Label).ToArray();
+
+    private static decimal ValueOf(BiSeriesRow row, int index) => index switch
+    {
+        1 => row.Value1,
+        2 => row.Value2,
+        3 => row.Value3,
+        4 => row.Value4,
+        _ => 0
+    };
+}

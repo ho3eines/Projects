@@ -19,7 +19,7 @@
 | بک‌بون رویدادها (Outbox، processor) پیچیده | حذف؛ عملیات بین‌ماژولی مستقیم و تراکنشی |
 | نبود نسخهٔ بومی (دسکتاپ/موبایل) | **MAUI Blazor Hybrid** — همان UI در BlazorWebView |
 
-## 2. محصولات / ماژول‌ها (7)
+## 2. محصولات / ماژول‌ها (9)
 
 | # | محصول | ماژول (در `Tarazin.Ui/Modules/`) | اسکیمه | مسیر |
 |---|--------|-------|--------|------|
@@ -29,7 +29,9 @@
 | 4 | حقوق و دستمزد | `Payroll` | `payroll` | `/payroll` |
 | 5 | طلافروشی | `GoldShop` | `goldshop` | `/goldshop` |
 | 6 | فروشگاه اینترنتی | `Store` | `store` | `/store` |
-| 7 | پلتفرم مشترک (وبسایت، کاربران، ممیزی) | `Central` | `central` | `/central` |
+| 7 | ارز و معاملات ارزی (مرکز نرخ، کیف پول، تبدیل، ارزش لحظه‌ای) | `Currency` | `currency` | `/currency` |
+| 8 | داشبورد و Business Intelligence (مرکز فرماندهی، هشدار، چاپ Stimulsoft) | `Bi` | `bi` | `/bi` |
+| 9 | پلتفرم مشترک (وبسایت، کاربران، ممیزی) | `Central` | `central` | `/central` |
 
 هر ماژول استاندارداً ۶ صفحه دارد:
 `/home` (فهرست روزانه)، `/dashboard`، `/entry` (ورود عملیات)، `/reports`،
@@ -68,7 +70,7 @@
                            │ DbService + Dapper (در همان پروسه)
                    SQL Server — TarazinMaster
             [central] [accounting] [inventory] [treasury]
-            [payroll] [goldshop] [store]   (اسکیمهٔ جدا)
+            [payroll] [goldshop] [store] [currency] [bi]   (اسکیمهٔ جدا)
 ```
 
 - **وابستگی یک‌طرفه**: `Share ← Data ← Ui ← {Web, Maui}`.
@@ -108,7 +110,7 @@
 
 1. `dotnet build Tarazin.Web/Tarazin.Web.csproj` پاس (شامل `Tarazin.Ui`).
 2. build MAUI (ویندوز) با workload پاس.
-3. همهٔ ۷ ماژول از یک آدرس در دسترس‌اند و دادهٔ واقعی نشان می‌دهند (وب + MAUI).
+3. همهٔ ۹ ماژول از یک آدرس در دسترس‌اند و دادهٔ واقعی نشان می‌دهند (وب + MAUI).
 4. جستجوی کد: هیچ `HttpClient` برای داده و هیچ SQL خام در `.razor` وجود ندارد.
 5. `tools/cross-schema-scan.sh` پاس (بدون ارجاع بین‌اسکیمه‌ای غیرمجاز).
 6. ورود bootstrap و مدیریت کاربران کار می‌کند؛ ممیزی ردیف ثبت می‌کند.

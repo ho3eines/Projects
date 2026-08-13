@@ -1,0 +1,135 @@
+@page "/currency/settings"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>امکانات — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="امکانات و جداول پایه" Subtitle="تعریف ارزها، ریال و تومان، و تنظیمات واحد پایه (§34/§35)."
+            Eyebrow="ارز و معاملات ارزی" />
+
+<MudTabs>
+    <MudTabPanel Text="ارزها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => OpenEditorAsync(new CurrencyDefRow()))"
+                           Disabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))">
+                    ارز جدید
+                </MudButton>
+            </div>
+            <MudTable Items="_currencies" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>نماد</MudTh><MudTh>واحد پایه</MudTh>
+                    <MudTh>ضریب به ریال</MudTh><MudTh>فعال</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد"><b>@context.CurrencyCode</b></MudTd>
+                    <MudTd DataLabel="نام">@context.CurrencyName</MudTd>
+                    <MudTd DataLabel="نماد">@context.Symbol</MudTd>
+                    <MudTd DataLabel="پایه">
+                        @if (context.IsBase)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">پایه</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="ضریب">@context.UnitFactor.ToString("N4")</MudTd>
+                    <MudTd DataLabel="فعال">@(context.IsActive ? "بله" : "خیر")</MudTd>
+                    <MudTd DataLabel="">
+                        <MudTooltip Text="ویرایش ارز">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEditorAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">ارزی تعریف نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="ریال و تومان (§35)">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">ریال و تومان — دو واحد پولی مجزا ولی مرتبط</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudNumericField T="decimal" Label="مبلغ به ریال" @bind-Value="_rialAmount" Variant="Variant.Outlined" Min="0" />
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        معادل تومان: <b>@((_rialAmount / 10).ToString("N0")) تومان</b>
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudNumericField T="decimal" Label="مبلغ به تومان" @bind-Value="_tomanAmount" Variant="Variant.Outlined" Min="0" />
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        معادل ریال: <b>@((_tomanAmount * 10).ToString("N0")) ریال</b>
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle1" Class="mb-2">تنظیمات واحد پایه</MudText>
+            <MudTable Items="_settings" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>کلید</MudTh><MudTh>مقدار</MudTh><MudTh>توضیح</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کلید"><b>@context.SettingKey</b></MudTd>
+                    <MudTd DataLabel="مقدار">@context.SettingValue</MudTd>
+                    <MudTd DataLabel="توضیح">@context.Description</MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+                واحد حسابداری پایهٔ سیستم <b>ریال</b> است؛ هر تومان = ۱۰ ریال. سیستم هنگام ورود اطلاعات،
+                مبلغ را با واحد مشخص ثبت می‌کند و تبدیل ریال↔تومان به‌صورت خودکار انجام می‌شود؛ تمام
+                ارزها و مبالغ در نهایت قابلیت تبدیل و گزارش‌گیری بر مبنای ریال را دارند.
+            </MudAlert>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private const string Schema = "currency";
+
+    private List<CurrencyDefRow> _currencies = new();
+    private List<CurrencySettingRow> _settings = new();
+    private decimal _rialAmount = 1000000;
+    private decimal _tomanAmount = 100000;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _currencies = (await Db.QueryAsync<CurrencyDefRow>(Schema, "CurrencyList", new { OnlyActive = 0 })).ToList();
+            _settings = (await Db.QueryAsync<CurrencySettingRow>(Schema, "SettingsList")).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenEditorAsync(CurrencyDefRow currency)
+    {
+        var parameters = new DialogParameters<CurrencyEditDialog>
+        {
+            { x => x.Currency, currency }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<CurrencyEditDialog>(
+            currency.CurrencyId == 0 ? "تعریف ارز جدید" : $"ویرایش ارز — {currency.CurrencyCode}", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+}

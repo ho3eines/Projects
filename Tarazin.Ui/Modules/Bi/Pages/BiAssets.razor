@@ -1,0 +1,121 @@
+@page "/bi/assets"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>اموال و دارایی ثابت — داشبورد و BI</PageTitle>
+
+<PageHeader Title="اموال و دارایی ثابت" Subtitle="ثبت دارایی، استهلاک خط مستقیم، ارزش دفتری و وضعیت (§73/§74)."
+            Eyebrow="داشبورد و BI">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenEditorAsync"
+               StartIcon="@Icons.Material.Filled.Add">
+        دارایی جدید
+    </MudButton>
+</PageHeader>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_assets" Hover="true" Dense="true" Striped="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>دسته</MudTh><MudTh>تاریخ خرید</MudTh>
+            <MudTh>بها</MudTh><MudTh>استهلاک ماهانه</MudTh><MudTh>استهلاک انباشته</MudTh>
+            <MudTh>ارزش دفتری</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.AssetCode</MudTd>
+            <MudTd DataLabel="عنوان">@context.Title</MudTd>
+            <MudTd DataLabel="دسته">@context.Category</MudTd>
+            <MudTd DataLabel="تاریخ">@context.PurchaseDate.ToString("yyyy/MM/dd")</MudTd>
+            <MudTd DataLabel="بها">@context.PurchaseCost.ToString("N0")</MudTd>
+            <MudTd DataLabel="استهلاک ماهانه">@context.MonthlyDepreciation.ToString("N0")</MudTd>
+            <MudTd DataLabel="استهلاک انباشته">@context.AccumulatedDepreciation.ToString("N0")</MudTd>
+            <MudTd DataLabel="ارزش دفتری"><b>@context.NetBookValue.ToString("N0")</b></MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)" Variant="Variant.Outlined">
+                    @StatusText(context.Status)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => OpenEditorAsync(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Color="Color.Secondary">دارایی‌ای ثبت نشده است.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "assets";
+    private List<FixedAssetRow> _assets = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _assets = (await Db.QueryAsync<FixedAssetRow>(Schema, "FixedAssetList", new { OnlyActive = 0 })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenEditorAsync(FixedAssetRow? asset = null)
+    {
+        var parameters = new DialogParameters<AssetDialog>
+        {
+            { x => x.Asset, asset ?? new FixedAssetRow() }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<AssetDialog>("دارایی ثابت", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteAsync(FixedAssetRow asset)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "تأیید حذف",
+            $"آیا از حذف «{asset.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "FixedAssetDelete", new { AssetId = asset.AssetId, CreatedBy = Session.UserName });
+            Snackbar.Add("دارایی حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Active" => Color.Success,
+        "Scrapped" => Color.Error,
+        "Transferred" => Color.Info,
+        _ => Color.Default
+    };
+
+    private static string StatusText(string status) => status switch
+    {
+        "Active" => "فعال",
+        "Scrapped" => "اسقاطی",
+        "Transferred" => "منتقل‌شده",
+        _ => status
+    };
+}

@@ -1,0 +1,306 @@
+@page "/currency/convert"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>تبدیل ارز — ارز و معاملات ارزی</PageTitle>
+
+<PageHeader Title="تبدیل ارز" Subtitle="هر ارزی به هر ارزی — واحد مرجع همهٔ محاسبات ریال است: USD → IRR → EUR (§39)."
+            Eyebrow="ارز و معاملات ارزی" />
+
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+    موتور تبدیل ابتدا ارز مبدا را با نرخ آن به ریال ارزش‌گذاری می‌کند و سپس از ریال به ارز مقصد
+    تبدیل می‌کند. نرخ اتوماتیک از «نرخ سیستم» خوانده می‌شود؛ نرخ دستی را خودتان وارد کنید (§40).
+</MudAlert>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="ارز مبدا" @bind-Value="_sourceCode" Variant="Variant.Outlined" @bind-Value:after="OnSourceChanged">
+                <MudSelectItem Value="@("")">— انتخاب —</MudSelectItem>
+                @foreach (var c in _currencies.Where(c => c.ItemKey != "TOMAN"))
+                {
+                    <MudSelectItem Value="c.ItemKey">@c.ItemKey — @c.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="مبلغ مبدا" @bind-Value="_sourceAmount" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="نرخ مبدا (به ریال)" @bind-Value="_sourceRate" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="نحوهٔ نرخ" @bind-Value="_rateSource" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("Auto")">نرخ اتوماتیک (سیستم)</MudSelectItem>
+                <MudSelectItem Value="@("Manual")">نرخ دستی</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="ارز مقصد" @bind-Value="_targetCode" Variant="Variant.Outlined" @bind-Value:after="OnTargetChanged">
+                <MudSelectItem Value="@("")">— انتخاب —</MudSelectItem>
+                @foreach (var c in _currencies.Where(c => c.ItemKey != "TOMAN"))
+                {
+                    <MudSelectItem Value="c.ItemKey">@c.ItemKey — @c.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="نرخ مقصد (به ریال)" @bind-Value="_targetRate" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="نوع کارمزد (§41)" @bind-Value="_feeType" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("None")">بدون کارمزد</MudSelectItem>
+                <MudSelectItem Value="@("Percent")">درصدی</MudSelectItem>
+                <MudSelectItem Value="@("Fixed")">مبلغ ثابت</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudNumericField T="decimal" Label="مقدار کارمزد" @bind-Value="_feeValue" Variant="Variant.Outlined" Min="0"
+                             Disabled="@(_feeType == "None")" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="کارمزد به" @bind-Value="_feeChargeTo" Variant="Variant.Outlined" Disabled="@(_feeType == "None")">
+                <MudSelectItem Value="@("Source")">ارز مبدا</MudSelectItem>
+                <MudSelectItem Value="@("Target")">ارز مقصد</MudSelectItem>
+                <MudSelectItem Value="@("Rial")">ریالی</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="پرداخت کارمزد ریالی از" @bind-Value="_fundType" Variant="Variant.Outlined"
+                       Disabled="@(_feeType == "None" || _feeChargeTo != "Rial")">
+                <MudSelectItem Value="@("")">— صندوق/بانک —</MudSelectItem>
+                <MudSelectItem Value="@("Cash")">صندوق</MudSelectItem>
+                <MudSelectItem Value="@("Bank")">بانک</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="صندوق / بانک" @bind-Value="_fundId" Variant="Variant.Outlined"
+                       Disabled="@(string.IsNullOrEmpty(_fundType))">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var f in _funds.Where(f => string.IsNullOrEmpty(_fundType) || f.FundType == _fundType))
+                {
+                    <MudSelectItem Value="f.FundId">@(f.FundType == "Cash" ? "صندوق" : "بانک") — @f.FundTitle</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+
+    <div class="d-flex mt-4">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="PreviewAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Calculate" Class="me-2">
+            پیش‌نمایش تبدیل
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ExecuteAsync" Disabled="_busy || _preview is null"
+                   StartIcon="@Icons.Material.Filled.SwapHoriz">
+            ثبت تبدیل
+        </MudButton>
+    </div>
+</MudPaper>
+
+@if (_preview is not null)
+{
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-3">نتیجهٔ تبدیل (§40)</MudText>
+        <MudTable Items="PreviewRows" Hover="true" Dense="true" Striped="true">
+            <HeaderContent>
+                <MudTh>عنوان</MudTh><MudTh>مقدار</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                <MudTd DataLabel="مقدار"><b>@context.Value</b></MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "currency";
+
+    private List<PriceRateRow> _currencies = new();
+    private List<FundRow> _funds = new();
+    private ConvertResultRow? _preview;
+
+    private string _sourceCode = "";
+    private decimal _sourceAmount;
+    private decimal _sourceRate;
+    private string _targetCode = "";
+    private decimal _targetRate;
+    private string _rateSource = "Auto";
+    private string _feeType = "None";
+    private decimal _feeValue;
+    private string _feeChargeTo = "Rial";
+    private string _fundType = "";
+    private int _fundId;
+    private bool _busy;
+
+    private PriceRateRow? _sourceItem => _currencies.FirstOrDefault(c => c.ItemKey == _sourceCode);
+    private PriceRateRow? _targetItem => _currencies.FirstOrDefault(c => c.ItemKey == _targetCode);
+
+    private List<PreviewRow> PreviewRows => _preview is null
+        ? new List<PreviewRow>()
+        : new List<PreviewRow>
+        {
+            new("ارزش ریالی مبدا (مبلغ × نرخ)", _preview.RialAmount.ToString("N0") + " ریال"),
+            new("مبلغ مقصد (پیش از کارمزد)", _preview.TargetAmount.ToString("N4")),
+            new("کارمزد", _preview.FeeAmount.ToString("N0") + " ریال"),
+            new("مبلغ نهایی مقصد", _preview.FinalAmount.ToString("N4")),
+            new("نرخ نهایی مؤثر", _preview.FinalRate.ToString("N0") + " ریال"),
+            new("اختلاف نرخ (مبدا − مقصد)", _preview.RateDiff.ToString("N0") + " ریال"),
+            new("سود/زیان تبدیل", _preview.Pnl.ToString("N0") + " ریال"),
+            new("منبع نرخ", _rateSource == "Auto" ? "نرخ اتوماتیک (سیستم)" : "نرخ دستی"),
+            new("تاریخ نرخ", _preview.RateDate.ToString("yyyy/MM/dd"))
+        };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currencies = (await Db.QueryAsync<PriceRateRow>(Schema, "RateBoard", new
+        {
+            ItemType = "Currency",
+            ItemKey = (string?)null
+        })).ToList();
+
+        _funds = (await Db.QueryAsync<FundRow>(Schema, "FundList")).ToList();
+    }
+
+    private void OnSourceChanged()
+    {
+        if (_rateSource == "Auto" && _sourceItem is not null && _sourceItem.SystemRate > 0)
+            _sourceRate = _sourceItem.SystemRate;
+    }
+
+    private void OnTargetChanged()
+    {
+        if (_rateSource == "Auto" && _targetItem is not null && _targetItem.SystemRate > 0)
+            _targetRate = _targetItem.SystemRate;
+    }
+
+    private bool Validate()
+    {
+        if (string.IsNullOrEmpty(_sourceCode) || string.IsNullOrEmpty(_targetCode))
+        {
+            Snackbar.Add("ارز مبدا و مقصد را انتخاب کنید.", Severity.Warning);
+            return false;
+        }
+        if (_sourceCode == _targetCode)
+        {
+            Snackbar.Add("ارز مبدا و مقصد نمی‌توانند یکی باشند.", Severity.Warning);
+            return false;
+        }
+        if (_sourceAmount <= 0 || _sourceRate <= 0 || _targetRate <= 0)
+        {
+            Snackbar.Add("مبلغ و نرخ‌ها باید معتبر باشند.", Severity.Warning);
+            return false;
+        }
+        if (_feeType != "None" && _feeValue <= 0)
+        {
+            Snackbar.Add("مقدار کارمزد معتبر وارد کنید.", Severity.Warning);
+            return false;
+        }
+        if (_feeChargeTo == "Rial" && _feeType != "None" && string.IsNullOrEmpty(_fundType))
+        {
+            Snackbar.Add("برای کارمزد ریالی، صندوق/بانک انتخاب کنید.", Severity.Warning);
+            return false;
+        }
+        return true;
+    }
+
+    private async Task PreviewAsync()
+    {
+        if (_busy) return;
+        if (!Validate()) return;
+
+        _busy = true;
+        try
+        {
+            _preview = await Db.QueryFirstOrDefaultAsync<ConvertResultRow>(Schema, "ConvertPreview", new
+            {
+                SourceCurrency = _sourceCode,
+                SourceAmount = _sourceAmount,
+                SourceRate = _sourceRate,
+                TargetCurrency = _targetCode,
+                TargetRate = _targetRate,
+                FeeType = _feeType,
+                FeeValue = _feeValue,
+                FeeChargeTo = _feeChargeTo,
+                RateSource = _rateSource,
+                RateDate = DateTime.Today
+            });
+            if (_preview is null)
+                Snackbar.Add("محاسبهٔ تبدیل ممکن نشد.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ExecuteAsync()
+    {
+        if (_busy || _preview is null) return;
+        if (!Validate()) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "ConvertExecute", new
+            {
+                SourceCurrency = _sourceCode,
+                SourceAmount = _sourceAmount,
+                SourceRate = _sourceRate,
+                TargetCurrency = _targetCode,
+                TargetAmount = _preview.FinalAmount,
+                TargetRate = _targetRate,
+                FeeType = _feeType,
+                FeeValue = _feeValue,
+                FeeChargeTo = _feeChargeTo,
+                FeeAmount = _preview.FeeAmount,
+                RialAmount = _preview.RialAmount,
+                RateSource = _rateSource,
+                RateDate = DateTime.Now,
+                Description = $"تبدیل {_sourceAmount:N2} {_sourceCode} به {_targetCode}",
+                FundType = string.IsNullOrEmpty(_fundType) ? (string?)null : _fundType,
+                FundId = _fundId == 0 ? (int?)null : _fundId,
+                CreatedBy = Session.UserName
+            });
+
+            Snackbar.Add($"تبدیل {_sourceAmount:N2} {_sourceCode} به {_targetCode} ثبت شد؛ کیف پول‌ها و سند حسابداری به‌روزرسانی شد.", Severity.Success);
+            _preview = null;
+            _sourceAmount = 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FundRow
+    {
+        public string FundType { get; set; } = "";
+        public int FundId { get; set; }
+        public string FundTitle { get; set; } = "";
+    }
+
+    private sealed class PreviewRow
+    {
+        public PreviewRow(string title, string value)
+        {
+            Title = title;
+            Value = value;
+        }
+
+        public string Title { get; }
+        public string Value { get; }
+    }
+}

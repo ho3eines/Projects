@@ -1,0 +1,100 @@
+@page "/bi/branches"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>شعب — داشبورد و BI</PageTitle>
+
+<PageHeader Title="شعب" Subtitle="تعریف شعب و تحلیل فروش هر شعبه (§86–§88)."
+            Eyebrow="داشبورد و BI">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenEditorAsync"
+               StartIcon="@Icons.Material.Filled.Add">
+        شعبه جدید
+    </MudButton>
+</PageHeader>
+
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+    برای اتصال خودکار فاکتورها به شعبه، ستون BranchId به فاکتورهای طلا و سفارش‌های فروشگاه اضافه شده است؛
+    هنگام ثبت فاکتور، شعبه انتخاب شود تا داشبورد شعب پر شود (Backlog B14 — تکمیل فرم‌ها).
+</MudAlert>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_branches" Hover="true" Dense="true" Striped="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>آدرس</MudTh><MudTh>مدیر</MudTh><MudTh>فعال</MudTh><MudTh>عملیات</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.BranchCode</MudTd>
+            <MudTd DataLabel="عنوان"><b>@context.Title</b></MudTd>
+            <MudTd DataLabel="آدرس">@context.Location</MudTd>
+            <MudTd DataLabel="مدیر">@context.Manager</MudTd>
+            <MudTd DataLabel="فعال">@(context.IsActive ? "بله" : "خیر")</MudTd>
+            <MudTd DataLabel="">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => OpenEditorAsync(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Color="Color.Secondary">شعبه‌ای ثبت نشده است.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "branch";
+    private List<BranchRow> _branches = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _branches = (await Db.QueryAsync<BranchRow>(Schema, "BranchList", new { OnlyActive = 0 })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenEditorAsync(BranchRow? branch = null)
+    {
+        var parameters = new DialogParameters<BranchDialog>
+        {
+            { x => x.Branch, branch ?? new BranchRow() }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<BranchDialog>("شعبه", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteAsync(BranchRow branch)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "تأیید حذف",
+            $"آیا از حذف شعبهٔ «{branch.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "BranchDelete", new { BranchId = branch.BranchId, CreatedBy = Session.UserName });
+            Snackbar.Add("شعبه حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,155 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-1">اصلاح نرخ — @Rate.Title</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            @if (Rate.OnlineRate.HasValue)
+            {
+                <span>نرخ آنلاین: <b>@Rate.OnlineRate.Value.ToString("N0")</b>
+                    (منبع: @(Rate.SourceTitle ?? Rate.SourceKey ?? "—")) — فقط با تأیید مدیر وارد معامله می‌شود (§46)</span>
+            }
+            else
+            {
+                <span>نرخ آنلاین ثبت نشده است — از ورود دستی استفاده کنید.</span>
+            }
+        </MudText>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Label="نرخ سیستم (وارد معاملات می‌شود)" @bind-Value="_systemRate"
+                                 Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateChange))" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Label="نرخ دستی" @bind-Value="_manualRate"
+                                 Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Label="نرخ خرید" @bind-Value="_buyRate"
+                                 Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateChangeBuy))" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Label="نرخ فروش" @bind-Value="_sellRate"
+                                 Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateChangeSell))" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField Label="دلیل تغییر (برای تاریخچهٔ نرخ — §49)" @bind-Value="_reason"
+                              Variant="Variant.Outlined" MaxLength="300" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Save">ذخیره نرخ</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "currency";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public PriceRateRow Rate { get; set; } = new();
+
+    private decimal _systemRate;
+    private decimal? _manualRate;
+    private decimal? _buyRate;
+    private decimal? _sellRate;
+    private string _reason = "";
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _systemRate = Rate.SystemRate;
+        _manualRate = Rate.ManualRate;
+        _buyRate = Rate.BuyRate;
+        _sellRate = Rate.SellRate;
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (_systemRate <= 0)
+        {
+            Snackbar.Add("نرخ سیستم باید بزرگ‌تر از صفر باشد.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            // ۱) نرخ سیستم (دسترسی: rates.change) — همراه IsOverride (§46)
+            if (Session.HasPermission(TarazinPermissions.RateChange) && _systemRate != Rate.SystemRate)
+            {
+                await Db.ExecuteAsync(Schema, "RateUpsert", new
+                {
+                    ItemKey = Rate.ItemKey,
+                    RateKind = "System",
+                    NewValue = _systemRate,
+                    SourceKey = Rate.SourceKey,
+                    Reason = string.IsNullOrWhiteSpace(_reason) ? "اصلاح دستی نرخ سیستم" : _reason,
+                    ChangedBy = Session.UserName
+                });
+            }
+
+            // ۲) نرخ دستی (دسترسی: rates.fetch)
+            if (Session.HasPermission(TarazinPermissions.RateFetch) && _manualRate.HasValue && _manualRate.Value > 0 && _manualRate != Rate.ManualRate)
+            {
+                await Db.ExecuteAsync(Schema, "RateUpsert", new
+                {
+                    ItemKey = Rate.ItemKey,
+                    RateKind = "Manual",
+                    NewValue = _manualRate.Value,
+                    SourceKey = "MANUAL",
+                    Reason = string.IsNullOrWhiteSpace(_reason) ? "ورود دستی نرخ" : _reason,
+                    ChangedBy = Session.UserName
+                });
+            }
+
+            // ۳) نرخ خرید (دسترسی: rates.buy)
+            if (Session.HasPermission(TarazinPermissions.RateChangeBuy) && _buyRate.HasValue && _buyRate.Value > 0 && _buyRate != Rate.BuyRate)
+            {
+                await Db.ExecuteAsync(Schema, "RateUpsert", new
+                {
+                    ItemKey = Rate.ItemKey,
+                    RateKind = "Buy",
+                    NewValue = _buyRate.Value,
+                    SourceKey = "MANUAL",
+                    Reason = string.IsNullOrWhiteSpace(_reason) ? "تغییر نرخ خرید" : _reason,
+                    ChangedBy = Session.UserName
+                });
+            }
+
+            // ۴) نرخ فروش (دسترسی: rates.sell)
+            if (Session.HasPermission(TarazinPermissions.RateChangeSell) && _sellRate.HasValue && _sellRate.Value > 0 && _sellRate != Rate.SellRate)
+            {
+                await Db.ExecuteAsync(Schema, "RateUpsert", new
+                {
+                    ItemKey = Rate.ItemKey,
+                    RateKind = "Sell",
+                    NewValue = _sellRate.Value,
+                    SourceKey = "MANUAL",
+                    Reason = string.IsNullOrWhiteSpace(_reason) ? "تغییر نرخ فروش" : _reason,
+                    ChangedBy = Session.UserName
+                });
+            }
+
+            Snackbar.Add($"نرخ {Rate.Title} ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
