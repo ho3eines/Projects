@@ -175,3 +175,35 @@ BEGIN
     );
     CREATE INDEX IX_Outbox_Ready ON [accounting].[Outbox](ProcessedAt, OutboxId) WHERE ProcessedAt IS NULL;
 END
+
+-- =============================================
+-- Migrations: تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy
+-- =============================================
+IF COL_LENGTH(N'accounting.DocumentLines', N'CreatedAt') IS NULL
+    ALTER TABLE [accounting].[DocumentLines] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_DocumentLines_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'accounting.DocumentLines', N'UpdatedAt') IS NULL
+    ALTER TABLE [accounting].[DocumentLines] ADD UpdatedAt DATETIME2 NULL;
+
+IF COL_LENGTH(N'accounting.ChartOfAccounts', N'CreatedBy') IS NULL
+    ALTER TABLE [accounting].[ChartOfAccounts] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'accounting.ChartOfAccounts', N'UpdatedBy') IS NULL
+    ALTER TABLE [accounting].[ChartOfAccounts] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'accounting.TaxRules', N'CreatedBy') IS NULL
+    ALTER TABLE [accounting].[TaxRules] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'accounting.TaxRules', N'UpdatedBy') IS NULL
+    ALTER TABLE [accounting].[TaxRules] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'accounting.SalesInvoices', N'UpdatedAt') IS NULL
+    ALTER TABLE [accounting].[SalesInvoices] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'accounting.SalesInvoices', N'CreatedBy') IS NULL
+    ALTER TABLE [accounting].[SalesInvoices] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'accounting.SalesInvoices', N'UpdatedBy') IS NULL
+    ALTER TABLE [accounting].[SalesInvoices] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'accounting.PayrollPostings', N'UpdatedAt') IS NULL
+    ALTER TABLE [accounting].[PayrollPostings] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'accounting.InventoryLedger', N'UpdatedAt') IS NULL
+    ALTER TABLE [accounting].[InventoryLedger] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'accounting.GoldPriceSnapshot', N'CreatedAt') IS NULL
+    ALTER TABLE [accounting].[GoldPriceSnapshot] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_GoldPriceSnapshot_CreatedAt DEFAULT SYSUTCDATETIME();

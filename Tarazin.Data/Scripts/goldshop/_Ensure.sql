@@ -104,3 +104,28 @@ BEGIN
     );
     CREATE INDEX IX_Outbox_Ready ON [goldshop].[Outbox](ProcessedAt, OutboxId) WHERE ProcessedAt IS NULL;
 END
+
+-- =============================================
+-- Migrations: تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy
+-- =============================================
+IF COL_LENGTH(N'goldshop.GoldItems', N'UpdatedAt') IS NULL
+    ALTER TABLE [goldshop].[GoldItems] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'goldshop.GoldItems', N'CreatedBy') IS NULL
+    ALTER TABLE [goldshop].[GoldItems] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'goldshop.GoldItems', N'UpdatedBy') IS NULL
+    ALTER TABLE [goldshop].[GoldItems] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'goldshop.GoldPrices', N'CreatedAt') IS NULL
+    ALTER TABLE [goldshop].[GoldPrices] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_GoldPrices_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'goldshop.GoldPrices', N'CreatedBy') IS NULL
+    ALTER TABLE [goldshop].[GoldPrices] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'goldshop.GoldPrices', N'UpdatedBy') IS NULL
+    ALTER TABLE [goldshop].[GoldPrices] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'goldshop.SaleInvoices', N'UpdatedAt') IS NULL
+    ALTER TABLE [goldshop].[SaleInvoices] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'goldshop.SaleInvoices', N'UpdatedBy') IS NULL
+    ALTER TABLE [goldshop].[SaleInvoices] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'goldshop.InventorySnapshot', N'UpdatedAt') IS NULL
+    ALTER TABLE [goldshop].[InventorySnapshot] ADD UpdatedAt DATETIME2 NULL;

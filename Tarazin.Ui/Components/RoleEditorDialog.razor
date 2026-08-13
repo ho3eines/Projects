@@ -1,0 +1,154 @@
+@inject UserService Users
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="عنوان نقش" @bind-Value="_title" Required="true"
+                                  RequiredError="عنوان نقش الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کلید نقش (انگلیسی)" @bind-Value="_key" Required="true"
+                                  RequiredError="کلید نقش الزامی است." Disabled="@(!IsNew)"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="توضیح" @bind-Value="_description" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">دسترسی‌ها</MudText>
+
+            @foreach (var group in _groups)
+            {
+                <MudPaper Outlined="true" Class="pa-3 mb-3">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.subtitle1">@group.Title</MudText>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                   OnClick="@(() => ToggleGroup(group))">
+                            @(group.Items.All(i => i.IsChecked) ? "حذف انتخاب" : "انتخاب همه")
+                        </MudButton>
+                    </div>
+                    <div class="d-flex flex-wrap" style="gap: 0 1.25rem;">
+                        @foreach (var item in group.Items)
+                        {
+                            <MudCheckBox T="bool" @bind-Checked="item.IsChecked" Color="Color.Primary">
+                                @item.Permission.Title
+                            </MudCheckBox>
+                        }
+                    </div>
+                </MudPaper>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">
+            انصراف
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private sealed class PermissionToggle
+    {
+        public PermissionRow Permission { get; init; } = new();
+        public bool IsChecked { get; set; }
+    }
+
+    private sealed class PermissionGroup
+    {
+        public string Title { get; init; } = "";
+        public List<PermissionToggle> Items { get; init; } = new();
+    }
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public RoleRow Role { get; set; } = new();
+    [Parameter] public List<string> PermissionKeys { get; set; } = new();
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private string _title = "";
+    private string _key = "";
+    private string _description = "";
+    private List<PermissionGroup> _groups = new();
+
+    private bool IsNew => Role.RoleId == 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _title = Role.Title;
+        _key = Role.RoleKey;
+        _description = Role.Description ?? "";
+
+        try
+        {
+            var all = await Users.GetPermissionsAsync();
+            _groups = all
+                .GroupBy(p => p.ModuleKey)
+                .OrderBy(g => g.Key == "system" ? 1 : 0)
+                .Select(g => new PermissionGroup
+                {
+                    Title = TarazinPermissions.ModuleTitle(g.Key),
+                    Items = g.Select(p => new PermissionToggle
+                    {
+                        Permission = p,
+                        IsChecked = PermissionKeys.Contains(p.PermissionKey, StringComparer.OrdinalIgnoreCase)
+                    }).ToList()
+                })
+                .ToList();
+        }
+        catch
+        {
+            _groups = new List<PermissionGroup>();
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void ToggleGroup(PermissionGroup group)
+    {
+        var target = !group.Items.All(i => i.IsChecked);
+        foreach (var item in group.Items)
+            item.IsChecked = target;
+        StateHasChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null)
+            return;
+
+        await _form.Validate();
+        if (!_isValid)
+            return;
+
+        _busy = true;
+        try
+        {
+            var keys = _groups
+                .SelectMany(g => g.Items)
+                .Where(i => i.IsChecked)
+                .Select(i => i.Permission.PermissionKey);
+
+            await Users.SaveRoleAsync(Role.RoleId, _key.Trim(), _title.Trim(), _description, keys, Session.UserName);
+            Snackbar.Add("نقش با موفقیت ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -12,6 +12,7 @@ ELSE
 BEGIN
     UPDATE [central].[News]
     SET Title = @Title, Summary = @Summary, Body = @Body, ImageUrl = @ImageUrl,
-        PublishedAt = @PublishedAt, IsActive = @IsActive, UpdatedAt = SYSUTCDATETIME()
+        PublishedAt = @PublishedAt, IsActive = @IsActive,
+        UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
     WHERE NewsId = @NewsId;
 END

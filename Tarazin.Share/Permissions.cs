@@ -1,0 +1,220 @@
+namespace Tarazin.Models;
+
+// ============================================================
+// Access control catalog (RBAC).
+// Single source of truth for permission keys + default roles.
+// At startup TarazinDbInitializer syncs this catalog into
+// [central].[Permissions] / [central].[Roles] (idempotent).
+// ============================================================
+
+/// <summary>یک دسترسی (Permission) قابل اعطا به نقش‌ها.</summary>
+public sealed record PermissionDef(string Key, string Title, string ModuleKey);
+
+/// <summary>اقدامات استاندارد هر ماژول.</summary>
+public static class TarazinActions
+{
+    public const string View = "view";
+    public const string Entry = "entry";
+    public const string Special = "special";
+    public const string Reports = "reports";
+    public const string Settings = "settings";
+    public const string Admin = "admin";
+}
+
+/// <summary>فهرست کامل دسترسی‌ها با الگوی <c>{module}.{action}</c>.</summary>
+public static class TarazinPermissions
+{
+    // دسترسی‌های سیستمی (خارج از ماژول‌ها).
+    public const string Users = "system.users";
+    public const string Roles = "system.roles";
+    public const string Audit = "system.audit";
+    public const string SystemAdmin = "system.admin";
+
+    /// <summary>کلید ماژول‌های کسب‌وکار (همان اسکیمه‌ها).</summary>
+    public static readonly string[] Modules =
+    [
+        "central", "accounting", "inventory", "treasury",
+        "payroll", "goldshop", "store"
+    ];
+
+    /// <summary>اقدامات استاندارد هر ماژول.</summary>
+    public static readonly string[] Actions =
+    [
+        TarazinActions.View, TarazinActions.Entry, TarazinActions.Special,
+        TarazinActions.Reports, TarazinActions.Settings, TarazinActions.Admin
+    ];
+
+    private static readonly Dictionary<string, string> ActionTitles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [TarazinActions.View] = "مشاهده",
+        [TarazinActions.Entry] = "ثبت عملیات",
+        [TarazinActions.Special] = "عملیات ویژه",
+        [TarazinActions.Reports] = "گزارش‌ها",
+        [TarazinActions.Settings] = "تنظیمات و جداول پایه",
+        [TarazinActions.Admin] = "مدیریت کامل",
+    };
+
+    private static readonly Dictionary<string, string> ModuleTitles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["central"] = "پلتفرم مشترک",
+        ["accounting"] = "حسابداری",
+        ["inventory"] = "انبار",
+        ["treasury"] = "خزانه‌داری",
+        ["payroll"] = "حقوق و دستمزد",
+        ["goldshop"] = "طلافروشی",
+        ["store"] = "فروشگاه",
+        ["system"] = "سیستم و مدیریت",
+    };
+
+    /// <summary>تمام دسترسی‌های سیستم (منبع واحد برای seed و UI).</summary>
+    public static IReadOnlyList<PermissionDef> All { get; } = Build();
+
+    /// <summary>ساخت کلید دسترسی: <c>accounting.view</c>.</summary>
+    public static string For(string moduleKey, string action) => $"{moduleKey}.{action}";
+
+    /// <summary>کلید «مشاهده» یک ماژول.</summary>
+    public static string ViewKey(string moduleKey) => For(moduleKey, TarazinActions.View);
+
+    public static string ModuleTitle(string moduleKey) =>
+        ModuleTitles.TryGetValue(moduleKey, out var t) ? t : moduleKey;
+
+    public static string ActionTitle(string action) =>
+        ActionTitles.TryGetValue(action, out var t) ? t : action;
+
+    private static IReadOnlyList<PermissionDef> Build()
+    {
+        var list = new List<PermissionDef>();
+
+        foreach (var module in Modules)
+            foreach (var action in Actions)
+                list.Add(new PermissionDef(For(module, action),
+                    $"{ModuleTitle(module)} — {ActionTitle(action)}", module));
+
+        list.Add(new PermissionDef(Users, "مدیریت کاربران (ایجاد/ویرایش/حذف)", "system"));
+        list.Add(new PermissionDef(Roles, "مدیریت نقش‌ها و دسترسی‌ها", "system"));
+        list.Add(new PermissionDef(Audit, "مشاهدهٔ ممیزی سیستم", "system"));
+        list.Add(new PermissionDef(SystemAdmin, "مدیریت کامل سیستم", "system"));
+
+        return list;
+    }
+}
+
+/// <summary>نقش پیش‌فرض: کلید، عنوان، توضیح و دسترسی‌ها.</summary>
+public sealed record DefaultRole(
+    string Key,
+    string Title,
+    string Description,
+    bool IsSystem,
+    IReadOnlyList<string> Permissions);
+
+/// <summary>نقش‌های پیش‌فرض سیستم — در استارت‌آپ با دیتابیس همگام می‌شوند.</summary>
+public static class TarazinRoles
+{
+    public const string Admin = "Admin";
+
+    public static IReadOnlyList<DefaultRole> Defaults { get; } = Build();
+
+    /// <summary>تمام دسترسی‌های یک ماژول (۶ اقدام).</summary>
+    private static string[] Full(string module) =>
+    [
+        TarazinPermissions.For(module, TarazinActions.View),
+        TarazinPermissions.For(module, TarazinActions.Entry),
+        TarazinPermissions.For(module, TarazinActions.Special),
+        TarazinPermissions.For(module, TarazinActions.Reports),
+        TarazinPermissions.For(module, TarazinActions.Settings),
+        TarazinPermissions.For(module, TarazinActions.Admin),
+    ];
+
+    /// <summary>فقط مشاهده + گزارش برای همهٔ ماژول‌ها.</summary>
+    private static string[] ViewReports()
+    {
+        var keys = new List<string>();
+        foreach (var m in TarazinPermissions.Modules)
+        {
+            keys.Add(TarazinPermissions.For(m, TarazinActions.View));
+            keys.Add(TarazinPermissions.For(m, TarazinActions.Reports));
+        }
+        return keys.ToArray();
+    }
+
+    private static IReadOnlyList<DefaultRole> Build()
+    {
+        string[] viewReports = ViewReports();
+
+        return new List<DefaultRole>
+        {
+            new(Admin, "مدیر سیستم",
+                "دسترسی کامل به تمام بخش‌ها، کاربران، نقش‌ها و ممیزی.", true,
+                TarazinPermissions.All.Select(p => p.Key).ToList()),
+
+            new("Accountant", "حسابدار",
+                "حسابداری کامل + مشاهده و گزارش سایر بخش‌ها + ممیزی.", false,
+                Full("accounting").Concat(new[]
+                {
+                    TarazinPermissions.For("treasury", TarazinActions.View),
+                    TarazinPermissions.For("treasury", TarazinActions.Reports),
+                    TarazinPermissions.For("inventory", TarazinActions.View),
+                    TarazinPermissions.For("inventory", TarazinActions.Reports),
+                    TarazinPermissions.For("store", TarazinActions.View),
+                    TarazinPermissions.For("store", TarazinActions.Reports),
+                    TarazinPermissions.For("goldshop", TarazinActions.View),
+                    TarazinPermissions.For("goldshop", TarazinActions.Reports),
+                    TarazinPermissions.For("payroll", TarazinActions.View),
+                    TarazinPermissions.For("payroll", TarazinActions.Reports),
+                    TarazinPermissions.For("central", TarazinActions.View),
+                    TarazinPermissions.Audit,
+                }).ToList()),
+
+            new("Cashier", "صندوق‌دار",
+                "خزانه‌داری کامل + فروش و طلافروشی.", false,
+                Full("treasury").Concat(new[]
+                {
+                    TarazinPermissions.For("goldshop", TarazinActions.View),
+                    TarazinPermissions.For("goldshop", TarazinActions.Entry),
+                    TarazinPermissions.For("store", TarazinActions.View),
+                    TarazinPermissions.For("store", TarazinActions.Entry),
+                    TarazinPermissions.For("central", TarazinActions.View),
+                }).ToList()),
+
+            new("Storekeeper", "انباردار",
+                "انبار کامل + مشاهدهٔ حسابداری.", false,
+                Full("inventory").Concat(new[]
+                {
+                    TarazinPermissions.For("accounting", TarazinActions.View),
+                    TarazinPermissions.For("store", TarazinActions.View),
+                    TarazinPermissions.For("central", TarazinActions.View),
+                }).ToList()),
+
+            new("Sales", "فروشنده",
+                "فروشگاه کامل + ثبت فاکتور طلا.", false,
+                Full("store").Concat(new[]
+                {
+                    TarazinPermissions.For("goldshop", TarazinActions.View),
+                    TarazinPermissions.For("goldshop", TarazinActions.Entry),
+                    TarazinPermissions.For("central", TarazinActions.View),
+                }).ToList()),
+
+            new("HR", "کارگزینی",
+                "حقوق و دستمزد کامل + مشاهدهٔ خزانه.", false,
+                Full("payroll").Concat(new[]
+                {
+                    TarazinPermissions.For("treasury", TarazinActions.View),
+                    TarazinPermissions.For("central", TarazinActions.View),
+                }).ToList()),
+
+            new("Auditor", "حسابرس",
+                "فقط مشاهده و گزارش تمام بخش‌ها + ممیزی.", false,
+                viewReports.Concat(new[] { TarazinPermissions.Audit }).ToList()),
+
+            new("Viewer", "فقط مشاهده",
+                "مشاهده و گزارش تمام بخش‌ها بدون ثبت عملیات.", false,
+                viewReports.ToList()),
+
+            // نقش پایهٔ پیش‌فرض — اسکریپت‌های fallback/backfill به آن ارجاع می‌دهند.
+            // باید همیشه وجود داشته باشد تا هیچ کاربری بدون نقش/دسترسی نماند.
+            new("User", "کاربر عادی",
+                "دسترسی خواندن و مشاهدهٔ همهٔ بخش‌ها.", false,
+                viewReports.ToList()),
+        };
+    }
+}

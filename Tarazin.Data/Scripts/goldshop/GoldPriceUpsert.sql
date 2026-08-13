@@ -8,8 +8,8 @@
 BEGIN TRAN;
     IF @PriceId = 0
     BEGIN
-        INSERT INTO [goldshop].[GoldPrices] (ItemCode, Title, PricePerGram, RateToIRR, UpdatedAt)
-        VALUES (@ItemCode, @Title, @PricePerGram, @RateToIRR, SYSUTCDATETIME());
+        INSERT INTO [goldshop].[GoldPrices] (ItemCode, Title, PricePerGram, RateToIRR, CreatedAt, UpdatedAt)
+        VALUES (@ItemCode, @Title, @PricePerGram, @RateToIRR, SYSUTCDATETIME(), SYSUTCDATETIME());
     END
     ELSE
     BEGIN

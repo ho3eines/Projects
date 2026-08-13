@@ -11,6 +11,9 @@ public class NewsRow
     public DateTime? PublishedAt { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>پست وبلاگ (پلتفرم مشترک / وبسایت).</summary>
@@ -25,6 +28,9 @@ public class BlogRow
     public DateTime? PublishedAt { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>آیتم گالری (پلتفرم مشترک / وبسایت).</summary>
@@ -37,4 +43,7 @@ public class GalleryItemRow
     public int SortOrder { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }

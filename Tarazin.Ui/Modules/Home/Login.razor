@@ -1,6 +1,7 @@
 @page "/login"
 @layout AuthLayout
 @inject AuthService Auth
+@inject UserService Users
 @inject UserSession Session
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -75,7 +76,11 @@
                 return;
             }
 
-            Session.SignIn(user.UserId, user.Username, user.DisplayName, user.Role);
+            // بارگذاری دسترسی‌های مؤثر کاربر از نقشش (RBAC).
+            var permissions = await Users.GetUserPermissionKeysAsync(user.UserId);
+
+            Session.SignIn(user.UserId, user.Username, user.DisplayName,
+                user.Role, user.RoleTitle, user.RoleId, permissions);
             Snackbar.Add($"خوش آمدید، {user.DisplayName}", Severity.Success);
             Nav.NavigateTo("/", forceLoad: true);
         }

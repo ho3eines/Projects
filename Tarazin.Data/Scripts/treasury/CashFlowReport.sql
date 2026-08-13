@@ -11,7 +11,8 @@ SELECT
     m.CurrencyCode,
     ISNULL(a.AccountName, c.Title) AS AccountName,
     m.Description,
-    m.Status
+    m.Status,
+    m.CreatedAt
 FROM [treasury].[CashMovements] m
 LEFT JOIN [treasury].[BankAccounts] a ON a.AccountId = m.AccountId
 LEFT JOIN [treasury].[CashBoxes] c ON c.CashBoxId = m.CashBoxId

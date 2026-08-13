@@ -103,3 +103,26 @@ BEGIN
     );
     CREATE INDEX IX_Outbox_Ready ON [inventory].[Outbox](ProcessedAt, OutboxId) WHERE ProcessedAt IS NULL;
 END
+
+-- =============================================
+-- Migrations: تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy
+-- =============================================
+IF COL_LENGTH(N'inventory.Warehouses', N'UpdatedAt') IS NULL
+    ALTER TABLE [inventory].[Warehouses] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'inventory.Warehouses', N'CreatedBy') IS NULL
+    ALTER TABLE [inventory].[Warehouses] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'inventory.Warehouses', N'UpdatedBy') IS NULL
+    ALTER TABLE [inventory].[Warehouses] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'inventory.Items', N'CreatedBy') IS NULL
+    ALTER TABLE [inventory].[Items] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'inventory.Items', N'UpdatedBy') IS NULL
+    ALTER TABLE [inventory].[Items] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'inventory.Movements', N'UpdatedAt') IS NULL
+    ALTER TABLE [inventory].[Movements] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'inventory.Movements', N'UpdatedBy') IS NULL
+    ALTER TABLE [inventory].[Movements] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'inventory.Reservations', N'UpdatedAt') IS NULL
+    ALTER TABLE [inventory].[Reservations] ADD UpdatedAt DATETIME2 NULL;

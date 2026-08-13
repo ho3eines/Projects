@@ -11,6 +11,8 @@ public class DailyCashMovementRow
     public string AccountName { get; set; } = "";
     public string? Description { get; set; }
     public string Status { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class TreasuryDashboardRow
@@ -26,6 +28,9 @@ public class BankRow
     public int BankId { get; set; }
     public string BankCode { get; set; } = "";
     public string Title { get; set; } = "";
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class BankAccountRow
@@ -35,6 +40,9 @@ public class BankAccountRow
     public string AccountNo { get; set; } = "";
     public string BankName { get; set; } = "";
     public decimal Balance { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class CashBoxRow
@@ -43,6 +51,9 @@ public class CashBoxRow
     public string CashBoxCode { get; set; } = "";
     public string Title { get; set; } = "";
     public decimal Balance { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class CashFlowRow
@@ -55,6 +66,7 @@ public class CashFlowRow
     public string AccountName { get; set; } = "";
     public string? Description { get; set; }
     public string Status { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
 }
 
 public class ChequeRow
@@ -66,4 +78,8 @@ public class ChequeRow
     public DateTime? DueDate { get; set; }
     public string Direction { get; set; } = "";
     public string Status { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }

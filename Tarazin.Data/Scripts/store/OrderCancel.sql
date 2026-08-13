@@ -14,6 +14,6 @@ BEGIN TRAN;
     UPDATE [store].[Orders] SET Status = N'Cancelled' WHERE OrderId = @OrderId;
 
     UPDATE [inventory].[Reservations]
-    SET Status = N'Released', ReleasedAt = SYSUTCDATETIME()
+    SET Status = N'Released', ReleasedAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME()
     WHERE OrderId = @OrderId AND Status = N'Active';
 COMMIT;

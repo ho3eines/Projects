@@ -12,7 +12,10 @@ SELECT
     p.Phone,
     p.Email,
     p.IsActive,
-    p.CreatedAt
+    p.CreatedAt,
+    p.UpdatedAt,
+    p.CreatedBy,
+    p.UpdatedBy
 FROM [central].[Parties] p
 WHERE p.IsDeleted = 0
   AND (@PartyType IS NULL OR p.PartyType = @PartyType)

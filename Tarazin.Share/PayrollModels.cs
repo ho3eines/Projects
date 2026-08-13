@@ -9,6 +9,10 @@ public class EmployeeRow
     public string Department { get; set; } = "";
     public decimal BaseSalary { get; set; }
     public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 public class SalaryItemRow
@@ -19,6 +23,10 @@ public class SalaryItemRow
     public string Title { get; set; } = "";
     public decimal Amount { get; set; }
     public bool IsDeduction { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 public class PaySlipRow

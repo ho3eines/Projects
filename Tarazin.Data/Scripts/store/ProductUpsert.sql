@@ -19,6 +19,7 @@ BEGIN
         Title       = ISNULL(@Title, Title),
         ItemCode    = @ItemCode,
         Price       = @Price,
-        IsActive    = ISNULL(@IsActive, IsActive)
+        IsActive    = ISNULL(@IsActive, IsActive),
+        UpdatedAt   = SYSUTCDATETIME()
     WHERE ProductId = @ProductId;
 END

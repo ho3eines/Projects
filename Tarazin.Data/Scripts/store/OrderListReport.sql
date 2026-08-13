@@ -11,7 +11,11 @@ SELECT
     oi.Qty,
     oi.UnitPrice,
     o.Status,
-    o.TotalAmount
+    o.TotalAmount,
+    o.CreatedAt,
+    o.UpdatedAt,
+    o.CreatedBy,
+    o.UpdatedBy
 FROM [store].[Orders] o
 JOIN [store].[OrderItems] oi ON oi.OrderId = o.OrderId
 WHERE o.OrderDate BETWEEN @FromDate AND @ToDate

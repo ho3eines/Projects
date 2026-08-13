@@ -11,7 +11,10 @@ SELECT
     n.ImageUrl,
     n.PublishedAt,
     n.IsActive,
-    n.CreatedAt
+    n.CreatedAt,
+    n.UpdatedAt,
+    n.CreatedBy,
+    n.UpdatedBy
 FROM [central].[News] n
 WHERE n.IsDeleted = 0
 ORDER BY ISNULL(n.PublishedAt, n.CreatedAt) DESC

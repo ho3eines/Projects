@@ -15,6 +15,7 @@ BEGIN
     SET ItemCode = ISNULL(@ItemCode, ItemCode),
         Title    = ISNULL(@Title, Title),
         Purity   = @Purity,
-        IsActive = ISNULL(@IsActive, IsActive)
+        IsActive = ISNULL(@IsActive, IsActive),
+        UpdatedAt = SYSUTCDATETIME()
     WHERE GoldItemId = @GoldItemId;
 END

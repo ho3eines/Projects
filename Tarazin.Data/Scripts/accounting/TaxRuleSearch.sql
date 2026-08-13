@@ -10,7 +10,9 @@ SELECT
     t.Category,
     t.RatePercent,
     t.EffectiveFrom,
-    t.IsActive
+    t.IsActive,
+    t.CreatedAt,
+    t.UpdatedAt
 FROM [accounting].[TaxRules] t
 WHERE t.IsDeleted = 0
   AND (@SearchText = N'' OR t.Title LIKE N'%' + @SearchText + N'%'

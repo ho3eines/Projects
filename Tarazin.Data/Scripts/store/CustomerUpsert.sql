@@ -19,6 +19,7 @@ BEGIN
         FullName     = ISNULL(@FullName, FullName),
         Phone        = @Phone,
         Email        = @Email,
-        IsActive     = ISNULL(@IsActive, IsActive)
+        IsActive     = ISNULL(@IsActive, IsActive),
+        UpdatedAt    = SYSUTCDATETIME()
     WHERE CustomerId = @CustomerId;
 END

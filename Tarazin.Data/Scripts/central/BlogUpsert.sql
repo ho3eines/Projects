@@ -12,6 +12,7 @@ ELSE
 BEGIN
     UPDATE [central].[BlogPosts]
     SET Title = @Title, Slug = @Slug, Body = @Body, Author = @Author,
-        Tags = @Tags, PublishedAt = @PublishedAt, IsActive = @IsActive, UpdatedAt = SYSUTCDATETIME()
+        Tags = @Tags, PublishedAt = @PublishedAt, IsActive = @IsActive,
+        UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
     WHERE PostId = @PostId;
 END

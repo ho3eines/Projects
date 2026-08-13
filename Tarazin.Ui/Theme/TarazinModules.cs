@@ -1,4 +1,5 @@
 using MudBlazor;
+using Tarazin.Models;
 
 namespace Tarazin.Theme;
 
@@ -11,84 +12,88 @@ public sealed record TarazinModule(
     string Accent,
     IReadOnlyList<TarazinNavItem> Items);
 
-public sealed record TarazinNavItem(string Title, string Url, string Icon);
+/// <param name="Permission">کلید دسترسی لازم برای نمایش/باز کردن این صفحه (RBAC).</param>
+public sealed record TarazinNavItem(string Title, string Url, string Icon, string Permission);
 
 /// <summary>Single catalog for home cards, drawer groups and module sub-nav.</summary>
 public static class TarazinModules
 {
     public static readonly IReadOnlyList<TarazinModule> All =
     [
-        new("central", "پلتفرم مشترک", "اخبار، بلاگ، گالری، کاربران و ممیزی",
+        new("central", "پلتفرم مشترک", "اخبار، بلاگ، گالری، کاربران، نقش‌ها و ممیزی",
             "/central", Icons.Material.Filled.Apartment, "#0E4D4A",
             [
-                new("نمای کلی", "/central", Icons.Material.Filled.Home),
-                new("اخبار", "/central/news", Icons.Material.Filled.Newspaper),
-                new("وبلاگ", "/central/blog", Icons.Material.Filled.EditNote),
-                new("گالری", "/central/gallery", Icons.Material.Filled.PhotoLibrary),
-                new("کاربران", "/central/users", Icons.Material.Filled.Group),
-                new("ممیزی", "/central/audit", Icons.Material.Filled.Policy),
+                new("نمای کلی", "/central", Icons.Material.Filled.Home, Perm("central", TarazinActions.View)),
+                new("اخبار", "/central/news", Icons.Material.Filled.Newspaper, Perm("central", TarazinActions.View)),
+                new("وبلاگ", "/central/blog", Icons.Material.Filled.EditNote, Perm("central", TarazinActions.View)),
+                new("گالری", "/central/gallery", Icons.Material.Filled.PhotoLibrary, Perm("central", TarazinActions.View)),
+                new("کاربران", "/central/users", Icons.Material.Filled.Group, TarazinPermissions.Users),
+                new("نقش‌ها و دسترسی‌ها", "/central/roles", Icons.Material.Filled.AdminPanelSettings, TarazinPermissions.Roles),
+                new("ممیزی", "/central/audit", Icons.Material.Filled.Policy, TarazinPermissions.Audit),
             ]),
         new("accounting", "حسابداری", "اسناد روز، دفتر روزنامه و کل، تراز آزمایشی",
             "/accounting", Icons.Material.Filled.AccountBalance, "#1E4B73",
             [
-                new("داشبورد", "/accounting/dashboard", Icons.Material.Filled.Dashboard),
-                new("اسناد روز", "/accounting", Icons.Material.Filled.Today),
-                new("ثبت سند", "/accounting/entry", Icons.Material.Filled.PostAdd),
-                new("عملیات ویژه", "/accounting/special", Icons.Material.Filled.AutoFixHigh),
-                new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment),
-                new("امکانات", "/accounting/settings", Icons.Material.Filled.Tune),
+                new("داشبورد", "/accounting/dashboard", Icons.Material.Filled.Dashboard, Perm("accounting", TarazinActions.View)),
+                new("اسناد روز", "/accounting", Icons.Material.Filled.Today, Perm("accounting", TarazinActions.View)),
+                new("ثبت سند", "/accounting/entry", Icons.Material.Filled.PostAdd, Perm("accounting", TarazinActions.Entry)),
+                new("عملیات ویژه", "/accounting/special", Icons.Material.Filled.AutoFixHigh, Perm("accounting", TarazinActions.Special)),
+                new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment, Perm("accounting", TarazinActions.Reports)),
+                new("امکانات", "/accounting/settings", Icons.Material.Filled.Tune, Perm("accounting", TarazinActions.Settings)),
             ]),
         new("inventory", "انبار آمل", "رسید و حواله، کارتکس، موجودی کالا",
             "/inventory", Icons.Material.Filled.Inventory2, "#4A6B3A",
             [
-                new("داشبورد", "/inventory/dashboard", Icons.Material.Filled.Dashboard),
-                new("اسناد روز", "/inventory", Icons.Material.Filled.Today),
-                new("حرکت جدید", "/inventory/entry", Icons.Material.Filled.MoveUp),
-                new("عملیات ویژه", "/inventory/special", Icons.Material.Filled.AutoFixHigh),
-                new("گزارشات", "/inventory/reports", Icons.Material.Filled.Assessment),
-                new("امکانات", "/inventory/settings", Icons.Material.Filled.Tune),
+                new("داشبورد", "/inventory/dashboard", Icons.Material.Filled.Dashboard, Perm("inventory", TarazinActions.View)),
+                new("اسناد روز", "/inventory", Icons.Material.Filled.Today, Perm("inventory", TarazinActions.View)),
+                new("حرکت جدید", "/inventory/entry", Icons.Material.Filled.MoveUp, Perm("inventory", TarazinActions.Entry)),
+                new("عملیات ویژه", "/inventory/special", Icons.Material.Filled.AutoFixHigh, Perm("inventory", TarazinActions.Special)),
+                new("گزارشات", "/inventory/reports", Icons.Material.Filled.Assessment, Perm("inventory", TarazinActions.Reports)),
+                new("امکانات", "/inventory/settings", Icons.Material.Filled.Tune, Perm("inventory", TarazinActions.Settings)),
             ]),
         new("treasury", "خزانه‌داری", "دریافت و پرداخت، صندوق و بانک، چک",
             "/treasury", Icons.Material.Filled.AccountBalanceWallet, "#C49A3C",
             [
-                new("داشبورد", "/treasury/dashboard", Icons.Material.Filled.Dashboard),
-                new("گردش روز", "/treasury", Icons.Material.Filled.Today),
-                new("دریافت / پرداخت", "/treasury/entry", Icons.Material.Filled.SwapHoriz),
-                new("بستن روز", "/treasury/special", Icons.Material.Filled.LockClock),
-                new("گزارشات", "/treasury/reports", Icons.Material.Filled.Assessment),
-                new("امکانات", "/treasury/settings", Icons.Material.Filled.Tune),
+                new("داشبورد", "/treasury/dashboard", Icons.Material.Filled.Dashboard, Perm("treasury", TarazinActions.View)),
+                new("گردش روز", "/treasury", Icons.Material.Filled.Today, Perm("treasury", TarazinActions.View)),
+                new("دریافت / پرداخت", "/treasury/entry", Icons.Material.Filled.SwapHoriz, Perm("treasury", TarazinActions.Entry)),
+                new("بستن روز", "/treasury/special", Icons.Material.Filled.LockClock, Perm("treasury", TarazinActions.Special)),
+                new("گزارشات", "/treasury/reports", Icons.Material.Filled.Assessment, Perm("treasury", TarazinActions.Reports)),
+                new("امکانات", "/treasury/settings", Icons.Material.Filled.Tune, Perm("treasury", TarazinActions.Settings)),
             ]),
         new("payroll", "حقوق و دستمزد", "کارمندان، فیش حقوق، نهایی‌کردن دوره",
             "/payroll", Icons.Material.Filled.Badge, "#9C3B2E",
             [
-                new("داشبورد", "/payroll/dashboard", Icons.Material.Filled.Dashboard),
-                new("دوره‌ها", "/payroll", Icons.Material.Filled.Today),
-                new("فیش حقوق", "/payroll/entry", Icons.Material.Filled.ReceiptLong),
-                new("نهایی‌کردن", "/payroll/special", Icons.Material.Filled.DoneAll),
-                new("گزارشات", "/payroll/reports", Icons.Material.Filled.Assessment),
-                new("امکانات", "/payroll/settings", Icons.Material.Filled.Tune),
+                new("داشبورد", "/payroll/dashboard", Icons.Material.Filled.Dashboard, Perm("payroll", TarazinActions.View)),
+                new("دوره‌ها", "/payroll", Icons.Material.Filled.Today, Perm("payroll", TarazinActions.View)),
+                new("فیش حقوق", "/payroll/entry", Icons.Material.Filled.ReceiptLong, Perm("payroll", TarazinActions.Entry)),
+                new("نهایی‌کردن", "/payroll/special", Icons.Material.Filled.DoneAll, Perm("payroll", TarazinActions.Special)),
+                new("گزارشات", "/payroll/reports", Icons.Material.Filled.Assessment, Perm("payroll", TarazinActions.Reports)),
+                new("امکانات", "/payroll/settings", Icons.Material.Filled.Tune, Perm("payroll", TarazinActions.Settings)),
             ]),
         new("goldshop", "طلافروشی", "فروش روز، قیمت طلا، فاکتور و اجناس",
             "/goldshop", Icons.Material.Filled.Diamond, "#B8860B",
             [
-                new("داشبورد", "/goldshop/dashboard", Icons.Material.Filled.Dashboard),
-                new("فروش روز", "/goldshop", Icons.Material.Filled.Today),
-                new("فاکتور فروش", "/goldshop/entry", Icons.Material.Filled.PointOfSale),
-                new("قیمت طلا", "/goldshop/special", Icons.Material.Filled.ShowChart),
-                new("گزارشات", "/goldshop/reports", Icons.Material.Filled.Assessment),
-                new("امکانات", "/goldshop/settings", Icons.Material.Filled.Tune),
+                new("داشبورد", "/goldshop/dashboard", Icons.Material.Filled.Dashboard, Perm("goldshop", TarazinActions.View)),
+                new("فروش روز", "/goldshop", Icons.Material.Filled.Today, Perm("goldshop", TarazinActions.View)),
+                new("فاکتور فروش", "/goldshop/entry", Icons.Material.Filled.PointOfSale, Perm("goldshop", TarazinActions.Entry)),
+                new("قیمت طلا", "/goldshop/special", Icons.Material.Filled.ShowChart, Perm("goldshop", TarazinActions.Special)),
+                new("گزارشات", "/goldshop/reports", Icons.Material.Filled.Assessment, Perm("goldshop", TarazinActions.Reports)),
+                new("امکانات", "/goldshop/settings", Icons.Material.Filled.Tune, Perm("goldshop", TarazinActions.Settings)),
             ]),
         new("store", "فروشگاه", "سفارش‌ها، محصولات و مشتریان",
             "/store", Icons.Material.Filled.Storefront, "#2B6B7A",
             [
-                new("داشبورد", "/store/dashboard", Icons.Material.Filled.Dashboard),
-                new("سفارش‌های روز", "/store", Icons.Material.Filled.Today),
-                new("ثبت سفارش", "/store/entry", Icons.Material.Filled.AddShoppingCart),
-                new("عملیات ویژه", "/store/special", Icons.Material.Filled.AutoFixHigh),
-                new("گزارشات", "/store/reports", Icons.Material.Filled.Assessment),
-                new("امکانات", "/store/settings", Icons.Material.Filled.Tune),
+                new("داشبورد", "/store/dashboard", Icons.Material.Filled.Dashboard, Perm("store", TarazinActions.View)),
+                new("سفارش‌های روز", "/store", Icons.Material.Filled.Today, Perm("store", TarazinActions.View)),
+                new("ثبت سفارش", "/store/entry", Icons.Material.Filled.AddShoppingCart, Perm("store", TarazinActions.Entry)),
+                new("عملیات ویژه", "/store/special", Icons.Material.Filled.AutoFixHigh, Perm("store", TarazinActions.Special)),
+                new("گزارشات", "/store/reports", Icons.Material.Filled.Assessment, Perm("store", TarazinActions.Reports)),
+                new("امکانات", "/store/settings", Icons.Material.Filled.Tune, Perm("store", TarazinActions.Settings)),
             ]),
     ];
+
+    private static string Perm(string module, string action) => TarazinPermissions.For(module, action);
 
     public static TarazinModule? Match(string relativePath)
     {
@@ -97,6 +102,37 @@ public static class TarazinModules
             return null;
         var key = path.Split('/', 2)[0];
         return All.FirstOrDefault(m => m.Key == key);
+    }
+
+    /// <summary>
+    /// دسترسی لازم برای یک مسیر نسبی. مسیرهای عمومی (خانه/ورود/عیب‌یابی)
+    /// null برمی‌گردانند. برای مسیرهای ناشناخته null (بدون محافظت).
+    /// </summary>
+    public static string? RequiredPermissionFor(string relativePath)
+    {
+        var path = "/" + (relativePath ?? "").Trim().Trim('/').ToLowerInvariant();
+        if (path is "/" or "/login" or "/diag")
+            return null;
+
+        TarazinNavItem? best = null;
+        var bestLen = -1;
+        foreach (var m in All)
+        {
+            foreach (var item in m.Items)
+            {
+                var url = "/" + item.Url.Trim().Trim('/').ToLowerInvariant();
+                if (path == url || path.StartsWith(url + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (url.Length > bestLen)
+                    {
+                        best = item;
+                        bestLen = url.Length;
+                    }
+                }
+            }
+        }
+
+        return best?.Permission;
     }
 
     public static bool IsActive(string currentPath, string href)

@@ -37,6 +37,34 @@
 | B6 | تغییر رمز bootstrap و انتقال اعتبارنامهٔ SQL به secret store (زیرساختش آماده است: `TARAZIN_SQL_CONNECTION`) | تولید |
 | B7 | پاک‌سازی جدول‌های Outbox خواب (ADR-002) | اختیاری |
 
+## فاز ۱۰ — دسترسی (RBAC) + سرویس کاربر + CreatedAt/UpdatedAt (۱۴۰۵/۰۵/۲۲)
+
+> افزوده‌شده روی معماری موجود (بدون پروژهٔ جدید). شرح کامل در `docs/GAP_ANALYSIS_ERP.md`.
+
+| کار | وضعیت | شرح |
+|-----|:---:|-----|
+| RBAC — کاتالوگ دسترسی (`Tarazin.Share/Permissions.cs`): ۴۶ دسترسی `{module}.{action}` + ۸ نقش پیش‌فرض | 3 | منبع واحد برای seed و UI |
+| جداول `[central].[Permissions/Roles/RolePermissions]` + `Users.RoleId` + اسکریپت‌های Sync/Backfill | 3 | Migration idempotent در `_Ensure.sql`؛ همگام‌سازی در `TarazinDbInitializer` |
+| `UserSession` با `HasPermission/CanView/HasAny` + بارگذاری دسترسی‌ها هنگام ورود | 3 | `Login.razor` |
+| اعمال دسترسی در UI: فیلتر NavMenu/Home/ModuleSubNav + گارد مرکزی مسیر در `MainLayout` | 3 | نمایش «دسترسی ندارید» |
+| `UserService` (`Tarazin.Ui/Services/UserService.cs`) برای ایجاد/ویرایش/حذف کاربر + نقش‌ها | 3 | هش PBKDF2 داخل سرویس |
+| صفحهٔ «نقش‌ها و دسترسی‌ها» (`/central/roles`) + `RoleEditorDialog` | 3 | چک‌باکس گروه‌بندی‌شده |
+| CreatedAt/UpdatedAt/CreatedBy/UpdatedBy در همهٔ جداول موجودیت + مدل‌ها + اسکریپت‌ها | 3 | Migration + Upsert + List/Search |
+
+## کارهای باز — ویژگی‌های ERP (از لیست ۳۳ بخشی)
+
+| # | کار | وضعیت فعلی |
+|---|-----|:---:|
+| B8 | ماژول خرید (درخواست→سفارش→فاکتور→برگشت) + تسویه | ❌ |
+| B9 | اموال و دارایی ثابت (استهلاک، انتقال، اسقاط) | ❌ |
+| B10 | تکمیل طلا: آب‌شده/انگ/سکه، تبدیل عیار، تهاتر، تسویهٔ طلایی، نرخ خرید/فروش | 🟡 |
+| B11 | POS/صندوق فروش (شیفت، شمارش، مغایرت) | ❌ |
+| B12 | اقساط و بدهی‌ها (برنامه پرداخت، دیرکرد) | ❌ |
+| B13 | صورتحساب الکترونیکی مالیاتی (وضعیت ارسال/خطا) | 🟡 |
+| B14 | شعب/چندشرکتی + گزارش مقایسه | ❌ |
+| B15 | جستجوی سراسری + داشبورد مدیریتی جامع + BI | ❌ |
+| B16 | اعلان‌ها/هشدارها + چاپ و خروجی Excel/PDF | ❌ |
+
 ## Status Legend
 - 0 = برنامه‌ریزی نشده
 - 1 = در حال پیاده‌سازی

@@ -12,7 +12,10 @@ SELECT
     d.TotalAmount,
     d.CurrencyCode,
     d.Status,
-    d.CreatedAt
+    d.CreatedAt,
+    d.UpdatedAt,
+    d.CreatedBy,
+    d.UpdatedBy
 FROM [accounting].[Documents] d
 WHERE d.DocumentDate BETWEEN @FromDate AND @ToDate
   AND (@SearchText = '' OR d.DocumentNumber LIKE '%' + @SearchText + '%'

@@ -13,16 +13,22 @@
     <div class="tz-nav__label">ماژول‌ها</div>
     @foreach (var mod in TarazinModules.All)
     {
-        <MudNavGroup Title="@mod.Title" Icon="@mod.Icon" Expanded="IsExpanded(mod)"
-                     Class="tz-nav__group">
-            @foreach (var item in mod.Items)
-            {
-                <MudNavLink Href="@item.Url" Icon="@item.Icon"
-                            Match="@(item.Url == mod.Url ? NavLinkMatch.All : NavLinkMatch.Prefix)">
-                    @item.Title
-                </MudNavLink>
-            }
-        </MudNavGroup>
+        @if (Session.CanView(mod.Key))
+        {
+            <MudNavGroup Title="@mod.Title" Icon="@mod.Icon" Expanded="IsExpanded(mod)"
+                         Class="tz-nav__group">
+                @foreach (var item in mod.Items)
+                {
+                    @if (Session.HasPermission(item.Permission))
+                    {
+                        <MudNavLink Href="@item.Url" Icon="@item.Icon"
+                                    Match="@(item.Url == mod.Url ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                            @item.Title
+                        </MudNavLink>
+                    }
+                }
+            </MudNavGroup>
+        }
     }
 </MudNavMenu>
 

@@ -9,7 +9,11 @@ SELECT
     c.Title,
     c.AccountType,
     c.ParentAccountId,
-    c.IsActive
+    c.IsActive,
+    c.CreatedAt,
+    c.UpdatedAt,
+    c.CreatedBy,
+    c.UpdatedBy
 FROM [accounting].[ChartOfAccounts] c
 WHERE c.IsDeleted = 0
   AND (@SearchText = N'' OR c.Title LIKE N'%' + @SearchText + N'%'
