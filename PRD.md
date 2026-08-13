@@ -63,7 +63,7 @@
 
 ## Acceptance Criteria
 1. `dotnet build Tarazin.Web/Tarazin.Web.csproj` — بدون خطا (شامل Share/Data/Ui).
-2. `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net10.0-windows10.0.19041.0`
+2. `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0`
    روی ویندوز با `dotnet workload install maui` — بدون خطا.
 3. با `docker compose up -d` + `dotnet run` همهٔ ۹ ماژول از یک آدرس باز می‌شوند.
 4. در صفحات، هیچ رشتهٔ SQL و هیچ `HttpClient` برای داده وجود ندارد.

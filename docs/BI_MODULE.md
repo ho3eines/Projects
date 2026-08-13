@@ -65,8 +65,9 @@
 
 ## ۵. چاپ و گزارش با Stimulsoft (`/bi/reports`)
 
-- پکیج `Stimulsoft.Reports.Blazor 2026.1.4` به `Tarazin.Ui` اضافه شده
-  (هدف‌گذاری net6.0+ → سازگار با net10.0؛ در هر دو هاست وب و MAUI).
+- پکیج `Stimulsoft.Reports.Blazor 2024.3.2` به `Tarazin.Ui` اضافه شده
+  (هدف‌گذاری net6.0+ → سازگار با net8.0؛ این نسخه دلیل پایین آوردن کل سولوشن روی
+  net8.0 است. در هر دو هاست وب و MAUI کار می‌کند).
 - `Tarazin.Ui/Services/BiReportService.cs` — از خروجی **اسکریپت‌های نامدار موجود**
   یک `DataTable` می‌سازد و گزارش جدولی (سربرگ + سرستون + باند داده) را با مدل
   شیء Stimulsoft می‌سازد؛ سپس در `StiBlazorViewer` رندر می‌شود (چاپ/PDF/Excel از
