@@ -14,5 +14,6 @@ BEGIN
     IF @Qty <= 0
         DELETE FROM [store].[CartItems] WHERE CustomerId = @CustomerId AND ProductId = @ProductId;
     ELSE
-        UPDATE [store].[CartItems] SET Qty = @Qty WHERE CustomerId = @CustomerId AND ProductId = @ProductId;
+        UPDATE [store].[CartItems] SET Qty = @Qty, UpdatedAt = SYSUTCDATETIME()
+        WHERE CustomerId = @CustomerId AND ProductId = @ProductId;
 END

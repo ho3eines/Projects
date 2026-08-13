@@ -12,7 +12,11 @@ SELECT
     o.TotalAmount,
     o.CurrencyCode,
     o.Status,
-    o.OrderDate
+    o.OrderDate,
+    o.CreatedAt,
+    o.UpdatedAt,
+    o.CreatedBy,
+    o.UpdatedBy
 FROM [store].[Orders] o
 ORDER BY o.OrderId DESC
 OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY;

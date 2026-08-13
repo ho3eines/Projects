@@ -1,5 +1,8 @@
+using System.Text.Json;
+using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Tarazin.Models;
 
 namespace Tarazin.Data;
 
@@ -50,6 +53,7 @@ public static class TarazinDbInitializer
 
             await db.EnsureSchemaAsync();
             await db.SeedAsync();
+            await SyncAccessAsync(db);
             await EnsureBootstrapAdminAsync(db, config);
         }
         catch
@@ -57,6 +61,48 @@ public static class TarazinDbInitializer
             Interlocked.Exchange(ref _initialized, 0); // allow retry on next start
             throw;
         }
+    }
+
+    /// <summary>
+    /// همگام‌سازی RBAC از کاتالوگ C# به دیتابیس (idempotent):
+    /// دسترسی‌ها، نقش‌های پیش‌فرض و نگاشت نقش→دسترسی. سپس RoleId
+    /// کاربران قدیمی (که فقط Role رشته‌ای داشتند) پر می‌شود.
+    /// </summary>
+    private static async Task SyncAccessAsync(DbService db)
+    {
+        // JSON دسترسی‌ها/نقش‌ها می‌تواند بزرگ باشد؛ برای جلوگیری از خطای
+        // «رشته باینری کوتاه‌تر از حد» آن را صریحاً nvarchar(max) ارسال می‌کنیم.
+        var permissionsJson = JsonSerializer.Serialize(
+            TarazinPermissions.All.Select(p => new { key = p.Key, title = p.Title, module = p.ModuleKey }));
+        await db.ExecuteAsync("central", "PermissionSync", new
+        {
+            PermissionsJson = new DbString { Value = permissionsJson, IsAnsi = false, Length = -1 }
+        });
+
+        var rolesJson = JsonSerializer.Serialize(
+            TarazinRoles.Defaults.Select(r => new
+            {
+                key = r.Key,
+                title = r.Title,
+                description = r.Description,
+                isSystem = r.IsSystem
+            }));
+        await db.ExecuteAsync("central", "RoleSync", new
+        {
+            RolesJson = new DbString { Value = rolesJson, IsAnsi = false, Length = -1 }
+        });
+
+        foreach (var role in TarazinRoles.Defaults)
+        {
+            var rolePermissionsJson = JsonSerializer.Serialize(role.Permissions);
+            await db.ExecuteAsync("central", "RolePermissionSync", new
+            {
+                RoleKey = role.Key,
+                PermissionsJson = new DbString { Value = rolePermissionsJson, IsAnsi = false, Length = -1 }
+            });
+        }
+
+        await db.ExecuteAsync("central", "UserRoleBackfill");
     }
 
     private static async Task EnsureBootstrapAdminAsync(DbService db, IConfiguration config)

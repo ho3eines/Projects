@@ -44,6 +44,8 @@
 <div class="tz-modgrid">
     @foreach (var m in TarazinModules.All)
     {
+        @if (!Session.IsAuthenticated || Session.CanView(m.Key))
+        {
         <button type="button" class="tz-modcard" style="--tz-accent:@m.Accent"
                 @onclick="() => Nav.NavigateTo(m.Url)">
             <div class="tz-modcard__icon">
@@ -55,6 +57,7 @@
             </div>
             <MudIcon Icon="@Icons.Material.Filled.West" Class="tz-modcard__go" />
         </button>
+        }
     }
 </div>
 

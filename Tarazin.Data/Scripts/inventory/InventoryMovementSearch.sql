@@ -12,7 +12,11 @@ SELECT
     i.ItemTitle,
     m.Qty,
     m.UnitPrice,
-    m.MovementDate
+    m.MovementDate,
+    m.CreatedAt,
+    m.UpdatedAt,
+    m.CreatedBy,
+    m.UpdatedBy
 FROM [inventory].[Movements] m
 JOIN [inventory].[Items] i ON i.ItemId = m.ItemId
 WHERE m.IsDeleted = 0

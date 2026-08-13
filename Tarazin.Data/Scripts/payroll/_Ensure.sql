@@ -94,3 +94,28 @@ BEGIN
     );
     CREATE INDEX IX_Outbox_Ready ON [payroll].[Outbox](ProcessedAt, OutboxId) WHERE ProcessedAt IS NULL;
 END
+
+-- =============================================
+-- Migrations: تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy
+-- =============================================
+IF COL_LENGTH(N'payroll.Employees', N'CreatedBy') IS NULL
+    ALTER TABLE [payroll].[Employees] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'payroll.Employees', N'UpdatedBy') IS NULL
+    ALTER TABLE [payroll].[Employees] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'payroll.SalaryItems', N'UpdatedAt') IS NULL
+    ALTER TABLE [payroll].[SalaryItems] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'payroll.SalaryItems', N'CreatedBy') IS NULL
+    ALTER TABLE [payroll].[SalaryItems] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'payroll.SalaryItems', N'UpdatedBy') IS NULL
+    ALTER TABLE [payroll].[SalaryItems] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'payroll.PayrollRuns', N'UpdatedAt') IS NULL
+    ALTER TABLE [payroll].[PayrollRuns] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'payroll.PayrollRuns', N'UpdatedBy') IS NULL
+    ALTER TABLE [payroll].[PayrollRuns] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'payroll.PayrollRunItems', N'CreatedAt') IS NULL
+    ALTER TABLE [payroll].[PayrollRunItems] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_PayrollRunItems_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'payroll.PayrollRunItems', N'UpdatedAt') IS NULL
+    ALTER TABLE [payroll].[PayrollRunItems] ADD UpdatedAt DATETIME2 NULL;

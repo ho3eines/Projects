@@ -27,6 +27,9 @@ public class PartyRow
     public string? Email { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>Contract: ChartOfAccount (Accounting).</summary>
@@ -38,6 +41,10 @@ public class ChartOfAccountRow
     public string? AccountType { get; set; }              // Asset | Liability | Equity | Income | Expense
     public int? ParentAccountId { get; set; }
     public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>Contract: CurrencyRate (Treasury).</summary>
@@ -48,6 +55,7 @@ public class CurrencyRateRow
     public string CurrencyName { get; set; } = "";
     public decimal RateToIRR { get; set; }
     public DateTime RateDate { get; set; }
+    public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
 
@@ -61,6 +69,8 @@ public class TaxRuleRow
     public decimal RatePercent { get; set; }
     public DateTime EffectiveFrom { get; set; }
     public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 /// <summary>Contract: InventoryMovement (Warehouse).</summary>
@@ -75,6 +85,10 @@ public class InventoryMovementRow
     public decimal Qty { get; set; }
     public decimal UnitPrice { get; set; }
     public DateTime MovementDate { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>Contract: PayrollRun (Payroll).</summary>
@@ -86,6 +100,9 @@ public class PayrollRunRow
     public decimal NetTotal { get; set; }
     public string Status { get; set; } = "";
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>Contract: GoldPrice (GoldShop).</summary>
@@ -96,6 +113,7 @@ public class GoldPriceRow
     public string Title { get; set; } = "";
     public decimal PricePerGram { get; set; }
     public decimal? RateToIRR { get; set; }
+    public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
 
@@ -111,6 +129,10 @@ public class OrderRow
     public string CurrencyCode { get; set; } = "IRR";
     public string Status { get; set; } = "";
     public DateTime OrderDate { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>Main-page daily document row (Accounting / generic daily lists).</summary>
@@ -125,6 +147,9 @@ public class DailyDocumentRow
     public string? CurrencyCode { get; set; }
     public string? Status { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>User row (central) — includes PasswordHash for server-side auth only.</summary>
@@ -134,9 +159,14 @@ public class UserRow
     public string Username { get; set; } = "";
     public string PasswordHash { get; set; } = "";        // PBKDF2 — never exposed to the UI
     public string DisplayName { get; set; } = "";
-    public string Role { get; set; } = "";
+    public string Role { get; set; } = "";                // نقش (کلید) — برای سازگاری با نسخهٔ قبل
+    public int RoleId { get; set; }                       // FK → [central].[Roles]
+    public string RoleTitle { get; set; } = "";           // عنوان فارسی نقش
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 /// <summary>Audit trail row (central).[AuditLog] — hash-chained.</summary>

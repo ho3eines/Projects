@@ -1,0 +1,126 @@
+@page "/central/roles"
+@inject UserService Users
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>نقش‌ها و دسترسی‌ها — ترازین</PageTitle>
+
+<PageHeader Title="نقش‌ها و دسترسی‌ها"
+            Subtitle="تعریف نقش و تخصیص دسترسی به هر بخش (ماژول) — کاربران بر اساس نقش به بخش‌ها دسترسی می‌گیرند.">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddModerator"
+               OnClick="@(() => OpenEditorAsync(new RoleRow()))">
+        نقش جدید
+    </MudButton>
+</PageHeader>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_roles" Hover="true" Dense="true" Striped="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>کلید</MudTh><MudTh>توضیح</MudTh><MudTh>کاربران</MudTh><MudTh>نوع</MudTh><MudTh>ایجاد</MudTh><MudTh>عملیات</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="#">@context.RoleId</MudTd>
+            <MudTd DataLabel="عنوان">@context.Title</MudTd>
+            <MudTd DataLabel="کلید" Style="direction:ltr; font-family:monospace">@context.RoleKey</MudTd>
+            <MudTd DataLabel="توضیح">@context.Description</MudTd>
+            <MudTd DataLabel="کاربران">@context.UserCount</MudTd>
+            <MudTd DataLabel="نوع">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                         Color="@(context.IsSystem ? Color.Secondary : Color.Default)">
+                    @(context.IsSystem ? "سیستمی" : "عادی")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="ایجاد">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
+            <MudTd DataLabel="عملیات">
+                @if (!context.IsSystem)
+                {
+                    <MudTooltip Text="ویرایش نقش و دسترسی‌ها">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenEditorAsync(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="حذف نقش">
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteAsync(context))" />
+                    </MudTooltip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Default">قفل‌شده</MudText>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Color="Color.Secondary">نقشی تعریف نشده است.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<RoleRow> _roles = new();
+    private bool _loading = true;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _roles = (await Users.GetRolesAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenEditorAsync(RoleRow role)
+    {
+        var keys = role.RoleId == 0
+            ? new List<string>()
+            : (await Users.GetRolePermissionKeysAsync(role.RoleId)).ToList();
+
+        var parameters = new DialogParameters<RoleEditorDialog>
+        {
+            { x => x.Role, role },
+            { x => x.PermissionKeys, keys }
+        };
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseButton = true,
+            CloseOnEscapeKey = true
+        };
+
+        var dialog = await Dialog.ShowAsync<RoleEditorDialog>(
+            role.RoleId == 0 ? "نقش جدید" : $"ویرایش «{role.Title}»", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteAsync(RoleRow role)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف",
+            $"آیا از حذف نقش «{role.Title}» مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+        if (confirmed is not true)
+            return;
+
+        try
+        {
+            await Users.DeleteRoleAsync(role.RoleId);
+            Snackbar.Add("نقش با موفقیت حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

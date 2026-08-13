@@ -15,7 +15,9 @@ SELECT
     s.Profit,
     s.Tax,
     s.TotalAmount,
-    s.Status
+    s.Status,
+    s.CreatedAt,
+    s.UpdatedAt
 FROM [goldshop].[SaleInvoices] s
 LEFT JOIN [goldshop].[GoldItems] g ON g.ItemCode = s.ItemCode
 WHERE s.InvoiceDate BETWEEN @FromDate AND @ToDate

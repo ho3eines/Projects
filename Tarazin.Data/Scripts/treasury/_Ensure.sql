@@ -185,3 +185,49 @@ BEGIN
     );
     CREATE INDEX IX_Outbox_Ready ON [treasury].[Outbox](ProcessedAt, OutboxId) WHERE ProcessedAt IS NULL;
 END
+
+-- =============================================
+-- Migrations: تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy
+-- =============================================
+IF COL_LENGTH(N'treasury.Banks', N'UpdatedAt') IS NULL
+    ALTER TABLE [treasury].[Banks] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'treasury.Banks', N'CreatedBy') IS NULL
+    ALTER TABLE [treasury].[Banks] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'treasury.Banks', N'UpdatedBy') IS NULL
+    ALTER TABLE [treasury].[Banks] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'treasury.BankAccounts', N'UpdatedAt') IS NULL
+    ALTER TABLE [treasury].[BankAccounts] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'treasury.BankAccounts', N'CreatedBy') IS NULL
+    ALTER TABLE [treasury].[BankAccounts] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'treasury.BankAccounts', N'UpdatedBy') IS NULL
+    ALTER TABLE [treasury].[BankAccounts] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'treasury.CashBoxes', N'UpdatedAt') IS NULL
+    ALTER TABLE [treasury].[CashBoxes] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'treasury.CashBoxes', N'CreatedBy') IS NULL
+    ALTER TABLE [treasury].[CashBoxes] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'treasury.CashBoxes', N'UpdatedBy') IS NULL
+    ALTER TABLE [treasury].[CashBoxes] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'treasury.CurrencyRates', N'CreatedAt') IS NULL
+    ALTER TABLE [treasury].[CurrencyRates] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_CurrencyRates_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'treasury.CurrencyRates', N'CreatedBy') IS NULL
+    ALTER TABLE [treasury].[CurrencyRates] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'treasury.CurrencyRates', N'UpdatedBy') IS NULL
+    ALTER TABLE [treasury].[CurrencyRates] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'treasury.CashMovements', N'UpdatedAt') IS NULL
+    ALTER TABLE [treasury].[CashMovements] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'treasury.CashMovements', N'UpdatedBy') IS NULL
+    ALTER TABLE [treasury].[CashMovements] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'treasury.Cheques', N'UpdatedAt') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'treasury.Cheques', N'CreatedBy') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'treasury.Cheques', N'UpdatedBy') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'treasury.DayCloses', N'UpdatedAt') IS NULL
+    ALTER TABLE [treasury].[DayCloses] ADD UpdatedAt DATETIME2 NULL;

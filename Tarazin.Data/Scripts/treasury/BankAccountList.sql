@@ -3,7 +3,8 @@
 -- Schema: treasury
 -- Query.
 -- =============================================
-SELECT a.AccountId, a.AccountName, a.AccountNo, b.Title AS BankName, a.Balance
+SELECT a.AccountId, a.AccountName, a.AccountNo, b.Title AS BankName, a.Balance,
+       a.IsActive, a.CreatedAt, a.UpdatedAt
 FROM [treasury].[BankAccounts] a
 LEFT JOIN [treasury].[Banks] b ON b.BankId = a.BankId
 WHERE a.IsDeleted = 0

@@ -11,7 +11,11 @@ SELECT
     o.ItemCount,
     o.TotalAmount,
     o.CurrencyCode,
-    o.Status
+    o.Status,
+    o.CreatedAt,
+    o.UpdatedAt,
+    o.CreatedBy,
+    o.UpdatedBy
 FROM [store].[Orders] o
 WHERE o.OrderDate BETWEEN @FromDate AND @ToDate
   AND (@SearchText = N'' OR o.OrderNumber LIKE N'%' + @SearchText + N'%'

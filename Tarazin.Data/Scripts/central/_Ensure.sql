@@ -149,6 +149,97 @@ BEGIN
         IsActive      BIT NOT NULL DEFAULT 1,
         IsDeleted     BIT NOT NULL DEFAULT 0,
         CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        CreatedBy     NVARCHAR(100) NULL
+        UpdatedAt     DATETIME2 NULL,
+        CreatedBy     NVARCHAR(100) NULL,
+        UpdatedBy     NVARCHAR(100) NULL
     );
 END
+
+-- ─────────────────────────────────────────────────────────────
+-- Access control (RBAC): permissions, roles, role→permission.
+-- ─────────────────────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'Permissions')
+BEGIN
+    CREATE TABLE [central].[Permissions] (
+        PermissionId  INT IDENTITY(1,1) PRIMARY KEY,
+        PermissionKey NVARCHAR(80)  NOT NULL UNIQUE,
+        Title         NVARCHAR(160) NOT NULL,
+        ModuleKey     NVARCHAR(50)  NOT NULL,              -- accounting | system | ...
+        IsDeleted     BIT NOT NULL DEFAULT 0,
+        CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt     DATETIME2 NULL
+    );
+    CREATE INDEX IX_Permissions_Module ON [central].[Permissions](ModuleKey, IsDeleted);
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'Roles')
+BEGIN
+    CREATE TABLE [central].[Roles] (
+        RoleId      INT IDENTITY(1,1) PRIMARY KEY,
+        RoleKey     NVARCHAR(40)  NOT NULL UNIQUE,
+        Title       NVARCHAR(120) NOT NULL,
+        Description NVARCHAR(300) NULL,
+        IsSystem    BIT NOT NULL DEFAULT 0,
+        IsDeleted   BIT NOT NULL DEFAULT 0,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt   DATETIME2 NULL,
+        CreatedBy   NVARCHAR(100) NULL,
+        UpdatedBy   NVARCHAR(100) NULL
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'RolePermissions')
+BEGIN
+    CREATE TABLE [central].[RolePermissions] (
+        RoleId       INT NOT NULL,
+        PermissionId INT NOT NULL,
+        CONSTRAINT PK_RolePermissions PRIMARY KEY (RoleId, PermissionId),
+        CONSTRAINT FK_RolePermissions_Roles FOREIGN KEY (RoleId)
+            REFERENCES [central].[Roles](RoleId),
+        CONSTRAINT FK_RolePermissions_Permissions FOREIGN KEY (PermissionId)
+            REFERENCES [central].[Permissions](PermissionId)
+    );
+END
+
+-- ─────────────────────────────────────────────────────────────
+-- Migrations (idempotent) — برای دیتابیس‌های ساخته‌شده قبل از RBAC
+-- و تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy.
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'central.Users', N'RoleId') IS NULL
+    ALTER TABLE [central].[Users] ADD RoleId INT NULL;
+
+IF COL_LENGTH(N'central.News', N'UpdatedBy') IS NULL
+    ALTER TABLE [central].[News] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'central.BlogPosts', N'UpdatedBy') IS NULL
+    ALTER TABLE [central].[BlogPosts] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'central.GalleryItems', N'UpdatedAt') IS NULL
+    ALTER TABLE [central].[GalleryItems] ADD UpdatedAt DATETIME2 NULL;
+
+IF COL_LENGTH(N'central.GalleryItems', N'UpdatedBy') IS NULL
+    ALTER TABLE [central].[GalleryItems] ADD UpdatedBy NVARCHAR(100) NULL;
+
+-- FK Users.RoleId → Roles (فقط اگر هنوز وجود ندارد).
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'FK_Users_Roles' AND parent_object_id = OBJECT_ID(N'central.Users'))
+BEGIN
+    ALTER TABLE [central].[Users]
+        ADD CONSTRAINT FK_Users_Roles FOREIGN KEY (RoleId) REFERENCES [central].[Roles](RoleId);
+END
+
+-- child/junction timestamp completeness (idempotent)
+IF COL_LENGTH(N'central.RolePermissions', N'CreatedAt') IS NULL
+    ALTER TABLE [central].[RolePermissions] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_RolePermissions_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'central.RolePermissions', N'UpdatedAt') IS NULL
+    ALTER TABLE [central].[RolePermissions] ADD UpdatedAt DATETIME2 NULL;

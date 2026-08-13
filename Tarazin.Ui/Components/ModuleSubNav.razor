@@ -1,3 +1,5 @@
+@inject UserSession Session
+
 @if (Module is not null)
 {
     <div class="tz-subnav" role="navigation" aria-label="@Module.Title">
@@ -8,11 +10,14 @@
         <div class="tz-subnav__tabs">
             @foreach (var item in Module.Items)
             {
-                var active = TarazinModules.IsActive(CurrentPath, item.Url);
-                <a href="@item.Url" class="tz-subnav__tab @(active ? "is-active" : null)">
-                    <MudIcon Icon="@item.Icon" Size="Size.Small" />
-                    <span>@item.Title</span>
-                </a>
+                @if (Session.HasPermission(item.Permission))
+                {
+                    var active = TarazinModules.IsActive(CurrentPath, item.Url);
+                    <a href="@item.Url" class="tz-subnav__tab @(active ? "is-active" : null)">
+                        <MudIcon Icon="@item.Icon" Size="Size.Small" />
+                        <span>@item.Title</span>
+                    </a>
+                }
             }
         </div>
     </div>

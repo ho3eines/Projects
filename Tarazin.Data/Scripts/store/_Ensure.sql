@@ -156,3 +156,48 @@ BEGIN
     );
     CREATE INDEX IX_Outbox_Ready ON [store].[Outbox](ProcessedAt, OutboxId) WHERE ProcessedAt IS NULL;
 END
+
+-- =============================================
+-- Migrations: تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy
+-- =============================================
+IF COL_LENGTH(N'store.Customers', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[Customers] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'store.Customers', N'CreatedBy') IS NULL
+    ALTER TABLE [store].[Customers] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'store.Customers', N'UpdatedBy') IS NULL
+    ALTER TABLE [store].[Customers] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'store.Products', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[Products] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'store.Products', N'CreatedBy') IS NULL
+    ALTER TABLE [store].[Products] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'store.Products', N'UpdatedBy') IS NULL
+    ALTER TABLE [store].[Products] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'store.Orders', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[Orders] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'store.Orders', N'CreatedBy') IS NULL
+    ALTER TABLE [store].[Orders] ADD CreatedBy NVARCHAR(100) NULL;
+IF COL_LENGTH(N'store.Orders', N'UpdatedBy') IS NULL
+    ALTER TABLE [store].[Orders] ADD UpdatedBy NVARCHAR(100) NULL;
+
+IF COL_LENGTH(N'store.GoldPriceSnapshot', N'CreatedAt') IS NULL
+    ALTER TABLE [store].[GoldPriceSnapshot] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_store_GoldPriceSnapshot_CreatedAt DEFAULT SYSUTCDATETIME();
+
+IF COL_LENGTH(N'store.OrderItems', N'CreatedAt') IS NULL
+    ALTER TABLE [store].[OrderItems] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_OrderItems_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'store.OrderItems', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[OrderItems] ADD UpdatedAt DATETIME2 NULL;
+
+IF COL_LENGTH(N'store.CartItems', N'CreatedAt') IS NULL
+    ALTER TABLE [store].[CartItems] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_CartItems_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'store.CartItems', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[CartItems] ADD UpdatedAt DATETIME2 NULL;
+
+IF COL_LENGTH(N'store.OrderReservations', N'CreatedAt') IS NULL
+    ALTER TABLE [store].[OrderReservations] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_OrderReservations_CreatedAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'store.OrderReservations', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[OrderReservations] ADD UpdatedAt DATETIME2 NULL;
+
+IF COL_LENGTH(N'store.InventorySnapshot', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[InventorySnapshot] ADD UpdatedAt DATETIME2 NULL;

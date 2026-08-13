@@ -12,7 +12,10 @@ SELECT
     b.Tags,
     b.PublishedAt,
     b.IsActive,
-    b.CreatedAt
+    b.CreatedAt,
+    b.UpdatedAt,
+    b.CreatedBy,
+    b.UpdatedBy
 FROM [central].[BlogPosts] b
 WHERE b.IsDeleted = 0
 ORDER BY ISNULL(b.PublishedAt, b.CreatedAt) DESC

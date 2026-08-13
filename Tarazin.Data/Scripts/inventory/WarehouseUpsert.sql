@@ -18,6 +18,7 @@ BEGIN
     SET WarehouseCode = ISNULL(@WarehouseCode, WarehouseCode),
         Title         = ISNULL(@Title, Title),
         Location      = @Location,
-        IsActive      = ISNULL(@IsActive, IsActive)
+        IsActive      = ISNULL(@IsActive, IsActive),
+        UpdatedAt     = SYSUTCDATETIME()
     WHERE WarehouseId = @WarehouseId;
 END

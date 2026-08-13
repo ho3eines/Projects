@@ -15,7 +15,9 @@ SELECT
     m.UnitPrice,
     (m.Qty * m.UnitPrice) AS TotalValue,
     m.Status,
-    m.Description
+    m.Description,
+    m.CreatedAt,
+    m.UpdatedAt
 FROM [inventory].[Movements] m
 JOIN [inventory].[Items] i ON i.ItemId = m.ItemId
 LEFT JOIN [inventory].[Warehouses] w ON w.WarehouseId = m.WarehouseId

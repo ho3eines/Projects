@@ -44,8 +44,12 @@
                     <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" />
                 </ActivatorContent>
                 <ChildContent>
-                    <MudMenuItem Disabled="true">@Session.Role</MudMenuItem>
-                    <MudMenuItem Href="/central/users" Icon="@Icons.Material.Filled.ManageAccounts">حساب کاربری</MudMenuItem>
+                    <MudMenuItem Disabled="true">@Session.RoleTitle</MudMenuItem>
+                    @if (Session.HasAny(TarazinPermissions.Users, TarazinPermissions.Roles))
+                    {
+                        <MudMenuItem Href="/central/users" Icon="@Icons.Material.Filled.ManageAccounts">کاربران</MudMenuItem>
+                        <MudMenuItem Href="/central/roles" Icon="@Icons.Material.Filled.AdminPanelSettings">نقش‌ها و دسترسی‌ها</MudMenuItem>
+                    }
                     <MudMenuItem Href="/diag" Icon="@Icons.Material.Filled.MonitorHeart">عیب‌یابی اتصال</MudMenuItem>
                     <MudDivider />
                     <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="Logout">خروج</MudMenuItem>
@@ -77,7 +81,25 @@
     <MudMainContent Class="tz-main">
         <ModuleSubNav Module="_module" CurrentPath="@_path" />
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="tz-page">
-            @Body
+            @if (_denied)
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-4" Icon="@Icons.Material.Filled.Lock">
+                    <MudText Typo="Typo.h6">@_denyMessage</MudText>
+                    <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="ms-4">
+                        بازگشت به خانه
+                    </MudButton>
+                    @if (!Session.IsAuthenticated)
+                    {
+                        <MudButton Href="/login" Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" Class="ms-2">
+                            ورود
+                        </MudButton>
+                    }
+                </MudAlert>
+            }
+            else
+            {
+                @Body
+            }
         </MudContainer>
     </MudMainContent>
 </MudLayout>
@@ -86,6 +108,8 @@
     private bool _drawerOpen = true;
     private string _path = "";
     private TarazinModule? _module;
+    private bool _denied;
+    private string _denyMessage = "";
 
     private string Initial =>
         string.IsNullOrWhiteSpace(Session.DisplayName) ? "ک" : Session.DisplayName[..1];
@@ -109,6 +133,12 @@
     {
         _path = Nav.ToBaseRelativePath(uri);
         _module = TarazinModules.Match(_path);
+
+        var required = TarazinModules.RequiredPermissionFor(_path);
+        _denied = required is not null && !Session.HasPermission(required);
+        _denyMessage = !Session.IsAuthenticated
+            ? "برای دسترسی به این بخش ابتدا وارد شوید."
+            : "شما دسترسی لازم برای این بخش را ندارید. برای دریافت دسترسی با مدیر سیستم تماس بگیرید.";
     }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;

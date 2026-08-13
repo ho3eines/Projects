@@ -9,6 +9,7 @@ SELECT
     p.Title,
     p.PricePerGram,
     p.RateToIRR,
+    p.CreatedAt,
     p.UpdatedAt
 FROM [goldshop].[GoldPrices] p
 WHERE p.IsDeleted = 0

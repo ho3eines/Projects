@@ -10,7 +10,10 @@ SELECT
     g.Caption,
     g.SortOrder,
     g.IsActive,
-    g.CreatedAt
+    g.CreatedAt,
+    g.UpdatedAt,
+    g.CreatedBy,
+    g.UpdatedBy
 FROM [central].[GalleryItems] g
 WHERE g.IsDeleted = 0
 ORDER BY g.SortOrder, g.GalleryItemId

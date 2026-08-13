@@ -1,5 +1,5 @@
 @page "/central/users"
-@inject DbService Db
+@inject UserService Users
 @inject EntityCrudService EntityCrud
 @inject ISnackbar Snackbar
 
@@ -15,17 +15,28 @@
 <MudPaper Elevation="1" Class="pa-4">
     <MudTable Items="_users" Hover="true" Dense="true" Striped="true" Loading="_loading">
         <HeaderContent>
-            <MudTh>#</MudTh><MudTh>نام کاربری</MudTh><MudTh>نام نمایشی</MudTh><MudTh>نقش</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+            <MudTh>#</MudTh><MudTh>نام کاربری</MudTh><MudTh>نام نمایشی</MudTh><MudTh>نقش</MudTh><MudTh>وضعیت</MudTh><MudTh>ایجاد</MudTh><MudTh>ویرایش</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="#">@context.UserId</MudTd>
             <MudTd DataLabel="نام کاربری">@context.Username</MudTd>
             <MudTd DataLabel="نام نمایشی">@context.DisplayName</MudTd>
-            <MudTd DataLabel="نقش">@context.Role</MudTd>
+            <MudTd DataLabel="نقش">@context.RoleTitle</MudTd>
             <MudTd DataLabel="وضعیت">
                 <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                     @(context.IsActive ? "فعال" : "غیرفعال")
                 </MudChip>
+            </MudTd>
+            <MudTd DataLabel="ایجاد">@context.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
+            <MudTd DataLabel="ویرایش">
+                @if (context.UpdatedAt is DateTime updated)
+                {
+                    @updated.ToString("yyyy/MM/dd HH:mm")
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Default">—</MudText>
+                }
             </MudTd>
             <MudTd DataLabel="عملیات">
                 <MudTooltip Text="ویرایش کاربر">
@@ -43,7 +54,6 @@
 </MudPaper>
 
 @code {
-    private const string Schema = "central";
     private List<UserRow> _users = new();
     private bool _loading = true;
 
@@ -54,7 +64,7 @@
         _loading = true;
         try
         {
-            _users = (await Db.QueryAsync<UserRow>(Schema, "UserList")).ToList();
+            _users = (await Users.GetUsersAsync()).ToList();
         }
         catch (Exception ex)
         {

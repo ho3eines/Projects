@@ -9,7 +9,10 @@ SELECT
     r.EmployeeCount,
     r.NetTotal,
     r.Status,
-    r.CreatedAt
+    r.CreatedAt,
+    r.UpdatedAt,
+    r.CreatedBy,
+    r.UpdatedBy
 FROM [payroll].[PayrollRuns] r
 ORDER BY r.RunId DESC
 OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY;

@@ -14,6 +14,7 @@ BEGIN
     UPDATE [payroll].[SalaryItems]
     SET Title       = @Title,
         Amount      = @Amount,
-        IsDeduction = ISNULL(@IsDeduction, IsDeduction)
+        IsDeduction = ISNULL(@IsDeduction, IsDeduction),
+        UpdatedAt   = SYSUTCDATETIME()
     WHERE SalaryItemId = @SalaryItemId;
 END

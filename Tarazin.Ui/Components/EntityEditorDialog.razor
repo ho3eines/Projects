@@ -1,5 +1,6 @@
 @inject DbService Db
 @inject UserSession Session
+@inject UserService Users
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -83,9 +84,12 @@
                                           Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudSelect T="string" Label="نقش" @bind-Value="Model.Text" Variant="Variant.Outlined">
-                                <MudSelectItem Value="@("User")">کاربر</MudSelectItem>
-                                <MudSelectItem Value="@("Admin")">مدیر</MudSelectItem>
+                            <MudSelect T="string" Label="نقش" @bind-Value="Model.Text" Variant="Variant.Outlined"
+                                       Required="true" RequiredError="نقش الزامی است.">
+                                @foreach (var role in _roles)
+                                {
+                                    <MudSelectItem Value="@role.RoleKey">@role.Title</MudSelectItem>
+                                }
                             </MudSelect>
                         </MudItem>
                         break;
@@ -291,9 +295,23 @@
     private MudForm? _form;
     private bool _isValid;
     private bool _busy;
+    private List<RoleRow> _roles = new();
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter, EditorRequired] public EntityEditorModel Model { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // بارگذاری نقش‌ها برای انتخابگر نقش در فرم کاربر.
+        try
+        {
+            _roles = (await Users.GetRolesAsync()).ToList();
+        }
+        catch
+        {
+            _roles = new List<RoleRow>();
+        }
+    }
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -364,18 +382,12 @@
                     break;
 
                 case EntityEditorKind.User:
-                    await Db.ExecuteAsync("central", "UserUpsert", new
-                    {
-                        UserId = Model.Id,
-                        Username = Model.Code.Trim(),
-                        PasswordHash = string.IsNullOrWhiteSpace(Model.Password)
-                            ? ""
-                            : PasswordHasher.Hash(Model.Password),
-                        DisplayName = Model.Title.Trim(),
-                        Role = Model.Text,
-                        Model.IsActive,
-                        CreatedBy = Session.UserName
-                    });
+                    if (Model.IsNew)
+                        await Users.CreateUserAsync(Model.Code.Trim(), Model.Password, Model.Title.Trim(),
+                            Model.Text, Model.IsActive, Session.UserName);
+                    else
+                        await Users.UpdateUserAsync(Model.Id, Model.Title.Trim(), Model.Text,
+                            Model.IsActive, Model.Password, Session.UserName);
                     break;
 
                 case EntityEditorKind.Account:

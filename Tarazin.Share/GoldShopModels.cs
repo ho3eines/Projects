@@ -14,6 +14,8 @@ public class DailySaleRow
     public decimal Tax { get; set; }
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class GoldShopDashboardRow
@@ -31,4 +33,8 @@ public class GoldItemRow
     public string Title { get; set; } = "";
     public decimal? Purity { get; set; }
     public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }

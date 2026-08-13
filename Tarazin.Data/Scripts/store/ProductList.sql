@@ -3,7 +3,8 @@
 -- Schema: store
 -- Query.
 -- =============================================
-SELECT p.ProductId, p.ProductCode, p.Title, p.ItemCode, p.Price, p.IsActive
+SELECT p.ProductId, p.ProductCode, p.Title, p.ItemCode, p.Price, p.IsActive,
+       p.CreatedAt, p.UpdatedAt, p.CreatedBy, p.UpdatedBy
 FROM [store].[Products] p
 WHERE p.IsDeleted = 0
 ORDER BY p.Title;

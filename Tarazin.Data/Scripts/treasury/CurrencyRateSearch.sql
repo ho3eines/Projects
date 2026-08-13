@@ -9,6 +9,7 @@ SELECT
     r.CurrencyName,
     r.RateToIRR,
     r.RateDate,
+    r.CreatedAt,
     r.UpdatedAt
 FROM [treasury].[CurrencyRates] r
 WHERE r.IsDeleted = 0

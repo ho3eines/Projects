@@ -24,7 +24,7 @@
 </div>
 
 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-6">
-    وضعیت نشست: @(Session.IsAuthenticated ? $"وارد شده — {Session.DisplayName} ({Session.Role})" : "خارج شده")
+    وضعیت نشست: @(Session.IsAuthenticated ? $"وارد شده — {Session.DisplayName} ({Session.RoleTitle})" : "خارج شده")
 </MudText>
 
 @code {

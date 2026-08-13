@@ -20,6 +20,10 @@ public class ProductRow
     public string ItemCode { get; set; } = "";
     public decimal Price { get; set; }
     public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 public class CustomerRow
@@ -30,6 +34,10 @@ public class CustomerRow
     public string Phone { get; set; } = "";
     public string Email { get; set; } = "";
     public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
 public class StoreDashboardRow

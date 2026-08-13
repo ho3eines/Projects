@@ -12,6 +12,7 @@ ELSE
 BEGIN
     UPDATE [central].[GalleryItems]
     SET Title = @Title, ImageUrl = @ImageUrl, Caption = @Caption,
-        SortOrder = @SortOrder, IsActive = @IsActive
+        SortOrder = @SortOrder, IsActive = @IsActive,
+        UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
     WHERE GalleryItemId = @GalleryItemId;
 END
