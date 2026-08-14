@@ -461,12 +461,30 @@
         return ids;
     }
 
-    private RenderFragment RenderNode(ChartTreeNode n, int indent) => __builder =>
+    // عمق حداکثر درخت رندر — محافظ در برابر داده‌های خراب/دوری که اگر والدها حلقه بسازند
+    // باعث سرریز پشته (StackOverflow → قطع شدن WebSocket بلیدزور) نشود.
+    private const int MaxRenderDepth = 40;
+
+    /// <summary>فرزندهای مستقیم یک گره بر اساس نوع آن.</summary>
+    private List<ChartTreeNode> ChildrenOf(ChartTreeNode n)
+    {
+        return n.NodeType switch
+        {
+            // حساب کل → معین‌هایی که ColId آن‌ها برابر NodeId است.
+            "BaseCol" => _filtered.Where(c => c.NodeType == "BaseMoein" && c.ParentId == n.NodeId).ToList(),
+            // حساب معین → تفصیلی‌هایی که از طریق BaseDetilLink به همین معین متصل‌اند (MoeinId).
+            "BaseMoein" => _filtered.Where(c => c.NodeType == "BaseDetil" && c.MoeinId == n.NodeId).ToList(),
+            // تفصیلی فرزندی ندارد.
+            _ => new List<ChartTreeNode>()
+        };
+    }
+
+    private RenderFragment RenderNode(ChartTreeNode n, int indent, int depth = 0) => __builder =>
     {
         var isSelected = _selected is not null && _selected.NodeId == n.NodeId && _selected.NodeType == n.NodeType;
         var matched = _searchResults.Any(r => r.NodeId == n.NodeId && r.NodeType == n.NodeType);
-        var childCols = _filtered.Where(c => c.NodeType == "BaseMoein" && c.ParentId == n.NodeId).ToList();
-        var hasChildren = childCols.Count > 0;
+        var children = ChildrenOf(n);
+        var hasChildren = children.Count > 0 && depth < MaxRenderDepth;
         var opened = IsExpanded(n);
 
         <div class="tz-charttree__node @(isSelected ? "is-selected" : null) @(matched ? "is-matched" : null)"
@@ -510,9 +528,9 @@
 
         @if (hasChildren && opened)
         {
-            @foreach (var ch in childCols)
+            @foreach (var ch in children)
             {
-                @RenderNode(ch, indent + 1)
+                @RenderNode(ch, indent + 1, depth + 1)
             }
         }
     };
