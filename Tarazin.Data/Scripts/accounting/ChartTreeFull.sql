@@ -70,13 +70,22 @@ AllNodes AS (
 SELECT
     n.NodeId, n.Level, n.Code, n.Title, n.NodeType, n.ParentId,
     n.AccountCode, n.IsActive, n.IsDeleted, n.Breadcrumb,
-    -- تعداد فرزند مستقیم: شمارش ردیف‌هایی که ParentId=NodeId و Level n+1.
+    -- تعداد فرزند مستقیم (مطابق نحوهٔ رندر درخت در UI):
+    --   BaseCol   → فرزند = BaseMoein با ParentId=ColId
+    --   BaseMoein → فرزند = BaseDetil با MoeinId=MoeinId (پیوندهای تفصیلی همین معین)
+    --   BaseDetil → بی‌فرزند
     -- این correlated subquery با ایندکس‌های FK بسیار سریع است.
-    ISNULL((
-        SELECT COUNT_BIG(*)
-        FROM AllNodes ch
-        WHERE ch.ParentId = n.NodeId AND ch.Level = n.Level + 1
-    ), 0) AS ChildCount,
+    CASE n.NodeType
+        WHEN N'BaseCol'   THEN ISNULL((
+            SELECT COUNT_BIG(*) FROM AllNodes ch
+            WHERE ch.NodeType = N'BaseMoein' AND ch.ParentId = n.NodeId
+        ), 0)
+        WHEN N'BaseMoein' THEN ISNULL((
+            SELECT COUNT_BIG(*) FROM AllNodes ch
+            WHERE ch.NodeType = N'BaseDetil' AND ch.MoeinId = n.NodeId
+        ), 0)
+        ELSE 0
+    END AS ChildCount,
     n.DetilEntityId, n.LinkId, n.MoeinId
 FROM AllNodes n
 ORDER BY n.AccountCode, n.Level, n.Code
