@@ -117,11 +117,20 @@
     protected override void OnInitialized()
     {
         Prefs.Changed += OnPrefsChanged;
+        Session.Changed += OnSessionChanged;
         Nav.LocationChanged += OnLocation;
         RefreshPath(Nav.Uri);
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
+
+    // بعد از بازیابی نشست (مثلاً رفرش) باید نوار بالا/منو از «ورود» به
+    // نام کاربر تغییر کند؛ بدون این، StateHasChanged روی MainLayout زده نمی‌شود.
+    private void OnSessionChanged()
+    {
+        RefreshPath(Nav.Uri);
+        InvokeAsync(StateHasChanged);
+    }
 
     private void OnLocation(object? sender, LocationChangedEventArgs e)
     {
@@ -143,9 +152,9 @@
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
-    private void Logout()
+    private async Task Logout()
     {
-        Session.SignOut();
+        await Session.SignOutAsync();
         Snackbar.Add("از حساب خود خارج شدید.", Severity.Info);
         Nav.NavigateTo("/", forceLoad: true);
     }
@@ -153,6 +162,7 @@
     public void Dispose()
     {
         Prefs.Changed -= OnPrefsChanged;
+        Session.Changed -= OnSessionChanged;
         Nav.LocationChanged -= OnLocation;
     }
 }

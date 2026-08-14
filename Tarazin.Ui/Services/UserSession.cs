@@ -13,10 +13,24 @@ namespace Tarazin.Services;
 /// Implements <see cref="ICurrentUser"/> so the Data layer can stamp audit
 /// rows with the acting user without depending on the UI layer. Also holds
 /// the user's effective permission set (RBAC) for UI gating.
+///
+/// Since a page refresh replaces the circuit (and thus this scoped instance),
+/// the session is mirrored to an <see cref="ISessionStore"/> when available so
+/// the web host can restore it after the refresh.
 /// </summary>
 public sealed class UserSession : ICurrentUser
 {
     private readonly HashSet<string> _permissions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ISessionStore? _store;
+
+    /// <summary>
+    /// <paramref name="store"/> is optional: the web host injects a
+    /// browser-storage-backed store; MAUI does not (no persistence).
+    /// </summary>
+    public UserSession(ISessionStore? store = null) => _store = store;
+
+    /// <summary>Raised when authentication state changes (login/logout/restore).</summary>
+    public event Action? Changed;
 
     public bool IsAuthenticated { get; private set; }
     public string UserName { get; private set; } = "";
@@ -32,8 +46,62 @@ public sealed class UserSession : ICurrentUser
     /// <summary>نقش مدیر سیستم — دسترسی به همه‌چیز.</summary>
     public bool IsAdmin => string.Equals(Role, TarazinRoles.Admin, StringComparison.OrdinalIgnoreCase);
 
-    public void SignIn(int userId, string userName, string displayName,
+    public async Task SignInAsync(int userId, string userName, string displayName,
         string roleKey, string roleTitle, int roleId, IEnumerable<string>? permissions = null)
+    {
+        Apply(userId, userName, displayName, roleKey, roleTitle, roleId, permissions);
+
+        // نشست را در مرورگر هم ذخیره کن تا با رفرش صفحه از بین نرود.
+        if (_store is not null)
+        {
+            await _store.SaveAsync(new UserSessionData
+            {
+                UserId = UserId,
+                UserName = UserName,
+                DisplayName = DisplayName,
+                Role = Role,
+                RoleTitle = RoleTitle,
+                RoleId = RoleId,
+                Permissions = _permissions.ToList()
+            });
+        }
+    }
+
+    /// <summary>
+    /// بازیابی نشست ذخیره‌شده در مرورگر (بعد از رفرش/قطع circuit). اگر نشستی
+    /// ذخیره نشده باشد یا استوری وجود نداشته باشد، هیچ کاری نمی‌کند.
+    /// </summary>
+    public async Task RestoreAsync(CancellationToken ct = default)
+    {
+        if (_store is null || IsAuthenticated)
+            return;
+
+        var data = await _store.LoadAsync(ct);
+        if (data is null)
+            return;
+
+        Apply(data.UserId, data.UserName, data.DisplayName,
+            data.Role, data.RoleTitle, data.RoleId, data.Permissions);
+    }
+
+    public async Task SignOutAsync()
+    {
+        IsAuthenticated = false;
+        UserId = 0;
+        UserName = "";
+        DisplayName = "کاربر";
+        Role = "User";
+        RoleTitle = "کاربر";
+        RoleId = 0;
+        _permissions.Clear();
+        Changed?.Invoke();
+
+        if (_store is not null)
+            await _store.ClearAsync();
+    }
+
+    private void Apply(int userId, string userName, string displayName,
+        string roleKey, string roleTitle, int roleId, IEnumerable<string>? permissions)
     {
         UserId = userId;
         UserName = userName;
@@ -53,18 +121,7 @@ public sealed class UserSession : ICurrentUser
         }
 
         IsAuthenticated = true;
-    }
-
-    public void SignOut()
-    {
-        IsAuthenticated = false;
-        UserId = 0;
-        UserName = "";
-        DisplayName = "کاربر";
-        Role = "User";
-        RoleTitle = "کاربر";
-        RoleId = 0;
-        _permissions.Clear();
+        Changed?.Invoke();
     }
 
     /// <summary>آیا کاربر دسترسی مشخصی دارد؟ (مدیر همیشه همه را دارد).</summary>
