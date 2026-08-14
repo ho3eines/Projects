@@ -40,7 +40,7 @@
             <MudNumericField T="decimal" Label="تعداد" @bind-Value="_qty" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="قیمت واحد" @bind-Value="_unitPrice" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="قیمت واحد" @bind-Value="_unitPrice" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />

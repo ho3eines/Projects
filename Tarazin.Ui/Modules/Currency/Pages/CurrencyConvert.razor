@@ -25,10 +25,10 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="مبلغ مبدا" @bind-Value="_sourceAmount" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="مبلغ مبدا" @bind-Value="_sourceAmount" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="نرخ مبدا (به ریال)" @bind-Value="_sourceRate" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="نرخ مبدا (به ریال)" @bind-Value="_sourceRate" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudSelect T="string" Label="نحوهٔ نرخ" @bind-Value="_rateSource" Variant="Variant.Outlined">
@@ -47,7 +47,7 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="نرخ مقصد (به ریال)" @bind-Value="_targetRate" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="نرخ مقصد (به ریال)" @bind-Value="_targetRate" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
 
         <MudItem xs="12" sm="6" md="2">

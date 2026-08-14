@@ -56,13 +56,13 @@
             <MudNumericField T="decimal" Label="وزن (گرم)" @bind-Value="_weight" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="قیمت هر گرم (ریال)" @bind-Value="_pricePerGram" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="قیمت هر گرم (ریال)" @bind-Value="_pricePerGram" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="اجرت" @bind-Value="_workmanship" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="اجرت" @bind-Value="_workmanship" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="سود" @bind-Value="_profit" Variant="Variant.Outlined" Min="0" />
+            <MudNumericField T="decimal" Label="سود" @bind-Value="_profit" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
