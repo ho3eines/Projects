@@ -434,7 +434,7 @@
                 LinkId = _selected.LinkId
             })).ToList();
             _selectedBreadcrumb = rows
-                .Select(r => new BreadcrumbItem($"{r.Code} | {r.Title}"))
+                .Select(r => new BreadcrumbItem($"{r.Code} | {r.Title}", href: null))
                 .ToList();
         }
         catch
@@ -816,7 +816,7 @@
                 await Db.ExecuteAsync(Schema, "BaseMoeinUpsert", new
                 {
                     MoeinId = _selected.NodeId,
-                    ColId,
+                    ColId = colId,
                     MoeinCode = _selected.Code,
                     Title = _selected.Title,
                     Description = "",
