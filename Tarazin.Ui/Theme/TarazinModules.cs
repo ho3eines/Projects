@@ -37,6 +37,7 @@ public static class TarazinModules
                 new("داشبورد", "/accounting/dashboard", Icons.Material.Filled.Dashboard, Perm("accounting", TarazinActions.View)),
                 new("اسناد روز", "/accounting", Icons.Material.Filled.Today, Perm("accounting", TarazinActions.View)),
                 new("ثبت سند", "/accounting/entry", Icons.Material.Filled.PostAdd, Perm("accounting", TarazinActions.Entry)),
+                new("جداول پایه", "/accounting/chart", Icons.Material.Filled.AccountTree, TarazinPermissions.ChartView),
                 new("عملیات ویژه", "/accounting/special", Icons.Material.Filled.AutoFixHigh, Perm("accounting", TarazinActions.Special)),
                 new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment, Perm("accounting", TarazinActions.Reports)),
                 new("امکانات", "/accounting/settings", Icons.Material.Filled.Tune, Perm("accounting", TarazinActions.Settings)),

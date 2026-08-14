@@ -602,3 +602,185 @@ body {
     inset-inline-end: 0.75rem;
     top: 0.5rem;
 }
+
+/* ── ماژول جداول پایه (Chart of Accounts) ───────────────────── */
+
+/* درخت حساب‌ها */
+.tz-charttree {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 14px;
+    background: var(--mud-palette-surface);
+    min-height: 60vh;
+    overflow: hidden;
+}
+
+.tz-charttree__scroll {
+    max-height: calc(100vh - 280px);
+    min-height: 50vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.5rem 0.4rem 2rem;
+    outline: none;
+}
+
+.tz-charttree__node {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.32rem 0.6rem 0.32rem 0.35rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.tz-charttree__node:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+}
+
+.tz-charttree__node.is-selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--mud-palette-primary) 30%, transparent);
+}
+
+.tz-charttree__node.is-matched {
+    box-shadow: inset 3px 0 0 var(--mud-palette-warning);
+}
+
+.tz-charttree__leaf {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+}
+
+.tz-charttree__icon {
+    width: 22px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tz-charttree__row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.tz-charttree__code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--mud-palette-text-secondary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+    padding: 0.05rem 0.45rem;
+    border-radius: 5px;
+    flex-shrink: 0;
+    direction: ltr;
+}
+
+.tz-charttree__title {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Account Picker */
+.tz-accpicker {
+    border-radius: 12px;
+    transition: border-color 0.12s ease;
+}
+
+.tz-accpicker:hover {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 40%, var(--mud-palette-divider));
+}
+
+.tz-accpicker--disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.tz-pickertree {
+    border-radius: 12px;
+    background: var(--mud-palette-surface);
+    min-height: 380px;
+    overflow: hidden;
+}
+
+.tz-pickertree__scroll {
+    max-height: 60vh;
+    min-height: 360px;
+    overflow-y: auto;
+    padding: 0.25rem 0;
+    outline: none;
+}
+
+.tz-pickertree__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    border-radius: 6px;
+    margin: 1px 0.25rem;
+    transition: background 0.1s ease;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.tz-pickertree__row:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
+}
+
+.tz-pickertree__row.is-selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 15%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--mud-palette-primary) 35%, transparent);
+}
+
+.tz-pickertree__row.is-highlighted {
+    box-shadow: inset 3px 0 0 var(--mud-palette-info);
+}
+
+.tz-pickertree__row.is-invalid {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.tz-pickertree__icon {
+    width: 20px;
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tz-pickertree__code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--mud-palette-text-secondary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
+    padding: 0.05rem 0.45rem;
+    border-radius: 5px;
+    flex-shrink: 0;
+    direction: ltr;
+}
+
+.tz-pickertree__title {
+    flex: 1;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tz-pickertree__acc {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: var(--mud-palette-text-secondary);
+    direction: ltr;
+    flex-shrink: 0;
+}

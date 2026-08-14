@@ -1,0 +1,119 @@
+@inject AccountPickerService Picker
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudPaper Outlined="true" Class="@($"tz-accpicker pa-3 {(Disabled ? "tz-accpicker--disabled" : null)}")">
+    <MudGrid Spacing="2" AlignItems="Center.Center">
+        <MudItem xs="12" sm="5">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.AccountTree"
+                       OnClick="OpenAsync"
+                       Disabled="@(Disabled || _busy)"
+                       FullWidth="true">
+                @ButtonLabel
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="7">
+            @if (Value is null)
+            {
+                <MudText Color="Color.Secondary">@EmptyText</MudText>
+            }
+            else
+            {
+                <div class="d-flex align-center flex-wrap" style="gap:6px">
+                    <MudChip T="string" Size="Size.Small" Color="@TypeColor(Value.NodeType)" Variant="Variant.Filled">
+                        @TypeTitle(Value.NodeType)
+                    </MudChip>
+                    <b>@Value.Title</b>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                        کد: @Value.Code
+                    </MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                        AccountCode: @Value.AccountCode
+                    </MudChip>
+                    <MudTooltip Text="کپی Code">
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                       OnClick="@(() => Copy("Code", Value.Code))" />
+                    </MudTooltip>
+                    <MudTooltip Text="کپی AccountCode">
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                       OnClick="@(() => Copy("AccountCode", Value.AccountCode))" />
+                    </MudTooltip>
+                    <MudTooltip Text="پاک کردن">
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error"
+                                       OnClick="Clear" Disabled="@ReadOnly" />
+                    </MudTooltip>
+                </div>
+            }
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter] public AccountPickerResult? Value { get; set; }
+    [Parameter] public EventCallback<AccountPickerResult?> ValueChanged { get; set; }
+
+    [Parameter] public string ButtonLabel { get; set; } = "انتخاب حساب";
+    [Parameter] public string EmptyText { get; set; } = "هنوز حسابی انتخاب نشده است.";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+
+    [Parameter] public AccountPickerOptions? PickerOptions { get; set; }
+
+    private bool _busy;
+
+    private async Task OpenAsync()
+    {
+        if (Disabled || ReadOnly) return;
+        _busy = true;
+        try
+        {
+            var picked = await Picker.PickAsync(PickerOptions ?? new AccountPickerOptions());
+            if (picked is not null)
+            {
+                Value = picked;
+                await ValueChanged.InvokeAsync(picked);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Clear()
+    {
+        Value = null;
+        await ValueChanged.InvokeAsync(null);
+    }
+
+    private async Task Copy(string label, string value)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", value);
+            Snackbar.Add($"{label} کپی شد.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("کپی ناموفق: " + ex.Message, Severity.Warning);
+        }
+    }
+
+    private static Color TypeColor(string t) => t switch
+    {
+        "BaseCol" => Color.Primary,
+        "BaseMoein" => Color.Secondary,
+        "BaseDetil" => Color.Tertiary,
+        _ => Color.Default
+    };
+
+    private static string TypeTitle(string t) => t switch
+    {
+        "BaseCol" => "کل",
+        "BaseMoein" => "معین",
+        "BaseDetil" => "تفصیلی",
+        _ => t
+    };
+}

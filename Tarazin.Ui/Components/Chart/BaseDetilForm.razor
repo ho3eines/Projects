@@ -1,0 +1,258 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" OverrideStyles="false">
+                        <MudButton OnClick="@(() => SetMode(true))"
+                                   Variant="@(_useExisting ? Variant.Filled : Variant.Outlined)"
+                                   StartIcon="@Icons.Material.Filled.Link">استفاده از تفصیلی موجود</MudButton>
+                        <MudButton OnClick="@(() => SetMode(false))"
+                                   Variant="@(!_useExisting ? Variant.Filled : Variant.Outlined)"
+                                   StartIcon="@Icons.Material.Filled.FiberNew">ایجاد تفصیلی جدید</MudButton>
+                    </MudButtonGroup>
+                </MudItem>
+
+                @if (_useExisting)
+                {
+                    <MudItem xs="12">
+                        <MudAutocomplete T="BaseDetilRow"
+                                         Label="انتخاب تفصیلی"
+                                         @bind-Value="_selectedDetil"
+                                         SearchFunc="SearchDetilAsync"
+                                         ToStringFunc="DetilDisplay"
+                                         Required="true"
+                                         RequiredError="انتخاب تفصیلی الزامی است."
+                                         Variant="Variant.Outlined"
+                                         AdornmentIcon="@Icons.Material.Filled.Search"
+                                         Adornment="Adornment.Start"
+                                         ResetValueOnEmptyText="true"
+                                         CoerceText="true" />
+                    </MudItem>
+                }
+                else
+                {
+                    <MudItem xs="12" sm="4">
+                        <MudTextField Label="کد تفصیلی (7 رقم)" @bind-Value="_code" Required="true"
+                                      RequiredError="کد تفصیلی الزامی است." MaxLength="7"
+                                      Immediate="true" OnKeyDown="HandleKeyDown"
+                                      Variant="Variant.Outlined" Counter="7"
+                                      HelperText="7 رقم — صفرهای ابتدایی حفظ می‌شود" />
+                    </MudItem>
+                    <MudItem xs="12" sm="8">
+                        <MudTextField Label="عنوان" @bind-Value="_title" Required="true"
+                                      RequiredError="عنوان الزامی است." OnKeyDown="HandleKeyDown"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField Label="شرح" @bind-Value="_description" Lines="2" Variant="Variant.Outlined" />
+                    </MudItem>
+                }
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">
+            @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public int MoeinId { get; set; }
+    /// <summary>اگر در حالت ویرایش، شناسهٔ Link/Detil پاس می‌شود.</summary>
+    [Parameter] public int EditLinkId { get; set; }
+    [Parameter] public int EditDetilId { get; set; }
+    [Parameter] public string InitialCode { get; set; } = "";
+    [Parameter] public string InitialTitle { get; set; } = "";
+    [Parameter] public string InitialDescription { get; set; } = "";
+    [Parameter] public bool InitialIsActive { get; set; } = true;
+    [Parameter] public bool ForceExistingMode { get; set; }
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private bool _useExisting;
+    private string _code = "";
+    private string _title = "";
+    private string? _description;
+    private bool _isActive = true;
+    private BaseDetilRow? _selectedDetil;
+
+    protected override void OnInitialized()
+    {
+        _useExisting = ForceExistingMode;
+        _code = InitialCode;
+        _title = InitialTitle;
+        _description = InitialDescription;
+        _isActive = InitialIsActive;
+    }
+
+    private void SetMode(bool useExisting)
+    {
+        _useExisting = useExisting;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+            _ = SaveAsync();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task<IEnumerable<BaseDetilRow>> SearchDetilAsync(string value, CancellationToken ct)
+    {
+        try
+        {
+            var rows = await Db.QueryAsync<BaseDetilRow>("accounting", "BaseDetilSearch", new
+            {
+                SearchText = value ?? ""
+            });
+            return rows;
+        }
+        catch
+        {
+            return Array.Empty<BaseDetilRow>();
+        }
+    }
+
+    private static string DetilDisplay(BaseDetilRow? d)
+    {
+        if (d is null) return string.Empty;
+        return $"{d.DetilCode} | {d.Title}";
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        await _form!.Validate();
+        if (!_isValid) return;
+
+        if (MoeinId == 0)
+        {
+            Snackbar.Add("حساب معین نامشخص است.", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            if (_useExisting)
+            {
+                if (_selectedDetil is null)
+                {
+                    Snackbar.Add("انتخاب تفصیلی الزامی است.", Severity.Warning);
+                    return;
+                }
+                // ایجاد پیوند (در صورت وجود، Idempotent)
+                await Db.ExecuteAsync("accounting", "BaseDetilLinkUpsert", new
+                {
+                    LinkId = 0,
+                    DetilId = _selectedDetil.DetilId,
+                    MoeinId,
+                    Description = "",
+                    IsActive = _isActive,
+                    CreatedBy = Session.UserName,
+                    UpdatedBy = Session.UserName
+                });
+                Snackbar.Add($"تفصیلی «{_selectedDetil.Title}» به این مسیر متصل شد.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+                return;
+            }
+
+            // حالت ایجاد تفصیلی جدید
+            var code = (_code ?? "").Trim();
+            if (code.Length != 7 || !code.All(char.IsDigit))
+            {
+                Snackbar.Add("کد تفصیلی باید دقیقاً ۷ رقم باشد.", Severity.Warning);
+                return;
+            }
+
+            // بررسی تکراری نبودن (پیشاپیش، با پیام دوستانه)
+            var existing = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>("accounting", "BaseDetilByCode", new
+            {
+                DetilCode = code
+            });
+
+            if (existing is not null)
+            {
+                // هشدار و پیشنهاد استفاده از موجود
+                var confirm = await DialogService.ShowMessageBoxAsync(
+                    "تفصیلی تکراری",
+                    $"این حساب تفصیلی قبلاً ایجاد شده است ({(existing.Title)}). آیا می‌خواهید از حساب تفصیلی موجود استفاده کنید؟",
+                    yesText: "استفاده از حساب موجود",
+                    cancelText: "انصراف");
+                if (confirm is true)
+                {
+                    await Db.ExecuteAsync("accounting", "BaseDetilLinkUpsert", new
+                    {
+                        LinkId = 0,
+                        DetilId = existing.DetilId,
+                        MoeinId,
+                        Description = "",
+                        IsActive = _isActive,
+                        CreatedBy = Session.UserName,
+                        UpdatedBy = Session.UserName
+                    });
+                    Snackbar.Add($"تفصیلی «{existing.Title}» به این مسیر متصل شد.", Severity.Success);
+                    MudDialog.Close(DialogResult.Ok(true));
+                }
+                return;
+            }
+
+            // DetilId=0 → ایجاد + پیوند
+            await Db.ExecuteAsync("accounting", "BaseDetilUpsert", new
+            {
+                DetilId = 0,
+                DetilCode = code,
+                Title = (_title ?? "").Trim(),
+                Description = _description?.Trim() ?? "",
+                IsActive = _isActive,
+                CreatedBy = Session.UserName,
+                UpdatedBy = Session.UserName
+            });
+
+            // پس از ایجاد، DetilId را با کد بازیابی می‌کنیم
+            var created = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>("accounting", "BaseDetilByCode", new
+            {
+                DetilCode = code
+            });
+            if (created is not null)
+            {
+                await Db.ExecuteAsync("accounting", "BaseDetilLinkUpsert", new
+                {
+                    LinkId = 0,
+                    DetilId = created.DetilId,
+                    MoeinId,
+                    Description = "",
+                    IsActive = _isActive,
+                    CreatedBy = Session.UserName,
+                    UpdatedBy = Session.UserName
+                });
+            }
+
+            Snackbar.Add("تفصیلی جدید ایجاد و به مسیر متصل شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

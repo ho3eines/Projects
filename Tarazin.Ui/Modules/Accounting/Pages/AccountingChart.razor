@@ -1,0 +1,862 @@
+@page "/accounting/chart"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject AccountPickerService Picker
+@implements IDisposable
+
+<PageTitle>جداول پایه — حسابداری</PageTitle>
+
+<PageHeader Title="جداول پایه"
+            Subtitle="درخت حساب‌های کل، معین و تفصیلی — تفصیلی یکپارچه در چند مسیر."
+            Eyebrow="حسابداری">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenNewCol" Disabled="@(!CanCreate)">
+        حساب کل جدید
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AccountTree"
+               OnClick="ExpandAll" Class="ms-2">
+        باز کردن همه
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.AccountTreeOutlined"
+               OnClick="CollapseAll" Class="ms-2">
+        بستن همه
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh"
+               OnClick="ReloadAsync" Class="ms-2">
+        تازه‌سازی
+    </MudButton>
+</PageHeader>
+
+<MudPaper Elevation="1" Class="pa-3 mb-3">
+    <MudGrid Spacing="2" AlignItems="Center.Center">
+        <MudItem xs="12" md="5">
+            <MudTextField @ref="_searchRef"
+                          Label="جستجو (نام، کد، AccountCode)"
+                          @bind-Value="_search"
+                          Immediate="true"
+                          DebounceInterval="180"
+                          OnDebounceIntervalElapsed="OnSearchChanged"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Clearable="true" OnClearButtonClick="OnSearchCleared"
+                          Variant="Variant.Outlined"
+                          Placeholder="مثلاً: بانک ملی | 0000123 | 100010000123" />
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect T="string" Label="فیلتر نوع" @bind-Value="_typeFilter" Variant="Variant.Outlined" Dense="true"
+                       OnClose="OnFilterChanged" Clearable="true">
+                <MudSelectItem T="string" Value="@((string?)null)">همه</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Col")">فقط حساب کل</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Moein")">فقط معین</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Detil")">فقط تفصیلی</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect T="string" Label="وضعیت" @bind-Value="_statusFilter" Variant="Variant.Outlined" Dense="true"
+                       OnClose="OnFilterChanged" Clearable="true">
+                <MudSelectItem T="string" Value="@((string?)null)">همه</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Active")">فقط فعال</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Inactive")">فقط غیرفعال</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="3" Class="d-flex align-center">
+            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                تعداد: @_filtered.Count
+            </MudChip>
+            @if (_searchResults.Count > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled" Class="ms-2">
+                    جستجو: @_searchResults.Count نتیجه
+                </MudChip>
+            }
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudGrid Spacing="2">
+    <MudItem xs="12" lg="@(_selected is null ? 12 : 7)">
+        <MudPaper Elevation="1" Class="pa-2 tz-charttree">
+            @if (_loading)
+            {
+                <div class="pa-4 d-flex justify-center">
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                </div>
+            }
+            @if (_searchResults.Count > 0 && !string.IsNullOrEmpty(_search))
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-2"
+                          Icon="@Icons.Material.Filled.Search">
+                    @_searchResults.Count مسیر منطبق با «@_search» یافت شد. روی هرکدام کلیک کنید تا در درخت باز شود.
+                </MudAlert>
+            }
+            <div class="tz-charttree__scroll" tabindex="0" @onkeydown="OnKeyDown" @ref="_scrollRef">
+                @if (_grouped.Count == 0)
+                {
+                    <MudText Color="Color.Secondary" Class="pa-4">
+                        @(_loading ? "در حال بارگذاری..." : "هیچ حسابی تعریف نشده است. برای شروع، «حساب کل جدید» را بزنید.")
+                    </MudText>
+                }
+                @foreach (var top in _grouped)
+                {
+                    @RenderNode(top.TopNode, 0)
+                }
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @if (_selected is not null)
+    {
+        <MudItem xs="12" lg="5">
+            <MudPaper Elevation="1" Class="pa-3">
+                <div class="d-flex align-center mb-2">
+                    <MudIcon Icon="@TypeIcon(_selected.NodeType)" Color="@TypeColor(_selected.NodeType)" Class="me-2" />
+                    <MudText Typo="Typo.h6">@_selected.Title</MudText>
+                    <MudSpacer />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="() => _selected = null" />
+                </div>
+
+                <MudBreadcrumbs Items="@_selectedBreadcrumb" Class="mb-3 pa-0">
+                    <ItemTemplate Context="bc">
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary)">@bc.Text</MudText>
+                    </ItemTemplate>
+                </MudBreadcrumbs>
+
+                <MudGrid Spacing="1">
+                    <MudItem xs="5"><MudText Color="Color.Secondary">نوع</MudText></MudItem>
+                    <MudItem xs="7">
+                        <MudChip T="string" Size="Size.Small" Color="@TypeColor(_selected.NodeType)">
+                            @TypeTitle(_selected.NodeType)
+                        </MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined" Class="ms-1">
+                            Level @_selected.Level
+                        </MudChip>
+                    </MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">کد (Code)</MudText></MudItem>
+                    <MudItem xs="7" Class="d-flex align-center">
+                        <code style="direction:ltr">@_selected.Code</code>
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                       OnClick="@(() => Copy("Code", _selected.Code))" />
+                    </MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">AccountCode</MudText></MudItem>
+                    <MudItem xs="7" Class="d-flex align-center">
+                        <code style="direction:ltr">@_selected.AccountCode</code>
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                       OnClick="@(() => Copy("AccountCode", _selected.AccountCode))" />
+                    </MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">تعداد فرزند</MudText></MudItem>
+                    <MudItem xs="7">@_selected.ChildCount</MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">وضعیت</MudText></MudItem>
+                    <MudItem xs="7">
+                        <MudChip T="string" Size="Size.Small" Color="@(_selected.IsActive ? Color.Success : Color.Default)">
+                            @(_selected.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">والد</MudText></MudItem>
+                    <MudItem xs="7">
+                        @if (_selected.ParentId.HasValue)
+                        {
+                            <span>NodeId=@_selected.ParentId.Value (@_selected.NodeType → Parent)</span>
+                        }
+                        else
+                        {
+                            <span>— ریشه —</span>
+                        }
+                    </MudItem>
+                </MudGrid>
+
+                <MudDivider Class="my-3" />
+
+                <MudText Typo="Typo.subtitle2" Class="mb-2">عملیات سریع</MudText>
+                <div class="d-flex flex-wrap" style="gap:6px">
+                    @if (_selected.NodeType == "BaseCol" && CanCreate)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewMoein">
+                            + معین
+                        </MudButton>
+                    }
+                    @if (_selected.NodeType == "BaseMoein" && CanCreate)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewDetil">
+                            + تفصیلی
+                        </MudButton>
+                    }
+                    @if (_selected.NodeType == "BaseDetil" && CanCreate)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.PlaylistAdd" OnClick="OpenUseInNewPath">
+                            استفاده در مسیر جدید
+                        </MudButton>
+                    }
+                    @if (CanEdit)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                   StartIcon="@Icons.Material.Filled.Edit" OnClick="OpenEdit">
+                            ویرایش
+                        </MudButton>
+                    }
+                    @if (_selected.NodeType == "BaseMoein" && CanMove)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                   StartIcon="@Icons.Material.Filled.SwapHoriz" OnClick="OpenMove">
+                            انتقال به کل دیگر
+                        </MudButton>
+                    }
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => Copy("Code", _selected.Code))">
+                        کپی Code
+                    </MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => Copy("AccountCode", _selected.AccountCode))">
+                        کپی AccountCode
+                    </MudButton>
+                    @if (CanDelete)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.DeleteOutline" OnClick="DeleteAsync">
+                            حذف
+                        </MudButton>
+                    }
+                </div>
+
+                @if (_selected.NodeType == "BaseDetil" && _usagePaths.Count > 0)
+                {
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">
+                        استفاده در @_usagePaths.Count مسیر
+                    </MudText>
+                    <MudList T="object" Dense="true" DisableGutters="true">
+                        @foreach (var p in _usagePaths)
+                        {
+                            <MudListItem T="object" Icon="@Icons.Material.Filled.SubdirectoryArrowRight">
+                                <MudText Typo="Typo.body2">
+                                    <b>@p.ColTitle</b> &raquo; <b>@p.MoeinTitle</b>
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="direction:ltr">
+                                    @p.ColCode-@p.MoeinCode / @p.AccountCode
+                                </MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    private const string Schema = "accounting";
+
+    private MudTextField<string>? _searchRef;
+    private ElementReference _scrollRef;
+
+    private string _search = "";
+    private string? _typeFilter;
+    private string? _statusFilter;
+    private bool _loading = true;
+
+    private List<ChartTreeNode> _all = new();
+    private List<ChartTreeNode> _filtered = new();
+    private List<ChartTreeNode> _searchResults = new();
+    private List<ChartGroup> _grouped = new();
+
+    private ChartTreeNode? _selected;
+    private List<BreadcrumbItem> _selectedBreadcrumb = new();
+    private List<BaseDetilUsagePath> _usagePaths = new();
+
+    private bool CanView => Session.HasPermission(TarazinPermissions.ChartView) || Session.IsAdmin;
+    private bool CanCreate => Session.HasPermission(TarazinPermissions.ChartCreate) || Session.IsAdmin;
+    private bool CanEdit => Session.HasPermission(TarazinPermissions.ChartEdit) || Session.IsAdmin;
+    private bool CanDelete => Session.HasPermission(TarazinPermissions.ChartDelete) || Session.IsAdmin;
+    private bool CanMove => Session.HasPermission(TarazinPermissions.ChartMove) || Session.IsAdmin;
+    private bool CanManageDetil => Session.HasPermission(TarazinPermissions.ChartManageDetil) || Session.IsAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try { if (_searchRef is not null) await _searchRef.FocusAsync(); } catch { }
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _all = (await Db.QueryAsync<ChartTreeNode>(Schema, "ChartTreeFull", new
+            {
+                IncludeInactive = 1
+            })).ToList();
+
+            ApplyFilter();
+            // نگه‌داشتن node انتخاب‌شده پس از reload
+            if (_selected is not null)
+            {
+                var match = _all.FirstOrDefault(n => n.NodeId == _selected.NodeId && n.NodeType == _selected.NodeType);
+                if (match is not null)
+                {
+                    _selected = match;
+                    await BuildSelectedBreadcrumbAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        IEnumerable<ChartTreeNode> q = _all;
+        if (!string.IsNullOrWhiteSpace(_statusFilter))
+        {
+            if (_statusFilter == "Active") q = q.Where(n => n.IsActive);
+            else if (_statusFilter == "Inactive") q = q.Where(n => !n.IsActive);
+        }
+        _filtered = q.ToList();
+        BuildTree();
+    }
+
+    private void BuildTree()
+    {
+        // گروه‌بندی: Top = BaseCol
+        _grouped = _filtered
+            .Where(n => n.NodeType == "BaseCol")
+            .OrderBy(n => n.AccountCode)
+            .Select(n => new ChartGroup(n, _filtered))
+            .ToList();
+    }
+
+    private async Task OnSearchChanged(string _)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+        {
+            _searchResults = new();
+            return;
+        }
+        try
+        {
+            _searchResults = (await Db.QueryAsync<ChartTreeNode>(Schema, "ChartTreeSearch", new
+            {
+                SearchText = _search
+            })).ToList();
+            // expand path
+            foreach (var r in _searchResults)
+            {
+                var path = PathIds(r);
+                foreach (var id in path)
+                    _expanded.Add(id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            _searchResults = new();
+        }
+    }
+
+    private async Task OnSearchCleared(MouseEventArgs _)
+    {
+        _search = "";
+        _searchResults = new();
+        await Task.CompletedTask;
+    }
+
+    private void OnFilterChanged() => ApplyFilter();
+
+    // لیست nodeهای بازشده (با ParentId)
+    private readonly HashSet<int> _expanded = new();
+
+    private bool IsExpanded(ChartTreeNode n) =>
+        _expanded.Contains(n.NodeId) || !string.IsNullOrEmpty(_search);
+
+    private void Toggle(ChartTreeNode n)
+    {
+        if (_expanded.Contains(n.NodeId)) _expanded.Remove(n.NodeId);
+        else _expanded.Add(n.NodeId);
+    }
+
+    private void ExpandAll()
+    {
+        foreach (var n in _all) _expanded.Add(n.NodeId);
+    }
+
+    private void CollapseAll() => _expanded.Clear();
+
+    private async Task SelectNode(ChartTreeNode n)
+    {
+        _selected = n;
+        await BuildSelectedBreadcrumbAsync();
+        if (n.NodeType == "BaseDetil" && n.DetilEntityId.HasValue)
+        {
+            try
+            {
+                _usagePaths = (await Db.QueryAsync<BaseDetilUsagePath>(Schema, "BaseDetilUsagePaths", new
+                {
+                    DetilId = n.DetilEntityId.Value
+                })).ToList();
+            }
+            catch
+            {
+                _usagePaths = new();
+            }
+        }
+        else
+        {
+            _usagePaths = new();
+        }
+    }
+
+    private async Task BuildSelectedBreadcrumbAsync()
+    {
+        if (_selected is null) { _selectedBreadcrumb = new(); return; }
+        try
+        {
+            var rows = (await Db.QueryAsync<ChartBreadcrumbRow>(Schema, "ChartNodeBreadcrumb", new
+            {
+                NodeId = _selected.NodeId,
+                NodeType = _selected.NodeType,
+                LinkId = _selected.LinkId
+            })).ToList();
+            _selectedBreadcrumb = rows
+                .Select(r => new BreadcrumbItem($"{r.Code} | {r.Title}"))
+                .ToList();
+        }
+        catch
+        {
+            _selectedBreadcrumb = new();
+        }
+    }
+
+    private List<int> PathIds(ChartTreeNode n)
+    {
+        // از ریشه تا n: والد BaseCol (2 رقم) و سپس BaseMoein (5 رقم = 2+3) را پیدا می‌کنیم.
+        var ids = new List<int>();
+        if (string.IsNullOrEmpty(n.AccountCode)) return ids;
+        if (n.AccountCode.Length >= 2)
+        {
+            var col = _all.FirstOrDefault(x => x.NodeType == "BaseCol" && n.AccountCode.StartsWith(x.Code));
+            if (col is not null) ids.Add(col.NodeId);
+        }
+        if (n.AccountCode.Length >= 5)
+        {
+            var moein = _all.FirstOrDefault(x => x.NodeType == "BaseMoein" && n.AccountCode.StartsWith(x.Code));
+            if (moein is not null) ids.Add(moein.NodeId);
+        }
+        return ids;
+    }
+
+    private RenderFragment RenderNode(ChartTreeNode n, int indent) => __builder =>
+    {
+        var isSelected = _selected is not null && _selected.NodeId == n.NodeId && _selected.NodeType == n.NodeType;
+        var matched = _searchResults.Any(r => r.NodeId == n.NodeId && r.NodeType == n.NodeType);
+        var childCols = _filtered.Where(c => c.NodeType == "BaseMoein" && c.ParentId == n.NodeId).ToList();
+        var hasChildren = childCols.Count > 0;
+        var opened = IsExpanded(n);
+
+        <div class="tz-charttree__node @(isSelected ? "is-selected" : null) @(matched ? "is-matched" : null)"
+             style="padding-right:@(indent * 20 + 12)px">
+            @if (hasChildren)
+            {
+                <MudIconButton Icon="@(opened ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronLeft)"
+                               Size="Size.Small" OnClick="@(() => Toggle(n))" />
+            }
+            else
+            {
+                <span class="tz-charttree__leaf" />
+            }
+            <span class="tz-charttree__icon">
+                @if (n.NodeType == "BaseCol")
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Small" Color="Color.Primary" />
+                }
+                else if (n.NodeType == "BaseMoein")
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Small" Color="Color.Secondary" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Article" Size="Size.Small" Color="Color.Tertiary" />
+                }
+            </span>
+            <span class="tz-charttree__row" @onclick="@(() => SelectNode(n))">
+                <span class="tz-charttree__code">@n.Code</span>
+                <span class="tz-charttree__title">@n.Title</span>
+                @if (!n.IsActive)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">غیرفعال</MudChip>
+                }
+                @if (n.ChildCount > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text">@n.ChildCount فرزند</MudChip>
+                }
+            </span>
+        </div>
+
+        @if (hasChildren && opened)
+        {
+            @foreach (var ch in childCols)
+            {
+                @RenderNode(ch, indent + 1)
+            }
+        }
+    };
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "f" && e.CtrlKey)
+        {
+            try { if (_searchRef is not null) await _searchRef.FocusAsync(); } catch { }
+        }
+    }
+
+    private async Task Copy(string label, string value)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", value);
+            Snackbar.Add($"{label} کپی شد.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("کپی ناموفق: " + ex.Message, Severity.Warning);
+        }
+    }
+
+    private static string TypeTitle(string t) => t switch
+    {
+        "BaseCol" => "حساب کل",
+        "BaseMoein" => "حساب معین",
+        "BaseDetil" => "تفصیلی",
+        _ => t
+    };
+
+    private static string TypeIcon(string t) => t switch
+    {
+        "BaseCol" => Icons.Material.Filled.AccountBalance,
+        "BaseMoein" => Icons.Material.Filled.FolderOpen,
+        "BaseDetil" => Icons.Material.Filled.Article,
+        _ => Icons.Material.Filled.Circle
+    };
+
+    private static Color TypeColor(string t) => t switch
+    {
+        "BaseCol" => Color.Primary,
+        "BaseMoein" => Color.Secondary,
+        "BaseDetil" => Color.Tertiary,
+        _ => Color.Default
+    };
+
+    // ======== عملیات‌ها ========
+
+    private async Task OpenNewCol()
+    {
+        var dlg = await Dialog.ShowAsync<BaseColForm>("ایجاد حساب کل جدید", new DialogParameters
+        {
+            ["ColId"] = 0
+        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var r = await dlg.Result;
+        if (r is { Canceled: false }) await ReloadAsync();
+    }
+
+    private async Task OpenNewMoein()
+    {
+        if (_selected is null || _selected.NodeType != "BaseCol") return;
+        var dlg = await Dialog.ShowAsync<BaseMoeinForm>("ایجاد حساب معین", new DialogParameters
+        {
+            ["MoeinId"] = 0,
+            ["InitialColId"] = _selected.NodeId
+        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var r = await dlg.Result;
+        if (r is { Canceled: false }) await ReloadAsync();
+    }
+
+    private async Task OpenNewDetil()
+    {
+        if (_selected is null || _selected.NodeType != "BaseMoein") return;
+        var dlg = await Dialog.ShowAsync<BaseDetilForm>("افزودن تفصیلی", new DialogParameters
+        {
+            ["MoeinId"] = _selected.NodeId
+        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var r = await dlg.Result;
+        if (r is { Canceled: false }) await ReloadAsync();
+    }
+
+    private async Task OpenEdit()
+    {
+        if (_selected is null) return;
+        if (_selected.NodeType == "BaseCol")
+        {
+            var dlg = await Dialog.ShowAsync<BaseColForm>("ویرایش حساب کل", new DialogParameters
+            {
+                ["ColId"] = _selected.NodeId,
+                ["InitialCode"] = _selected.Code,
+                ["InitialTitle"] = _selected.Title,
+                ["InitialDescription"] = "",
+                ["InitialIsActive"] = _selected.IsActive
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+            var r = await dlg.Result;
+            if (r is { Canceled: false }) await ReloadAsync();
+        }
+        else if (_selected.NodeType == "BaseMoein")
+        {
+            // پیدا کردن ColId والد
+            int colId = 0;
+            if (_selected.AccountCode.Length >= 2)
+            {
+                var col = _all.FirstOrDefault(c => c.NodeType == "BaseCol" && _selected.AccountCode.StartsWith(c.AccountCode));
+                if (col is not null) colId = col.NodeId;
+            }
+            var dlg = await Dialog.ShowAsync<BaseMoeinForm>("ویرایش حساب معین", new DialogParameters
+            {
+                ["MoeinId"] = _selected.NodeId,
+                ["InitialColId"] = colId,
+                ["InitialCode"] = _selected.Code,
+                ["InitialTitle"] = _selected.Title,
+                ["InitialIsActive"] = _selected.IsActive
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+            var r = await dlg.Result;
+            if (r is { Canceled: false }) await ReloadAsync();
+        }
+        else if (_selected.NodeType == "BaseDetil" && _selected.DetilEntityId.HasValue)
+        {
+            // برای Detil، فرم در حالت «ویرایش اطلاعات» نیاز به DetilById دارد.
+            // برای سادگی، DetilByCode را با کد فعلی فراخوانی می‌کنیم:
+            try
+            {
+                var det = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>(Schema, "BaseDetilByCode", new { DetilCode = _selected.Code });
+                if (det is null) { Snackbar.Add("تفصیلی پیدا نشد.", Severity.Error); return; }
+
+                // فرم در حالت فقط-نمایش «ویرایش اطلاعات تفصیلی» — با DetilUpsert در EditDetilId
+                var dlg = await Dialog.ShowAsync<BaseDetilForm>("ویرایش تفصیلی", new DialogParameters
+                {
+                    ["MoeinId"] = _selected.MoeinId ?? 0,
+                    ["EditDetilId"] = det.DetilId,
+                    ["InitialCode"] = det.DetilCode,
+                    ["InitialTitle"] = det.Title,
+                    ["InitialDescription"] = det.Description ?? "",
+                    ["InitialIsActive"] = det.IsActive
+                }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+                var r = await dlg.Result;
+                if (r is { Canceled: false }) await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenUseInNewPath()
+    {
+        if (_selected is null || _selected.NodeType != "BaseDetil") return;
+        if (!_selected.DetilEntityId.HasValue) { Snackbar.Add("شناسه تفصیلی نامشخص است.", Severity.Error); return; }
+
+        // ابتدا Moein مقصد را انتخاب کنیم: از طریق AccountPicker با Filter=Moein
+        var picked = await Picker.PickAsync(new AccountPickerOptions
+        {
+            Title = "انتخاب حساب معین مقصد",
+            AllowedType = AccountPickerType.Moein
+        });
+        if (picked is null) return;
+        if (picked.NodeType != "BaseMoein")
+        {
+            Snackbar.Add("لطفاً یک حساب معین انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        // ایجاد پیوند (Idempotent)
+        try
+        {
+            await Db.ExecuteAsync(Schema, "BaseDetilLinkUpsert", new
+            {
+                LinkId = 0,
+                DetilId = _selected.DetilEntityId.Value,
+                MoeinId = picked.Id,
+                Description = "",
+                IsActive = true,
+                CreatedBy = Session.UserName,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("تفصیلی در مسیر جدید متصل شد.", Severity.Success);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task OpenMove()
+    {
+        if (_selected is null || _selected.NodeType != "BaseMoein") return;
+        // انتخاب کل مقصد
+        var picked = await Picker.PickAsync(new AccountPickerOptions
+        {
+            Title = "انتخاب حساب کل مقصد",
+            AllowedType = AccountPickerType.Col
+        });
+        if (picked is null) return;
+        if (picked.NodeType != "BaseCol")
+        {
+            Snackbar.Add("لطفاً یک حساب کل انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        var confirm = await Dialog.ShowMessageBoxAsync(
+            "تأیید انتقال",
+            $"حساب معین «{_selected.Title}» ({_selected.Code}) به حساب کل «{picked.Title}» منتقل شود؟",
+            yesText: "تأیید انتقال", cancelText: "انصراف");
+        if (confirm is not true) return;
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "BaseMoeinMove", new
+            {
+                MoeinId = _selected.NodeId,
+                NewColId = picked.Id,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("انتقال انجام شد.", Severity.Success);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_selected is null) return;
+        string label = _selected.NodeType switch
+        {
+            "BaseCol" => "حساب کل",
+            "BaseMoein" => "حساب معین",
+            "BaseDetil" => "تفصیلی",
+            _ => "حساب"
+        };
+        var confirm = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف",
+            $"آیا از حذف {label} «{_selected.Title}» مطمئن هستید؟ اگر دارای فرزند، گردش یا استفاده در مسیرهای دیگر باشد، حذف مستقیم ممنوع است.",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirm is not true) return;
+
+        try
+        {
+            if (_selected.NodeType == "BaseCol")
+            {
+                await Db.ExecuteAsync(Schema, "BaseColDelete", new { ColId = _selected.NodeId });
+            }
+            else if (_selected.NodeType == "BaseMoein")
+            {
+                await Db.ExecuteAsync(Schema, "BaseMoeinDelete", new { MoeinId = _selected.NodeId });
+            }
+            else if (_selected.NodeType == "BaseDetil" && _selected.DetilEntityId.HasValue)
+            {
+                await Db.ExecuteAsync(Schema, "BaseDetilDelete", new { DetilId = _selected.DetilEntityId.Value });
+            }
+            Snackbar.Add($"{label} حذف شد.", Severity.Success);
+            _selected = null;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            // پیام خطای صریح (طبق قانون: اگر به‌دلیل گردش نتوان حذف کرد، پیشنهاد غیرفعال‌سازی بدهیم)
+            Snackbar.Add(ex.Message, Severity.Error);
+            if (ex.Message.Contains("گردش"))
+            {
+                var disable = await Dialog.ShowMessageBoxAsync(
+                    "غیرفعال‌سازی",
+                    "این حساب به‌دلیل داشتن گردش مالی امکان حذف مستقیم ندارد. آیا مایلید غیرفعال شود؟",
+                    yesText: "بله، غیرفعال شود", cancelText: "انصراف");
+                if (disable is true) await DeactivateAsync();
+            }
+        }
+    }
+
+    private async Task DeactivateAsync()
+    {
+        if (_selected is null) return;
+        try
+        {
+            if (_selected.NodeType == "BaseCol")
+            {
+                await Db.ExecuteAsync(Schema, "BaseColUpsert", new
+                {
+                    ColId = _selected.NodeId,
+                    ColCode = _selected.Code,
+                    Title = _selected.Title,
+                    Description = "",
+                    IsActive = false,
+                    CreatedBy = Session.UserName,
+                    UpdatedBy = Session.UserName
+                });
+            }
+            else if (_selected.NodeType == "BaseMoein")
+            {
+                int colId = 0;
+                var col = _all.FirstOrDefault(c => c.NodeType == "BaseCol" && _selected.AccountCode.StartsWith(c.AccountCode));
+                if (col is not null) colId = col.NodeId;
+                await Db.ExecuteAsync(Schema, "BaseMoeinUpsert", new
+                {
+                    MoeinId = _selected.NodeId,
+                    ColId,
+                    MoeinCode = _selected.Code,
+                    Title = _selected.Title,
+                    Description = "",
+                    IsActive = false,
+                    CreatedBy = Session.UserName,
+                    UpdatedBy = Session.UserName
+                });
+            }
+            else if (_selected.NodeType == "BaseDetil" && _selected.DetilEntityId.HasValue)
+            {
+                await Db.ExecuteAsync(Schema, "BaseDetilUpsert", new
+                {
+                    DetilId = _selected.DetilEntityId.Value,
+                    DetilCode = _selected.Code,
+                    Title = _selected.Title,
+                    Description = "",
+                    IsActive = false,
+                    CreatedBy = Session.UserName,
+                    UpdatedBy = Session.UserName
+                });
+            }
+            Snackbar.Add("حساب غیرفعال شد.", Severity.Success);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    public void Dispose() { }
+
+    // ساختار کمکی برای رندر درخت
+    private sealed class ChartGroup
+    {
+        public ChartTreeNode TopNode { get; }
+        public List<ChartTreeNode> All { get; }
+        public ChartGroup(ChartTreeNode top, List<ChartTreeNode> all)
+        {
+            TopNode = top;
+            All = all;
+        }
+    }
+}

@@ -43,6 +43,19 @@ public static class TarazinPermissions
     public const string RateHistory = "rates.history";        // مشاهدهٔ تاریخچه نرخ
     public const string RateConfirm = "rates.confirm";        // تأیید نرخ
 
+    // ── دسترسی‌های ماژول «جداول پایه» (حسابداری) ─────────────────────────
+    // 9 دسترسی مطابق PRD: مشاهده/ایجاد/ویرایش/حذف حساب، انتقال، جابه‌جایی،
+    // مدیریت تفصیلی، انتخاب حساب، مشاهده ساختار کامل.
+    public const string ChartView = "accounting.chart.view";         // مشاهده جداول پایه
+    public const string ChartCreate = "accounting.chart.create";     // ایجاد حساب
+    public const string ChartEdit = "accounting.chart.edit";         // ویرایش حساب
+    public const string ChartDelete = "accounting.chart.delete";     // حذف حساب
+    public const string ChartMove = "accounting.chart.move";         // انتقال حساب
+    public const string ChartReorder = "accounting.chart.reorder";   // جابه‌جایی درخت
+    public const string ChartManageDetil = "accounting.chart.detil"; // مدیریت حساب‌های تفصیلی
+    public const string ChartSelect = "accounting.chart.select";     // انتخاب حساب
+    public const string ChartFullTree = "accounting.chart.fulltree"; // مشاهده ساختار کامل حساب‌ها
+
     /// <summary>کلید ماژول‌های کسب‌وکار (همان اسکیمه‌ها).</summary>
     public static readonly string[] Modules =
     [
@@ -126,6 +139,17 @@ public static class TarazinPermissions
         list.Add(new PermissionDef(RateHistory, "مشاهده تاریخچه نرخ", "rates"));
         list.Add(new PermissionDef(RateConfirm, "تأیید نرخ", "rates"));
 
+        // دسترسی‌های ماژول «جداول پایه» (PRD §جداول پایه)
+        list.Add(new PermissionDef(ChartView, "حسابداری — مشاهده جداول پایه", "accounting"));
+        list.Add(new PermissionDef(ChartCreate, "حسابداری — ایجاد حساب (کل/معین/تفصیلی)", "accounting"));
+        list.Add(new PermissionDef(ChartEdit, "حسابداری — ویرایش حساب", "accounting"));
+        list.Add(new PermissionDef(ChartDelete, "حسابداری — حذف حساب", "accounting"));
+        list.Add(new PermissionDef(ChartMove, "حسابداری — انتقال حساب", "accounting"));
+        list.Add(new PermissionDef(ChartReorder, "حسابداری — جابه‌جایی درخت", "accounting"));
+        list.Add(new PermissionDef(ChartManageDetil, "حسابداری — مدیریت حساب‌های تفصیلی", "accounting"));
+        list.Add(new PermissionDef(ChartSelect, "حسابداری — انتخاب حساب (Picker)", "accounting"));
+        list.Add(new PermissionDef(ChartFullTree, "حسابداری — مشاهده ساختار کامل حساب‌ها", "accounting"));
+
         return list;
     }
 }
@@ -156,6 +180,20 @@ public static class TarazinRoles
         TarazinPermissions.For(module, TarazinActions.Admin),
     ];
 
+    /// <summary>تمام دسترسی‌های ماژول «جداول پایه» حسابداری (9 اقدام).</summary>
+    private static string[] FullChart() =>
+    [
+        TarazinPermissions.ChartView,
+        TarazinPermissions.ChartCreate,
+        TarazinPermissions.ChartEdit,
+        TarazinPermissions.ChartDelete,
+        TarazinPermissions.ChartMove,
+        TarazinPermissions.ChartReorder,
+        TarazinPermissions.ChartManageDetil,
+        TarazinPermissions.ChartSelect,
+        TarazinPermissions.ChartFullTree,
+    ];
+
     /// <summary>فقط مشاهده + گزارش برای همهٔ ماژول‌ها.</summary>
     private static string[] ViewReports()
     {
@@ -180,7 +218,7 @@ public static class TarazinRoles
 
             new("Accountant", "حسابدار",
                 "حسابداری کامل + مشاهده و گزارش سایر بخش‌ها + ممیزی.", false,
-                Full("accounting").Concat(new[]
+                Full("accounting").Concat(FullChart()).Concat(new[]
                 {
                     TarazinPermissions.For("treasury", TarazinActions.View),
                     TarazinPermissions.For("treasury", TarazinActions.Reports),
@@ -254,6 +292,8 @@ public static class TarazinRoles
                 "فقط مشاهده و گزارش تمام بخش‌ها + ممیزی.", false,
                 viewReports.Concat(new[]
                 {
+                    TarazinPermissions.ChartView,
+                    TarazinPermissions.ChartFullTree,
                     TarazinPermissions.RateView,
                     TarazinPermissions.RateHistory,
                     TarazinPermissions.Audit,
