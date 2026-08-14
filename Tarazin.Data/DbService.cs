@@ -180,7 +180,7 @@ public sealed class DbService
             if (_catalog.TryGet(schema, "_Ensure", out var ensure))
             {
                 await using var conn = Open();
-                await conn.ExecuteAsync(new CommandDefinition(ensure, commandTimeout: 120, cancellationToken: ct));
+                await ExecuteBatchesAsync(conn, ensure, ct);
             }
         }
     }
@@ -193,8 +193,21 @@ public sealed class DbService
             if (_catalog.TryGet(schema, "_Seed", out var seed))
             {
                 await using var conn = Open();
-                await conn.ExecuteAsync(new CommandDefinition(seed, commandTimeout: 120, cancellationToken: ct));
+                await ExecuteBatchesAsync(conn, seed, ct);
             }
+        }
+    }
+
+    /// <summary>
+    /// Executes a script one <c>GO</c>-delimited batch at a time. SSMS-style
+    /// scripts contain <c>GO</c> lines that are not valid TSQL; splitting here
+    /// keeps them from reaching SQL Server (and honours batch-boundary rules).
+    /// </summary>
+    private async Task ExecuteBatchesAsync(SqlConnection conn, string sql, CancellationToken ct)
+    {
+        foreach (var batch in SqlScript.SplitBatches(sql))
+        {
+            await conn.ExecuteAsync(new CommandDefinition(batch, commandTimeout: 120, cancellationToken: ct));
         }
     }
 

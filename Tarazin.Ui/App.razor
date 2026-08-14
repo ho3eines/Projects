@@ -1,6 +1,7 @@
 @using System.Globalization
 @implements IDisposable
 @inject UiPreferences Prefs
+@inject UserSession Session
 @inject PriceFeedScheduler FeedScheduler
 
 @* Shared App shell — hosted by BOTH the web host (Tarazin.Web/_Host.cshtml)
@@ -58,6 +59,26 @@
         catch (Exception ex)
         {
             _initError = ex.Message;
+        }
+    }
+
+    // بازیابی نشست بعد از رفرش: ProtectedSessionStorage (و هر استور مرورگری)
+    // فقط بعد از اتصال circuit در دسترس است؛ OnAfterRenderAsync دقیقاً همان
+    // نقطهٔ امن است (در حین prerender صدا زده نمی‌شود).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // شکست در بازیابی نشست نباید کل برنامه را از کار بیندازد؛
+            // بدترین حالت این است که کاربر دوباره وارد شود.
+            try
+            {
+                await Session.RestoreAsync();
+            }
+            catch
+            {
+                // ignored — treated as "not signed in"
+            }
         }
     }
 

@@ -3,6 +3,7 @@ using MudBlazor;
 using MudBlazor.Services;
 using Tarazin.Data;
 using Tarazin.Services;
+using Tarazin.Web;
 
 var fa = CultureInfo.GetCultureInfo("fa-IR");
 CultureInfo.DefaultThreadCurrentCulture = fa;
@@ -43,6 +44,11 @@ builder.Services.AddMudServices(config =>
 
 // ── Tarazin services: UI layer (session/auth) + Data layer (DbService, ...) ─
 builder.Services.AddTarazinUiServices();
+
+// نشست ورود را در protected session storage مرورگر نگه می‌داریم تا با
+// رفرش صفحه (که circuit و UserSession حافظه‌ای را از بین می‌برد) کاربر
+// از سیستم خارج نشود. فقط مخصوص هاست وب است؛ MAUI به آن نیازی ندارد.
+builder.Services.AddScoped<ISessionStore, ProtectedSessionStore>();
 
 
 
