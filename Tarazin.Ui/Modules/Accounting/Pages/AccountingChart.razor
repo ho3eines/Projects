@@ -1,4 +1,5 @@
 @page "/accounting/chart"
+@using Tarazin.Components.Chart
 @inject DbService Db
 @inject UserSession Session
 @inject IDialogService Dialog
@@ -20,7 +21,7 @@
                OnClick="ExpandAll" Class="ms-2">
         باز کردن همه
     </MudButton>
-    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.AccountTreeOutlined"
+    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.AccountTree"
                OnClick="CollapseAll" Class="ms-2">
         بستن همه
     </MudButton>
