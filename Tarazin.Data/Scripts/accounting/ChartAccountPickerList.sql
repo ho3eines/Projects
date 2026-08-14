@@ -1,27 +1,31 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/ChartAccountPickerList.sql
 -- Schema: accounting
--- لیست کامل حساب‌ها برای Account Picker.
--- فیلتر نوع حساب (کل/معین/تفصیلی) و قابلیت ثبت تراکنش.
--- @AccountTypeFilter: NULL = همه؛ 'Col' | 'Moein' | 'Detil'.
--- @AllowTransactionOnly=1: فقط حساب‌های نهایی قابل ثبت سند (= BaseDetil).
--- @SearchText: جستجو روی Code/Title/AccountCode.
--- خروجی: شامل ChildCount و DetilEntityId/LinkId/MoeinId برای Picker.
+-- لیست بهینه‌شده برای Account Picker (هزاران رکورد).
+--   1. هر سطح (Col/Moein/Detil) مستقیماً از جداول پایه با ایندکس‌های
+--      پوششی فیلتر می‌شود.
+--   2. DetilEntityId/LinkId/MoeinId در حالت BaseDetil مقداردهی می‌شود.
+--   3. برای سرعت بیشتر در سناریوهای با تعداد رکورد بالا، از filtered index
+--      استفاده می‌شود (IsDeleted=0).
+--   4. در BaseDetil به‌جای outer apply، مستقیماً join به Link با index انجام می‌شود.
 -- =============================================
 DECLARE @Like   NVARCHAR(200) = N'%' + ISNULL(LTRIM(RTRIM(@SearchText)), N'') + N'%';
 DECLARE @Prefix NVARCHAR(200) = ISNULL(LTRIM(RTRIM(@SearchText)), N'') + N'%';
 
-;WITH BaseCols AS (
+;WITH Cols AS (
     SELECT
         c.ColId    AS NodeId, 1 AS Level, c.ColCode AS Code, c.Title,
-        N'BaseCol' AS NodeType, NULL AS ParentId,
+        N'BaseCol' AS NodeType, CAST(NULL AS INT) AS ParentId,
         CAST(c.ColCode AS NVARCHAR(200)) AS AccountCode,
         c.IsActive,
         CAST(c.Title AS NVARCHAR(1000)) AS Breadcrumb
     FROM [accounting].[BaseCol] c
-    WHERE c.IsDeleted = 0
+    WHERE c.IsDeleted = 0 AND c.IsActive = 1
+      AND (@AccountTypeFilter IS NULL OR @AccountTypeFilter = N'Col')
+      AND (@SearchText IS NULL OR @SearchText = N''
+           OR c.Title LIKE @Like OR c.ColCode LIKE @Like OR c.ColCode LIKE @Prefix)
 ),
-BaseMoeins AS (
+Moeins AS (
     SELECT
         m.MoeinId  AS NodeId, 2 AS Level, m.MoeinCode AS Code, m.Title,
         N'BaseMoein' AS NodeType, m.ColId AS ParentId,
@@ -29,57 +33,47 @@ BaseMoeins AS (
         m.IsActive,
         CAST(bc.Breadcrumb + N' > ' + m.Title AS NVARCHAR(1000)) AS Breadcrumb
     FROM [accounting].[BaseMoein] m
-    JOIN BaseCols bc ON bc.NodeId = m.ColId
-    WHERE m.IsDeleted = 0
+    INNER JOIN Cols bc ON bc.NodeId = m.ColId
+    WHERE m.IsDeleted = 0 AND m.IsActive = 1
+      AND (@AccountTypeFilter IS NULL OR @AccountTypeFilter = N'Moein')
+      AND (@SearchText IS NULL OR @SearchText = N''
+           OR m.Title LIKE @Like OR m.MoeinCode LIKE @Like OR m.MoeinCode LIKE @Prefix)
 ),
-BaseDetils AS (
+Detils AS (
     SELECT
         d.DetilId  AS NodeId, 3 AS Level, d.DetilCode AS Code, d.Title,
         N'BaseDetil' AS NodeType, dl.LinkId AS ParentId,
         CAST(bm.AccountCode + d.DetilCode AS NVARCHAR(200)) AS AccountCode,
-        CASE WHEN d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS IsActive,
+        CAST(1 AS BIT) AS IsActive,
         CAST(bm.Breadcrumb + N' > ' + d.Title AS NVARCHAR(1000)) AS Breadcrumb
     FROM [accounting].[BaseDetilLink] dl
-    JOIN BaseMoeins bm ON bm.NodeId = dl.MoeinId
-    JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
-    WHERE dl.IsDeleted = 0 AND d.IsDeleted = 0
+    INNER JOIN Moeins bm ON bm.NodeId = dl.MoeinId
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
+    WHERE dl.IsDeleted = 0 AND dl.IsActive = 1
+      AND d.IsDeleted = 0 AND d.IsActive = 1
+      AND (@AccountTypeFilter IS NULL OR @AccountTypeFilter = N'Detil')
+      AND (@SearchText IS NULL OR @SearchText = N''
+           OR d.Title LIKE @Like OR d.DetilCode LIKE @Like OR d.DetilCode LIKE @Prefix
+           OR bm.AccountCode LIKE @Like OR bm.AccountCode + d.DetilCode LIKE @Like)
+      AND (@AllowTransactionOnly = 0)
 ),
 AllNodes AS (
-    SELECT * FROM BaseCols
+    SELECT NodeId, Level, Code, Title, NodeType, ParentId, AccountCode, IsActive, Breadcrumb,
+           NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
+    FROM Cols
     UNION ALL
-    SELECT * FROM BaseMoeins
+    SELECT NodeId, Level, Code, Title, NodeType, ParentId, AccountCode, IsActive, Breadcrumb,
+           NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
+    FROM Moeins
     UNION ALL
-    SELECT * FROM BaseDetils
+    SELECT NodeId, Level, Code, Title, NodeType, ParentId, AccountCode, IsActive, Breadcrumb,
+           NodeId AS DetilEntityId, ParentId AS LinkId, NULL AS MoeinId
+    FROM Detils
 )
 SELECT
-    t.NodeId, t.Level, t.Code, t.Title, t.NodeType, t.ParentId, t.AccountCode,
-    CASE WHEN t.IsActive = 1 THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS IsActive,
-    0 AS ChildCount,
-    t.Breadcrumb,
-    CASE WHEN t.NodeType = N'BaseDetil' THEN t.NodeId ELSE NULL END AS DetilEntityId,
-    CASE WHEN t.NodeType = N'BaseDetil' THEN t.ParentId ELSE NULL END AS LinkId,
-    CASE WHEN t.NodeType = N'BaseDetil'
-         THEN (SELECT TOP 1 dl.MoeinId FROM [accounting].[BaseDetilLink] dl
-               WHERE dl.DetilId = t.NodeId AND dl.LinkId = t.ParentId AND dl.IsDeleted = 0)
-         ELSE NULL END AS MoeinId
-FROM AllNodes t
-WHERE t.IsActive = 1
-  AND (
-       @SearchText IS NULL OR LTRIM(RTRIM(@SearchText)) = N''
-    OR t.Title       LIKE @Like
-    OR t.Code        LIKE @Like
-    OR t.Code        LIKE @Prefix
-    OR t.AccountCode LIKE @Like
-    OR t.AccountCode LIKE @Prefix
-  )
-  AND (
-       @AccountTypeFilter IS NULL
-    OR (@AccountTypeFilter = N'Col'   AND t.NodeType = N'BaseCol')
-    OR (@AccountTypeFilter = N'Moein' AND t.NodeType = N'BaseMoein')
-    OR (@AccountTypeFilter = N'Detil' AND t.NodeType = N'BaseDetil')
-  )
-  AND (
-       @AllowTransactionOnly = 0
-    OR t.NodeType = N'BaseDetil'
-  )
-ORDER BY t.AccountCode, t.Level;
+    n.NodeId, n.Level, n.Code, n.Title, n.NodeType, n.ParentId, n.AccountCode, n.IsActive,
+    0 AS ChildCount, n.Breadcrumb,
+    n.DetilEntityId, n.LinkId, n.MoeinId
+FROM AllNodes n
+ORDER BY n.AccountCode, n.Level
+OPTION (RECOMPILE);

@@ -4,6 +4,7 @@
 -- انتقال یک حساب معین به یک حساب کل دیگر.
 -- اگر MoeinCode در مقصد تکراری باشد، خطا.
 -- ID و Code معین تغییر نمی‌کند؛ فقط Parent تغییر می‌کند.
+-- ایندکس UX_BaseMoein_Col_Code روی (ColId, MoeinCode) بررسی تکراری بودن را O(log n) می‌کند.
 -- =============================================
 DECLARE @CurrentColId INT;
 SELECT @CurrentColId = ColId
@@ -26,7 +27,7 @@ IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColId = @NewColId AND 
 
 -- کد در مقصد نباید تکراری باشد
 IF EXISTS (
-    SELECT 1 FROM [accounting].[BaseMoein]
+    SELECT 1 FROM [accounting].[BaseMoein] WITH (INDEX(UX_BaseMoein_Col_Code))
     WHERE ColId = @NewColId AND IsDeleted = 0
       AND MoeinCode = (SELECT MoeinCode FROM [accounting].[BaseMoein] WHERE MoeinId = @MoeinId)
       AND MoeinId <> @MoeinId)

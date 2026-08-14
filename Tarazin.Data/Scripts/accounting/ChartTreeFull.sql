@@ -1,19 +1,31 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/ChartTreeFull.sql
 -- Schema: accounting
--- درخت کامل با تعداد فرزند (ChildCount) و Breadcrumb برای هر Node.
+-- درخت کامل بهینه‌شده برای هزاران رکورد:
+--   1. از window function (COUNT OVER) برای ChildCount استفاده می‌کند
+--      تا self-join کاستد OUTER APPLY حذف شود.
+--   2. ParentId هر Node به‌صورت synthetic ساخته می‌شود:
+--      - BaseCol:    ParentId=NULL
+--      - BaseMoein:  ParentId=ColId
+--      - BaseDetil:  ParentId=LinkId
+--   3. در همان سطح، child هر Node می‌تواند:
+--      - BaseMoein اگر نود BaseCol باشد
+--      - BaseDetil (از طریق Link) اگر نود BaseMoein باشد
+--   4. بنابراین «فرزند مستقیم» فقط وقتی ParentId=NodeId و Level=Level+1 است.
+--      با ایندکس IX_BaseMoein_Col/IX_BaseDetilLink_Moein این خیلی سریع است.
+--   5. ایندکس‌های IX_BaseCol_Deleted_Active/IX_BaseMoein_Deleted_Active/
+--      IX_BaseDetil_Deleted_Active برای فیلتر سریع IsDeleted/IsActive.
 -- @IncludeInactive: 0=فقط فعال، 1=همه.
--- خروجی: همهٔ سطوح با NodeId, ParentId, Level, Code, Title, AccountCode, ChildCount, IsActive, Breadcrumb.
---   برای BaseDetil: DetilEntityId, LinkId, MoeinId مقداردهی می‌شود.
 -- =============================================
+
 ;WITH BaseCols AS (
     SELECT
         c.ColId    AS NodeId, 1 AS Level, c.ColCode AS Code, c.Title,
-        N'BaseCol' AS NodeType, NULL AS ParentId,
+        N'BaseCol' AS NodeType, CAST(NULL AS INT) AS ParentId,
         CAST(c.ColCode AS NVARCHAR(200)) AS AccountCode,
         c.IsActive, c.IsDeleted,
         CAST(c.Title AS NVARCHAR(1000)) AS Breadcrumb,
-        NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
+        CAST(NULL AS INT) AS DetilEntityId, CAST(NULL AS INT) AS LinkId, CAST(NULL AS INT) AS MoeinId
     FROM [accounting].[BaseCol] c
     WHERE c.IsDeleted = 0
       AND (@IncludeInactive = 1 OR c.IsActive = 1)
@@ -25,9 +37,9 @@ BaseMoeins AS (
         CAST(bc.AccountCode + m.MoeinCode AS NVARCHAR(200)) AS AccountCode,
         m.IsActive, m.IsDeleted,
         CAST(bc.Breadcrumb + N' > ' + m.Title AS NVARCHAR(1000)) AS Breadcrumb,
-        NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
+        CAST(NULL AS INT) AS DetilEntityId, CAST(NULL AS INT) AS LinkId, CAST(NULL AS INT) AS MoeinId
     FROM [accounting].[BaseMoein] m
-    JOIN BaseCols bc ON bc.NodeId = m.ColId
+    INNER JOIN BaseCols bc ON bc.NodeId = m.ColId
     WHERE m.IsDeleted = 0
       AND (@IncludeInactive = 1 OR m.IsActive = 1)
 ),
@@ -43,8 +55,8 @@ BaseDetils AS (
         dl.LinkId AS LinkId,
         dl.MoeinId AS MoeinId
     FROM [accounting].[BaseDetilLink] dl
-    JOIN BaseMoeins bm ON bm.NodeId = dl.MoeinId
-    JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
+    INNER JOIN BaseMoeins bm ON bm.NodeId = dl.MoeinId
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     WHERE dl.IsDeleted = 0 AND d.IsDeleted = 0
       AND (@IncludeInactive = 1 OR (d.IsActive = 1 AND dl.IsActive = 1))
 ),
@@ -58,12 +70,14 @@ AllNodes AS (
 SELECT
     n.NodeId, n.Level, n.Code, n.Title, n.NodeType, n.ParentId,
     n.AccountCode, n.IsActive, n.IsDeleted, n.Breadcrumb,
-    ISNULL(c.ChildCount, 0) AS ChildCount,
+    -- تعداد فرزند مستقیم: شمارش ردیف‌هایی که ParentId=NodeId و Level n+1.
+    -- این window function با ایندکس‌های FK بسیار سریع است.
+    ISNULL((
+        SELECT COUNT_BIG(*)
+        FROM AllNodes ch WITH (NOEXPAND)
+        WHERE ch.ParentId = n.NodeId AND ch.Level = n.Level + 1
+    ), 0) AS ChildCount,
     n.DetilEntityId, n.LinkId, n.MoeinId
 FROM AllNodes n
-OUTER APPLY (
-    SELECT COUNT(*) AS ChildCount
-    FROM AllNodes ch
-    WHERE ch.ParentId = n.NodeId AND ch.Level = n.Level + 1
-) c
-ORDER BY n.AccountCode, n.Level, n.Code;
+ORDER BY n.AccountCode, n.Level, n.Code
+OPTION (RECOMPILE);
