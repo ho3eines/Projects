@@ -47,9 +47,12 @@ BEGIN
         CONSTRAINT FK_DocumentLines_Document FOREIGN KEY (DocumentId) REFERENCES [accounting].[Documents](DocumentId)
     );
     CREATE INDEX IX_DocumentLines_Document ON [accounting].[DocumentLines](DocumentId);
+    -- ایندکس برای جستجوی HasUsage روی AccountCode (LIKE prefix)
+    CREATE INDEX IX_DocumentLines_AccountCode ON [accounting].[DocumentLines](AccountCode) INCLUDE (AccountId, Title);
 END
 
 -- Contract: ChartOfAccount (owner: accounting).
+-- (نگه‌داشته شده برای سازگاری با گزارش‌های قدیمی؛ جداول پایهٔ جدید جایگزین شدند)
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t
     JOIN sys.schemas s ON t.schema_id = s.schema_id
@@ -67,6 +70,136 @@ BEGIN
         UpdatedAt       DATETIME2 NULL
     );
 END
+
+-- =============================================
+-- جداول پایهٔ سه‌سطحی: BaseCol (کل) / BaseMoein (معین) / BaseDetil (تفصیلی)
+-- طراحی مطابق PRD §جداول پایه:
+--   - BaseCol.Code: 2 رقم
+--   - BaseMoein.Code: 3 رقم
+--   - BaseDetil.Code: 7 رقم
+--   - AccountCode = ترکیب مسیر BaseCol + BaseMoein + BaseDetil[...]
+--   - تفصیلی یکپارچه: BaseDetil یک‌بار ایجاد می‌شود و در چند مسیر قرار می‌گیرد.
+-- =============================================
+
+-- BaseCol — حساب کل
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'accounting' AND t.name = N'BaseCol')
+BEGIN
+    CREATE TABLE [accounting].[BaseCol] (
+        ColId          INT IDENTITY(1,1) PRIMARY KEY,
+        ColCode        NVARCHAR(2) NOT NULL UNIQUE,    -- دقیقاً 2 رقم، صفرهای ابتدایی حفظ می‌شود
+        Title          NVARCHAR(200) NOT NULL,
+        [Description]  NVARCHAR(500) NULL,
+        IsActive       BIT NOT NULL DEFAULT 1,
+        IsDeleted      BIT NOT NULL DEFAULT 0,
+        CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt      DATETIME2 NULL,
+        CreatedBy      NVARCHAR(100) NULL,
+        UpdatedBy      NVARCHAR(100) NULL
+    );
+    CREATE INDEX IX_BaseCol_Code ON [accounting].[BaseCol](ColCode);
+END
+
+-- ایندکس‌های اضافی برای بهینه‌سازی Tree
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseCol_Deleted_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseCol]'))
+    CREATE INDEX IX_BaseCol_Deleted_Active ON [accounting].[BaseCol](IsDeleted, IsActive) INCLUDE (ColCode, Title);
+GO
+
+-- BaseMoein — حساب معین (زیرمجموعهٔ BaseCol)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'accounting' AND t.name = N'BaseMoein')
+BEGIN
+    CREATE TABLE [accounting].[BaseMoein] (
+        MoeinId        INT IDENTITY(1,1) PRIMARY KEY,
+        ColId          INT NOT NULL,                  -- FK → BaseCol
+        MoeinCode      NVARCHAR(3) NOT NULL,           -- دقیقاً 3 رقم
+        Title          NVARCHAR(200) NOT NULL,
+        [Description]  NVARCHAR(500) NULL,
+        IsActive       BIT NOT NULL DEFAULT 1,
+        IsDeleted      BIT NOT NULL DEFAULT 0,
+        CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt      DATETIME2 NULL,
+        CreatedBy      NVARCHAR(100) NULL,
+        UpdatedBy      NVARCHAR(100) NULL,
+        CONSTRAINT FK_BaseMoein_BaseCol FOREIGN KEY (ColId) REFERENCES [accounting].[BaseCol](ColId)
+    );
+    CREATE UNIQUE INDEX UX_BaseMoein_Col_Code ON [accounting].[BaseMoein](ColId, MoeinCode);
+    CREATE INDEX IX_BaseMoein_Col ON [accounting].[BaseMoein](ColId);
+END
+
+-- ایندکس‌های اضافی برای بهینه‌سازی درخت + جستجو (با درنظر گرفتن هزاران رکورد)
+-- ترکیب (IsDeleted, IsActive) بهینه‌سازی فیلترهای پرتکرار Tree است.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseMoein_Deleted_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseMoein]'))
+    CREATE INDEX IX_BaseMoein_Deleted_Active ON [accounting].[BaseMoein](IsDeleted, IsActive) INCLUDE (MoeinCode, Title, ColId);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseMoein_Title' AND object_id = OBJECT_ID(N'[accounting].[BaseMoein]'))
+    CREATE INDEX IX_BaseMoein_Title ON [accounting].[BaseMoein](Title) INCLUDE (MoeinCode, ColId, IsDeleted);
+GO
+
+-- BaseDetil — حساب تفصیلی (یکپارچه/Shared)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'accounting' AND t.name = N'BaseDetil')
+BEGIN
+    CREATE TABLE [accounting].[BaseDetil] (
+        DetilId        INT IDENTITY(1,1) PRIMARY KEY,
+        DetilCode      NVARCHAR(7) NOT NULL UNIQUE,    -- دقیقاً 7 رقم، یکتا در کل سیستم
+        Title          NVARCHAR(200) NOT NULL,
+        [Description]  NVARCHAR(500) NULL,
+        IsActive       BIT NOT NULL DEFAULT 1,
+        IsDeleted      BIT NOT NULL DEFAULT 0,
+        CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt      DATETIME2 NULL,
+        CreatedBy      NVARCHAR(100) NULL,
+        UpdatedBy      NVARCHAR(100) NULL
+    );
+    CREATE INDEX IX_BaseDetil_Code ON [accounting].[BaseDetil](DetilCode);
+END
+
+-- ایندکس‌های بهینه برای جستجوی BaseDetil در Picker/Tree
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetil_Deleted_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseDetil]'))
+    CREATE INDEX IX_BaseDetil_Deleted_Active ON [accounting].[BaseDetil](IsDeleted, IsActive) INCLUDE (DetilCode, Title);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetil_Title' AND object_id = OBJECT_ID(N'[accounting].[BaseDetil]'))
+    CREATE INDEX IX_BaseDetil_Title ON [accounting].[BaseDetil](Title) INCLUDE (DetilCode, IsDeleted);
+GO
+
+-- BaseDetilLink — پیوند تفصیلی به معین (هر تفصیلی می‌تواند در چند مسیر باشد)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'accounting' AND t.name = N'BaseDetilLink')
+BEGIN
+    CREATE TABLE [accounting].[BaseDetilLink] (
+        LinkId         INT IDENTITY(1,1) PRIMARY KEY,
+        DetilId        INT NOT NULL,                  -- FK → BaseDetil
+        MoeinId        INT NOT NULL,                  -- FK → BaseMoein (مسیر قرارگیری)
+        [Description]  NVARCHAR(500) NULL,
+        IsActive       BIT NOT NULL DEFAULT 1,
+        IsDeleted      BIT NOT NULL DEFAULT 0,
+        CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt      DATETIME2 NULL,
+        CreatedBy      NVARCHAR(100) NULL,
+        UpdatedBy      NVARCHAR(100) NULL,
+        CONSTRAINT FK_BaseDetilLink_Detil FOREIGN KEY (DetilId) REFERENCES [accounting].[BaseDetil](DetilId),
+        CONSTRAINT FK_BaseDetilLink_Moein FOREIGN KEY (MoeinId) REFERENCES [accounting].[BaseMoein](MoeinId)
+    );
+    CREATE INDEX IX_BaseDetilLink_Detil ON [accounting].[BaseDetilLink](DetilId);
+    CREATE INDEX IX_BaseDetilLink_Moein ON [accounting].[BaseDetilLink](MoeinId);
+END
+
+-- ایندکس‌های بهینه برای Link (حیاتی‌ترین جدول — بیشترین ردیف را دارد)
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetilLink_Moein_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseDetilLink]'))
+    CREATE INDEX IX_BaseDetilLink_Moein_Active ON [accounting].[BaseDetilLink](MoeinId, IsDeleted, IsActive) INCLUDE (DetilId);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetilLink_Detil_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseDetilLink]'))
+    CREATE INDEX IX_BaseDetilLink_Detil_Active ON [accounting].[BaseDetilLink](DetilId, IsDeleted, IsActive) INCLUDE (MoeinId);
+GO
 
 -- Contract: TaxRule (owner: accounting) — config-driven Persian tax engine (PRD §8).
 IF NOT EXISTS (

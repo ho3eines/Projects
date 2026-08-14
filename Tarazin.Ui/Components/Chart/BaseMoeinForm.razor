@@ -1,0 +1,169 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" Label="حساب کل والد" @bind-Value="_colId"
+                               Required="true" RequiredError="انتخاب حساب کل الزامی است."
+                               Variant="Variant.Outlined" Disabled="@(MoeinId > 0)">
+                        <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
+                        @foreach (var c in _cols)
+                        {
+                            <MudSelectItem T="int" Value="@c.ColId">@c.ColCode | @c.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudTextField Label="کد معین (3 رقم)" @bind-Value="_code"
+                                  Required="true" RequiredError="کد معین الزامی است."
+                                  MaxLength="3" Immediate="true"
+                                  Variant="Variant.Outlined" Counter="3"
+                                  OnKeyDown="HandleKeyDown"
+                                  HelperText="3 رقم — صفرهای ابتدایی حفظ می‌شود" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudTextField Label="AccountCode (خودکار)" Value="@AutoAccountCode" ReadOnly="true"
+                                  Variant="Variant.Outlined" Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.ContentCopy"
+                                  OnAdornmentClick="@(() => Copy(AutoAccountCode))" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="عنوان" @bind-Value="_title" Required="true"
+                                  RequiredError="عنوان الزامی است." OnKeyDown="HandleKeyDown" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="شرح" @bind-Value="_description" Lines="2" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">
+            @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public int MoeinId { get; set; }
+    [Parameter, EditorRequired] public int InitialColId { get; set; }
+    [Parameter] public string InitialCode { get; set; } = "";
+    [Parameter] public string InitialTitle { get; set; } = "";
+    [Parameter] public string InitialDescription { get; set; } = "";
+    [Parameter] public bool InitialIsActive { get; set; } = true;
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private int _colId;
+    private string _code = "";
+    private string _title = "";
+    private string? _description;
+    private bool _isActive = true;
+    private List<BaseColRow> _cols = new();
+
+    private string AutoAccountCode
+    {
+        get
+        {
+            var col = _cols.FirstOrDefault(c => c.ColId == _colId);
+            var colCode = col?.ColCode ?? "";
+            var moein = (_code ?? "").Trim().PadLeft(3, '0');
+            return colCode + moein;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _colId = InitialColId;
+        _code = InitialCode;
+        _title = InitialTitle;
+        _description = InitialDescription;
+        _isActive = InitialIsActive;
+        try
+        {
+            _cols = (await Db.QueryAsync<BaseColRow>("accounting", "BaseColList", new { })).ToList();
+        }
+        catch
+        {
+            _cols = new();
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+            _ = SaveAsync();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        await _form!.Validate();
+        if (!_isValid) return;
+
+        if (_colId == 0)
+        {
+            Snackbar.Add("انتخاب حساب کل الزامی است.", Severity.Warning);
+            return;
+        }
+
+        var code = (_code ?? "").Trim();
+        if (code.Length != 3 || !code.All(char.IsDigit))
+        {
+            Snackbar.Add("کد حساب معین باید دقیقاً ۳ رقم باشد.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("accounting", "BaseMoeinUpsert", new
+            {
+                MoeinId,
+                ColId = _colId,
+                MoeinCode = code,
+                Title = (_title ?? "").Trim(),
+                Description = _description?.Trim() ?? "",
+                IsActive = _isActive,
+                CreatedBy = Session.UserName,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add(MoeinId == 0 ? "حساب معین ایجاد شد." : "ویرایش با موفقیت انجام شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Copy(string value)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", value);
+            Snackbar.Add("AccountCode کپی شد.", Severity.Info);
+        }
+        catch { /* ignore */ }
+    }
+}

@@ -1,0 +1,122 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField Label="کد (2 رقم)"
+                                  @bind-Value="_code"
+                                  Required="true"
+                                  RequiredError="کد حساب کل الزامی است."
+                                  MaxLength="2"
+                                  Immediate="true"
+                                  OnKeyDown="HandleKeyDown"
+                                  Variant="Variant.Outlined"
+                                  Counter="2"
+                                  HelperText="دقیقاً ۲ رقم — صفرهای ابتدایی حفظ می‌شود" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField Label="عنوان" @bind-Value="_title"
+                                  Required="true"
+                                  RequiredError="عنوان الزامی است."
+                                  OnKeyDown="HandleKeyDown"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="شرح" @bind-Value="_description"
+                                  Lines="2" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">
+            @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public int ColId { get; set; }
+    [Parameter] public string InitialCode { get; set; } = "";
+    [Parameter] public string InitialTitle { get; set; } = "";
+    [Parameter] public string InitialDescription { get; set; } = "";
+    [Parameter] public bool InitialIsActive { get; set; } = true;
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private string _code = "";
+    private string _title = "";
+    private string? _description;
+    private bool _isActive = true;
+
+    protected override void OnInitialized()
+    {
+        _code = InitialCode;
+        _title = InitialTitle;
+        _description = InitialDescription;
+        _isActive = InitialIsActive;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            // در تکست‌فیلد چندخطی با Shift+Enter
+            _ = SaveAsync();
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        await _form!.Validate();
+        if (!_isValid) return;
+
+        // اعتبارسنجی کد: فقط عدد، دقیقاً 2 رقم
+        var code = (_code ?? "").Trim();
+        if (code.Length != 2 || !code.All(char.IsDigit))
+        {
+            Snackbar.Add("کد حساب کل باید دقیقاً ۲ رقم باشد.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("accounting", "BaseColUpsert", new
+            {
+                ColId,
+                ColCode = code,
+                Title = (_title ?? "").Trim(),
+                Description = _description?.Trim() ?? "",
+                IsActive = _isActive,
+                CreatedBy = Session.UserName,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add(ColId == 0 ? "حساب کل ایجاد شد." : "ویرایش با موفقیت انجام شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

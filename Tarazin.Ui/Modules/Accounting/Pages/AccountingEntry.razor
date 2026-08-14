@@ -2,6 +2,7 @@
 @inject DbService Db
 @inject UserSession Session
 @inject IDialogService DialogService
+@inject AccountPickerService AccountPicker
 @inject ISnackbar Snackbar
 
 <PageTitle>ثبت سند — حسابداری</PageTitle>
@@ -33,23 +34,19 @@
 
     <MudTable Items="_lines" Hover="true" Dense="true" Class="mb-4">
         <HeaderContent>
-            <MudTh>حساب</MudTh>
+            <MudTh style="width:42%">حساب</MudTh>
             <MudTh>شرح</MudTh>
-            <MudTh>بدهکار</MudTh>
-            <MudTh>بستانکار</MudTh>
-            <MudTh></MudTh>
+            <MudTh style="width:130px">بدهکار</MudTh>
+            <MudTh style="width:130px">بستانکار</MudTh>
+            <MudTh style="width:48px"></MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="حساب">
-                <MudSelect T="int" Value="@context.AccountId"
-                           ValueChanged="v => OnAccountChange(_lines.IndexOf(context), v)"
-                           Variant="Variant.Outlined" Margin="Margin.Dense">
-                    <MudSelectItem Value="0">— انتخاب حساب —</MudSelectItem>
-                    @foreach (var a in _accounts)
-                    {
-                        <MudSelectItem Value="@a.AccountId">@a.AccountCode — @a.Title</MudSelectItem>
-                    }
-                </MudSelect>
+                <AccountPickerField Value="@context.PickedAccount"
+                                    ValueChanged="(v) => OnAccountPick(_lines.IndexOf(context), v)"
+                                    PickerOptions="@(new AccountPickerOptions { TransactionalOnly = true })"
+                                    ButtonLabel="انتخاب حساب"
+                                    EmptyText="— انتخاب حساب —" />
             </MudTd>
             <MudTd DataLabel="شرح">
                 <MudTextField T="string" Value="@context.Description"
@@ -101,7 +98,6 @@
     private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
     private const string Schema = "accounting";
 
-    private List<ChartOfAccountRow> _accounts = new();
     private List<JournalLineRow> _lines = new();
     private DateTime? _documentDate = DateTime.Today;
     private string _documentType = "Journal";
@@ -112,14 +108,8 @@
     private decimal TotalCredit => _lines.Sum(l => l.Credit);
     private bool IsBalanced => TotalDebit == TotalCredit && TotalDebit > 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        _accounts = (await Db.QueryAsync<ChartOfAccountRow>(Schema, "ChartOfAccountSearch", new
-        {
-            SearchText = "",
-            SkipRows = 0,
-            TakeSize = 500
-        })).ToList();
         AddLine();
     }
 
@@ -140,19 +130,22 @@
             _lines.RemoveAt(index);
     }
 
-    private void OnAccountChange(int index, int accountId)
+    private void OnAccountPick(int index, AccountPickerResult? picked)
     {
-        if (index < 0 || index >= _lines.Count)
-            return;
-
+        if (index < 0 || index >= _lines.Count) return;
         var line = _lines[index];
-        line.AccountId = accountId;
-        var account = _accounts.FirstOrDefault(a => a.AccountId == accountId);
-        if (account is not null)
+        if (picked is null)
         {
-            line.AccountCode = account.AccountCode;
-            line.AccountTitle = account.Title;
+            line.PickedAccount = null;
+            line.AccountId = 0;
+            line.AccountCode = "";
+            line.AccountTitle = "";
+            return;
         }
+        line.PickedAccount = picked;
+        line.AccountId = picked.Id;
+        line.AccountCode = picked.AccountCode;
+        line.AccountTitle = picked.Title;
     }
 
     private async Task SaveAsync()
@@ -161,6 +154,13 @@
         if (!IsBalanced)
         {
             Snackbar.Add("بدهی و بستانکاری سند باید برابر باشد.", Severity.Warning);
+            return;
+        }
+
+        // اعتبارسنجی: تمام ردیف‌ها باید حساب انتخاب‌شده داشته باشند
+        if (_lines.Any(l => l.AccountId == 0))
+        {
+            Snackbar.Add("برای تمام ردیف‌ها باید حساب انتخاب شود.", Severity.Warning);
             return;
         }
 

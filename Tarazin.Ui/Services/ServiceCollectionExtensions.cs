@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UserService>();
         services.AddScoped<EntityCrudService>();
         services.AddScoped<BiReportService>();   // چاپ و گزارش با Stimulsoft (BI)
+        services.AddScoped<AccountPickerService>(); // انتخاب حساب (Account Picker)
 
         return services;
     }
