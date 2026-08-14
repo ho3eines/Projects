@@ -71,10 +71,10 @@ SELECT
     n.NodeId, n.Level, n.Code, n.Title, n.NodeType, n.ParentId,
     n.AccountCode, n.IsActive, n.IsDeleted, n.Breadcrumb,
     -- تعداد فرزند مستقیم: شمارش ردیف‌هایی که ParentId=NodeId و Level n+1.
-    -- این window function با ایندکس‌های FK بسیار سریع است.
+    -- این correlated subquery با ایندکس‌های FK بسیار سریع است.
     ISNULL((
         SELECT COUNT_BIG(*)
-        FROM AllNodes ch WITH (NOEXPAND)
+        FROM AllNodes ch
         WHERE ch.ParentId = n.NodeId AND ch.Level = n.Level + 1
     ), 0) AS ChildCount,
     n.DetilEntityId, n.LinkId, n.MoeinId
