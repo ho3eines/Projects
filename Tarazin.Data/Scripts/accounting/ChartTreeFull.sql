@@ -3,7 +3,8 @@
 -- Schema: accounting
 -- درخت کامل با تعداد فرزند (ChildCount) و Breadcrumb برای هر Node.
 -- @IncludeInactive: 0=فقط فعال، 1=همه.
--- خروجی: همهٔ سطوح با NodeId, ParentId, Level, Code, Title, AccountCode, ChildCount, IsActive, Breadcrumb (با جداکنندهٔ «>»).
+-- خروجی: همهٔ سطوح با NodeId, ParentId, Level, Code, Title, AccountCode, ChildCount, IsActive, Breadcrumb.
+--   برای BaseDetil: DetilEntityId, LinkId, MoeinId مقداردهی می‌شود.
 -- =============================================
 ;WITH BaseCols AS (
     SELECT
@@ -11,7 +12,8 @@
         N'BaseCol' AS NodeType, NULL AS ParentId,
         CAST(c.ColCode AS NVARCHAR(200)) AS AccountCode,
         c.IsActive, c.IsDeleted,
-        CAST(c.Title AS NVARCHAR(1000)) AS Breadcrumb
+        CAST(c.Title AS NVARCHAR(1000)) AS Breadcrumb,
+        NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
     FROM [accounting].[BaseCol] c
     WHERE c.IsDeleted = 0
       AND (@IncludeInactive = 1 OR c.IsActive = 1)
@@ -22,7 +24,8 @@ BaseMoeins AS (
         N'BaseMoein' AS NodeType, m.ColId AS ParentId,
         CAST(bc.AccountCode + m.MoeinCode AS NVARCHAR(200)) AS AccountCode,
         m.IsActive, m.IsDeleted,
-        CAST(bc.Breadcrumb + N' > ' + m.Title AS NVARCHAR(1000)) AS Breadcrumb
+        CAST(bc.Breadcrumb + N' > ' + m.Title AS NVARCHAR(1000)) AS Breadcrumb,
+        NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
     FROM [accounting].[BaseMoein] m
     JOIN BaseCols bc ON bc.NodeId = m.ColId
     WHERE m.IsDeleted = 0
@@ -35,7 +38,10 @@ BaseDetils AS (
         CAST(bm.AccountCode + d.DetilCode AS NVARCHAR(200)) AS AccountCode,
         CASE WHEN d.IsActive = 1 AND dl.IsActive = 1 THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS IsActive,
         d.IsDeleted,
-        CAST(bm.Breadcrumb + N' > ' + d.Title AS NVARCHAR(1000)) AS Breadcrumb
+        CAST(bm.Breadcrumb + N' > ' + d.Title AS NVARCHAR(1000)) AS Breadcrumb,
+        d.DetilId AS DetilEntityId,
+        dl.LinkId AS LinkId,
+        dl.MoeinId AS MoeinId
     FROM [accounting].[BaseDetilLink] dl
     JOIN BaseMoeins bm ON bm.NodeId = dl.MoeinId
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
@@ -52,7 +58,8 @@ AllNodes AS (
 SELECT
     n.NodeId, n.Level, n.Code, n.Title, n.NodeType, n.ParentId,
     n.AccountCode, n.IsActive, n.IsDeleted, n.Breadcrumb,
-    ISNULL(c.ChildCount, 0) AS ChildCount
+    ISNULL(c.ChildCount, 0) AS ChildCount,
+    n.DetilEntityId, n.LinkId, n.MoeinId
 FROM AllNodes n
 OUTER APPLY (
     SELECT COUNT(*) AS ChildCount
