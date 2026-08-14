@@ -1,5 +1,6 @@
 @inject UserSession Session
 @inject NavigationManager Nav
+@implements IDisposable
 
 <MudNavMenu Class="tz-nav" Bordered="false" Color="Color.Secondary" Dense="false">
     <div class="tz-nav__label">میز کار</div>
@@ -35,6 +36,18 @@
 @code {
     [Parameter] public string CurrentPath { get; set; } = "";
 
+    protected override void OnInitialized()
+    {
+        // بعد از بازیابی نشست (مثلاً رفرش)، CurrentPath تغییر نمی‌کند و Blazor
+        // این کامپوننت فرزند را دوباره رندر نمی‌کند؛ برای همین باید خودش به
+        // تغییر نشست گوش دهد تا گروه ماژول‌ها نمایش داده شوند.
+        Session.Changed += OnSessionChanged;
+    }
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
     private bool IsExpanded(TarazinModule mod) =>
         TarazinModules.Match(CurrentPath)?.Key == mod.Key;
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
 }

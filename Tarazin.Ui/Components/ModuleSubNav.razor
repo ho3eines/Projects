@@ -1,4 +1,5 @@
 @inject UserSession Session
+@implements IDisposable
 
 @if (Module is not null)
 {
@@ -26,4 +27,15 @@
 @code {
     [Parameter] public TarazinModule? Module { get; set; }
     [Parameter] public string CurrentPath { get; set; } = "";
+
+    protected override void OnInitialized()
+    {
+        // مثل NavMenu: بعد از بازیابی نشست (رفرش) پارامترها ثابت می‌مانند،
+        // پس برای نمایش تب‌های زیرمنو باید خودش به تغییر نشست واکنش نشان دهد.
+        Session.Changed += OnSessionChanged;
+    }
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
 }

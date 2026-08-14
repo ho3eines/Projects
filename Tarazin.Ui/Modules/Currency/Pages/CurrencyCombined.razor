@@ -73,11 +73,11 @@
             </MudTd>
             <MudTd DataLabel="نرخ">
                 <MudNumericField T="decimal" Value="@context.Rate" ValueChanged="v => { context.Rate = Convert.ToDecimal(v); RecalcLeg(_legs.IndexOf(context)); }"
-                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Format="#,##0.##" />
             </MudTd>
             <MudTd DataLabel="معادل ریالی">
                 <MudNumericField T="decimal" Value="@context.AmountRial" ValueChanged="v => context.AmountRial = Convert.ToDecimal(v)"
-                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Format="#,##0.##" />
             </MudTd>
             <MudTd DataLabel="تسویه">
                 @if (context.LegType == "Rial")

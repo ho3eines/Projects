@@ -2,6 +2,7 @@
 @inject UserSession Session
 @inject ScriptCatalog Catalog
 @inject NavigationManager Nav
+@implements IDisposable
 
 <PageTitle>خانه — ترازین</PageTitle>
 
@@ -66,6 +67,17 @@
 </footer>
 
 @code {
+    protected override void OnInitialized()
+    {
+        // صفحهٔ خانه هیچ دسترسی اجباری ندارد و هنگام رفرش با نشست خالی رندر می‌شود؛
+        // پس برای به‌روز شدن سلام/کارت ماژول‌ها بعد از بازیابی نشست، گوش می‌دهیم.
+        Session.Changed += OnSessionChanged;
+    }
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
     private static string Greeting
     {
         get

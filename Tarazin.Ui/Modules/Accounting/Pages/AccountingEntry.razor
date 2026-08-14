@@ -56,12 +56,12 @@
             <MudTd DataLabel="بدهکار">
                 <MudNumericField T="decimal" Value="@context.Debit"
                                  ValueChanged="v => { context.Debit = v; }" Variant="Variant.Outlined"
-                                 Margin="Margin.Dense" Min="0" />
+                                 Margin="Margin.Dense" Min="0" Format="#,##0.##" />
             </MudTd>
             <MudTd DataLabel="بستانکار">
                 <MudNumericField T="decimal" Value="@context.Credit"
                                  ValueChanged="v => { context.Credit = v; }" Variant="Variant.Outlined"
-                                 Margin="Margin.Dense" Min="0" />
+                                 Margin="Margin.Dense" Min="0" Format="#,##0.##" />
             </MudTd>
             <MudTd DataLabel="">
                 <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
