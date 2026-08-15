@@ -18,6 +18,37 @@ IF @DetilId = 0 AND EXISTS (
     SELECT 1 FROM [accounting].[BaseDetil] WHERE DetilCode = @NormCode AND IsDeleted = 0)
     THROW 50042, N'این کد تفصیلی قبلاً ایجاد شده است. به‌جای آن از حساب موجود استفاده کنید.', 1;
 
+-- ⚠ باگ تاریخی (رفع شد): اگر تفصیلی با همین کد قبلاً «حذف نرم» شده بود، شرط
+--   بالا آن را نمی‌دید و INSERT به UNIQUE constraint روی DetilCode می‌خورد
+--   (خطای 2627). نتیجه: بعد از حذف یک تفصیلی، ساختن دوبارهٔ همان کد ناممکن
+--   می‌شد و کاربر آن را «سقف تعداد تفصیلی» می‌دید. حالا ردیف حذف‌شده احیا
+--   می‌شود (همان رفتار BaseDetilLinkUpsert).
+IF @DetilId = 0
+BEGIN
+    DECLARE @RevivedId INT = NULL;
+
+    SELECT TOP (1) @RevivedId = DetilId
+    FROM [accounting].[BaseDetil]
+    WHERE DetilCode = @NormCode AND IsDeleted = 1
+    ORDER BY DetilId;
+
+    IF @RevivedId IS NOT NULL
+    BEGIN
+        UPDATE [accounting].[BaseDetil]
+        SET IsDeleted     = 0,
+            Title         = LTRIM(RTRIM(@Title)),
+            [Description] = CASE WHEN @Description IS NULL THEN [Description]
+                                 ELSE NULLIF(LTRIM(RTRIM(@Description)), N'') END,
+            IsActive      = ISNULL(@IsActive, 1),
+            UpdatedAt     = SYSUTCDATETIME(),
+            UpdatedBy     = @CreatedBy
+        WHERE DetilId = @RevivedId;
+
+        SELECT @RevivedId AS NewId;
+        RETURN;
+    END
+END
+
 IF @DetilId <> 0 AND EXISTS (
     SELECT 1 FROM [accounting].[BaseDetil]
     WHERE DetilCode = @NormCode AND IsDeleted = 0 AND DetilId <> @DetilId)

@@ -23,8 +23,16 @@
                 <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
             </MudSelect>
         </MudItem>
-        <MudItem xs="12" sm="12" md="4">
+        <MudItem xs="12" sm="6" md="4">
             <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            @* وضعیت اولیهٔ سند در چرخه؛ تأیید/تأیید نهایی از صفحهٔ خود سند و با
+               دسترسی مربوطه انجام می‌شود. *@
+            <MudSelect T="string" Label="وضعیت اولیه" @bind-Value="_status" Variant="Variant.Outlined">
+                <MudSelectItem Value="@AccountingDocumentStatus.Note">یادداشت</MudSelectItem>
+                <MudSelectItem Value="@AccountingDocumentStatus.Draft">سند موقت</MudSelectItem>
+            </MudSelect>
         </MudItem>
     </MudGrid>
 </MudPaper>
@@ -102,6 +110,7 @@
     private DateTime? _documentDate = DateTime.Today;
     private string _documentType = "Journal";
     private string _counterParty = "";
+    private string _status = AccountingDocumentStatus.Draft;
     private bool _busy;
 
     private decimal TotalDebit => _lines.Sum(l => l.Debit);
@@ -181,6 +190,7 @@
                 DocumentDate = _documentDate ?? DateTime.Today,
                 DocumentType = _documentType,
                 CounterPartyName = _counterParty,
+                Status = _status,
                 CreatedBy = Session.UserName
             });
 

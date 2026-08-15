@@ -1,0 +1,460 @@
+@page "/accounting/document/{DocumentId:int}"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject AccountPickerService AccountPicker
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>سند حسابداری — حسابداری</PageTitle>
+
+<PageHeader Title="@($"سند {(_document?.DocumentNumber ?? "")}")"
+            Subtitle="نمایش، ویرایش، تغییر وضعیت و حذف سند حسابداری."
+            Eyebrow="حسابداری">
+    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowForward"
+               Href="/accounting">
+        بازگشت به اسناد
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh"
+               OnClick="LoadAsync" Class="ms-2" Disabled="_loading">
+        تازه‌سازی
+    </MudButton>
+</PageHeader>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_document is null)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+        سند پیدا نشد یا حذف شده است.
+    </MudAlert>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <div class="d-flex align-center flex-wrap mb-3" style="gap:8px">
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(_status)">
+                وضعیت: @AccountingDocumentStatus.Title(_status)
+            </MudChip>
+            @if (IsReadOnly)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined"
+                         Icon="@Icons.Material.Filled.Lock">
+                    @ReadOnlyReason
+                </MudChip>
+            }
+        </div>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudDatePicker Label="تاریخ سند" Culture="FaCulture" @bind-Date="_documentDate"
+                               ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined"
+                           ReadOnly="IsReadOnly" Disabled="IsReadOnly">
+                    <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
+                    <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
+                    <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
+                    <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
+                    <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="12" md="4">
+                <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined"
+                              ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند</MudText>
+
+        <MudTable Items="_lines" Hover="true" Dense="true" Class="mb-4">
+            <HeaderContent>
+                <MudTh style="width:42%">حساب</MudTh>
+                <MudTh>شرح</MudTh>
+                <MudTh style="width:130px">بدهکار</MudTh>
+                <MudTh style="width:130px">بستانکار</MudTh>
+                <MudTh style="width:48px"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="حساب">
+                    <AccountPickerField Value="@context.PickedAccount"
+                                        ValueChanged="(v) => OnAccountPick(_lines.IndexOf(context), v)"
+                                        PickerOptions="@(new AccountPickerOptions { TransactionalOnly = true })"
+                                        ButtonLabel="انتخاب حساب"
+                                        EmptyText="@AccountLabel(context)"
+                                        Disabled="IsReadOnly" ReadOnly="IsReadOnly" />
+                </MudTd>
+                <MudTd DataLabel="شرح">
+                    <MudTextField T="string" Value="@context.Description"
+                                  ValueChanged="@(v => context.Description = v)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+                </MudTd>
+                <MudTd DataLabel="بدهکار">
+                    <MudNumericField T="decimal" Value="@context.Debit"
+                                     ValueChanged="v => { context.Debit = v; }" Variant="Variant.Outlined"
+                                     Margin="Margin.Dense" Min="0" Format="#,##0.##"
+                                     ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+                </MudTd>
+                <MudTd DataLabel="بستانکار">
+                    <MudNumericField T="decimal" Value="@context.Credit"
+                                     ValueChanged="v => { context.Credit = v; }" Variant="Variant.Outlined"
+                                     Margin="Margin.Dense" Min="0" Format="#,##0.##"
+                                     ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+                </MudTd>
+                <MudTd DataLabel="">
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
+                                   Size="Size.Small" Disabled="@(IsReadOnly || _lines.Count <= 1)"
+                                   OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        <MudGrid Class="mb-4">
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.body2">جمع بدهکار: <b>@TotalDebit.ToString("N0")</b></MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.body2">جمع بستانکار: <b>@TotalCredit.ToString("N0")</b></MudText>
+            </MudItem>
+            <MudItem xs="12">
+                <MudChip T="string" Color="@(IsBalanced ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(IsBalanced ? "✔ متوازن" : "✘ نامتوازن")
+                </MudChip>
+            </MudItem>
+        </MudGrid>
+
+        @if (!IsReadOnly)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
+                       StartIcon="@Icons.Material.Filled.Add">
+                + ردیف
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                       StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
+                ذخیره تغییرات
+            </MudButton>
+        }
+    </MudPaper>
+
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-3">عملیات سند</MudText>
+        <div class="d-flex flex-wrap" style="gap:8px">
+            @if (NextStatus is not null && CanChangeStatusTo(NextStatus))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.ArrowUpward"
+                           OnClick="@(() => ChangeStatusAsync(NextStatus))">
+                    @($"تغییر به «{AccountingDocumentStatus.Title(NextStatus)}»")
+                </MudButton>
+            }
+            @if (PreviousStatus is not null && CanChangeStatusTo(PreviousStatus))
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.ArrowDownward"
+                           OnClick="@(() => ChangeStatusAsync(PreviousStatus))">
+                    @($"برگشت به «{AccountingDocumentStatus.Title(PreviousStatus)}»")
+                </MudButton>
+            }
+            @if (CanDeleteDocument)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.DeleteOutline" OnClick="DeleteAsync">
+                    حذف سند
+                </MudButton>
+            }
+        </div>
+    </MudPaper>
+}
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "accounting";
+
+    [Parameter] public int DocumentId { get; set; }
+
+    private DailyDocumentRow? _document;
+    private List<JournalLineRow> _lines = new();
+    private DateTime? _documentDate = DateTime.Today;
+    private string _documentType = "Journal";
+    private string _counterParty = "";
+    private string _status = AccountingDocumentStatus.Draft;
+    private bool _loading = true;
+    private bool _busy;
+
+    private decimal TotalDebit => _lines.Sum(l => l.Debit);
+    private decimal TotalCredit => _lines.Sum(l => l.Credit);
+    private bool IsBalanced => TotalDebit == TotalCredit && TotalDebit > 0;
+
+    // ── دسترسی + وضعیت ─────────────────────────────────────────────────
+    // قانون: ویرایش = «دسترسی ویرایش سند» و «وضعیت قابل ویرایش». داشتن
+    // دسترسی به‌تنهایی کافی نیست و برعکس.
+    private bool HasEditPermission => Session.HasPermission(TarazinPermissions.DocumentEdit);
+    private bool IsStatusEditable => AccountingDocumentStatus.IsEditable(_status);
+    private bool CanEditDocument => HasEditPermission && IsStatusEditable;
+    private bool IsReadOnly => !CanEditDocument;
+
+    private bool CanDeleteDocument =>
+        Session.HasPermission(TarazinPermissions.DocumentDelete) && IsStatusEditable;
+
+    private string ReadOnlyReason => !HasEditPermission
+        ? "فقط خواندنی — دسترسی ویرایش سند حسابداری را ندارید."
+        : "فقط خواندنی — سند در وضعیت تأییدشده/تأیید نهایی قابل ویرایش نیست.";
+
+    private string? NextStatus => AccountingDocumentStatus.Next(_status);
+    private string? PreviousStatus => AccountingDocumentStatus.Previous(_status);
+
+    private bool CanChangeStatusTo(string? target)
+    {
+        var permission = AccountingDocumentStatus.PermissionFor(_status, target);
+        return permission is not null && Session.HasPermission(permission);
+    }
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _document = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(Schema, "DocumentById", new
+            {
+                DocumentId
+            });
+
+            if (_document is null)
+            {
+                _lines = new();
+                return;
+            }
+
+            _status = AccountingDocumentStatus.Normalize(_document.Status);
+            _documentDate = _document.DocumentDate;
+            _documentType = string.IsNullOrWhiteSpace(_document.DocumentType) ? "Journal" : _document.DocumentType!;
+            _counterParty = _document.CounterPartyName ?? "";
+
+            var rows = await Db.QueryAsync<DocumentLineRow>(Schema, "DocumentLines", new { DocumentId });
+            _lines = rows.Select(r => new JournalLineRow
+            {
+                AccountId = r.AccountId,
+                AccountCode = r.AccountCode,
+                AccountTitle = r.Title,
+                Description = r.Description ?? "",
+                Debit = r.Debit,
+                Credit = r.Credit,
+                // تا وقتی کاربر حساب را عوض نکرده، همان حساب ذخیره‌شده نمایش داده می‌شود.
+                PickedAccount = new AccountPickerResult
+                {
+                    Id = r.AccountId,
+                    Code = r.AccountCode,
+                    AccountCode = r.AccountCode,
+                    Title = r.Title
+                }
+            }).ToList();
+
+            if (_lines.Count == 0)
+                AddLine();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string AccountLabel(JournalLineRow line) =>
+        string.IsNullOrWhiteSpace(line.AccountTitle) ? "— انتخاب حساب —" : $"{line.AccountCode} — {line.AccountTitle}";
+
+    private void AddLine()
+    {
+        if (IsReadOnly) return;
+        _lines.Add(new JournalLineRow());
+    }
+
+    private async Task ConfirmRemoveLineAsync(int index)
+    {
+        if (IsReadOnly || _lines.Count <= 1 || index < 0 || index >= _lines.Count)
+            return;
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "تأیید حذف",
+            "آیا این ردیف از سند حذف شود؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed is true)
+            _lines.RemoveAt(index);
+    }
+
+    private void OnAccountPick(int index, AccountPickerResult? picked)
+    {
+        if (IsReadOnly) return;
+        if (index < 0 || index >= _lines.Count) return;
+        var line = _lines[index];
+        if (picked is null)
+        {
+            line.PickedAccount = null;
+            line.AccountId = 0;
+            line.AccountCode = "";
+            line.AccountTitle = "";
+            return;
+        }
+        line.PickedAccount = picked;
+        line.AccountId = picked.Id;
+        line.AccountCode = picked.AccountCode;
+        line.AccountTitle = picked.Title;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+
+        // بررسی مجدد دسترسی + وضعیت در زمان اجرا (نه فقط نمایش دکمه).
+        if (!CanEditDocument)
+        {
+            Snackbar.Add(ReadOnlyReason, Severity.Warning);
+            return;
+        }
+
+        if (!IsBalanced)
+        {
+            Snackbar.Add("بدهی و بستانکاری سند باید برابر باشد.", Severity.Warning);
+            return;
+        }
+
+        if (_lines.Any(l => l.AccountId == 0))
+        {
+            Snackbar.Add("برای تمام ردیف‌ها باید حساب انتخاب شود.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var linesJson = JsonSerializer.Serialize(_lines.Select(l => new
+            {
+                l.AccountId,
+                l.Description,
+                l.Debit,
+                l.Credit
+            }));
+
+            await Db.ExecuteAsync(Schema, "DocumentUpdate", new
+            {
+                DocumentId,
+                LinesJson = linesJson,
+                DocumentDate = _documentDate ?? DateTime.Today,
+                DocumentType = _documentType,
+                CounterPartyName = _counterParty,
+                UpdatedBy = Session.UserName
+            });
+
+            Snackbar.Add("تغییرات سند ذخیره شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ChangeStatusAsync(string? target)
+    {
+        if (_busy || target is null) return;
+
+        // بررسی مجدد دسترسی در زمان اجرا — نمایش دکمه به‌تنهایی کافی نیست.
+        if (!CanChangeStatusTo(target))
+        {
+            Snackbar.Add("دسترسی لازم برای این تغییر وضعیت را ندارید.", Severity.Warning);
+            return;
+        }
+
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "تأیید تغییر وضعیت",
+            $"وضعیت سند از «{AccountingDocumentStatus.Title(_status)}» به «{AccountingDocumentStatus.Title(target)}» تغییر کند؟",
+            yesText: "تأیید", cancelText: "انصراف");
+        if (confirm is not true) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "DocumentStatusChange", new
+            {
+                DocumentId,
+                NewStatus = target,
+                ExpectedStatus = _status,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add($"وضعیت سند به «{AccountingDocumentStatus.Title(target)}» تغییر کرد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_busy) return;
+
+        // بررسی مجدد دسترسی + وضعیت در زمان اجرا.
+        if (!CanDeleteDocument)
+        {
+            Snackbar.Add("امکان حذف این سند وجود ندارد (دسترسی یا وضعیت سند).", Severity.Warning);
+            return;
+        }
+
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "تأیید حذف سند",
+            $"آیا از حذف سند «{_document?.DocumentNumber}» مطمئن هستید؟ این عملیات قابل بازگشت نیست.",
+            yesText: "حذف سند", cancelText: "انصراف");
+
+        // فقط در صورت تأیید کاربر حذف انجام می‌شود؛ انصراف هیچ تغییری نمی‌دهد.
+        if (confirm is not true) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "DocumentDelete", new
+            {
+                DocumentId,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("سند حذف شد.", Severity.Success);
+            Nav.NavigateTo("/accounting");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static Color StatusColor(string? status) => AccountingDocumentStatus.Normalize(status) switch
+    {
+        AccountingDocumentStatus.Finalized => Color.Success,
+        AccountingDocumentStatus.Confirmed => Color.Info,
+        AccountingDocumentStatus.Draft => Color.Warning,
+        _ => Color.Default
+    };
+}

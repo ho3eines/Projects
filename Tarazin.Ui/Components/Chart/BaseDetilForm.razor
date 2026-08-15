@@ -7,7 +7,8 @@
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="_isValid">
             <MudGrid Spacing="2">
-                <MudItem xs="12">
+                @* در حالت ویرایش، انتخاب بین «موجود/جدید» بی‌معناست. *@
+                <MudItem xs="12" Class="@(IsEditMode ? "d-none" : null)">
                     <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" OverrideStyles="false">
                         <MudButton OnClick="@(() => SetMode(true))"
                                    Variant="@(_useExisting ? Variant.Filled : Variant.Outlined)"
@@ -91,9 +92,13 @@
     private bool _isActive = true;
     private BaseDetilRow? _selectedDetil;
 
+    /// <summary>حالت ویرایش یک تفصیلی موجود (نه ایجاد/پیوند).</summary>
+    private bool IsEditMode => EditDetilId > 0;
+
     protected override void OnInitialized()
     {
-        _useExisting = ForceExistingMode;
+        // در حالت ویرایش همیشه فرمِ اطلاعاتِ تفصیلی نمایش داده می‌شود.
+        _useExisting = !IsEditMode && ForceExistingMode;
         _code = InitialCode;
         _title = InitialTitle;
         _description = InitialDescription;
@@ -149,7 +154,11 @@
             if (!_isValid) return;
         }
 
-        if (MoeinId == 0)
+        // ⚠ باگ تاریخی (رفع شد): در حالت ویرایش (EditDetilId > 0) این بررسی
+        //   لازم نیست — ویرایشِ خودِ موجودیت تفصیلی به معین وابسته نیست، و
+        //   وقتی صفحه MoeinId نداشت (تفصیلی بدون مسیرِ مشخص) ویرایش بی‌صدا رد
+        //   می‌شد.
+        if (EditDetilId == 0 && MoeinId == 0)
         {
             Snackbar.Add("حساب معین نامشخص است.", Severity.Error);
             return;
@@ -188,6 +197,27 @@
             if (code.Length != 7 || !code.All(char.IsDigit))
             {
                 Snackbar.Add("کد تفصیلی باید دقیقاً ۷ رقم باشد.", Severity.Warning);
+                return;
+            }
+
+            // ⚠ باگ تاریخی (رفع شد): پارامتر EditDetilId اصلاً استفاده نمی‌شد؛
+            //   فرمِ «ویرایش تفصیلی» همیشه مسیر ایجاد را می‌رفت و چون کد تکراری
+            //   بود، فقط پیام «تفصیلی تکراری» می‌داد — یعنی ویرایش تفصیلی هرگز
+            //   کار نمی‌کرد. حالا در حالت ویرایش مستقیماً Upsert می‌شود.
+            if (EditDetilId > 0)
+            {
+                await Db.ExecuteAsync("accounting", "BaseDetilUpsert", new
+                {
+                    DetilId = EditDetilId,
+                    DetilCode = code,
+                    Title = (_title ?? "").Trim(),
+                    Description = _description?.Trim() ?? "",
+                    IsActive = _isActive,
+                    CreatedBy = Session.UserName,
+                    UpdatedBy = Session.UserName
+                });
+                Snackbar.Add("ویرایش تفصیلی با موفقیت انجام شد.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
                 return;
             }
 

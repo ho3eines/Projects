@@ -11,7 +11,7 @@
         <div class="tz-subnav__tabs">
             @foreach (var item in Module.Items)
             {
-                @if (Session.HasPermission(item.Permission))
+                @if (!item.HideInNav && Session.HasPermission(item.Permission))
                 {
                     var active = TarazinModules.IsActive(CurrentPath, item.Url);
                     <a href="@item.Url" class="tz-subnav__tab @(active ? "is-active" : null)">

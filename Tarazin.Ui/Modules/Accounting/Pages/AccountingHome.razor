@@ -2,6 +2,8 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Nav
 
 <PageTitle>اسناد روز — حسابداری</PageTitle>
 
@@ -37,6 +39,7 @@
             <MudTh>طرف حساب</MudTh>
             <MudTh>مبلغ</MudTh>
             <MudTh>وضعیت</MudTh>
+            <MudTh style="width:110px">عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="شماره">@context.DocumentNumber</MudTd>
@@ -44,7 +47,28 @@
             <MudTd DataLabel="نوع">@context.DocumentType</MudTd>
             <MudTd DataLabel="طرف حساب">@context.CounterPartyName</MudTd>
             <MudTd DataLabel="مبلغ">@context.TotalAmount.ToString("N0")</MudTd>
-            <MudTd DataLabel="وضعیت"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip></MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
+                    @AccountingDocumentStatus.Title(context.Status)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="عملیات">
+                @* دکمه‌ها بر اساس دسترسی کاربر + وضعیت سند فعال/غیرفعال می‌شوند.
+                   stopPropagation لازم است: بدون آن کلیک روی «حذف» علاوه بر باز
+                   کردن دیالوگ، OnRowClick را هم اجرا و صفحه را عوض می‌کرد. *@
+                <span @onclick:stopPropagation="true">
+                    <MudTooltip Text="@(CanEdit(context) ? "ویرایش سند" : "نمایش سند (فقط خواندنی)")">
+                        <MudIconButton Icon="@(CanEdit(context) ? Icons.Material.Filled.Edit : Icons.Material.Filled.Visibility)"
+                                       Color="Color.Info" Size="Size.Small"
+                                       OnClick="@(() => OpenDocument(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="حذف سند">
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       Disabled="@(!CanDelete(context))"
+                                       OnClick="@(() => DeleteAsync(context))" />
+                    </MudTooltip>
+                </span>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent>
             <MudText Color="Color.Secondary">سندی در این بازه نیست.</MudText>
@@ -99,13 +123,60 @@
     private void TableRowClick(TableRowClickEventArgs<DailyDocumentRow> e)
     {
         if (e.Item is not null)
-            Snackbar.Add($"سند {e.Item.DocumentNumber} باز شد.", Severity.Info);
+            OpenDocument(e.Item);
     }
 
-    private static Color StatusColor(string? status) => status switch
+    /// <summary>باز کردن سند — صفحهٔ سند خودش حالت ویرایش/فقط‌خواندنی را تشخیص می‌دهد.</summary>
+    private void OpenDocument(DailyDocumentRow row) =>
+        Nav.NavigateTo($"/accounting/document/{row.DocumentId}");
+
+    // شرط ویرایش = دسترسی کاربر + وضعیت سند (هر دو لازم‌اند).
+    private bool CanEdit(DailyDocumentRow row) =>
+        Session.HasPermission(TarazinPermissions.DocumentEdit)
+        && AccountingDocumentStatus.IsEditable(row.Status);
+
+    private bool CanDelete(DailyDocumentRow row) =>
+        Session.HasPermission(TarazinPermissions.DocumentDelete)
+        && AccountingDocumentStatus.IsEditable(row.Status);
+
+    private async Task DeleteAsync(DailyDocumentRow row)
     {
-        "Closed" => Color.Success,
-        "Draft" => Color.Warning,
+        // بررسی مجدد دسترسی در زمان اجرا — نه فقط با غیرفعال کردن دکمه.
+        if (!CanDelete(row))
+        {
+            Snackbar.Add("امکان حذف این سند وجود ندارد (دسترسی یا وضعیت سند).", Severity.Warning);
+            return;
+        }
+
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "تأیید حذف سند",
+            $"آیا از حذف سند «{row.DocumentNumber}» مطمئن هستید؟ این عملیات قابل بازگشت نیست.",
+            yesText: "حذف سند", cancelText: "انصراف");
+
+        // انصراف = هیچ تغییری در سند ایجاد نمی‌شود.
+        if (confirm is not true) return;
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "DocumentDelete", new
+            {
+                DocumentId = row.DocumentId,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("سند حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private static Color StatusColor(string? status) => AccountingDocumentStatus.Normalize(status) switch
+    {
+        AccountingDocumentStatus.Finalized => Color.Success,
+        AccountingDocumentStatus.Confirmed => Color.Info,
+        AccountingDocumentStatus.Draft => Color.Warning,
         _ => Color.Default
     };
 }

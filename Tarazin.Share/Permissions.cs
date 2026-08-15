@@ -56,6 +56,17 @@ public static class TarazinPermissions
     public const string ChartSelect = "accounting.chart.select";     // انتخاب حساب
     public const string ChartFullTree = "accounting.chart.fulltree"; // مشاهده ساختار کامل حساب‌ها
 
+    // ── دسترسی‌های «سند حسابداری» ────────────────────────────────────────
+    // ویرایش/حذف سند و تغییر وضعیت آن (یادداشت → موقت → تأیید شده → تأیید نهایی).
+    // توجه: داشتن دسترسی به‌تنهایی کافی نیست؛ وضعیت فعلی سند هم شرط است
+    // (ویرایش فقط در «یادداشت» و «سند موقت» مجاز است).
+    public const string DocumentEdit = "accounting.document.edit";         // ویرایش سند
+    public const string DocumentDelete = "accounting.document.delete";     // حذف سند
+    public const string DocumentDraft = "accounting.document.draft";       // یادداشت → سند موقت
+    public const string DocumentConfirm = "accounting.document.confirm";   // سند موقت → تأیید شده
+    public const string DocumentFinalize = "accounting.document.finalize"; // تأیید شده → تأیید نهایی
+    public const string DocumentRevert = "accounting.document.revert";     // برگشت وضعیت سند
+
     /// <summary>کلید ماژول‌های کسب‌وکار (همان اسکیمه‌ها).</summary>
     public static readonly string[] Modules =
     [
@@ -150,6 +161,14 @@ public static class TarazinPermissions
         list.Add(new PermissionDef(ChartSelect, "حسابداری — انتخاب حساب (Picker)", "accounting"));
         list.Add(new PermissionDef(ChartFullTree, "حسابداری — مشاهده ساختار کامل حساب‌ها", "accounting"));
 
+        // دسترسی‌های «سند حسابداری» (ویرایش/حذف/تغییر وضعیت)
+        list.Add(new PermissionDef(DocumentEdit, "حسابداری — ویرایش سند حسابداری", "accounting"));
+        list.Add(new PermissionDef(DocumentDelete, "حسابداری — حذف سند حسابداری", "accounting"));
+        list.Add(new PermissionDef(DocumentDraft, "حسابداری — تبدیل یادداشت به سند موقت", "accounting"));
+        list.Add(new PermissionDef(DocumentConfirm, "حسابداری — تأیید سند موقت", "accounting"));
+        list.Add(new PermissionDef(DocumentFinalize, "حسابداری — تأیید نهایی سند", "accounting"));
+        list.Add(new PermissionDef(DocumentRevert, "حسابداری — برگشت وضعیت سند", "accounting"));
+
         return list;
     }
 }
@@ -194,6 +213,17 @@ public static class TarazinRoles
         TarazinPermissions.ChartFullTree,
     ];
 
+    /// <summary>تمام دسترسی‌های «سند حسابداری» (ویرایش/حذف/تغییر وضعیت).</summary>
+    private static string[] FullDocument() =>
+    [
+        TarazinPermissions.DocumentEdit,
+        TarazinPermissions.DocumentDelete,
+        TarazinPermissions.DocumentDraft,
+        TarazinPermissions.DocumentConfirm,
+        TarazinPermissions.DocumentFinalize,
+        TarazinPermissions.DocumentRevert,
+    ];
+
     /// <summary>فقط مشاهده + گزارش برای همهٔ ماژول‌ها.</summary>
     private static string[] ViewReports()
     {
@@ -218,7 +248,7 @@ public static class TarazinRoles
 
             new("Accountant", "حسابدار",
                 "حسابداری کامل + مشاهده و گزارش سایر بخش‌ها + ممیزی.", false,
-                Full("accounting").Concat(FullChart()).Concat(new[]
+                Full("accounting").Concat(FullChart()).Concat(FullDocument()).Concat(new[]
                 {
                     TarazinPermissions.For("treasury", TarazinActions.View),
                     TarazinPermissions.For("treasury", TarazinActions.Reports),
