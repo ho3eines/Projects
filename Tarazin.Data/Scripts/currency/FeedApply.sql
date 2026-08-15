@@ -20,6 +20,15 @@ DECLARE @AutoPromote INT = ISNULL((
     WHERE SettingKey = N'AutoPromoteOnlineToSystem'), 0);
 
 DECLARE @Now DATETIME2 = SYSUTCDATETIME();
+DECLARE @KnownItemCount INT = (
+    SELECT COUNT(*)
+    FROM OPENJSON(@ItemsJson)
+    WITH (ItemKey NVARCHAR(50), Value DECIMAL(24,6)) j
+    INNER JOIN [currency].[PriceItems] p ON p.ItemKey = j.ItemKey AND p.IsDeleted = 0
+    WHERE j.Value > 0);
+
+IF ISNULL(@KnownItemCount, 0) = 0
+    THROW 51141, N'هیچ‌کدام از آیتم‌های دریافتی در کاتالوگ قیمت برنامه تعریف نشده‌اند', 1;
 
 BEGIN TRAN;
     -- آخرین مقدار هر منبع (برای مقایسهٔ منابع — §59).
@@ -27,7 +36,7 @@ BEGIN TRAN;
     USING (
         SELECT @SourceKey AS SourceKey, p.PriceItemId AS PriceItemId, j.Value AS Value, ISNULL(j.FetchedAt, @Now) AS FetchedAt
         FROM OPENJSON(@ItemsJson)
-        WITH (ItemKey NVARCHAR(50), Value DECIMAL(18,2), FetchedAt DATETIME2) j
+        WITH (ItemKey NVARCHAR(50), Value DECIMAL(24,6), FetchedAt DATETIME2) j
         JOIN [currency].[PriceItems] p ON p.ItemKey = j.ItemKey AND p.IsDeleted = 0
     ) AS source
     ON target.SourceKey = source.SourceKey AND target.PriceItemId = source.PriceItemId
@@ -37,11 +46,12 @@ BEGIN TRAN;
         INSERT (SourceKey, PriceItemId, Value, FetchedAt) VALUES (source.SourceKey, source.PriceItemId, source.Value, source.FetchedAt);
 
     -- به‌روزرسانی نرخ آنلاین + تاریخچه (هرگز صفر نمی‌شود).
-    DECLARE @Item NVARCHAR(50), @Val DECIMAL(18,2), @ItemType NVARCHAR(20), @Prev DECIMAL(18,2), @Sys DECIMAL(18,2), @Ov BIT;
+    DECLARE @Item NVARCHAR(50), @Val DECIMAL(24,6), @ItemType NVARCHAR(20),
+            @Prev DECIMAL(24,6), @Sys DECIMAL(24,6), @Ov BIT, @RateExists BIT;
     DECLARE feed CURSOR LOCAL FAST_FORWARD FOR
         SELECT j.ItemKey, j.Value, p.ItemType
         FROM OPENJSON(@ItemsJson)
-        WITH (ItemKey NVARCHAR(50), Value DECIMAL(18,2)) j
+        WITH (ItemKey NVARCHAR(50), Value DECIMAL(24,6)) j
         JOIN [currency].[PriceItems] p ON p.ItemKey = j.ItemKey AND p.IsDeleted = 0
         WHERE j.Value > 0;
 
@@ -49,19 +59,29 @@ BEGIN TRAN;
     FETCH NEXT FROM feed INTO @Item, @Val, @ItemType;
     WHILE @@FETCH_STATUS = 0
     BEGIN
-        SELECT @Prev = OnlineRate, @Sys = SystemRate, @Ov = IsOverride
-        FROM [currency].[PriceRates] WHERE PriceItemId = (SELECT PriceItemId FROM [currency].[PriceItems] WHERE ItemKey = @Item);
+        -- متغیرهای cursor در SQL بین iterationها مقدار قبلی را نگه می‌دارند؛
+        -- بنابراین قبل از SELECT حتماً reset می‌شوند. وجود ردیف نیز جدا از
+        -- NULL بودن OnlineRate سنجیده می‌شود (نسخهٔ قبلی روی اولین fetch برای
+        -- ردیف seedشده با OnlineRate=NULL به unique key می‌خورد).
+        SET @Prev = NULL;
+        SET @Sys = NULL;
+        SET @Ov = 0;
+        SET @RateExists = 0;
 
-        -- اگر آیتم هنوز ردیف نرخ ندارد (مثلاً ارز جدیدِ هنوز قیمت‌گذاری‌نشده)، ردیف ساخته
-        -- می‌شود؛ نرخ سیستم ۰ می‌ماند تا مدیر آن را تعیین کند — هرگز صفر وارد معامله نمی‌شود (§57).
-        IF @Prev IS NULL
+        SELECT @RateExists = 1, @Prev = OnlineRate, @Sys = SystemRate, @Ov = IsOverride
+        FROM [currency].[PriceRates]
+        WHERE PriceItemId = (
+            SELECT PriceItemId FROM [currency].[PriceItems] WHERE ItemKey = @Item AND IsDeleted = 0);
+
+        -- اگر آیتم هنوز ردیف نرخ ندارد، ردیف ساخته می‌شود؛ نرخ سیستم ۰ می‌ماند
+        -- تا مدیر آن را تعیین کند. آیتم‌های parity/global وارد معاملات نمی‌شوند.
+        IF @RateExists = 0
         BEGIN
             INSERT INTO [currency].[PriceRates]
-                (PriceItemId, OnlineRate, SystemRate, SourceKey, Status, RateDate, UpdatedAt, UpdatedBy)
+                (PriceItemId, OnlineRate, SystemRate, SourceKey, IsValid, Status, RateDate, UpdatedAt, UpdatedBy)
             VALUES
-                ((SELECT PriceItemId FROM [currency].[PriceItems] WHERE ItemKey = @Item), @Val, 0,
-                 @SourceKey, N'Active', CAST(@Now AS DATE), @Now, @CreatedBy);
-            SET @Prev = NULL;
+                ((SELECT PriceItemId FROM [currency].[PriceItems] WHERE ItemKey = @Item AND IsDeleted = 0),
+                 @Val, 0, @SourceKey, 1, N'Active', CAST(@Now AS DATE), @Now, @CreatedBy);
         END
 
         UPDATE [currency].[PriceRates]
@@ -85,7 +105,10 @@ BEGIN TRAN;
             (@ItemType, @Item, N'Online', @Prev, @Val, @SourceKey, N'AutoFetch', N'دریافت خودکار از منبع ' + @SourceKey, @CreatedBy, 1);
 
         -- خط مشی ورود به نرخ سیستم (§46/§56): فقط با تأیید مدیر یا با AutoPromote.
-        IF @AutoPromote = 1 AND ISNULL(@Ov, 0) = 0 AND ISNULL(@Sys, 0) <> @Val
+        IF @AutoPromote = 1
+           AND @ItemType NOT IN (N'FxParity', N'Global')
+           AND ISNULL(@Ov, 0) = 0
+           AND ISNULL(@Sys, 0) <> @Val
         BEGIN
             UPDATE [currency].[PriceRates]
             SET SystemRate   = @Val,

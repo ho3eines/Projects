@@ -72,86 +72,208 @@ BEGIN
         (N'Metal', N'XPD', N'پالادیوم',    N'گرم', 1, SYSUTCDATETIME());
 END
 
--- ── منابع قیمت (PRD §44/§58/§61) ───────────────────────────────────────
-IF NOT EXISTS (SELECT 1 FROM [currency].[PriceSources])
+-- ── آیتم‌های API رسمی TabloTala ─────────────────────────────────────────
+-- type=IR قیمت‌های داخلی را به «تومان» می‌دهد؛ Factor=10 آن‌ها را به واحد
+-- پایهٔ برنامه (ریال) تبدیل می‌کند. type=FR برابری ارزها با USD و قیمت‌های
+-- جهانی را می‌دهد؛ برای جلوگیری از مخلوط شدن با نرخ ریالی، آیتم مستقل دارد.
+INSERT INTO [currency].[PriceItems] (ItemType, ItemKey, Title, Unit, IsActive, CreatedAt, CreatedBy)
+SELECT v.ItemType, v.ItemKey, v.Title, v.Unit, 1, SYSUTCDATETIME(), N'seed'
+FROM (VALUES
+    (N'Global',   N'XAU-OUNCE-USD', N'اونس جهانی طلا',             N'USD/oz'),
+    (N'Gold',     N'MAZANEH-17',    N'مظنه ۱۷ عیار',               N'ریال/مثقال'),
+    (N'Gold',     N'XAU-740',       N'گرم طلای ۷۴۰',               N'ریال/گرم'),
+    (N'Gold',     N'XAU-WORLD-17',  N'طلای جهانی ۱۷ عیار',         N'ریال/مثقال'),
+    (N'FxParity', N'EUR-USD',       N'برابری یورو با دلار',        N'USD/EUR'),
+    (N'FxParity', N'GBP-USD',       N'برابری پوند با دلار',        N'USD/GBP'),
+    (N'FxParity', N'CAD-USD',       N'برابری دلار کانادا با دلار', N'USD/CAD'),
+    (N'FxParity', N'JPY100-USD',    N'برابری یکصد ین با دلار',     N'USD/100JPY'),
+    (N'FxParity', N'CHF-USD',       N'برابری فرانک با دلار',       N'USD/CHF'),
+    (N'FxParity', N'AUD-USD',       N'برابری دلار استرالیا',       N'USD/AUD'),
+    (N'FxParity', N'SEK-USD',       N'برابری کرون سوئد با دلار',   N'USD/SEK'),
+    (N'FxParity', N'TRY-USD',       N'برابری لیر با دلار',         N'USD/TRY'),
+    (N'Global',   N'XAG-OUNCE-USD', N'نقره جهانی',                 N'USD/oz'),
+    (N'Global',   N'OIL-BARREL-USD',N'نفت جهانی',                  N'USD/bbl'),
+    (N'Global',   N'XPT-OUNCE-USD', N'پلاتینیوم جهانی',            N'USD/oz'),
+    (N'Global',   N'XPD-OUNCE-USD', N'پالادیوم جهانی',             N'USD/oz')
+) v(ItemType, ItemKey, Title, Unit)
+WHERE NOT EXISTS (
+    SELECT 1 FROM [currency].[PriceItems] p WHERE p.ItemKey = v.ItemKey);
+
+-- تفکیک روشن آیتم قدیمیِ ریالی از اونس خام دلاری API.
+UPDATE [currency].[PriceItems]
+SET Title = N'اونس جهانی (نرخ ریالی)', Unit = N'ریال/انس', UpdatedAt = SYSUTCDATETIME(), UpdatedBy = N'seed-migration'
+WHERE ItemKey = N'OUNCE' AND Title = N'انس جهانی';
+
+-- ردیف اولیهٔ نرخ برای آیتم‌های تازه تا قبل از اولین fetch نیز روی تابلو دیده شوند.
+INSERT INTO [currency].[PriceRates]
+    (PriceItemId, SystemRate, SourceKey, IsValid, Status, RateDate, UpdatedAt, UpdatedBy)
+SELECT p.PriceItemId, 0, NULL, 0, N'Stale', CAST(SYSUTCDATETIME() AS DATE), SYSUTCDATETIME(), N'seed'
+FROM [currency].[PriceItems] p
+WHERE p.ItemKey IN (
+    N'XAU-OUNCE-USD', N'MAZANEH-17', N'XAU-740', N'XAU-WORLD-17',
+    N'EUR-USD', N'GBP-USD', N'CAD-USD', N'JPY100-USD', N'CHF-USD', N'AUD-USD', N'SEK-USD', N'TRY-USD',
+    N'XAG-OUNCE-USD', N'OIL-BARREL-USD', N'XPT-OUNCE-USD', N'XPD-OUNCE-USD')
+  AND NOT EXISTS (
+      SELECT 1 FROM [currency].[PriceRates] r WHERE r.PriceItemId = p.PriceItemId);
+
+-- ── منابع قیمت رسمی (PRD §44/§58/§61) ──────────────────────────────────
+DECLARE @TabloIrMappings NVARCHAR(MAX) = N'[
+ {"ItemKey":"XAU-OUNCE-USD","Path":"data[type=GOLD].price","Factor":1},
+ {"ItemKey":"MAZANEH-17","Path":"data[type=IRG17].price","Factor":10},
+ {"ItemKey":"SIKKEH-BAHAR","Path":"data[type=IRCOLD].price","Factor":10},
+ {"ItemKey":"SIKKEH-EMAMI","Path":"data[type=IRCNEW].price","Factor":10},
+ {"ItemKey":"XAU-18","Path":"data[type=IRG18].price","Factor":10},
+ {"ItemKey":"XAU-18-750","Path":"data[type=IRG18].price","Factor":10},
+ {"ItemKey":"MISGHAL","Path":"data[type=IRGM18].price","Factor":10},
+ {"ItemKey":"SIKKEH-NIM","Path":"data[type=IRC2].price","Factor":10},
+ {"ItemKey":"SIKKEH-ROB","Path":"data[type=IRC4].price","Factor":10},
+ {"ItemKey":"XAU-740","Path":"data[type=IRG740].price","Factor":10},
+ {"ItemKey":"XAU-WORLD-17","Path":"data[type=WORLDG17].price","Factor":10},
+ {"ItemKey":"SIKKEH-GRAMI","Path":"data[type=IRCGRAM].price","Factor":10}
+]';
+
+DECLARE @TabloFrMappings NVARCHAR(MAX) = N'[
+ {"ItemKey":"EUR-USD","Path":"data[type=EUR].price","Factor":1},
+ {"ItemKey":"GBP-USD","Path":"data[type=GBP].price","Factor":1},
+ {"ItemKey":"CAD-USD","Path":"data[type=CAD].price","Factor":1},
+ {"ItemKey":"JPY100-USD","Path":"data[type=JPY].price","Factor":1},
+ {"ItemKey":"CHF-USD","Path":"data[type=CHF].price","Factor":1},
+ {"ItemKey":"AUD-USD","Path":"data[type=AUD].price","Factor":1},
+ {"ItemKey":"SEK-USD","Path":"data[type=SEK].price","Factor":1},
+ {"ItemKey":"TRY-USD","Path":"data[type=TRY].price","Factor":1},
+ {"ItemKey":"XAG-OUNCE-USD","Path":"data[type=SILVER].price","Factor":1},
+ {"ItemKey":"OIL-BARREL-USD","Path":"data[type=OIL].price","Factor":1},
+ {"ItemKey":"XPT-OUNCE-USD","Path":"data[type=PLATINUM].price","Factor":1},
+ {"ItemKey":"XPD-OUNCE-USD","Path":"data[type=PALLADIUM].price","Factor":1}
+]';
+
+IF NOT EXISTS (SELECT 1 FROM [currency].[PriceSources] WHERE SourceKey = N'TABLOTALA')
 BEGIN
     INSERT INTO [currency].[PriceSources]
         (SourceKey, Title, BaseUrl, Endpoint, MappingsJson, IsActive, Priority, FetchIntervalSeconds, Status, CreatedAt)
     VALUES
-        (N'TABLOTALA', N'تابلو طلا',
-         N'https://tv.tablotala.app', N'https://tv.tablotala.app/api/rates',
-         N'[{"ItemKey":"USD","Path":"rates.usd.price","Factor":1},{"ItemKey":"EUR","Path":"rates.eur.price","Factor":1},{"ItemKey":"AED","Path":"rates.aed.price","Factor":1},{"ItemKey":"XAU-18","Path":"rates.gold18.price","Factor":1},{"ItemKey":"XAU-24","Path":"rates.gold24.price","Factor":1},{"ItemKey":"MISGHAL","Path":"rates.mesghal.price","Factor":1},{"ItemKey":"SIKKEH-EMAMI","Path":"rates.emami.price","Factor":1}]',
-         1, 1, 300, N'Unknown', SYSUTCDATETIME()),
-        (N'MATISA', N'گالری ماتیسا',
-         N'https://matisagoldgallery.com', N'https://matisagoldgallery.com/tablo',
-         N'[{"ItemKey":"USD","Path":"usd.price","Factor":1},{"ItemKey":"EUR","Path":"eur.price","Factor":1},{"ItemKey":"AED","Path":"aed.price","Factor":1},{"ItemKey":"XAU-18","Path":"gold18.price","Factor":1},{"ItemKey":"SIKKEH-EMAMI","Path":"emami.price","Factor":1}]',
-         1, 2, 600, N'Unknown', SYSUTCDATETIME()),
-        (N'MANUAL', N'ورود دستی',
-         NULL, NULL, NULL,
-         1, 99, 0, N'Active', SYSUTCDATETIME());
+        (N'TABLOTALA', N'تابلو طلا — بازار ایران', N'https://admin.tablotala.app',
+         N'https://admin.tablotala.app/api/tv/price?type=IR', @TabloIrMappings,
+         1, 1, 300, N'Unknown', SYSUTCDATETIME());
+END
+ELSE
+BEGIN
+    -- migration منبع اشتباه قدیمی tv.tablotala.app/api/rates
+    UPDATE [currency].[PriceSources]
+    SET Title = N'تابلو طلا — بازار ایران',
+        BaseUrl = N'https://admin.tablotala.app',
+        Endpoint = N'https://admin.tablotala.app/api/tv/price?type=IR',
+        MappingsJson = @TabloIrMappings,
+        IsActive = 1,
+        Priority = 1,
+        Status = CASE WHEN Endpoint = N'https://tv.tablotala.app/api/rates' THEN N'Unknown' ELSE Status END,
+        LastError = CASE WHEN Endpoint = N'https://tv.tablotala.app/api/rates' THEN NULL ELSE LastError END,
+        UpdatedAt = SYSUTCDATETIME(),
+        UpdatedBy = N'seed-migration'
+    WHERE SourceKey = N'TABLOTALA'
+      AND (Endpoint IS NULL OR Endpoint = N'https://tv.tablotala.app/api/rates');
+END
+
+IF NOT EXISTS (SELECT 1 FROM [currency].[PriceSources] WHERE SourceKey = N'TABLOTALA_FR')
+BEGIN
+    INSERT INTO [currency].[PriceSources]
+        (SourceKey, Title, BaseUrl, Endpoint, MappingsJson, IsActive, Priority, FetchIntervalSeconds, Status, CreatedAt)
+    VALUES
+        (N'TABLOTALA_FR', N'تابلو طلا — بازار جهانی', N'https://admin.tablotala.app',
+         N'https://admin.tablotala.app/api/tv/price?type=FR', @TabloFrMappings,
+         1, 2, 300, N'Unknown', SYSUTCDATETIME());
+END
+ELSE
+BEGIN
+    UPDATE [currency].[PriceSources]
+    SET Title = N'تابلو طلا — بازار جهانی',
+        BaseUrl = N'https://admin.tablotala.app',
+        Endpoint = N'https://admin.tablotala.app/api/tv/price?type=FR',
+        MappingsJson = @TabloFrMappings,
+        IsActive = 1,
+        Priority = 2,
+        UpdatedAt = SYSUTCDATETIME(),
+        UpdatedBy = N'seed-migration'
+    WHERE SourceKey = N'TABLOTALA_FR'
+      AND Endpoint IS NULL;
+END
+
+-- منبع HTML ماتیسا API رسمی JSON نیست؛ رکورد قدیمی حذف نمی‌شود تا تاریخچه
+-- حفظ شود، ولی دیگر توسط Scheduler فراخوانی نخواهد شد.
+UPDATE [currency].[PriceSources]
+SET IsActive = 0,
+    Status = N'Disabled',
+    LastError = N'غیرفعال شد: این Endpoint صفحهٔ HTML بود، نه API رسمی JSON.',
+    UpdatedAt = SYSUTCDATETIME(),
+    UpdatedBy = N'seed-migration'
+WHERE SourceKey = N'MATISA'
+  AND Endpoint = N'https://matisagoldgallery.com/tablo'
+  AND (IsActive = 1 OR Status <> N'Disabled');
+
+IF NOT EXISTS (SELECT 1 FROM [currency].[PriceSources] WHERE SourceKey = N'MANUAL')
+BEGIN
+    INSERT INTO [currency].[PriceSources]
+        (SourceKey, Title, IsActive, Priority, FetchIntervalSeconds, Status, CreatedAt)
+    VALUES
+        (N'MANUAL', N'ورود دستی', 1, 99, 0, N'Active', SYSUTCDATETIME());
 END
 
 -- ── نرخ‌های اولیه (مرکز قیمت) ──────────────────────────────────────────
-IF NOT EXISTS (SELECT 1 FROM [currency].[PriceRates])
-BEGIN
-    INSERT INTO [currency].[PriceRates]
-        (PriceItemId, OnlineRate, ManualRate, SystemRate, BuyRate, SellRate, AccountingRate, MidRate, Spread, SourceKey, Status, RateDate, UpdatedAt, UpdatedBy)
-    SELECT p.PriceItemId, NULL, NULL,
-           CASE p.ItemKey
-               WHEN N'IRR'   THEN 1
-               WHEN N'TOMAN' THEN 10
-               WHEN N'USD'   THEN 615000
-               WHEN N'EUR'   THEN 672000
-               WHEN N'AED'   THEN 167500
-               WHEN N'GBP'   THEN 780000
-               WHEN N'TRY'   THEN 18500
-               WHEN N'CNY'   THEN 86000
-               WHEN N'IQD'   THEN 470
-               WHEN N'KWD'   THEN 1990000
-               WHEN N'SAR'   THEN 164000
-               WHEN N'CHF'   THEN 700000
-               WHEN N'CAD'   THEN 450000
-               WHEN N'AUD'   THEN 410000
-               WHEN N'JPY'   THEN 4150
-               WHEN N'RUB'   THEN 7000
-               WHEN N'XAU-24' THEN 38000000
-               WHEN N'XAU-18' THEN 28000000
-               WHEN N'XAU-18-750' THEN 28000000
-               WHEN N'XAU-20' THEN 31000000
-               WHEN N'XAU-21' THEN 32500000
-               WHEN N'XAU-22' THEN 35000000
-               WHEN N'MISGHAL' THEN 121000000
-               WHEN N'OUNCE'  THEN 115000000
-               WHEN N'XAU-SECOND' THEN 27000000
-               WHEN N'XAU-MELTED' THEN 27500000
-               WHEN N'SIKKEH-EMAMI' THEN 62000000
-               WHEN N'SIKKEH-BAHAR' THEN 60000000
-               WHEN N'SIKKEH-NIM'   THEN 32000000
-               WHEN N'SIKKEH-ROB'   THEN 17000000
-               WHEN N'SIKKEH-GRAMI' THEN 9000000
-               WHEN N'XAG'   THEN 380000
-               WHEN N'XPT'   THEN 32000000
-               WHEN N'XPD'   THEN 30000000
-               ELSE 0
-           END,
-           NULL, NULL,
-           NULL,
-           NULL, NULL,
-           N'MANUAL', N'Active', CAST(SYSDATETIME() AS DATE), SYSUTCDATETIME(), N'seed'
-    FROM [currency].[PriceItems] p
-    WHERE p.IsDeleted = 0;
-
-    -- نرخ خرید/فروش نمونه برای ارزهای اصلی (اسپرد ۵۰۰ ریالی).
-    UPDATE r SET
-        BuyRate    = CASE i.ItemKey WHEN N'USD' THEN 614500 WHEN N'EUR' THEN 671500 WHEN N'AED' THEN 167200 ELSE NULL END,
-        SellRate   = CASE i.ItemKey WHEN N'USD' THEN 615500 WHEN N'EUR' THEN 672500 WHEN N'AED' THEN 167800 ELSE NULL END,
-        MidRate    = CASE i.ItemKey WHEN N'USD' THEN 615000 WHEN N'EUR' THEN 672000 WHEN N'AED' THEN 167500 ELSE NULL END,
-        Spread     = CASE i.ItemKey WHEN N'USD' THEN 1000 WHEN N'EUR' THEN 1000 WHEN N'AED' THEN 600 ELSE NULL END,
-        UpdatedAt  = SYSUTCDATETIME()
-    FROM [currency].[PriceRates] r
-    JOIN [currency].[PriceItems] i ON i.PriceItemId = r.PriceItemId
-    WHERE i.ItemKey IN (N'USD', N'EUR', N'AED');
-END
+-- به‌صورت per-item idempotent است تا افزودن آیتم جدید باعث نشود نرخ‌های پایهٔ
+-- دیتابیس تازه ساخته نشوند یا نرخ ویرایش‌شدهٔ مدیر در startup بازنویسی شود.
+INSERT INTO [currency].[PriceRates]
+    (PriceItemId, OnlineRate, ManualRate, SystemRate, BuyRate, SellRate,
+     AccountingRate, MidRate, Spread, SourceKey, Status, RateDate, UpdatedAt, UpdatedBy)
+SELECT p.PriceItemId, NULL, NULL,
+       CASE p.ItemKey
+           WHEN N'IRR'   THEN 1
+           WHEN N'TOMAN' THEN 10
+           WHEN N'USD'   THEN 615000
+           WHEN N'EUR'   THEN 672000
+           WHEN N'AED'   THEN 167500
+           WHEN N'GBP'   THEN 780000
+           WHEN N'TRY'   THEN 18500
+           WHEN N'CNY'   THEN 86000
+           WHEN N'IQD'   THEN 470
+           WHEN N'KWD'   THEN 1990000
+           WHEN N'SAR'   THEN 164000
+           WHEN N'CHF'   THEN 700000
+           WHEN N'CAD'   THEN 450000
+           WHEN N'AUD'   THEN 410000
+           WHEN N'JPY'   THEN 4150
+           WHEN N'RUB'   THEN 7000
+           WHEN N'XAU-24' THEN 38000000
+           WHEN N'XAU-18' THEN 28000000
+           WHEN N'XAU-18-750' THEN 28000000
+           WHEN N'XAU-20' THEN 31000000
+           WHEN N'XAU-21' THEN 32500000
+           WHEN N'XAU-22' THEN 35000000
+           WHEN N'MISGHAL' THEN 121000000
+           WHEN N'OUNCE'  THEN 115000000
+           WHEN N'XAU-SECOND' THEN 27000000
+           WHEN N'XAU-MELTED' THEN 27500000
+           WHEN N'SIKKEH-EMAMI' THEN 62000000
+           WHEN N'SIKKEH-BAHAR' THEN 60000000
+           WHEN N'SIKKEH-NIM'   THEN 32000000
+           WHEN N'SIKKEH-ROB'   THEN 17000000
+           WHEN N'SIKKEH-GRAMI' THEN 9000000
+           WHEN N'XAG'   THEN 380000
+           WHEN N'XPT'   THEN 32000000
+           WHEN N'XPD'   THEN 30000000
+           ELSE 0
+       END,
+       CASE p.ItemKey WHEN N'USD' THEN 614500 WHEN N'EUR' THEN 671500 WHEN N'AED' THEN 167200 ELSE NULL END,
+       CASE p.ItemKey WHEN N'USD' THEN 615500 WHEN N'EUR' THEN 672500 WHEN N'AED' THEN 167800 ELSE NULL END,
+       NULL,
+       CASE p.ItemKey WHEN N'USD' THEN 615000 WHEN N'EUR' THEN 672000 WHEN N'AED' THEN 167500 ELSE NULL END,
+       CASE p.ItemKey WHEN N'USD' THEN 1000 WHEN N'EUR' THEN 1000 WHEN N'AED' THEN 600 ELSE NULL END,
+       N'MANUAL',
+       CASE WHEN p.ItemType IN (N'FxParity', N'Global') THEN N'Stale' ELSE N'Active' END,
+       CAST(SYSDATETIME() AS DATE), SYSUTCDATETIME(), N'seed'
+FROM [currency].[PriceItems] p
+WHERE p.IsDeleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM [currency].[PriceRates] r WHERE r.PriceItemId = p.PriceItemId);
 
 -- ── تنظیمات ارز (PRD §35/§56) ──────────────────────────────────────────
 IF NOT EXISTS (SELECT 1 FROM [currency].[Settings])

@@ -69,8 +69,24 @@
                 <tr><td>دیتابیس</td><td style="direction:ltr">@(_result.Database ?? "—")</td></tr>
                 <tr><td>نسخهٔ SQL Server</td><td style="direction:ltr; font-size:.75rem">@(_result.ServerVersion ?? "—")</td></tr>
                 <tr><td>زمان پاسخ</td><td>@_result.Elapsed.TotalMilliseconds.ToString("0") میلی‌ثانیه</td></tr>
+                @if (_storage is not null)
+                {
+                    <tr><td>نام واقعی Instance</td><td style="direction:ltr">@_storage.ServerName</td></tr>
+                    <tr><td>فایل‌های فیزیکی MDF/LDF</td><td style="direction:ltr; font-size:.75rem; word-break:break-all">@_storage.DataFiles</td></tr>
+                    <tr><td>تعداد BaseDetil / Link</td><td>@_storage.BaseDetilCount / @_storage.BaseDetilLinkCount</td></tr>
+                    <tr><td>تعداد PriceRates / History</td><td>@_storage.PriceRateCount / @_storage.RateHistoryCount</td></tr>
+                }
             </tbody>
         </MudSimpleTable>
+
+        @if (_storage is not null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
+                این اطلاعات مستقیماً از همان connection برنامه خوانده شده است. برای مشاهده در SSMS باید به
+                Instance «<code>@_storage.ServerName</code>» و دیتابیس «<code>@_storage.DatabaseName</code>» متصل شوید؛
+                جداول برنامه زیر schemaهای <code>accounting</code> و <code>currency</code> هستند، نه <code>dbo</code>.
+            </MudAlert>
+        }
 
         @if (!_result.Ok)
         {
@@ -111,6 +127,7 @@
     private string _masked = "";
     private string _fatal = "";
     private ConnectionCheckResult? _result;
+    private DatabaseStorageInfo? _storage;
 
     protected override void OnInitialized()
     {
@@ -137,6 +154,19 @@
             }
 
             _result = await db.TestConnectionAsync();
+            _storage = null;
+            if (_result.Ok)
+            {
+                try
+                {
+                    _storage = await db.QueryFirstOrDefaultAsync<DatabaseStorageInfo>(
+                        "central", "DatabaseStorageInfo");
+                }
+                catch (Exception storageEx)
+                {
+                    _fatal = "اتصال برقرار است، اما خواندن جزئیات محل ذخیره ناموفق بود: " + storageEx.Message;
+                }
+            }
         }
         catch (Exception ex)
         {

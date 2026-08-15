@@ -7,7 +7,7 @@
 --   Currencies          ← تعریف ارزها (ریال/تومان/…/ارز جدید)
 --   PriceItems          ← کاتالوگ مرکز قیمت (ارز/طلا/سکه/فلز)
 --   PriceRates          ← انواع نرخ هر آیتم (آنلاین/سیستم/خرید/فروش/…)
---   PriceSources        ← منابع دریافت آنلاین (TabloTala/Matisa/…)
+--   PriceSources        ← منابع دریافت آنلاین (TabloTala IR/FR/…)
 --   PriceSourceValues   ← آخرین مقدار هر منبع (برای مقایسه §59)
 --   RateHistory         ← تاریخچهٔ همهٔ تغییرات نرخ (§49)
 --   Wallets             ← کیف پول هر ارز (§36)
@@ -51,7 +51,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [currency].[PriceItems] (
         PriceItemId INT IDENTITY(1,1) PRIMARY KEY,
-        ItemType    NVARCHAR(20) NOT NULL,           -- Currency | Gold | Coin | Metal
+        ItemType    NVARCHAR(20) NOT NULL,           -- Currency | Gold | Coin | Metal | FxParity | Global
         ItemKey     NVARCHAR(50) NOT NULL UNIQUE,    -- USD | XAU-18 | SIKKEH-EMAMI | XAG
         Title       NVARCHAR(200) NOT NULL,
         Unit        NVARCHAR(30) NULL,               -- گرم | سکه | انس | واحد
@@ -74,18 +74,18 @@ BEGIN
     CREATE TABLE [currency].[PriceRates] (
         RateId          INT IDENTITY(1,1) PRIMARY KEY,
         PriceItemId     INT NOT NULL UNIQUE,
-        OnlineRate      DECIMAL(18,2) NULL,          -- نرخ آنلاین (مرجع — وارد معامله نمی‌شود)
-        ManualRate      DECIMAL(18,2) NULL,          -- نرخ دستی
-        SystemRate      DECIMAL(18,2) NOT NULL DEFAULT 0, -- نرخ سیستم — تنها نرخ معاملات
-        BuyRate         DECIMAL(18,2) NULL,          -- نرخ خرید
-        SellRate        DECIMAL(18,2) NULL,          -- نرخ فروش
-        AccountingRate  DECIMAL(18,2) NULL,          -- نرخ حسابداری
-        MidRate         DECIMAL(18,2) NULL,          -- نرخ میانی
-        Spread          DECIMAL(18,2) NULL,          -- Spread = Sell − Buy
+        OnlineRate      DECIMAL(24,6) NULL,          -- نرخ آنلاین (مرجع — وارد معامله نمی‌شود)
+        ManualRate      DECIMAL(24,6) NULL,          -- نرخ دستی
+        SystemRate      DECIMAL(24,6) NOT NULL DEFAULT 0, -- نرخ سیستم — تنها نرخ معاملات
+        BuyRate         DECIMAL(24,6) NULL,          -- نرخ خرید
+        SellRate        DECIMAL(24,6) NULL,          -- نرخ فروش
+        AccountingRate  DECIMAL(24,6) NULL,          -- نرخ حسابداری
+        MidRate         DECIMAL(24,6) NULL,          -- نرخ میانی
+        Spread          DECIMAL(24,6) NULL,          -- Spread = Sell − Buy
         SourceKey       NVARCHAR(50) NULL,           -- منبع نرخ آنلاین فعال
-        PrevValue       DECIMAL(18,2) NULL,          -- نرخ قبلی (§45)
+        PrevValue       DECIMAL(24,6) NULL,          -- نرخ قبلی (§45)
         ChangePercent   DECIMAL(12,4) NULL,          -- درصد تغییر (§45)
-        ChangeAmount    DECIMAL(18,2) NULL,          -- مبلغ تغییر (§45)
+        ChangeAmount    DECIMAL(24,6) NULL,          -- مبلغ تغییر (§45)
         IsOverride      BIT NOT NULL DEFAULT 0,      -- نرخ سیستم override شده (§46)
         IsValid         BIT NOT NULL DEFAULT 1,      -- معتبر بودن نرخ (§45/§57)
         Status          NVARCHAR(30) NOT NULL DEFAULT N'Active', -- Active | Stale | Offline
@@ -107,7 +107,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [currency].[PriceSources] (
         SourceId             INT IDENTITY(1,1) PRIMARY KEY,
-        SourceKey            NVARCHAR(50) NOT NULL UNIQUE, -- TABLOTALA | MATISA | MANUAL
+        SourceKey            NVARCHAR(50) NOT NULL UNIQUE, -- TABLOTALA | TABLOTALA_FR | MANUAL
         Title                NVARCHAR(120) NOT NULL,
         BaseUrl              NVARCHAR(300) NULL,
         Endpoint             NVARCHAR(500) NULL,      -- آدرس API/Feed رسمی
@@ -138,7 +138,7 @@ BEGIN
         SourceValueId BIGINT IDENTITY(1,1) PRIMARY KEY,
         SourceKey     NVARCHAR(50) NOT NULL,
         PriceItemId   INT NOT NULL,
-        Value         DECIMAL(18,2) NOT NULL,
+        Value         DECIMAL(24,6) NOT NULL,
         FetchedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CONSTRAINT FK_PSV_Item FOREIGN KEY (PriceItemId) REFERENCES [currency].[PriceItems](PriceItemId),
         CONSTRAINT UX_PSV UNIQUE (SourceKey, PriceItemId)
@@ -153,11 +153,11 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [currency].[RateHistory] (
         HistoryId   BIGINT IDENTITY(1,1) PRIMARY KEY,
-        ItemType    NVARCHAR(20) NOT NULL,            -- Currency | Gold | Coin | Metal
+        ItemType    NVARCHAR(20) NOT NULL,            -- Currency | Gold | Coin | Metal | FxParity | Global
         ItemKey     NVARCHAR(50) NOT NULL,
         RateKind    NVARCHAR(30) NOT NULL,            -- Online | System | Manual | Buy | Sell | Accounting | Transaction
-        PrevValue   DECIMAL(18,2) NULL,
-        NewValue    DECIMAL(18,2) NOT NULL,
+        PrevValue   DECIMAL(24,6) NULL,
+        NewValue    DECIMAL(24,6) NOT NULL,
         SourceKey   NVARCHAR(50) NULL,
         ChangeType  NVARCHAR(20) NOT NULL DEFAULT N'Manual', -- AutoFetch | Manual | Override | Transaction
         Reason      NVARCHAR(300) NULL,
@@ -325,3 +325,34 @@ BEGIN
         Description  NVARCHAR(300) NULL
     );
 END
+GO
+
+-- ── Migration: حفظ اعشار API رسمی (FR تا ۴ رقم اعشار دارد) ──────────────
+-- نسخهٔ قدیمی DECIMAL(18,2) بود و مثلاً EUR/USD=1.1567 را به 1.16 تبدیل
+-- می‌کرد. فقط در دیتابیس‌های قدیمی اجرا می‌شود و دادهٔ موجود را حفظ می‌کند.
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'OnlineRate' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN OnlineRate DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'ManualRate' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN ManualRate DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'SystemRate' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN SystemRate DECIMAL(24,6) NOT NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'BuyRate' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN BuyRate DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'SellRate' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN SellRate DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'AccountingRate' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN AccountingRate DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'MidRate' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN MidRate DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'Spread' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN Spread DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'PrevValue' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN PrevValue DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceRates') AND name = N'ChangeAmount' AND scale < 6)
+    ALTER TABLE [currency].[PriceRates] ALTER COLUMN ChangeAmount DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.PriceSourceValues') AND name = N'Value' AND scale < 6)
+    ALTER TABLE [currency].[PriceSourceValues] ALTER COLUMN Value DECIMAL(24,6) NOT NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.RateHistory') AND name = N'PrevValue' AND scale < 6)
+    ALTER TABLE [currency].[RateHistory] ALTER COLUMN PrevValue DECIMAL(24,6) NULL;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'currency.RateHistory') AND name = N'NewValue' AND scale < 6)
+    ALTER TABLE [currency].[RateHistory] ALTER COLUMN NewValue DECIMAL(24,6) NOT NULL;

@@ -27,33 +27,39 @@
     <MudTabPanel Text="فلزات">
         @RenderBoard("Metal")
     </MudTabPanel>
+    <MudTabPanel Text="برابری ارزها با دلار">
+        @RenderBoard("FxParity")
+    </MudTabPanel>
+    <MudTabPanel Text="بازار جهانی">
+        @RenderBoard("Global")
+    </MudTabPanel>
     <MudTabPanel Text="مقایسهٔ منابع (§59)">
         <MudPaper Elevation="1" Class="pa-4">
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-                نرخ منابع مختلف کنار هم — TabloTala | Matisa | نرخ سیستم — تا اختلاف منابع دیده و نرخ موردنظر انتخاب شود.
+                داده‌های API رسمی کنار هم — بازار ایران (IR) | بازار جهانی (FR) | نرخ سیستم.
             </MudText>
             <MudTable Items="_comparison" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
-                    <MudTh>عنوان</MudTh><MudTh>TabloTala</MudTh><MudTh>Matisa</MudTh><MudTh>سایر</MudTh><MudTh>نرخ سیستم</MudTh>
+                    <MudTh>عنوان</MudTh><MudTh>TabloTala IR</MudTh><MudTh>TabloTala FR</MudTh><MudTh>سایر</MudTh><MudTh>نرخ سیستم</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="عنوان">@context.ItemKey — @context.Title</MudTd>
-                    <MudTd DataLabel="تابلو">
-                        @(context.TabloRate?.ToString("N0") ?? "—")
-                        @if (context.TabloAt.HasValue)
+                    <MudTd DataLabel="بازار ایران">
+                        @FormatNullableRate(context.TabloIranRate)
+                        @if (context.TabloIranAt.HasValue)
                         {
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.TabloAt.Value.ToLocalTime().ToString("HH:mm")</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.TabloIranAt.Value.ToLocalTime().ToString("HH:mm")</MudText>
                         }
                     </MudTd>
-                    <MudTd DataLabel="ماتیسا">
-                        @(context.MatisaRate?.ToString("N0") ?? "—")
-                        @if (context.MatisaAt.HasValue)
+                    <MudTd DataLabel="بازار جهانی">
+                        @FormatNullableRate(context.TabloGlobalRate)
+                        @if (context.TabloGlobalAt.HasValue)
                         {
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.MatisaAt.Value.ToLocalTime().ToString("HH:mm")</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.TabloGlobalAt.Value.ToLocalTime().ToString("HH:mm")</MudText>
                         }
                     </MudTd>
-                    <MudTd DataLabel="سایر">@(context.OtherRate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="سیستم"><b>@context.SystemRate.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="سایر">@FormatNullableRate(context.OtherRate)</MudTd>
+                    <MudTd DataLabel="سیستم"><b>@FormatRate(context.SystemRate)</b></MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
             </MudTable>
@@ -118,14 +124,14 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="عنوان"><b>@context.Title</b></MudTd>
-                    <MudTd DataLabel="آنلاین">@(context.OnlineRate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="دستی">@(context.ManualRate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="سیستم"><b>@context.SystemRate.ToString("N0")</b></MudTd>
-                    <MudTd DataLabel="خرید">@(context.BuyRate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="فروش">@(context.SellRate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="میانی">@(context.MidRate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="حسابداری">@(context.AccountingRate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="اسپرد">@(context.Spread?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="آنلاین">@FormatNullableRate(context.OnlineRate)</MudTd>
+                    <MudTd DataLabel="دستی">@FormatNullableRate(context.ManualRate)</MudTd>
+                    <MudTd DataLabel="سیستم"><b>@FormatRate(context.SystemRate)</b></MudTd>
+                    <MudTd DataLabel="خرید">@FormatNullableRate(context.BuyRate)</MudTd>
+                    <MudTd DataLabel="فروش">@FormatNullableRate(context.SellRate)</MudTd>
+                    <MudTd DataLabel="میانی">@FormatNullableRate(context.MidRate)</MudTd>
+                    <MudTd DataLabel="حسابداری">@FormatNullableRate(context.AccountingRate)</MudTd>
+                    <MudTd DataLabel="اسپرد">@FormatNullableRate(context.Spread)</MudTd>
                     <MudTd DataLabel="منبع">@(context.SourceTitle ?? context.SourceKey ?? "دستی")</MudTd>
                     <MudTd DataLabel="وضعیت">
                         <MudChip T="string" Size="Size.Small" Color="@StatusColor(context)" Variant="Variant.Outlined">
@@ -136,14 +142,17 @@
                         @(context.LastChangeAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "—")
                     </MudTd>
                     <MudTd DataLabel="">
-                        @if (Session.HasAny(TarazinPermissions.RateChange, TarazinPermissions.RateChangeBuy, TarazinPermissions.RateChangeSell))
+                        @if (context.ItemType is not ("FxParity" or "Global")
+                            && Session.HasAny(TarazinPermissions.RateChange, TarazinPermissions.RateChangeBuy, TarazinPermissions.RateChangeSell))
                         {
                             <MudTooltip Text="ویرایش نرخ">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                                                OnClick="@(() => OpenRateEditorAsync(context))" />
                             </MudTooltip>
                         }
-                        @if (context.OnlineRate.HasValue && Session.HasPermission(TarazinPermissions.RateOverride))
+                        @if (context.ItemType is not ("FxParity" or "Global")
+                            && context.OnlineRate.HasValue
+                            && Session.HasPermission(TarazinPermissions.RateOverride))
                         {
                             <MudTooltip Text="Override (نرخ آنلاین ← نرخ سیستم)">
                                 <MudIconButton Icon="@Icons.Material.Filled.Download" Color="Color.Secondary" Size="Size.Small"
@@ -174,7 +183,7 @@
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "تأیید Override نرخ",
-            $"نرخ سیستم «{rate.Title}» به نرخ آنلاین {rate.OnlineRate:N0} تغییر کند؟ (§46)",
+            $"نرخ سیستم «{rate.Title}» به نرخ آنلاین {FormatNullableRate(rate.OnlineRate)} تغییر کند؟ (§46)",
             yesText: "تأیید و اعمال", cancelText: "انصراف");
 
         if (confirmed is not true) return;
@@ -195,6 +204,17 @@
         {
             Snackbar.Add(ex.Message, Severity.Error);
         }
+    }
+
+    private static string FormatNullableRate(decimal? value) =>
+        value.HasValue ? FormatRate(value.Value) : "—";
+
+    private static string FormatRate(decimal value)
+    {
+        var absolute = Math.Abs(value);
+        return absolute < 10m ? value.ToString("N4")
+            : absolute < 10_000m ? value.ToString("N2")
+            : value.ToString("N0");
     }
 
     private static Color StatusColor(PriceRateRow r) => r.Status switch
