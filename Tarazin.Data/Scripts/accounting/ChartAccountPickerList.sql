@@ -10,9 +10,17 @@
 --   4. @AllowTransactionOnly=1: فقط Detil‌ها (انتخاب‌پذیر). کل/معین والد
 --      فقط به‌عنوان context نمایش داده می‌شود (غیرانتخاب‌پذیر).
 --   5. @AllowTransactionOnly=0: همه نمایش داده می‌شود.
+--   6. @IncludeInactive=1: حساب‌های غیرفعال هم نمایش داده می‌شوند
+--      (سوییچ «نمایش غیرفعال‌ها» در AccountPickerDialog).
+--
+-- ⚠ باگ تاریخی (رفع شد): UI پارامتر @IncludeInactive را می‌فرستاد ولی اسکریپت
+--   آن را تعریف نکرده بود. Dapper پارامتر اضافی را نادیده می‌گیرد، پس خطایی
+--   دیده نمی‌شد؛ ولی سوییچ «نمایش غیرفعال‌ها» هیچ اثری نداشت و حساب‌های
+--   غیرفعال همیشه پنهان می‌ماندند.
 -- =============================================
 DECLARE @Like   NVARCHAR(200) = N'%' + ISNULL(LTRIM(RTRIM(@SearchText)), N'') + N'%';
 DECLARE @Prefix NVARCHAR(200) = ISNULL(LTRIM(RTRIM(@SearchText)), N'') + N'%';
+DECLARE @Inactive BIT = CASE WHEN ISNULL(@IncludeInactive, 0) = 0 THEN 0 ELSE 1 END;
 
 -- Detil‌های منطبق (شامل path context)
 ;WITH DetilPath AS (
@@ -23,12 +31,12 @@ DECLARE @Prefix NVARCHAR(200) = ISNULL(LTRIM(RTRIM(@SearchText)), N'') + N'%';
         c.ColCode, c.Title AS ColTitle, c.IsActive AS ColIsActive
     FROM [accounting].[BaseDetil] d
     INNER JOIN [accounting].[BaseDetilLink] dl ON dl.DetilId = d.DetilId
-        AND dl.IsDeleted = 0 AND dl.IsActive = 1
+        AND dl.IsDeleted = 0 AND (@Inactive = 1 OR dl.IsActive = 1)
     INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
-        AND m.IsDeleted = 0 AND m.IsActive = 1
+        AND m.IsDeleted = 0 AND (@Inactive = 1 OR m.IsActive = 1)
     INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId
-        AND c.IsDeleted = 0 AND c.IsActive = 1
-    WHERE d.IsDeleted = 0 AND d.IsActive = 1
+        AND c.IsDeleted = 0 AND (@Inactive = 1 OR c.IsActive = 1)
+    WHERE d.IsDeleted = 0 AND (@Inactive = 1 OR d.IsActive = 1)
       AND (@SearchText IS NULL OR @SearchText = N''
            OR d.Title LIKE @Like OR d.DetilCode LIKE @Like OR d.DetilCode LIKE @Prefix
            OR (c.ColCode + m.MoeinCode + d.DetilCode) LIKE @Like
@@ -42,7 +50,8 @@ DetilOutput AS (
         dp.DetilId AS NodeId, 3 AS Level, dp.DetilCode AS Code, dp.DetilTitle AS Title,
         N'BaseDetil' AS NodeType, dp.LinkId AS ParentId,
         CAST(dp.ColCode + dp.MoeinCode + dp.DetilCode AS NVARCHAR(200)) AS AccountCode,
-        CAST(1 AS BIT) AS IsActive,
+        CAST(CASE WHEN dp.DetilIsActive = 1 AND dp.MoeinIsActive = 1
+                       AND dp.ColIsActive = 1 THEN 1 ELSE 0 END AS BIT) AS IsActive,
         CAST(dp.ColTitle + N' > ' + dp.MoeinTitle + N' > ' + dp.DetilTitle AS NVARCHAR(1000)) AS Breadcrumb,
         dp.DetilId AS DetilEntityId, dp.LinkId AS LinkId, dp.MoeinId
     FROM DetilPath dp
@@ -54,7 +63,7 @@ MoeinContext AS (
         dp.MoeinId AS NodeId, 2 AS Level, dp.MoeinCode AS Code, dp.MoeinTitle AS Title,
         N'BaseMoein' AS NodeType, dp.ColId AS ParentId,
         CAST(dp.ColCode + dp.MoeinCode AS NVARCHAR(200)) AS AccountCode,
-        CAST(1 AS BIT) AS IsActive,
+        CAST(dp.MoeinIsActive AS BIT) AS IsActive,
         CAST(dp.ColTitle + N' > ' + dp.MoeinTitle AS NVARCHAR(1000)) AS Breadcrumb,
         NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
     FROM DetilPath dp
@@ -67,7 +76,7 @@ ColContext AS (
         dp.ColId AS NodeId, 1 AS Level, dp.ColCode AS Code, dp.ColTitle AS Title,
         N'BaseCol' AS NodeType, CAST(NULL AS INT) AS ParentId,
         CAST(dp.ColCode AS NVARCHAR(200)) AS AccountCode,
-        CAST(1 AS BIT) AS IsActive,
+        CAST(dp.ColIsActive AS BIT) AS IsActive,
         CAST(dp.ColTitle AS NVARCHAR(1000)) AS Breadcrumb,
         NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
     FROM DetilPath dp
@@ -84,7 +93,7 @@ ColMoeinDirect AS (
         CAST(c.Title AS NVARCHAR(1000)) AS Breadcrumb,
         NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
     FROM [accounting].[BaseCol] c
-    WHERE c.IsDeleted = 0 AND c.IsActive = 1
+    WHERE c.IsDeleted = 0 AND (@Inactive = 1 OR c.IsActive = 1)
       AND @AllowTransactionOnly = 0
       AND (@AccountTypeFilter IS NULL OR @AccountTypeFilter = N'Col')
       AND (@SearchText IS NULL OR @SearchText = N''
@@ -98,8 +107,9 @@ ColMoeinDirect AS (
         CAST(c.Title + N' > ' + m.Title AS NVARCHAR(1000)) AS Breadcrumb,
         NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
     FROM [accounting].[BaseMoein] m
-    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0 AND c.IsActive = 1
-    WHERE m.IsDeleted = 0 AND m.IsActive = 1
+    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+        AND (@Inactive = 1 OR c.IsActive = 1)
+    WHERE m.IsDeleted = 0 AND (@Inactive = 1 OR m.IsActive = 1)
       AND @AllowTransactionOnly = 0
       AND (@AccountTypeFilter IS NULL OR @AccountTypeFilter = N'Moein')
       AND (@SearchText IS NULL OR @SearchText = N''

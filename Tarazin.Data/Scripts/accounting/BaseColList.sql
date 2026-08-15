@@ -7,6 +7,6 @@
 SELECT
     c.ColId, c.ColCode, c.Title, c.[Description], c.IsActive,
     c.CreatedAt, c.UpdatedAt, c.CreatedBy, c.UpdatedBy
-FROM [accounting].[BaseCol] c WITH (INDEX(IX_BaseCol_Deleted_Active))
+FROM [accounting].[BaseCol] c
 WHERE c.IsDeleted = 0
 ORDER BY c.ColCode;

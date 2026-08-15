@@ -17,7 +17,7 @@ IF @ColCode IS NOT NULL
 BEGIN
     IF EXISTS (
         SELECT 1
-        FROM [accounting].[DocumentLines] dl WITH (INDEX(IX_DocumentLines_AccountCode))
+        FROM [accounting].[DocumentLines] dl
         WHERE dl.AccountCode LIKE @ColCode + N'%'
     )
         THROW 50011, N'این حساب به‌دلیل داشتن گردش مالی امکان حذف ندارد. به‌جای آن غیرفعال کنید.', 1;

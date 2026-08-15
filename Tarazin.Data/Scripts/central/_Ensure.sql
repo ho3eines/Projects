@@ -216,6 +216,11 @@ END
 -- ─────────────────────────────────────────────────────────────
 IF COL_LENGTH(N'central.Users', N'RoleId') IS NULL
     ALTER TABLE [central].[Users] ADD RoleId INT NULL;
+GO
+-- ⚠ مرز batch لازم است: ستون RoleId در batch قبلی اضافه می‌شود و constraint
+--   پایین‌تر به آن اشاره دارد. SQL Server کل batch را قبل از اجرا کامپایل
+--   می‌کند، پس بدون این GO خطای «Msg 1911: Column name 'RoleId' does not
+--   exist» می‌گیریم و کل راه‌اندازی دیتابیس (EnsureSchema) شکست می‌خورد.
 
 IF COL_LENGTH(N'central.News', N'UpdatedBy') IS NULL
     ALTER TABLE [central].[News] ADD UpdatedBy NVARCHAR(100) NULL;
@@ -233,10 +238,19 @@ IF COL_LENGTH(N'central.GalleryItems', N'UpdatedBy') IS NULL
 IF NOT EXISTS (
     SELECT 1 FROM sys.foreign_keys
     WHERE name = N'FK_Users_Roles' AND parent_object_id = OBJECT_ID(N'central.Users'))
+   AND COL_LENGTH(N'central.Users', N'RoleId') IS NOT NULL
 BEGIN
+    -- کاربران قدیمی ممکن است RoleId نامعتبر (نقش حذف‌شده) داشته باشند؛
+    -- قبل از افزودن FK آن‌ها را پاک می‌کنیم وگرنه ALTER با Msg 547 می‌شکند.
+    UPDATE u SET u.RoleId = NULL
+    FROM [central].[Users] u
+    WHERE u.RoleId IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM [central].[Roles] r WHERE r.RoleId = u.RoleId);
+
     ALTER TABLE [central].[Users]
         ADD CONSTRAINT FK_Users_Roles FOREIGN KEY (RoleId) REFERENCES [central].[Roles](RoleId);
 END
+GO
 
 -- child/junction timestamp completeness (idempotent)
 IF COL_LENGTH(N'central.RolePermissions', N'CreatedAt') IS NULL

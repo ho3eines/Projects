@@ -3,6 +3,24 @@
 -- Schema: accounting
 -- Endpoint: execute (startup)
 -- =============================================
+-- ⚠ ترتیب مهم است (باگ تاریخی — رفع شد): ردیف‌های سند (DocumentLines) با
+-- CROSS JOIN به ChartOfAccounts ساخته می‌شوند؛ اگر ابتدا حساب‌ها seed نشوند،
+-- آن CROSS JOIN صفر ردیف برمی‌گرداند و سند نمونه «بدون ردیف» می‌ماند
+-- (دفتر روزنامه/کل و تراز آزمایشی خالی می‌شدند). پس اول حساب‌ها، بعد سند.
+
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts])
+BEGIN
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
+    VALUES
+        (N'1000', N'صندوق',              N'Asset',    1, SYSUTCDATETIME()),
+        (N'1010', N'بانک‌ها',             N'Asset',    1, SYSUTCDATETIME()),
+        (N'1020', N'موجودی کالا',         N'Asset',    1, SYSUTCDATETIME()),
+        (N'2000', N'حساب‌های پرداختنی',  N'Liability',1, SYSUTCDATETIME()),
+        (N'3000', N'سرمایه',             N'Equity',   1, SYSUTCDATETIME()),
+        (N'4000', N'فروش',               N'Income',   1, SYSUTCDATETIME()),
+        (N'5000', N'هزینه حقوق',         N'Expense',  1, SYSUTCDATETIME());
+END
+
 IF NOT EXISTS (SELECT 1 FROM [accounting].[Documents])
 BEGIN
     INSERT INTO [accounting].[Documents] (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy)
@@ -24,19 +42,6 @@ BEGIN
     FROM [accounting].[Documents] d
     CROSS JOIN [accounting].[ChartOfAccounts] a
     WHERE d.DocumentNumber = N'DOC-00001' AND a.AccountCode = N'4000';
-END
-
-IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts])
-BEGIN
-    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-    VALUES
-        (N'1000', N'صندوق',              N'Asset',    1, SYSUTCDATETIME()),
-        (N'1010', N'بانک‌ها',             N'Asset',    1, SYSUTCDATETIME()),
-        (N'1020', N'موجودی کالا',         N'Asset',    1, SYSUTCDATETIME()),
-        (N'2000', N'حساب‌های پرداختنی',  N'Liability',1, SYSUTCDATETIME()),
-        (N'3000', N'سرمایه',             N'Equity',   1, SYSUTCDATETIME()),
-        (N'4000', N'فروش',               N'Income',   1, SYSUTCDATETIME()),
-        (N'5000', N'هزینه حقوق',         N'Expense',  1, SYSUTCDATETIME());
 END
 
 -- حساب‌های ویژهٔ ماژول ارز و معاملات ارزی (PRD §34–§63) — افزودنی امن

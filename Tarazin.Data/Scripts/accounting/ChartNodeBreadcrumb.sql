@@ -2,60 +2,83 @@
 -- Tarazin.Data/Scripts/accounting/ChartNodeBreadcrumb.sql
 -- Schema: accounting
 -- مسیر کامل (Breadcrumb) یک Node خاص.
--- سه case: BaseCol (@NodeType=BaseCol), BaseMoein (@NodeType=BaseMoein), BaseDetil (@NodeType=BaseDetil).
--- ایندکس‌های PK و IX_*_Active استفاده می‌شوند.
+--
+-- قرارداد پارامترها (همان چیزی که UI می‌فرستد):
+--   @NodeId   : شناسهٔ گره (ColId | MoeinId | DetilId بسته به @NodeType)
+--   @NodeType : BaseCol | BaseMoein | BaseDetil
+--   @LinkId   : فقط برای BaseDetil — مشخص‌کنندهٔ «کدام مسیر» (یک تفصیلی
+--               می‌تواند زیر چند معین باشد). NULL = اولین مسیر فعال.
+--
+-- ⚠ باگ تاریخی (رفع شد): نسخهٔ قبلی به @ColId/@MoeinId/@DetilId نیاز داشت که
+--   هیچ‌کدام از فراخوان‌ها (AccountingChart و AccountPickerDialog) آن‌ها را
+--   نمی‌فرستادند → خطای «Must declare the scalar variable @ColId» (Msg 137).
+--   چون فراخوانی داخل try/catch بی‌صدا بود، Breadcrumb همیشه خالی می‌ماند.
 -- =============================================
+DECLARE @Type    NVARCHAR(20) = ISNULL(NULLIF(LTRIM(RTRIM(@NodeType)), N''), N'');
+DECLARE @ColRef   INT = NULL;
+DECLARE @MoeinRef INT = NULL;
+DECLARE @DetilRef INT = NULL;
 
--- حالت BaseCol: فقط کافی است ردیف Col + تمام Moein/Detil والدش را برگردانیم.
--- حالت BaseMoein: Col + Moein + Detil والدش.
--- حالت BaseDetil: Col + Moein + Detil (از طریق Link).
+IF @Type = N'BaseCol'
+BEGIN
+    SET @ColRef = @NodeId;
+END
+ELSE IF @Type = N'BaseMoein'
+BEGIN
+    SET @MoeinRef = @NodeId;
+    SELECT @ColRef = m.ColId
+    FROM [accounting].[BaseMoein] m
+    WHERE m.MoeinId = @MoeinRef AND m.IsDeleted = 0;
+END
+ELSE IF @Type = N'BaseDetil'
+BEGIN
+    SET @DetilRef = @NodeId;
 
-;WITH ColStep AS (
+    -- مسیر انتخابی: اگر LinkId داده شده همان، وگرنه اولین پیوند فعال.
+    SELECT TOP (1) @MoeinRef = dl.MoeinId
+    FROM [accounting].[BaseDetilLink] dl
+    WHERE dl.DetilId = @DetilRef
+      AND dl.IsDeleted = 0
+      AND (@LinkId IS NULL OR dl.LinkId = @LinkId)
+    ORDER BY CASE WHEN dl.LinkId = @LinkId THEN 0 ELSE 1 END, dl.IsActive DESC, dl.LinkId;
+
+    SELECT @ColRef = m.ColId
+    FROM [accounting].[BaseMoein] m
+    WHERE m.MoeinId = @MoeinRef AND m.IsDeleted = 0;
+END
+
+SELECT NodeId, Level, Code, Title, IsActive, NodeType, ParentId, AccountCode
+FROM (
+    -- سطح ۱ — حساب کل
     SELECT
         c.ColId AS NodeId, 1 AS Level, c.ColCode AS Code, c.Title, c.IsActive,
         N'BaseCol' AS NodeType, CAST(NULL AS INT) AS ParentId,
         CAST(c.ColCode AS NVARCHAR(200)) AS AccountCode
     FROM [accounting].[BaseCol] c
-    WHERE c.IsDeleted = 0
-),
-MoeinStep AS (
+    WHERE @ColRef IS NOT NULL AND c.ColId = @ColRef AND c.IsDeleted = 0
+
+    UNION ALL
+
+    -- سطح ۲ — حساب معین
     SELECT
-        m.MoeinId, 2 AS Level, m.MoeinCode, m.Title, m.IsActive, m.ColId,
-        CAST(c.AccountCode + m.MoeinCode AS NVARCHAR(200)) AS AccountCode
+        m.MoeinId AS NodeId, 2 AS Level, m.MoeinCode AS Code, m.Title, m.IsActive,
+        N'BaseMoein' AS NodeType, m.ColId AS ParentId,
+        CAST(c.ColCode + m.MoeinCode AS NVARCHAR(200)) AS AccountCode
     FROM [accounting].[BaseMoein] m
-    INNER JOIN ColStep c ON c.NodeId = m.ColId
-    WHERE m.IsDeleted = 0
-),
-DetilStep AS (
+    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+    WHERE @MoeinRef IS NOT NULL AND m.MoeinId = @MoeinRef AND m.IsDeleted = 0
+
+    UNION ALL
+
+    -- سطح ۳ — تفصیلی (در همان مسیر)
     SELECT
-        d.DetilId, 3 AS Level, d.DetilCode, d.Title, d.IsActive, dl.MoeinId,
-        CAST(m.AccountCode + d.DetilCode AS NVARCHAR(200)) AS AccountCode
-    FROM [accounting].[BaseDetilLink] dl WITH (INDEX(IX_BaseDetilLink_Moein_Active))
-    INNER JOIN MoeinStep m ON m.MoeinId = dl.MoeinId
-    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
-    WHERE dl.IsDeleted = 0 AND d.IsDeleted = 0
-)
-SELECT
-    cs.NodeId, cs.Level, cs.Code, cs.Title, cs.IsActive, cs.NodeType, cs.ParentId, cs.AccountCode
-FROM ColStep cs
-WHERE (cs.NodeId = @ColId AND @ColId <> 0)
-   OR (@NodeType = N'BaseCol' AND cs.NodeId = @NodeId)
-
-UNION ALL
-
-SELECT
-    ms.MoeinId AS NodeId, ms.Level, ms.MoeinCode AS Code, ms.Title, ms.IsActive,
-    N'BaseMoein' AS NodeType, ms.ColId AS ParentId, ms.AccountCode
-FROM MoeinStep ms
-INNER JOIN ColStep cs ON cs.NodeId = ms.ColId
-WHERE ms.MoeinId = @MoeinId AND @MoeinId <> 0
-
-UNION ALL
-
-SELECT
-    ds.DetilId AS NodeId, ds.Level, ds.DetilCode AS Code, ds.Title, ds.IsActive,
-    N'BaseDetil' AS NodeType, ds.MoeinId AS ParentId, ds.AccountCode
-FROM DetilStep ds
-WHERE ds.DetilId = @DetilId AND @DetilId <> 0
+        d.DetilId AS NodeId, 3 AS Level, d.DetilCode AS Code, d.Title, d.IsActive,
+        N'BaseDetil' AS NodeType, @MoeinRef AS ParentId,
+        CAST(ISNULL(c.ColCode, N'') + ISNULL(m.MoeinCode, N'') + d.DetilCode AS NVARCHAR(200)) AS AccountCode
+    FROM [accounting].[BaseDetil] d
+    LEFT JOIN [accounting].[BaseMoein] m ON m.MoeinId = @MoeinRef AND m.IsDeleted = 0
+    LEFT JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId   AND c.IsDeleted = 0
+    WHERE @DetilRef IS NOT NULL AND d.DetilId = @DetilRef AND d.IsDeleted = 0
+) steps
 ORDER BY Level
 OPTION (RECOMPILE);

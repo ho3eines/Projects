@@ -136,9 +136,9 @@
         {
             await Db.ExecuteAsync(Schema, "OrderPlace", new
             {
-                CustomerId = _customerId,
-                CustomerName = CustomerName,
-                CreatedBy = Session.UserName
+                // CustomerName/CreatedBy ارسال نمی‌شوند: اسکریپت CustomerName را
+                // خودش DECLARE و از جدول مشتریان می‌خواند (ارسال هم‌نام = خطای SQL).
+                CustomerId = _customerId
             });
             Snackbar.Add("سفارش ثبت شد.", Severity.Success);
             _cart = new();

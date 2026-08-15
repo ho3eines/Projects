@@ -3,6 +3,9 @@
 -- Schema: accounting | Contract: BaseMoein (حساب معین)
 -- قانون: MoeinCode دقیقاً 3 رقم، تکراری در ColId ممنوع.
 -- AccountCode = ColCode + MoeinCode (5 رقم) به‌صورت خودکار.
+-- توجه به قرارداد @Description: مقدار NULL یعنی «تغییرش نده» و رشتهٔ خالی
+-- یعنی «پاکش کن». قبلاً هر دو حالت به NULL تبدیل می‌شد، برای همین ویرایش یا
+-- غیرفعال‌سازی از روی درخت (که شرح را نمی‌داند) شرح موجود را پاک می‌کرد.
 -- =============================================
 DECLARE @NormCode NVARCHAR(3) = RIGHT('000' + ISNULL(NULLIF(LTRIM(RTRIM(@MoeinCode)), ''), '000'), 3);
 DECLARE @ColCode  NVARCHAR(2);
@@ -57,7 +60,8 @@ BEGIN
     SET ColId        = @ColId,
         MoeinCode    = @NormCode,
         Title        = LTRIM(RTRIM(@Title)),
-        [Description]= NULLIF(LTRIM(RTRIM(@Description)), N''),
+        [Description]= CASE WHEN @Description IS NULL THEN [Description]
+                            ELSE NULLIF(LTRIM(RTRIM(@Description)), N'') END,
         IsActive     = ISNULL(@IsActive, IsActive),
         UpdatedAt    = SYSUTCDATETIME(),
         UpdatedBy    = @UpdatedBy

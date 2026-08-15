@@ -3,6 +3,9 @@
 -- Schema: accounting | Contract: BaseCol (حساب کل)
 -- Execute.
 -- قانون: ColCode دقیقاً 2 رقم، صفرهای ابتدایی حفظ می‌شود، تکراری ممنوع.
+-- توجه به قرارداد @Description: مقدار NULL یعنی «تغییرش نده» و رشتهٔ خالی
+-- یعنی «پاکش کن». قبلاً هر دو حالت به NULL تبدیل می‌شد، برای همین ویرایش یا
+-- غیرفعال‌سازی از روی درخت (که شرح را نمی‌داند) شرح موجود را پاک می‌کرد.
 -- =============================================
 DECLARE @NormCode NVARCHAR(2) = RIGHT('00' + ISNULL(NULLIF(LTRIM(RTRIM(@ColCode)), ''), '00'), 2);
 
@@ -41,7 +44,8 @@ BEGIN
     UPDATE [accounting].[BaseCol]
     SET ColCode       = @NormCode,
         Title         = LTRIM(RTRIM(@Title)),
-        [Description] = NULLIF(LTRIM(RTRIM(@Description)), N''),
+        [Description] = CASE WHEN @Description IS NULL THEN [Description]
+                             ELSE NULLIF(LTRIM(RTRIM(@Description)), N'') END,
         IsActive      = ISNULL(@IsActive, IsActive),
         UpdatedAt     = SYSUTCDATETIME(),
         UpdatedBy     = @UpdatedBy
