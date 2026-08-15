@@ -1,24 +1,33 @@
 -- =============================================
--- Tarazin.Data/Scripts/accounting/DocumentInsert.sql
+-- Tarazin.Data/Scripts/accounting/DocumentUpdate.sql
 -- Schema: accounting
--- Execute. ثبت سند حسابداری (سند روزنامه).
--- @LinesJson: آرایهٔ JSON از ردیف‌های بدهکار/بستانکار.
--- AccountId می‌تواند به BaseDetil / BaseMoein / BaseCol / ChartOfAccounts اشاره کند.
--- AccountCode به‌صورت ColCode+MoeinCode+DetilCode ترکیب می‌شود.
--- بهینه‌سازی:
---   1. ابتدا فقط مجموع را می‌خوانیم (بدون join سنگین).
---   2. سپس در یک INSERT با OUTER APPLY به جداول پایه (با ایندکس‌های FK)
---      AccountCode محاسبه و درج می‌شود.
---   3. واکشی BaseDetil/BaseMoein/BaseCol روی ستون PK برابر است و optimizer
---      خودش clustered seek می‌گیرد؛ برای BaseDetilLink از ایندکس پوششی
---      IX_BaseDetilLink_Detil_Active استفاده می‌شود.
--- توجه: PK این جداول در _Ensure.sql به‌صورت inline تعریف شده و نام خودکار
--- دارد (نه PK_BaseDetil و…)؛ بنابراین از hint ایندکس PK استفاده نکنید.
+-- Execute. ویرایش سند حسابداری موجود (سربرگ + ردیف‌ها).
+-- @LinesJson: آرایهٔ JSON از ردیف‌های بدهکار/بستانکار (جایگزین کامل ردیف‌های قبلی).
+--
+-- قانون: ویرایش فقط در وضعیت «یادداشت» (Note) و «سند موقت» (Draft) مجاز است.
+-- در «تأیید شده» (Posted) و «تأیید نهایی» (Closed) سند فقط‌خواندنی است — این
+-- کنترل در همین اسکریپت (نه فقط در UI) اعمال می‌شود تا با فراخوانی مستقیم هم
+-- قابل دور زدن نباشد.
+--
+-- منطق resolve کردن حساب‌ها دقیقاً همان DocumentInsert.sql است تا AccountCode
+-- ردیف‌ها با روال فعلی پروژه یکسان بماند.
 -- =============================================
 IF @LinesJson IS NULL OR LEN(@LinesJson) = 0
     THROW 51040, N'حداقل یک ردیف سند الزامی است', 1;
 
--- مرحله ۱: بررسی توازن (بدون join سنگین)
+DECLARE @CurrentStatus NVARCHAR(50);
+
+SELECT @CurrentStatus = d.Status
+FROM [accounting].[Documents] d
+WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0;
+
+IF @CurrentStatus IS NULL
+    THROW 51045, N'سند پیدا نشد یا قبلاً حذف شده است', 1;
+
+IF @CurrentStatus NOT IN (N'Note', N'Draft')
+    THROW 51046, N'سند در وضعیت فعلی قابل ویرایش نیست (فقط یادداشت و سند موقت).', 1;
+
+-- بررسی توازن
 DECLARE @TotalDebit DECIMAL(18,2), @TotalCredit DECIMAL(18,2);
 SELECT
     @TotalDebit  = ISNULL(SUM(ISNULL(j.Debit, 0)), 0),
@@ -37,26 +46,19 @@ IF @TotalDebit <> @TotalCredit OR @TotalDebit <= 0
 DECLARE @DocDate DATE = CAST(@DocumentDate AS DATE);
 DECLARE @CounterParty NVARCHAR(200) = NULLIF(@CounterPartyName, N'');
 
--- وضعیت اولیهٔ سند در چرخه: یادداشت | سند موقت.
--- سند تازه هرگز مستقیماً «تأیید شده»/«تأیید نهایی» ثبت نمی‌شود؛ برای آن باید
--- از DocumentStatusChange (با دسترسی مربوطه) استفاده شود.
--- @Status اختیاری است: اگر فراخوان آن را نفرستد/خالی بفرستد، «سند موقت».
-DECLARE @InitialStatus NVARCHAR(50) =
-    CASE WHEN LTRIM(RTRIM(ISNULL(@Status, N''))) = N'Note' THEN N'Note' ELSE N'Draft' END;
-
 BEGIN TRAN;
-    INSERT INTO [accounting].[Documents]
-        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted)
-    VALUES
-        (N'', @DocDate, @DocumentType, @CounterParty, @TotalDebit, N'IRR', @InitialStatus, SYSUTCDATETIME(), @CreatedBy, 0);
-
-    DECLARE @Did INT = SCOPE_IDENTITY();
     UPDATE [accounting].[Documents]
-    SET DocumentNumber = N'DOC-' + RIGHT(N'00000' + CAST(@Did AS NVARCHAR(10)), 5)
-    WHERE DocumentId = @Did;
+    SET DocumentDate     = @DocDate,
+        DocumentType     = @DocumentType,
+        CounterPartyName = @CounterParty,
+        TotalAmount      = @TotalDebit,
+        UpdatedAt        = SYSUTCDATETIME(),
+        UpdatedBy        = @UpdatedBy
+    WHERE DocumentId = @DocumentId AND IsDeleted = 0;
 
-    -- مرحله ۲: درج ردیف‌ها با resolve به جدول BaseDetil/Moein/Col
-    -- هر join با ایندکس PK یا ایندکس‌های پوششی سریع است.
+    -- ردیف‌های قبلی جایگزین می‌شوند (همان قرارداد فرم ثبت سند).
+    DELETE FROM [accounting].[DocumentLines] WHERE DocumentId = @DocumentId;
+
     ;WITH Lines AS (
         SELECT
             j.AccountId,
@@ -112,7 +114,7 @@ Resolved AS (
 )
 INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
 SELECT
-    @Did,
+    @DocumentId,
     r.ResolvedAccountId,
     r.ResolvedAccountCode,
     r.ResolvedTitle,

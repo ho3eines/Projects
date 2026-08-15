@@ -178,7 +178,9 @@
                             + معین
                         </MudButton>
                     }
-                    @if (_selected.NodeType == "BaseMoein" && CanCreate)
+                    @* بدون سقف: هم روی معین و هم روی خودِ تفصیلی نمایش داده می‌شود
+                       تا ساخت تفصیلی‌های پیاپی (چهارم، پنجم، …) ممکن باشد. *@
+                    @if (CanAddDetilHere)
                     {
                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewDetil">
@@ -302,7 +304,14 @@
             // نگه‌داشتن node انتخاب‌شده پس از reload
             if (_selected is not null)
             {
-                var match = _all.FirstOrDefault(n => n.NodeId == _selected.NodeId && n.NodeType == _selected.NodeType);
+                // برای تفصیلی، (NodeType, NodeId) یکتا نیست: یک تفصیلی می‌تواند در
+                // چند مسیر باشد. اگر LinkId را در تطبیق لحاظ نکنیم، بعد از هر
+                // reload گرهٔ انتخاب‌شده به مسیر دیگری می‌پرد و MoeinId عوض
+                // می‌شود — که افزودن تفصیلیِ بعدی را به مسیر اشتباه می‌برد.
+                var match = _all.FirstOrDefault(n => n.NodeId == _selected.NodeId
+                                                     && n.NodeType == _selected.NodeType
+                                                     && n.LinkId == _selected.LinkId)
+                            ?? _all.FirstOrDefault(n => n.NodeId == _selected.NodeId && n.NodeType == _selected.NodeType);
                 if (match is not null)
                 {
                     _selected = match;
@@ -533,7 +542,11 @@
 
     private RenderFragment RenderNode(ChartTreeNode n, int indent, int depth = 0) => __builder =>
     {
-        var isSelected = _selected is not null && _selected.NodeId == n.NodeId && _selected.NodeType == n.NodeType;
+        // برای تفصیلی، LinkId هم بخشی از هویتِ گره در درخت است (یک تفصیلی در
+        // چند مسیر). بدون آن، انتخابِ یک تفصیلی همهٔ نمونه‌های آن را در مسیرهای
+        // دیگر هم «انتخاب‌شده» نشان می‌داد.
+        var isSelected = _selected is not null && _selected.NodeId == n.NodeId
+                         && _selected.NodeType == n.NodeType && _selected.LinkId == n.LinkId;
         var matched = _searchResults.Any(r => r.NodeId == n.NodeId && r.NodeType == n.NodeType);
         var children = ChildrenOf(n);
         var hasChildren = children.Count > 0 && depth < MaxRenderDepth;
@@ -663,13 +676,44 @@
         }
     }
 
+    /// <summary>
+    /// معینِ مقصد برای «افزودن تفصیلی» بر اساس گرهٔ انتخاب‌شده.
+    ///
+    /// ⚠ باگ تاریخی (رفع شد): این عملیات فقط وقتی کار می‌کرد که گرهٔ انتخاب‌شده
+    ///   دقیقاً یک BaseMoein باشد. به‌محض اینکه کاربر تفصیلیِ تازه‌ساخته‌شده را
+    ///   انتخاب می‌کرد (یا روی آن کلیک می‌کرد)، دکمهٔ «+ تفصیلی» ناپدید می‌شد و
+    ///   عملاً «بعد از افزودن تفصیلی، امکان افزودن تفصیلی جدید وجود نداشت» —
+    ///   همان چیزی که به‌صورت «سقف سه ردیف/سه سطح» دیده می‌شد. حالا اگر گرهٔ
+    ///   انتخاب‌شده خودش تفصیلی باشد، معینِ والدِ همان مسیر مقصد است؛ پس
+    ///   می‌توان بی‌نهایت تفصیلیِ همتراز پشت سر هم ساخت.
+    /// </summary>
+    private int? TargetMoeinIdForNewDetil()
+    {
+        if (_selected is null) return null;
+        return _selected.NodeType switch
+        {
+            "BaseMoein" => _selected.NodeId,
+            // تفصیلی: والدِ مسیر جاری (MoeinId روی خود گره حمل می‌شود).
+            "BaseDetil" => _selected.MoeinId,
+            _ => null
+        };
+    }
+
+    /// <summary>آیا برای گرهٔ فعلی می‌توان تفصیلی جدید ساخت؟ (بدون هیچ سقفی)</summary>
+    private bool CanAddDetilHere => CanCreate && TargetMoeinIdForNewDetil() is > 0;
+
     private async Task OpenNewDetil()
     {
-        if (_selected is null || _selected.NodeType != "BaseMoein") return;
-        var parentKey = KeyOf(_selected);
+        // هیچ وابستگی‌ای به شماره ردیف، سطح، تعداد فرزندان یا تعداد رکوردهای
+        // قبلی وجود ندارد: تنها شرط، مشخص بودن معینِ مقصد است.
+        var moeinId = TargetMoeinIdForNewDetil();
+        if (moeinId is not > 0) return;
+
+        // گرهٔ معین را باز نگه دار تا تفصیلیِ تازه بلافاصله دیده شود.
+        var parentKey = ("BaseMoein", moeinId.Value);
         var dlg = await Dialog.ShowAsync<BaseDetilForm>("افزودن تفصیلی", new DialogParameters
         {
-            ["MoeinId"] = _selected.NodeId
+            ["MoeinId"] = moeinId.Value
         }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
         var r = await dlg.Result;
         if (r is { Canceled: false })

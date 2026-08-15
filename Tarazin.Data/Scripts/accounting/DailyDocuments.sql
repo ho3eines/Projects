@@ -17,7 +17,10 @@ SELECT
     d.CreatedBy,
     d.UpdatedBy
 FROM [accounting].[Documents] d
+-- ⚠ باگ تاریخی (رفع شد): فیلتر IsDeleted وجود نداشت، پس اسناد حذف‌شده
+--   همچنان در فهرست «اسناد روز» دیده می‌شدند.
 WHERE d.DocumentDate BETWEEN @FromDate AND @ToDate
+  AND d.IsDeleted = 0
   AND (@SearchText = '' OR d.DocumentNumber LIKE '%' + @SearchText + '%'
        OR d.CounterPartyName LIKE '%' + @SearchText + '%')
   AND (@DocumentType IS NULL OR d.DocumentType = @DocumentType)

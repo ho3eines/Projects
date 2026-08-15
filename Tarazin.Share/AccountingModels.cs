@@ -1,5 +1,96 @@
 namespace Tarazin.Models;
 
+/// <summary>
+/// وضعیت‌های سند حسابداری (چرخهٔ حیات سند).
+///
+/// مقادیر ذخیره‌شده در ستون <c>[accounting].[Documents].Status</c> همان مقادیر
+/// تاریخیِ پروژه‌اند تا داده و گزارش‌های موجود (BI با <c>Posted</c> و بستن دوره
+/// با <c>Closed</c>) نشکنند؛ فقط عنوان فارسی و ترتیب چرخه به آن‌ها اضافه شده است:
+///   یادداشت (Note) → سند موقت (Draft) → تأیید شده (Posted) → تأیید نهایی (Closed)
+/// </summary>
+public static class AccountingDocumentStatus
+{
+    public const string Note = "Note";        // یادداشت
+    public const string Draft = "Draft";      // سند موقت
+    public const string Confirmed = "Posted"; // تأیید شده
+    public const string Finalized = "Closed"; // تأیید نهایی
+
+    /// <summary>ترتیب چرخهٔ وضعیت (از پایین به بالا).</summary>
+    public static readonly string[] Ordered = [Note, Draft, Confirmed, Finalized];
+
+    /// <summary>عنوان فارسی وضعیت.</summary>
+    public static string Title(string? status) => Normalize(status) switch
+    {
+        Note => "یادداشت",
+        Draft => "سند موقت",
+        Confirmed => "تأیید شده",
+        Finalized => "تأیید نهایی",
+        _ => status ?? ""
+    };
+
+    /// <summary>مقدار معتبر وضعیت؛ مقادیر ناشناخته «سند موقت» در نظر گرفته می‌شوند.</summary>
+    public static string Normalize(string? status)
+    {
+        var s = (status ?? "").Trim();
+        foreach (var known in Ordered)
+        {
+            if (string.Equals(known, s, StringComparison.OrdinalIgnoreCase))
+                return known;
+        }
+        return Draft;
+    }
+
+    /// <summary>ویرایش سند فقط در «یادداشت» و «سند موقت» مجاز است.</summary>
+    public static bool IsEditable(string? status)
+    {
+        var s = Normalize(status);
+        return s is Note or Draft;
+    }
+
+    /// <summary>وضعیت بعدی در چرخه (NULL اگر آخرین وضعیت باشد).</summary>
+    public static string? Next(string? status)
+    {
+        var idx = Array.IndexOf(Ordered, Normalize(status));
+        return idx >= 0 && idx < Ordered.Length - 1 ? Ordered[idx + 1] : null;
+    }
+
+    /// <summary>وضعیت قبلی در چرخه (NULL اگر اولین وضعیت باشد).</summary>
+    public static string? Previous(string? status)
+    {
+        var idx = Array.IndexOf(Ordered, Normalize(status));
+        return idx > 0 ? Ordered[idx - 1] : null;
+    }
+
+    /// <summary>
+    /// دسترسی لازم برای رفتن از <paramref name="from"/> به <paramref name="to"/>.
+    /// NULL یعنی این انتقال اصلاً مجاز نیست.
+    /// </summary>
+    public static string? PermissionFor(string? from, string? to)
+    {
+        var f = Normalize(from);
+        var t = Normalize(to);
+        if (f == t) return null;
+
+        // پیشروی در چرخه — هر گام دسترسی خودش را دارد.
+        if (t == Next(f))
+        {
+            return t switch
+            {
+                Draft => TarazinPermissions.DocumentDraft,
+                Confirmed => TarazinPermissions.DocumentConfirm,
+                Finalized => TarazinPermissions.DocumentFinalize,
+                _ => null
+            };
+        }
+
+        // برگشت یک گام — با دسترسی «برگشت وضعیت».
+        if (t == Previous(f))
+            return TarazinPermissions.DocumentRevert;
+
+        return null;
+    }
+}
+
 /// <summary>یک ردیف (بدهکار/بستانکار) در فرم ثبت سند روزنامه.</summary>
 public class JournalLineRow
 {
@@ -24,6 +115,19 @@ public class AccountPickerResult
     public int? DetilEntityId { get; set; }
     public int? LinkId { get; set; }
     public int? MoeinId { get; set; }
+}
+
+/// <summary>یک ردیف ذخیره‌شدهٔ سند (از [accounting].[DocumentLines]).</summary>
+public class DocumentLineRow
+{
+    public int DocumentLineId { get; set; }
+    public int DocumentId { get; set; }
+    public int AccountId { get; set; }
+    public string AccountCode { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
 }
 
 /// <summary>دفتر روزنامه — ردیف‌های سند در بازهٔ تاریخ.</summary>

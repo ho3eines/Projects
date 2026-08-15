@@ -13,7 +13,12 @@ public sealed record TarazinModule(
     IReadOnlyList<TarazinNavItem> Items);
 
 /// <param name="Permission">کلید دسترسی لازم برای نمایش/باز کردن این صفحه (RBAC).</param>
-public sealed record TarazinNavItem(string Title, string Url, string Icon, string Permission);
+/// <param name="HideInNav">
+/// صفحه‌هایی که از داخل صفحات دیگر باز می‌شوند (مثل جزئیات یک سند) و نباید در
+/// منو/زیرمنو دیده شوند، ولی باید در گاردِ دسترسیِ مسیر لحاظ شوند.
+/// </param>
+public sealed record TarazinNavItem(string Title, string Url, string Icon, string Permission,
+    bool HideInNav = false);
 
 /// <summary>Single catalog for home cards, drawer groups and module sub-nav.</summary>
 public static class TarazinModules
@@ -37,6 +42,9 @@ public static class TarazinModules
                 new("داشبورد", "/accounting/dashboard", Icons.Material.Filled.Dashboard, Perm("accounting", TarazinActions.View)),
                 new("اسناد روز", "/accounting", Icons.Material.Filled.Today, Perm("accounting", TarazinActions.View)),
                 new("ثبت سند", "/accounting/entry", Icons.Material.Filled.PostAdd, Perm("accounting", TarazinActions.Entry)),
+                // صفحهٔ سند از فهرست اسناد باز می‌شود و در زیرمنو تکرار نمی‌شود؛
+                // اما باید در گاردِ مسیر شناخته شود تا با «مشاهدهٔ حسابداری» محافظت شود.
+                new("سند حسابداری", "/accounting/document", Icons.Material.Filled.Description, Perm("accounting", TarazinActions.View), HideInNav: true),
                 new("جداول پایه", "/accounting/chart", Icons.Material.Filled.AccountTree, TarazinPermissions.ChartView),
                 new("عملیات ویژه", "/accounting/special", Icons.Material.Filled.AutoFixHigh, Perm("accounting", TarazinActions.Special)),
                 new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment, Perm("accounting", TarazinActions.Reports)),

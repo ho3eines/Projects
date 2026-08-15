@@ -20,7 +20,7 @@
                          Class="tz-nav__group">
                 @foreach (var item in mod.Items)
                 {
-                    @if (Session.HasPermission(item.Permission))
+                    @if (!item.HideInNav && Session.HasPermission(item.Permission))
                     {
                         <MudNavLink Href="@item.Url" Icon="@item.Icon"
                                     Match="@(item.Url == mod.Url ? NavLinkMatch.All : NavLinkMatch.Prefix)">
