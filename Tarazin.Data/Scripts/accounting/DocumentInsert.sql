@@ -84,7 +84,7 @@ Resolved AS (
     ) d
     OUTER APPLY (
         SELECT TOP 1 dl.MoeinId
-        FROM [accounting].[BaseDetilLink] dl WITH (INDEX(IX_BaseDetilLink_Detil_Active))
+        FROM [accounting].[BaseDetilLink] dl
         WHERE dl.DetilId = d.DetilId AND dl.IsDeleted = 0
     ) dl
     OUTER APPLY (

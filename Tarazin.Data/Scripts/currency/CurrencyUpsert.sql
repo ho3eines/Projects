@@ -9,7 +9,12 @@ IF LEN(LTRIM(RTRIM(@CurrencyCode))) < 2 OR LEN(LTRIM(RTRIM(@CurrencyName))) = 0
     THROW 51100, N'کد و نام ارز الزامی است', 1;
 
 DECLARE @Code NVARCHAR(10) = UPPER(LTRIM(RTRIM(@CurrencyCode)));
-DECLARE @IsBase BIT = CASE WHEN @Code = N'IRR' THEN 1 ELSE ISNULL(@IsBase, 0) END;
+-- ⚠ باگ تاریخی (رفع شد): این متغیر قبلاً «@IsBase» نام داشت — دقیقاً هم‌نامِ
+--   پارامتری که UI می‌فرستد. SQL Server در آن حالت خطای
+--   «Msg 134: The variable name '@IsBase' has already been declared» می‌داد و
+--   ذخیرهٔ ارز کاملاً شکست می‌خورد. ضمناً چون مقدار خودش را در مقداردهی
+--   اولیه می‌خواند، مقدار ارسالی کاربر همیشه نادیده گرفته می‌شد.
+DECLARE @BaseFlag BIT = CASE WHEN @Code = N'IRR' THEN 1 ELSE ISNULL(@IsBase, 0) END;
 DECLARE @Factor DECIMAL(18,4) = ISNULL(@UnitFactor, 1);
 IF @Factor <= 0
     THROW 51101, N'ضریب واحد باید بزرگ‌تر از صفر باشد', 1;
@@ -19,7 +24,7 @@ BEGIN TRAN;
     BEGIN
         -- واحد پایهٔ سیستم ریال است؛ نمی‌توان واحد پایهٔ دیگری ساخت (§35).
         IF EXISTS (SELECT 1 FROM [currency].[Currencies] WHERE IsBase = 1 AND IsDeleted = 0)
-           AND @IsBase = 1
+           AND @BaseFlag = 1
            AND @Code <> N'IRR'
             THROW 51102, N'واحد پایهٔ سیستم فقط ریال است', 1;
 
@@ -27,7 +32,7 @@ BEGIN TRAN;
             THROW 51103, N'این ارز قبلاً تعریف شده است', 1;
 
         INSERT INTO [currency].[Currencies] (CurrencyCode, CurrencyName, Symbol, IsBase, UnitFactor, IsActive, CreatedAt, CreatedBy)
-        VALUES (@Code, @CurrencyName, NULLIF(LTRIM(RTRIM(@Symbol)), N''), @IsBase, @Factor, 1, SYSUTCDATETIME(), @CreatedBy);
+        VALUES (@Code, @CurrencyName, NULLIF(LTRIM(RTRIM(@Symbol)), N''), @BaseFlag, @Factor, 1, SYSUTCDATETIME(), @CreatedBy);
 
         DECLARE @Cid INT = SCOPE_IDENTITY();
 

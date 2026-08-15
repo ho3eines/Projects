@@ -87,11 +87,12 @@
         _busy = true;
         try
         {
-            var item = _items.First(i => i.ItemId == _itemId);
             await Db.ExecuteAsync(Schema, "MovementInsert", new
             {
                 ItemId = _itemId,
-                ItemCode = item.ItemCode,
+                // ItemCode عمداً ارسال نمی‌شود: اسکریپت خودش آن را با
+                // DECLARE @ItemCode از روی ItemId می‌خواند. ارسال هم‌نامِ آن
+                // باعث خطای SQL «Msg 134/۲۱۴» و شکست کل ثبت می‌شد.
                 WarehouseId = _warehouseId,
                 MovementType = _type,
                 Qty = _qty,

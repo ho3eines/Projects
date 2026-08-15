@@ -328,6 +328,39 @@
             if (_statusFilter == "Active") q = q.Where(n => n.IsActive);
             else if (_statusFilter == "Inactive") q = q.Where(n => !n.IsActive);
         }
+
+        // ⚠ باگ تاریخی: «فیلتر نوع» به _typeFilter بایند شده بود ولی هرگز
+        //   اعمال نمی‌شد. چون درخت سلسله‌مراتبی است، فیلترِ نوع را طوری اعمال
+        //   می‌کنیم که والدهای لازم برای نمایش گره‌های منطبق حفظ شوند.
+        if (!string.IsNullOrWhiteSpace(_typeFilter))
+        {
+            var wanted = "Base" + _typeFilter;           // Col → BaseCol …
+            var kept = q.ToList();
+            var keep = new HashSet<(string, int)>();
+
+            foreach (var n in kept.Where(n => n.NodeType == wanted))
+            {
+                keep.Add((n.NodeType, n.NodeId));
+                // زنجیرهٔ والدها را نگه دار تا گره در درخت قابل دیدن بماند.
+                if (n.NodeType == "BaseDetil" && n.MoeinId.HasValue)
+                {
+                    var mo = kept.FirstOrDefault(x => x.NodeType == "BaseMoein" && x.NodeId == n.MoeinId.Value);
+                    if (mo is not null)
+                    {
+                        keep.Add((mo.NodeType, mo.NodeId));
+                        if (mo.ParentId.HasValue)
+                            keep.Add(("BaseCol", mo.ParentId.Value));
+                    }
+                }
+                else if (n.NodeType == "BaseMoein" && n.ParentId.HasValue)
+                {
+                    keep.Add(("BaseCol", n.ParentId.Value));
+                }
+            }
+
+            q = kept.Where(n => keep.Contains((n.NodeType, n.NodeId)));
+        }
+
         _filtered = q.ToList();
         BuildTree();
     }
@@ -358,9 +391,8 @@
             // expand path
             foreach (var r in _searchResults)
             {
-                var path = PathIds(r);
-                foreach (var id in path)
-                    _expanded.Add(id);
+                foreach (var key in PathKeys(r))
+                    _expanded.Add(key);
             }
         }
         catch (Exception ex)
@@ -379,21 +411,27 @@
 
     private void OnFilterChanged() => ApplyFilter();
 
-    // لیست nodeهای بازشده (با ParentId)
-    private readonly HashSet<int> _expanded = new();
+    // گره‌های بازشده.
+    // ⚠ کلید باید (NodeType, NodeId) باشد نه فقط NodeId: شناسه‌ها در سه جدول
+    //   جدا (BaseCol/BaseMoein/BaseDetil) تولید می‌شوند و کاملاً هم‌پوشانی
+    //   دارند (ColId=1 و MoeinId=1 هر دو وجود دارند). با کلید تک‌عددی، باز
+    //   کردن یک حساب کل، گره‌های بی‌ربط دیگر را هم باز/بسته می‌کرد.
+    private readonly HashSet<(string Type, int Id)> _expanded = new();
+
+    private static (string, int) KeyOf(ChartTreeNode n) => (n.NodeType, n.NodeId);
 
     private bool IsExpanded(ChartTreeNode n) =>
-        _expanded.Contains(n.NodeId) || !string.IsNullOrEmpty(_search);
+        _expanded.Contains(KeyOf(n)) || !string.IsNullOrEmpty(_search);
 
     private void Toggle(ChartTreeNode n)
     {
-        if (_expanded.Contains(n.NodeId)) _expanded.Remove(n.NodeId);
-        else _expanded.Add(n.NodeId);
+        var k = KeyOf(n);
+        if (!_expanded.Remove(k)) _expanded.Add(k);
     }
 
     private void ExpandAll()
     {
-        foreach (var n in _all) _expanded.Add(n.NodeId);
+        foreach (var n in _all) _expanded.Add(KeyOf(n));
     }
 
     private void CollapseAll() => _expanded.Clear();
@@ -443,22 +481,36 @@
         }
     }
 
-    private List<int> PathIds(ChartTreeNode n)
+    /// <summary>
+    /// کلید والدهای یک گره تا ریشه — برای باز کردن مسیر در نتایج جستجو.
+    /// ⚠ نسخهٔ قبلی معین را با «AccountCode.StartsWith(moein.Code)» پیدا می‌کرد
+    ///   که غلط بود: Code معین فقط ۳ رقم است و با ابتدای AccountCode (که با کد
+    ///   کل شروع می‌شود) مطابقت نمی‌کرد، پس مسیر جستجو باز نمی‌شد.
+    ///   حالا از رابطهٔ واقعی والد/فرزند (ParentId / MoeinId) استفاده می‌کنیم.
+    /// </summary>
+    private List<(string, int)> PathKeys(ChartTreeNode n)
     {
-        // از ریشه تا n: والد BaseCol (2 رقم) و سپس BaseMoein (5 رقم = 2+3) را پیدا می‌کنیم.
-        var ids = new List<int>();
-        if (string.IsNullOrEmpty(n.AccountCode)) return ids;
-        if (n.AccountCode.Length >= 2)
+        var keys = new List<(string, int)>();
+
+        if (n.NodeType == "BaseDetil")
         {
-            var col = _all.FirstOrDefault(x => x.NodeType == "BaseCol" && n.AccountCode.StartsWith(x.Code));
-            if (col is not null) ids.Add(col.NodeId);
+            var moeinId = n.MoeinId;
+            if (moeinId.HasValue)
+            {
+                var moein = _all.FirstOrDefault(x => x.NodeType == "BaseMoein" && x.NodeId == moeinId.Value);
+                if (moein is not null)
+                {
+                    keys.Add(("BaseMoein", moein.NodeId));
+                    if (moein.ParentId.HasValue) keys.Add(("BaseCol", moein.ParentId.Value));
+                }
+            }
         }
-        if (n.AccountCode.Length >= 5)
+        else if (n.NodeType == "BaseMoein" && n.ParentId.HasValue)
         {
-            var moein = _all.FirstOrDefault(x => x.NodeType == "BaseMoein" && n.AccountCode.StartsWith(x.Code));
-            if (moein is not null) ids.Add(moein.NodeId);
+            keys.Add(("BaseCol", n.ParentId.Value));
         }
-        return ids;
+
+        return keys;
     }
 
     // عمق حداکثر درخت رندر — محافظ در برابر داده‌های خراب/دوری که اگر والدها حلقه بسازند
@@ -595,24 +647,36 @@
     private async Task OpenNewMoein()
     {
         if (_selected is null || _selected.NodeType != "BaseCol") return;
+        var parentKey = KeyOf(_selected);
         var dlg = await Dialog.ShowAsync<BaseMoeinForm>("ایجاد حساب معین", new DialogParameters
         {
             ["MoeinId"] = 0,
             ["InitialColId"] = _selected.NodeId
         }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
         var r = await dlg.Result;
-        if (r is { Canceled: false }) await ReloadAsync();
+        if (r is { Canceled: false })
+        {
+            // والد را باز کن تا گرهٔ تازه‌ساخته‌شده بلافاصله دیده شود؛ در غیر
+            // این صورت کاربر فکر می‌کند «افزودن گره کار نکرد».
+            _expanded.Add(parentKey);
+            await ReloadAsync();
+        }
     }
 
     private async Task OpenNewDetil()
     {
         if (_selected is null || _selected.NodeType != "BaseMoein") return;
+        var parentKey = KeyOf(_selected);
         var dlg = await Dialog.ShowAsync<BaseDetilForm>("افزودن تفصیلی", new DialogParameters
         {
             ["MoeinId"] = _selected.NodeId
         }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
         var r = await dlg.Result;
-        if (r is { Canceled: false }) await ReloadAsync();
+        if (r is { Canceled: false })
+        {
+            _expanded.Add(parentKey);
+            await ReloadAsync();
+        }
     }
 
     private async Task OpenEdit()
@@ -620,12 +684,17 @@
         if (_selected is null) return;
         if (_selected.NodeType == "BaseCol")
         {
+            // شرح فعلی را از دیتابیس بخوان؛ درخت آن را حمل نمی‌کند و اگر رشتهٔ
+            // خالی بفرستیم، ذخیرهٔ فرم شرح موجود را پاک می‌کند.
+            var colRow = (await Db.QueryAsync<BaseColRow>(Schema, "BaseColList", new { }))
+                .FirstOrDefault(c => c.ColId == _selected.NodeId);
+
             var dlg = await Dialog.ShowAsync<BaseColForm>("ویرایش حساب کل", new DialogParameters
             {
                 ["ColId"] = _selected.NodeId,
                 ["InitialCode"] = _selected.Code,
                 ["InitialTitle"] = _selected.Title,
-                ["InitialDescription"] = "",
+                ["InitialDescription"] = colRow?.Description ?? "",
                 ["InitialIsActive"] = _selected.IsActive
             }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
             var r = await dlg.Result;
@@ -633,13 +702,10 @@
         }
         else if (_selected.NodeType == "BaseMoein")
         {
-            // پیدا کردن ColId والد
-            int colId = 0;
-            if (_selected.AccountCode.Length >= 2)
-            {
-                var col = _all.FirstOrDefault(c => c.NodeType == "BaseCol" && _selected.AccountCode.StartsWith(c.AccountCode));
-                if (col is not null) colId = col.NodeId;
-            }
+            // والد معین مستقیماً در ParentId آمده (ColId). تطبیق رشته‌ای روی
+            // AccountCode شکننده بود و در صورت نیافتن، ColId=0 می‌فرستاد که
+            // اسکریپت را با «حساب کل والد معتبر نیست» رد می‌کرد.
+            int colId = _selected.ParentId ?? 0;
             var dlg = await Dialog.ShowAsync<BaseMoeinForm>("ویرایش حساب معین", new DialogParameters
             {
                 ["MoeinId"] = _selected.NodeId,
@@ -712,6 +778,7 @@
                 UpdatedBy = Session.UserName
             });
             Snackbar.Add("تفصیلی در مسیر جدید متصل شد.", Severity.Success);
+            _expanded.Add(("BaseMoein", picked.Id));
             await ReloadAsync();
         }
         catch (Exception ex)
@@ -769,10 +836,17 @@
             "BaseDetil" => "تفصیلی",
             _ => "حساب"
         };
+        // برای تفصیلی، گرهِ درخت در واقع یک «مسیر» (BaseDetilLink) است نه خودِ
+        // موجودیت. اگر تفصیلی در چند مسیر باشد فقط همین مسیر برداشته می‌شود.
+        var isLastPath = _selected.NodeType == "BaseDetil" && _usagePaths.Count <= 1;
+        var question = _selected.NodeType == "BaseDetil"
+            ? (isLastPath
+                ? $"تفصیلی «{_selected.Title}» فقط در همین مسیر استفاده شده است؛ حذف شود؟"
+                : $"تفصیلی «{_selected.Title}» در {_usagePaths.Count} مسیر استفاده شده است. فقط پیوندِ همین مسیر حذف شود؟")
+            : $"آیا از حذف {label} «{_selected.Title}» مطمئن هستید؟ اگر دارای فرزند یا گردش باشد، حذف مستقیم ممنوع است.";
+
         var confirm = await Dialog.ShowMessageBoxAsync(
-            "تأیید حذف",
-            $"آیا از حذف {label} «{_selected.Title}» مطمئن هستید؟ اگر دارای فرزند، گردش یا استفاده در مسیرهای دیگر باشد، حذف مستقیم ممنوع است.",
-            yesText: "حذف", cancelText: "انصراف");
+            "تأیید حذف", question, yesText: "حذف", cancelText: "انصراف");
         if (confirm is not true) return;
 
         try
@@ -787,7 +861,30 @@
             }
             else if (_selected.NodeType == "BaseDetil" && _selected.DetilEntityId.HasValue)
             {
-                await Db.ExecuteAsync(Schema, "BaseDetilDelete", new { DetilId = _selected.DetilEntityId.Value });
+                // ⚠ باگ تاریخی: مستقیماً BaseDetilDelete صدا زده می‌شد، ولی آن
+                //   اسکریپت وقتی پیوندی وجود داشته باشد خطای ۵۰۰۵۰ می‌دهد — و
+                //   هر تفصیلیِ داخل درخت طبق تعریف حداقل یک پیوند دارد. یعنی
+                //   حذف تفصیلی از درخت هیچ‌وقت کار نمی‌کرد. اول پیوند را
+                //   برمی‌داریم و اگر آخرین مسیر بود، خود موجودیت را هم.
+                await Db.ExecuteAsync(Schema, "BaseDetilLinkDelete", new
+                {
+                    LinkId = _selected.LinkId ?? 0,
+                    DetilId = _selected.DetilEntityId.Value,
+                    MoeinId = _selected.MoeinId ?? 0
+                });
+
+                if (isLastPath)
+                {
+                    try
+                    {
+                        await Db.ExecuteAsync(Schema, "BaseDetilDelete", new { DetilId = _selected.DetilEntityId.Value });
+                    }
+                    catch
+                    {
+                        // اگر به‌دلیل گردش مالی قابل حذف نبود، همان برداشتنِ
+                        // پیوند کافی است و پیام خطا لازم نیست.
+                    }
+                }
             }
             Snackbar.Add($"{label} حذف شد.", Severity.Success);
             _selected = null;
@@ -820,7 +917,7 @@
                     ColId = _selected.NodeId,
                     ColCode = _selected.Code,
                     Title = _selected.Title,
-                    Description = "",
+                    Description = (string?)null,   // null = شرح فعلی حفظ شود
                     IsActive = false,
                     CreatedBy = Session.UserName,
                     UpdatedBy = Session.UserName
@@ -828,16 +925,14 @@
             }
             else if (_selected.NodeType == "BaseMoein")
             {
-                int colId = 0;
-                var col = _all.FirstOrDefault(c => c.NodeType == "BaseCol" && _selected.AccountCode.StartsWith(c.AccountCode));
-                if (col is not null) colId = col.NodeId;
+                int colId = _selected.ParentId ?? 0;
                 await Db.ExecuteAsync(Schema, "BaseMoeinUpsert", new
                 {
                     MoeinId = _selected.NodeId,
                     ColId = colId,
                     MoeinCode = _selected.Code,
                     Title = _selected.Title,
-                    Description = "",
+                    Description = (string?)null,   // null = شرح فعلی حفظ شود
                     IsActive = false,
                     CreatedBy = Session.UserName,
                     UpdatedBy = Session.UserName
@@ -850,7 +945,7 @@
                     DetilId = _selected.DetilEntityId.Value,
                     DetilCode = _selected.Code,
                     Title = _selected.Title,
-                    Description = "",
+                    Description = (string?)null,   // null = شرح فعلی حفظ شود
                     IsActive = false,
                     CreatedBy = Session.UserName,
                     UpdatedBy = Session.UserName

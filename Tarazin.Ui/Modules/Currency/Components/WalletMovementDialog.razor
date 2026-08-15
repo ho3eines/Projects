@@ -117,6 +117,12 @@
                 MovementDate = _date?.Date ?? DateTime.Today,
                 MovementTime = _time ?? DateTime.Now.TimeOfDay,
                 Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                // این سه پارامتر در اسکریپت استفاده می‌شوند و اگر ارسال نشوند
+                // SQL با «Must declare the scalar variable @PartyName» شکست
+                // می‌خورد (ثبت گردش دستی کیف پول اصلاً کار نمی‌کرد).
+                PartyName = (string?)null,
+                FundType = (string?)null,
+                FundId = (int?)null,
                 CreatedBy = Session.UserName
             });
 

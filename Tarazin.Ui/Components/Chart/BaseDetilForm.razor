@@ -138,8 +138,16 @@
     private async Task SaveAsync()
     {
         if (_busy) return;
-        await _form!.Validate();
-        if (!_isValid) return;
+
+        // ⚠ در حالت «استفاده از تفصیلی موجود» فیلدهای کد/عنوان اصلاً رندر
+        //   نمی‌شوند، ولی MudForm.Validate() آن‌ها را همچنان Required می‌بیند
+        //   و _isValid=false می‌ماند → دکمهٔ ذخیره بی‌صدا هیچ کاری نمی‌کرد.
+        //   پس فقط در حالت «ایجاد تفصیلی جدید» فرم را اعتبارسنجی می‌کنیم.
+        if (!_useExisting)
+        {
+            await _form!.Validate();
+            if (!_isValid) return;
+        }
 
         if (MoeinId == 0)
         {
@@ -147,6 +155,9 @@
             return;
         }
 
+        // ⚠ باگ تاریخی: _busy هرگز true نمی‌شد (فقط در finally صفر می‌شد)، پس
+        //   دابل‌کلیک روی «ذخیره» دو بار ثبت می‌کرد و دکمه هم قفل نمی‌شد.
+        _busy = true;
         try
         {
             if (_useExisting)

@@ -310,6 +310,70 @@ BEGIN
 END
 
 -- =============================================
+-- Migrations: ایندکس‌هایی که فقط داخل CREATE TABLE ساخته می‌شدند.
+-- روی دیتابیس‌هایی که جدول از قبل وجود داشت این ایندکس‌ها هرگز ساخته
+-- نمی‌شدند؛ چون چند اسکریپت با WITH (INDEX(...)) به آن‌ها hint می‌دهند،
+-- نبودشان خطای «Msg 308: index does not exist» می‌دهد و حذف/انتقال/جستجو
+-- را می‌شکند. این بلوک idempotent آن‌ها را تضمین می‌کند.
+-- =============================================
+IF OBJECT_ID(N'accounting.DocumentLines', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'IX_DocumentLines_AccountCode'
+                     AND object_id = OBJECT_ID(N'accounting.DocumentLines'))
+    CREATE INDEX IX_DocumentLines_AccountCode
+        ON [accounting].[DocumentLines](AccountCode) INCLUDE (AccountId, Title);
+GO
+
+IF OBJECT_ID(N'accounting.DocumentLines', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'IX_DocumentLines_Document'
+                     AND object_id = OBJECT_ID(N'accounting.DocumentLines'))
+    CREATE INDEX IX_DocumentLines_Document ON [accounting].[DocumentLines](DocumentId);
+GO
+
+IF OBJECT_ID(N'accounting.BaseMoein', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'UX_BaseMoein_Col_Code'
+                     AND object_id = OBJECT_ID(N'accounting.BaseMoein'))
+    CREATE UNIQUE INDEX UX_BaseMoein_Col_Code ON [accounting].[BaseMoein](ColId, MoeinCode);
+GO
+
+IF OBJECT_ID(N'accounting.BaseMoein', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'IX_BaseMoein_Col'
+                     AND object_id = OBJECT_ID(N'accounting.BaseMoein'))
+    CREATE INDEX IX_BaseMoein_Col ON [accounting].[BaseMoein](ColId);
+GO
+
+IF OBJECT_ID(N'accounting.BaseCol', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'IX_BaseCol_Code'
+                     AND object_id = OBJECT_ID(N'accounting.BaseCol'))
+    CREATE INDEX IX_BaseCol_Code ON [accounting].[BaseCol](ColCode);
+GO
+
+IF OBJECT_ID(N'accounting.BaseDetil', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'IX_BaseDetil_Code'
+                     AND object_id = OBJECT_ID(N'accounting.BaseDetil'))
+    CREATE INDEX IX_BaseDetil_Code ON [accounting].[BaseDetil](DetilCode);
+GO
+
+IF OBJECT_ID(N'accounting.BaseDetilLink', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'IX_BaseDetilLink_Detil'
+                     AND object_id = OBJECT_ID(N'accounting.BaseDetilLink'))
+    CREATE INDEX IX_BaseDetilLink_Detil ON [accounting].[BaseDetilLink](DetilId);
+GO
+
+IF OBJECT_ID(N'accounting.BaseDetilLink', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes
+                   WHERE name = N'IX_BaseDetilLink_Moein'
+                     AND object_id = OBJECT_ID(N'accounting.BaseDetilLink'))
+    CREATE INDEX IX_BaseDetilLink_Moein ON [accounting].[BaseDetilLink](MoeinId);
+GO
+
+-- =============================================
 -- Migrations: تکمیل ستون‌های CreatedAt/UpdatedAt/CreatedBy/UpdatedBy
 -- =============================================
 IF COL_LENGTH(N'accounting.DocumentLines', N'CreatedAt') IS NULL

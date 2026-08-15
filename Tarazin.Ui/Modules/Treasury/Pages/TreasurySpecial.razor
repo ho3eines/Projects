@@ -35,7 +35,8 @@
         {
             await Db.ExecuteAsync(Schema, "DayClose", new
             {
-                Today = _today?.Date ?? DateTime.Today,
+                // Today ارسال نمی‌شود: اسکریپت خودش DECLARE @Today می‌کند
+                // (ارسال هم‌نام باعث خطای SQL و شکست «بستن روز» می‌شد).
                 CreatedBy = Session.UserName
             });
             Snackbar.Add("روز بسته شد.", Severity.Success);

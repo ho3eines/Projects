@@ -26,6 +26,14 @@ jobs:
       - name: Cross-schema static analysis
         run: bash tools/cross-schema-scan.sh
 
+      # قرارداد اسکریپت‌های نامدار ↔ فراخوان‌های Dapper را چک می‌کند.
+      # کامپایلر این لایه را نمی‌بیند؛ این اسکریپت پارامترهای جاافتاده،
+      # تداخل نام با DECLARE، شرط‌های همیشه-true، مرزهای batch و ترتیب
+      # seed را می‌گیرد (همان باگ‌هایی که ساخت جدول/seed/افزودن گره را
+      # بی‌صدا می‌شکستند).
+      - name: TSQL contract scan
+        run: python3 tools/sql-contract-scan.py
+
   build-maui:
     name: Build MAUI Blazor Hybrid (Windows)
     runs-on: windows-latest

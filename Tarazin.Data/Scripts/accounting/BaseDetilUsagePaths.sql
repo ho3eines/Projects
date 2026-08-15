@@ -19,7 +19,7 @@ SELECT
     d.Title          AS DetilTitle,
     c.ColCode + m.MoeinCode + d.DetilCode AS AccountCode,
     c.Title + N' > ' + m.Title AS PathTitle
-FROM [accounting].[BaseDetilLink] dl WITH (INDEX(IX_BaseDetilLink_Detil_Active))
+FROM [accounting].[BaseDetilLink] dl
 INNER JOIN [accounting].[BaseMoein] m  ON m.MoeinId  = dl.MoeinId
 INNER JOIN [accounting].[BaseCol]   c  ON c.ColId    = m.ColId
 INNER JOIN [accounting].[BaseDetil] d  ON d.DetilId  = dl.DetilId

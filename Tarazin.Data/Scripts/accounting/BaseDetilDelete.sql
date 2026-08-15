@@ -19,7 +19,7 @@ IF @DetilCode IS NOT NULL
 BEGIN
     IF EXISTS (
         SELECT 1
-        FROM [accounting].[DocumentLines] dl WITH (INDEX(IX_DocumentLines_AccountCode))
+        FROM [accounting].[DocumentLines] dl
         WHERE dl.AccountCode LIKE N'%' + @DetilCode
     )
         THROW 50051, N'این تفصیلی به‌دلیل داشتن گردش مالی امکان حذف ندارد. به‌جای آن غیرفعال کنید.', 1;

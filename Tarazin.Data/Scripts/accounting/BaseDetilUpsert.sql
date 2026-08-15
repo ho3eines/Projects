@@ -2,6 +2,9 @@
 -- Tarazin.Data/Scripts/accounting/BaseDetilUpsert.sql
 -- Schema: accounting | Contract: BaseDetil (تفصیلی یکپارچه)
 -- DetilCode دقیقاً 7 رقم، یکتا در کل سیستم.
+-- توجه به قرارداد @Description: مقدار NULL یعنی «تغییرش نده» و رشتهٔ خالی
+-- یعنی «پاکش کن». قبلاً هر دو حالت به NULL تبدیل می‌شد، برای همین ویرایش یا
+-- غیرفعال‌سازی از روی درخت (که شرح را نمی‌داند) شرح موجود را پاک می‌کرد.
 -- =============================================
 DECLARE @NormCode NVARCHAR(7) = RIGHT('0000000' + ISNULL(NULLIF(LTRIM(RTRIM(@DetilCode)), ''), '0000000'), 7);
 
@@ -38,7 +41,8 @@ BEGIN
     UPDATE [accounting].[BaseDetil]
     SET DetilCode     = @NormCode,
         Title         = LTRIM(RTRIM(@Title)),
-        [Description] = NULLIF(LTRIM(RTRIM(@Description)), N''),
+        [Description] = CASE WHEN @Description IS NULL THEN [Description]
+                             ELSE NULLIF(LTRIM(RTRIM(@Description)), N'') END,
         IsActive      = ISNULL(@IsActive, IsActive),
         UpdatedAt     = SYSUTCDATETIME(),
         UpdatedBy     = @UpdatedBy

@@ -27,7 +27,7 @@ IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColId = @NewColId AND 
 
 -- کد در مقصد نباید تکراری باشد
 IF EXISTS (
-    SELECT 1 FROM [accounting].[BaseMoein] WITH (INDEX(UX_BaseMoein_Col_Code))
+    SELECT 1 FROM [accounting].[BaseMoein]
     WHERE ColId = @NewColId AND IsDeleted = 0
       AND MoeinCode = (SELECT MoeinCode FROM [accounting].[BaseMoein] WHERE MoeinId = @MoeinId)
       AND MoeinId <> @MoeinId)
