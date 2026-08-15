@@ -156,9 +156,17 @@
                     </MudItem>
                     <MudItem xs="5"><MudText Color="Color.Secondary">والد</MudText></MudItem>
                     <MudItem xs="7">
-                        @if (_selected.ParentId.HasValue)
+                        @if (_selected.NodeType == "BaseDetil" && _selected.ParentLinkId.HasValue)
                         {
-                            <span>NodeId=@_selected.ParentId.Value (@_selected.NodeType → Parent)</span>
+                            <span>تفصیلی والد (LinkId=@_selected.ParentLinkId.Value)</span>
+                        }
+                        else if (_selected.NodeType == "BaseDetil")
+                        {
+                            <span>حساب معین (MoeinId=@_selected.MoeinId)</span>
+                        }
+                        else if (_selected.ParentId.HasValue)
+                        {
+                            <span>NodeId=@_selected.ParentId.Value</span>
                         }
                         else
                         {
@@ -166,6 +174,22 @@
                         }
                     </MudItem>
                 </MudGrid>
+
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mt-3">
+                    @if (_selected.NodeType == "BaseDetil")
+                    {
+                        <span>
+                            موجودیت در <code>[accounting].[BaseDetil]</code> و جایگاه سطح @_selected.Level
+                            در <code>[accounting].[BaseDetilLink]</code>
+                            (LinkId=@_selected.LinkId، ParentLinkId=@(_selected.ParentLinkId?.ToString() ?? "NULL")) ذخیره شده است.
+                        </span>
+                    }
+                    else
+                    {
+                        <span>ذخیره در <code>[accounting].[@(_selected.NodeType)]</code>.</span>
+                    }
+                    سرور و دیتابیس فعال را در <a href="/diag">عیب‌یابی اتصال</a> ببینید.
+                </MudAlert>
 
                 <MudDivider Class="my-3" />
 
@@ -178,13 +202,13 @@
                             + معین
                         </MudButton>
                     }
-                    @* بدون سقف: هم روی معین و هم روی خودِ تفصیلی نمایش داده می‌شود
-                       تا ساخت تفصیلی‌های پیاپی (چهارم، پنجم، …) ممکن باشد. *@
+                    @* روی معین یک تفصیلی سطح ۳ و روی تفصیلی یک فرزند واقعی
+                       در سطح بعد ساخته می‌شود (ParentLinkId)، نه یک sibling زیر معین. *@
                     @if (CanAddDetilHere)
                     {
                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewDetil">
-                            + تفصیلی
+                            @(_selected.NodeType == "BaseDetil" ? "+ زیرسطح تفصیلی" : "+ تفصیلی سطح ۳")
                         </MudButton>
                     }
                     @if (_selected.NodeType == "BaseDetil" && CanCreate)
@@ -236,10 +260,10 @@
                         {
                             <MudListItem T="object" Icon="@Icons.Material.Filled.SubdirectoryArrowRight">
                                 <MudText Typo="Typo.body2">
-                                    <b>@p.ColTitle</b> &raquo; <b>@p.MoeinTitle</b>
+                                    <b>@p.PathTitle</b>
                                 </MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary" Style="direction:ltr">
-                                    @p.ColCode-@p.MoeinCode / @p.AccountCode
+                                    Level @p.Level / @p.AccountCode
                                 </MudText>
                             </MudListItem>
                         }
@@ -420,14 +444,12 @@
 
     private void OnFilterChanged() => ApplyFilter();
 
-    // گره‌های بازشده.
-    // ⚠ کلید باید (NodeType, NodeId) باشد نه فقط NodeId: شناسه‌ها در سه جدول
-    //   جدا (BaseCol/BaseMoein/BaseDetil) تولید می‌شوند و کاملاً هم‌پوشانی
-    //   دارند (ColId=1 و MoeinId=1 هر دو وجود دارند). با کلید تک‌عددی، باز
-    //   کردن یک حساب کل، گره‌های بی‌ربط دیگر را هم باز/بسته می‌کرد.
+    // گره‌های بازشده. برای تفصیلی، هویت واقعی گره «LinkId محل قرارگیری» است؛
+    // DetilId می‌تواند در چند مسیر تکرار شود و برای expand/collapse یکتا نیست.
     private readonly HashSet<(string Type, int Id)> _expanded = new();
 
-    private static (string, int) KeyOf(ChartTreeNode n) => (n.NodeType, n.NodeId);
+    private static (string, int) KeyOf(ChartTreeNode n) =>
+        (n.NodeType, n.NodeType == "BaseDetil" ? n.LinkId ?? n.NodeId : n.NodeId);
 
     private bool IsExpanded(ChartTreeNode n) =>
         _expanded.Contains(KeyOf(n)) || !string.IsNullOrEmpty(_search);
@@ -490,26 +512,30 @@
         }
     }
 
-    /// <summary>
-    /// کلید والدهای یک گره تا ریشه — برای باز کردن مسیر در نتایج جستجو.
-    /// ⚠ نسخهٔ قبلی معین را با «AccountCode.StartsWith(moein.Code)» پیدا می‌کرد
-    ///   که غلط بود: Code معین فقط ۳ رقم است و با ابتدای AccountCode (که با کد
-    ///   کل شروع می‌شود) مطابقت نمی‌کرد، پس مسیر جستجو باز نمی‌شد.
-    ///   حالا از رابطهٔ واقعی والد/فرزند (ParentId / MoeinId) استفاده می‌کنیم.
-    /// </summary>
+    /// <summary>کلید همهٔ والدهای واقعی تا ریشه، برای باز کردن نتیجهٔ جستجو.</summary>
     private List<(string, int)> PathKeys(ChartTreeNode n)
     {
         var keys = new List<(string, int)>();
 
         if (n.NodeType == "BaseDetil")
         {
-            var moeinId = n.MoeinId;
-            if (moeinId.HasValue)
+            // زنجیرهٔ ParentLinkId را تا تفصیلی سطح ۳ بالا برو.
+            var parentLinkId = n.ParentLinkId;
+            var guard = 0;
+            while (parentLinkId.HasValue && guard++ < MaxRenderDepth)
             {
-                var moein = _all.FirstOrDefault(x => x.NodeType == "BaseMoein" && x.NodeId == moeinId.Value);
+                var parent = _all.FirstOrDefault(x => x.NodeType == "BaseDetil" && x.LinkId == parentLinkId.Value);
+                if (parent is null) break;
+                keys.Add(KeyOf(parent));
+                parentLinkId = parent.ParentLinkId;
+            }
+
+            if (n.MoeinId.HasValue)
+            {
+                var moein = _all.FirstOrDefault(x => x.NodeType == "BaseMoein" && x.NodeId == n.MoeinId.Value);
                 if (moein is not null)
                 {
-                    keys.Add(("BaseMoein", moein.NodeId));
+                    keys.Add(KeyOf(moein));
                     if (moein.ParentId.HasValue) keys.Add(("BaseCol", moein.ParentId.Value));
                 }
             }
@@ -522,20 +548,26 @@
         return keys;
     }
 
-    // عمق حداکثر درخت رندر — محافظ در برابر داده‌های خراب/دوری که اگر والدها حلقه بسازند
-    // باعث سرریز پشته (StackOverflow → قطع شدن WebSocket بلیدزور) نشود.
-    private const int MaxRenderDepth = 40;
+    // محافظ UI در برابر دادهٔ دستیِ خراب. Upsert و FK اجازهٔ دور نمی‌دهند؛ این
+    // سقف فقط مانع StackOverflow در صورت دستکاری مستقیم SQL می‌شود.
+    private const int MaxRenderDepth = 100;
 
-    /// <summary>فرزندهای مستقیم یک گره بر اساس نوع آن.</summary>
+    /// <summary>فرزندهای مستقیم یک گره بر اساس placement واقعی آن.</summary>
     private List<ChartTreeNode> ChildrenOf(ChartTreeNode n)
     {
         return n.NodeType switch
         {
-            // حساب کل → معین‌هایی که ColId آن‌ها برابر NodeId است.
-            "BaseCol" => _filtered.Where(c => c.NodeType == "BaseMoein" && c.ParentId == n.NodeId).ToList(),
-            // حساب معین → تفصیلی‌هایی که از طریق BaseDetilLink به همین معین متصل‌اند (MoeinId).
-            "BaseMoein" => _filtered.Where(c => c.NodeType == "BaseDetil" && c.MoeinId == n.NodeId).ToList(),
-            // تفصیلی فرزندی ندارد.
+            "BaseCol" => _filtered
+                .Where(c => c.NodeType == "BaseMoein" && c.ParentId == n.NodeId)
+                .OrderBy(c => c.AccountCode).ToList(),
+            // فقط ریشه‌های تفصیلی (ParentLinkId=NULL) مستقیماً زیر معین‌اند.
+            "BaseMoein" => _filtered
+                .Where(c => c.NodeType == "BaseDetil" && c.MoeinId == n.NodeId && !c.ParentLinkId.HasValue)
+                .OrderBy(c => c.AccountCode).ToList(),
+            // سطح ۴+: ParentLinkId فرزند باید LinkId همین placement باشد.
+            "BaseDetil" when n.LinkId.HasValue => _filtered
+                .Where(c => c.NodeType == "BaseDetil" && c.ParentLinkId == n.LinkId.Value)
+                .OrderBy(c => c.AccountCode).ToList(),
             _ => new List<ChartTreeNode>()
         };
     }
@@ -547,7 +579,9 @@
         // دیگر هم «انتخاب‌شده» نشان می‌داد.
         var isSelected = _selected is not null && _selected.NodeId == n.NodeId
                          && _selected.NodeType == n.NodeType && _selected.LinkId == n.LinkId;
-        var matched = _searchResults.Any(r => r.NodeId == n.NodeId && r.NodeType == n.NodeType);
+        var matched = _searchResults.Any(r => r.NodeId == n.NodeId
+                                               && r.NodeType == n.NodeType
+                                               && (n.NodeType != "BaseDetil" || r.LinkId == n.LinkId));
         var children = ChildrenOf(n);
         var hasChildren = children.Count > 0 && depth < MaxRenderDepth;
         var opened = IsExpanded(n);
@@ -676,48 +710,50 @@
         }
     }
 
-    /// <summary>
-    /// معینِ مقصد برای «افزودن تفصیلی» بر اساس گرهٔ انتخاب‌شده.
-    ///
-    /// ⚠ باگ تاریخی (رفع شد): این عملیات فقط وقتی کار می‌کرد که گرهٔ انتخاب‌شده
-    ///   دقیقاً یک BaseMoein باشد. به‌محض اینکه کاربر تفصیلیِ تازه‌ساخته‌شده را
-    ///   انتخاب می‌کرد (یا روی آن کلیک می‌کرد)، دکمهٔ «+ تفصیلی» ناپدید می‌شد و
-    ///   عملاً «بعد از افزودن تفصیلی، امکان افزودن تفصیلی جدید وجود نداشت» —
-    ///   همان چیزی که به‌صورت «سقف سه ردیف/سه سطح» دیده می‌شد. حالا اگر گرهٔ
-    ///   انتخاب‌شده خودش تفصیلی باشد، معینِ والدِ همان مسیر مقصد است؛ پس
-    ///   می‌توان بی‌نهایت تفصیلیِ همتراز پشت سر هم ساخت.
-    /// </summary>
+    /// <summary>ریشهٔ معین مسیر انتخاب‌شده.</summary>
     private int? TargetMoeinIdForNewDetil()
     {
         if (_selected is null) return null;
         return _selected.NodeType switch
         {
             "BaseMoein" => _selected.NodeId,
-            // تفصیلی: والدِ مسیر جاری (MoeinId روی خود گره حمل می‌شود).
             "BaseDetil" => _selected.MoeinId,
             _ => null
         };
     }
 
-    /// <summary>آیا برای گرهٔ فعلی می‌توان تفصیلی جدید ساخت؟ (بدون هیچ سقفی)</summary>
-    private bool CanAddDetilHere => CanCreate && TargetMoeinIdForNewDetil() is > 0;
+    /// <summary>
+    /// والد placement جدید: روی معین NULL (سطح ۳)، روی تفصیلی LinkId همان
+    /// گره (سطح بعد). این مقدار تفاوت اصلی بین sibling و child واقعی است.
+    /// </summary>
+    private int? TargetParentLinkIdForNewDetil() =>
+        _selected?.NodeType == "BaseDetil" ? _selected.LinkId : null;
+
+    private bool CanAddDetilHere => CanCreate
+        && TargetMoeinIdForNewDetil() is > 0
+        && (_selected?.NodeType != "BaseDetil" || _selected.LinkId is > 0);
 
     private async Task OpenNewDetil()
     {
-        // هیچ وابستگی‌ای به شماره ردیف، سطح، تعداد فرزندان یا تعداد رکوردهای
-        // قبلی وجود ندارد: تنها شرط، مشخص بودن معینِ مقصد است.
         var moeinId = TargetMoeinIdForNewDetil();
-        if (moeinId is not > 0) return;
+        if (moeinId is not > 0 || _selected is null) return;
 
-        // گرهٔ معین را باز نگه دار تا تفصیلیِ تازه بلافاصله دیده شود.
-        var parentKey = ("BaseMoein", moeinId.Value);
-        var dlg = await Dialog.ShowAsync<BaseDetilForm>("افزودن تفصیلی", new DialogParameters
-        {
-            ["MoeinId"] = moeinId.Value
-        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var parentLinkId = TargetParentLinkIdForNewDetil();
+        var targetLevel = _selected.NodeType == "BaseDetil" ? _selected.Level + 1 : 3;
+        var parentKey = KeyOf(_selected);
+        var dlg = await Dialog.ShowAsync<BaseDetilForm>(
+            parentLinkId.HasValue ? $"افزودن تفصیلی سطح {targetLevel}" : "افزودن تفصیلی سطح ۳",
+            new DialogParameters
+            {
+                ["MoeinId"] = moeinId.Value,
+                ["ParentLinkId"] = parentLinkId,
+                ["TargetLevel"] = targetLevel
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
         var r = await dlg.Result;
         if (r is { Canceled: false })
         {
+            // دقیقاً والد انتخاب‌شده را باز کن؛ برای سطح ۴+ دیگر معین مقصد نیست.
             _expanded.Add(parentKey);
             await ReloadAsync();
         }
@@ -816,6 +852,7 @@
                 LinkId = 0,
                 DetilId = _selected.DetilEntityId.Value,
                 MoeinId = picked.Id,
+                ParentLinkId = (int?)null,
                 Description = "",
                 IsActive = true,
                 CreatedBy = Session.UserName,

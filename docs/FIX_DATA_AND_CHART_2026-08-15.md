@@ -190,3 +190,45 @@ SQL Server (دسترسی به NuGet/`packages.microsoft.com` بسته است)، 
    (گره باید بلافاصله زیر والدِ بازشده ظاهر شود).
 3. «استفاده در مسیر جدید» روی یک تفصیلی → باید در معین دوم هم دیده شود.
 4. حذف یک تفصیلی از درخت → فقط همان مسیر برداشته شود.
+
+---
+
+## ۹. اصلاح تکمیلی: سطح ۴ به بعد واقعاً سلسله‌مراتبی است
+
+رفع قبلی فقط دکمهٔ «+ تفصیلی» را روی یک تفصیلی هم نمایش می‌داد، اما در دیتابیس
+هر رکورد `BaseDetilLink` هنوز فقط `MoeinId` داشت. بنابراین گره جدید دوباره
+مستقیماً زیر معین ذخیره و همیشه **Level 3** می‌شد؛ یعنی sibling جدید بود، نه
+child سطح ۴. این محدودیت با UI قابل‌حل نبود و به تغییر مدل داده نیاز داشت.
+
+اکنون ستون nullable زیر به‌صورت migration idempotent اضافه می‌شود:
+
+```sql
+[accounting].[BaseDetilLink].ParentLinkId
+```
+
+- `ParentLinkId IS NULL`: تفصیلی سطح ۳ زیر معین؛
+- `ParentLinkId = LinkId والد`: تفصیلی سطح ۴ به بعد؛
+- `Level` و `AccountCode` با recursive CTE از زنجیره محاسبه می‌شوند؛
+- داده‌های قبلی بدون تغییر و با `ParentLinkId=NULL` در سطح ۳ باقی می‌مانند؛
+- حذف والد تا وقتی زیرسطح دارد ممنوع است؛
+- expand/search/breadcrumb/picker همگی از `LinkId` مسیر و `ParentLinkId` استفاده می‌کنند.
+
+### محل واقعی ذخیره در SQL Server
+
+داده‌ها in-memory یا فایل محلی نیستند. مقصد فعال را صفحهٔ `/diag` نشان می‌دهد؛
+مقدار پیش‌فرض وب `Server=.;Database=TarazinMaster` است، مگر اینکه
+`TARAZIN_SQL_CONNECTION` آن را override کرده باشد. جداول هم زیر schema
+`accounting` هستند، نه `dbo`:
+
+```sql
+USE [TarazinMaster];
+SELECT * FROM [accounting].[BaseCol];
+SELECT * FROM [accounting].[BaseMoein];
+SELECT * FROM [accounting].[BaseDetil];
+SELECT LinkId, DetilId, MoeinId, ParentLinkId, IsDeleted
+FROM [accounting].[BaseDetilLink]
+ORDER BY LinkId;
+```
+
+برای اعمال migration باید برنامه یک‌بار restart شود تا `accounting/_Ensure.sql`
+در startup اجرا شود.

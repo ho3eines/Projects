@@ -36,7 +36,7 @@ public class CurrencySettingRow
 public class PriceSourceRow
 {
     public int SourceId { get; set; }
-    public string SourceKey { get; set; } = "";       // TABLOTALA | MATISA | MANUAL | …
+    public string SourceKey { get; set; } = "";       // TABLOTALA | TABLOTALA_FR | MANUAL | …
     public string Title { get; set; } = "";
     public string? BaseUrl { get; set; }
     public string? Endpoint { get; set; }             // آدرس API/Feed رسمی (قابل ویرایش توسط مدیر)
@@ -132,12 +132,12 @@ public class RateComparisonRow
     public string ItemType { get; set; } = "";
     public string ItemKey { get; set; } = "";
     public string Title { get; set; } = "";
-    public decimal? TabloRate { get; set; }
-    public decimal? MatisaRate { get; set; }
+    public decimal? TabloIranRate { get; set; }
+    public decimal? TabloGlobalRate { get; set; }
     public decimal? OtherRate { get; set; }
     public decimal SystemRate { get; set; }
-    public DateTime? TabloAt { get; set; }
-    public DateTime? MatisaAt { get; set; }
+    public DateTime? TabloIranAt { get; set; }
+    public DateTime? TabloGlobalAt { get; set; }
 }
 
 /// <summary>Contract: Wallet — کیف پول و موجودی ارز (§36/§52).</summary>

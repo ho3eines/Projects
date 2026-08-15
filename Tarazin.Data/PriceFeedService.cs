@@ -133,8 +133,12 @@ public sealed class PriceFeedService
 
     /// <summary>
     /// استخراج مقادیر نرخ از خروجی منبع بر اساس MappingsJson.
-    /// نگاشت نمونه: [{"ItemKey":"USD","Path":"rates.usd.price","Factor":1}]
-    /// Path از نقطه و اندیس پشتیبانی می‌کند: "rates[0].price".
+    /// نگاشت نمونه: [{"ItemKey":"XAU-18","Path":"data[type=IRG18].price","Factor":10}]
+    /// Path علاوه بر نقطه و اندیس (<c>rates[0].price</c>)، انتخاب عضو آرایه
+    /// بر اساس یک property را هم پشتیبانی می‌کند
+    /// (<c>data[type=IRG18].price</c>). این دقیقاً ساختار API رسمی TabloTala
+    /// است که آرایهٔ <c>data</c> با فیلدهای id/type/ordering/title/last_update/price
+    /// برمی‌گرداند و ترتیب اعضا نباید مبنای نگاشت باشد.
     /// اگر خروجی JSON نبود، جاوااسکریپت ساختارمندِ { ... } را می‌کاود
     /// (بدون هیچ Selector مبتنی بر HTML).
     /// </summary>
@@ -153,7 +157,24 @@ public sealed class PriceFeedService
         using (document)
         {
             var root = document.RootElement;
-            var items = new List<FeedItemValue>();
+
+            // API رسمی TabloTala در موفقیت status=successful برمی‌گرداند.
+            // اگر status صریحاً خطا باشد، دادهٔ احتمالی ناقص را اعمال نکن.
+            if (root.ValueKind == JsonValueKind.Object
+                && TryGetProperty(root, "status", out var statusElement)
+                && statusElement.ValueKind == JsonValueKind.String)
+            {
+                var status = statusElement.GetString();
+                if (!string.IsNullOrWhiteSpace(status)
+                    && !string.Equals(status, "successful", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(status, "ok", StringComparison.OrdinalIgnoreCase))
+                    return new List<FeedItemValue>();
+            }
+
+            // کلید تکراری در Mapping نباید MERGE سمت SQL را با چند source row
+            // برای یک target بشکند؛ آخرین نگاشت معتبر همان کلید برنده است.
+            var items = new Dictionary<string, FeedItemValue>(StringComparer.OrdinalIgnoreCase);
             var now = DateTime.UtcNow;
 
             foreach (var mapping in mappings)
@@ -162,14 +183,19 @@ public sealed class PriceFeedService
                 if (value is null)
                     continue;
 
-                var scaled = value.Value * mapping.Factor;
+                var scaled = decimal.Round(value.Value * mapping.Factor, 4, MidpointRounding.AwayFromZero);
                 if (scaled <= 0)
                     continue;
 
-                items.Add(new FeedItemValue { ItemKey = mapping.ItemKey, Value = scaled, FetchedAt = now });
+                items[mapping.ItemKey] = new FeedItemValue
+                {
+                    ItemKey = mapping.ItemKey,
+                    Value = scaled,
+                    FetchedAt = now
+                };
             }
 
-            return items;
+            return items.Values.ToList();
         }
     }
 
@@ -267,57 +293,130 @@ public sealed class PriceFeedService
         return result;
     }
 
-    /// <summary>خواندن decimal از مسیر نقطه‌ای (با پشتیبانی از [n]).</summary>
+    /// <summary>
+    /// خواندن decimal از مسیر نقطه‌ای. سه شکل segment پشتیبانی می‌شود:
+    /// <list type="bullet">
+    /// <item><c>data.price</c> — property معمولی</item>
+    /// <item><c>data[0].price</c> — اندیس آرایه</item>
+    /// <item><c>data[type=IRG18].price</c> — عضو آرایه با مقدار property مشخص</item>
+    /// </list>
+    /// </summary>
     private static decimal? TryReadDecimal(JsonElement root, string path)
     {
-        var segments = path.Split('.');
+        var segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         JsonElement current = root;
 
         foreach (var raw in segments)
         {
             var segment = raw.Trim();
-            var index = -1;
+            string? selector = null;
 
             var bracket = segment.IndexOf('[');
-            if (bracket >= 0 && segment.EndsWith(']'))
+            if (bracket >= 0)
             {
-                var name = segment[..bracket];
-                var idxText = segment[(bracket + 1)..^1];
-                if (int.TryParse(idxText, out index))
-                    segment = name;
-                else
+                if (!segment.EndsWith(']'))
                     return null;
+
+                selector = segment[(bracket + 1)..^1].Trim();
+                segment = segment[..bracket].Trim();
             }
 
             if (segment.Length > 0)
             {
-                if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out var child))
+                if (current.ValueKind != JsonValueKind.Object || !TryGetProperty(current, segment, out var child))
                     return null;
                 current = child;
             }
 
-            if (index >= 0)
+            if (selector is null)
+                continue;
+
+            if (current.ValueKind != JsonValueKind.Array)
+                return null;
+
+            if (int.TryParse(selector, NumberStyles.None, CultureInfo.InvariantCulture, out var index))
             {
-                if (current.ValueKind != JsonValueKind.Array || index >= current.GetArrayLength())
+                if (index < 0 || index >= current.GetArrayLength())
                     return null;
                 current = current[index];
+                continue;
             }
+
+            var equals = selector.IndexOf('=');
+            if (equals <= 0 || equals == selector.Length - 1)
+                return null;
+
+            var propertyName = selector[..equals].Trim();
+            var expected = selector[(equals + 1)..].Trim().Trim('"', '\'');
+            JsonElement? matched = null;
+
+            foreach (var candidate in current.EnumerateArray())
+            {
+                if (candidate.ValueKind != JsonValueKind.Object
+                    || !TryGetProperty(candidate, propertyName, out var actual))
+                    continue;
+
+                var actualText = actual.ValueKind == JsonValueKind.String
+                    ? actual.GetString()
+                    : actual.GetRawText();
+
+                if (string.Equals(actualText, expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    matched = candidate;
+                    break;
+                }
+            }
+
+            if (!matched.HasValue)
+                return null;
+            current = matched.Value;
         }
 
         switch (current.ValueKind)
         {
             case JsonValueKind.Number:
-                return current.TryGetDecimal(out var n) ? n : null;
+                // برخی قیمت‌های FR با نمایش طولانیِ حاصل از double می‌آیند
+                // (مثلاً 1.156700000000000061...). ابتدا decimal و سپس double
+                // را امتحان می‌کنیم تا این مقادیر معتبر حذف نشوند.
+                if (current.TryGetDecimal(out var number))
+                    return number;
+                if (current.TryGetDouble(out var doubleNumber)
+                    && !double.IsNaN(doubleNumber)
+                    && !double.IsInfinity(doubleNumber))
+                    return Convert.ToDecimal(doubleNumber);
+                return null;
+
             case JsonValueKind.String:
                 var text = current.GetString();
                 if (string.IsNullOrWhiteSpace(text))
                     return null;
                 // حذف جداکنندهٔ هزارگان و کاراکترهای غیرعددی (مثل «ریال» یا «٬»).
                 var cleaned = new string(text.Where(c => char.IsDigit(c) || c is '.' or '-').ToArray());
-                return decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d : null;
+                return decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : null;
+
             default:
                 return null;
         }
+    }
+
+    private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.TryGetProperty(name, out value))
+            return true;
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static string Truncate(string text, int max) =>

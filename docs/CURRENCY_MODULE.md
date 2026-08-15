@@ -24,9 +24,9 @@
 
 ```
 currency.Currencies          تعریف ارزها (IRR پایه، TOMAN با ضریب ۱۰، ۱۶ ارز پایه + سفارشی)
-currency.PriceItems          کاتالوگ مرکز قیمت: Currency | Gold | Coin | Metal
+currency.PriceItems          کاتالوگ مرکز قیمت: Currency | Gold | Coin | Metal | FxParity | Global
 currency.PriceRates          انواع نرخ هر آیتم — مرکز قیمت واحد (§60)
-currency.PriceSources        منابع آنلاین: TABLOTALA / MATISA / MANUAL + Endpoint/نگاشت/اولویت
+currency.PriceSources        منابع آنلاین: TABLOTALA(IR) / TABLOTALA_FR / MANUAL + Endpoint/نگاشت/اولویت
 currency.PriceSourceValues   آخرین مقدار هر منبع (مقایسهٔ منابع §59)
 currency.RateHistory         تاریخچهٔ همهٔ تغییرات نرخ (§49)
 currency.Wallets             کیف پول هر ارز (§36)
@@ -88,8 +88,15 @@ MidRate / Spread). معاملات فقط `SystemRate` (یا نرخ دستیِ د
   رسمی) و `MappingsJson` (نگاشت `ItemKey ← Path` در پاسخ) که **در دیتابیس قابل
   ویرایش توسط مدیر** است، دریافت می‌کند. با تغییر API منبع، فقط Endpoint/نگاشت
   ویرایش می‌شود — بدون تغییر کد و بدون Scrape.
+- Endpointهای رسمی فعال:
+  - `https://admin.tablotala.app/api/tv/price?type=IR` — قیمت داخلی با واحد تومان؛ هنگام ورود با `Factor=10` به ریال تبدیل می‌شود.
+  - `https://admin.tablotala.app/api/tv/price?type=FR` — برابری ارزها با دلار و کالاهای جهانی با واحد USD؛ در آیتم‌های مستقل `FxParity`/`Global` نگهداری می‌شود و با نرخ ریالی ارزها مخلوط نمی‌شود.
+- پاسخ هر دو API یک envelope به شکل `status/message/data[]` دارد و هر عضو `data`
+  شامل `id/type/ordering/title/last_update/price` است. Path نگاشت از selector
+  مقداری مثل `data[type=IRG18].price` پشتیبانی می‌کند؛ بنابراین تغییر ترتیب آرایه
+  مشکلی ایجاد نمی‌کند.
 - خروجی پشتیبانی‌شده: JSON رسمی یا جاوااسکریپتِ ساختارمند (`var x = {...};`) —
-  هرگز HTML Selector.
+  هرگز HTML Selector. Endpoint قدیمی ماتیسا چون HTML بود غیرفعال شده است.
 - ترتیب منابع بر اساس `Priority` (§58)؛ شکست منبع → ثبت خطا، `Status=Offline`
   و بررسی منبع بعدی؛ نرخ‌های معتبر قبلی دست نمی‌خورند (§57).
 - نرخ جدید فقط در `OnlineRate` می‌نشیند؛ ورود به `SystemRate` فقط با
@@ -123,11 +130,13 @@ settings/admin`)، دسترسی‌های ویژهٔ نرخ:
 ## ۸. نکات اجرایی/تأیید
 
 - `tools/cross-schema-scan.sh` ✅ پاس.
+- صفحهٔ `/diag` نام واقعی SQL Instance، دیتابیس، مسیر فیزیکی MDF/LDF و تعداد
+  رکوردهای `BaseDetil`/`PriceRates`/`RateHistory` را از همان connection برنامه
+  نشان می‌دهد؛ لاگ startup نیز همین مقصد و شمارنده‌ها را ثبت می‌کند.
 - build واقعی نیاز به dotnet SDK + SQL Server دارد (Backlog B1/B3 در `todo.md`).
 - `PriceFeedService` از `HttpClient` فقط برای **دادهٔ بازار خارجی** استفاده
   می‌کند؛ دادهٔ کسب‌وکار همچنان فقط از مسیر Dapper/اسکریپت نامدار می‌آید.
-- برای اتصال به منابع واقعی، `Endpoint` و `MappingsJson` هر منبع را با API
-  رسمیِ همان سرویس هماهنگ کنید (صفحهٔ `/currency/special`).
+- Endpoint و نگاشت رسمی TabloTala در seed به‌صورت idempotent تنظیم می‌شوند و از صفحهٔ `/currency/special` قابل مشاهده‌اند.
 
 ---
 

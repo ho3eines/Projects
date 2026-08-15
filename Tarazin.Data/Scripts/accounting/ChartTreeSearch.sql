@@ -1,88 +1,84 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/ChartTreeSearch.sql
 -- Schema: accounting
--- جستجوی حرفه‌ای بهینه‌شده برای هزاران رکورد:
---   1. ابتدا matched IDs در هر سطح را با ایندکس‌های پوششی
---      (IX_BaseCol_Deleted_Active, IX_BaseMoein_Deleted_Active, IX_BaseDetil_Deleted_Active)
---      پیدا می‌کنیم.
---   2. سپس با join به جداول پایه، مسیر کامل هر matched node را می‌سازیم.
---   3. برای BaseDetil: تمام مسیرهای استفاده از آن Detil از طریق BaseDetilLink
---      (با ایندکس IX_BaseDetilLink_Detil_Active) در یک query بازگردانده می‌شود.
---   4. خروجی شامل ChildCount نیست (فقط id/level/code) تا حجم داده کم شود.
--- پارامتر @SearchText: جستجو روی Title/Code/AccountCode.
+-- جستجو در همهٔ سطح‌های درخت، شامل AccountCode و Breadcrumb سطح ۴ به بعد.
 -- =============================================
+DECLARE @Term NVARCHAR(200) = ISNULL(LTRIM(RTRIM(@SearchText)), N'');
+DECLARE @Like NVARCHAR(202) = N'%' + @Term + N'%';
 
-DECLARE @Like   NVARCHAR(200) = N'%' + ISNULL(LTRIM(RTRIM(@SearchText)), N'') + N'%';
-DECLARE @Prefix NVARCHAR(200) = ISNULL(LTRIM(RTRIM(@SearchText)), N'') + N'%';
-
-;WITH MatchedCol AS (
-    SELECT c.ColId
+;WITH BaseCols AS (
+    SELECT
+        c.ColId AS NodeId, 1 AS Level, c.ColCode AS Code, c.Title,
+        N'BaseCol' AS NodeType, CAST(NULL AS INT) AS ParentId,
+        CAST(c.ColCode AS NVARCHAR(4000)) AS AccountCode,
+        c.IsActive, c.IsDeleted,
+        CAST(c.Title AS NVARCHAR(4000)) AS Breadcrumb,
+        CAST(NULL AS INT) AS DetilEntityId,
+        CAST(NULL AS INT) AS LinkId,
+        CAST(NULL AS INT) AS MoeinId,
+        CAST(NULL AS INT) AS ParentLinkId
     FROM [accounting].[BaseCol] c
     WHERE c.IsDeleted = 0
-      AND (c.Title LIKE @Like OR c.ColCode LIKE @Like OR c.ColCode LIKE @Prefix)
 ),
-MatchedMoein AS (
-    SELECT m.MoeinId
+BaseMoeins (
+    NodeId, Level, Code, Title, NodeType, ParentId, AccountCode,
+    IsActive, IsDeleted, Breadcrumb, DetilEntityId, LinkId, MoeinId, ParentLinkId
+) AS (
+    SELECT
+        m.MoeinId, 2, m.MoeinCode, m.Title,
+        N'BaseMoein', m.ColId,
+        CAST(c.AccountCode + m.MoeinCode AS NVARCHAR(4000)),
+        m.IsActive, m.IsDeleted,
+        CAST(c.Breadcrumb + N' > ' + m.Title AS NVARCHAR(4000)),
+        CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT)
     FROM [accounting].[BaseMoein] m
+    INNER JOIN BaseCols c ON c.NodeId = m.ColId
     WHERE m.IsDeleted = 0
-      AND (m.Title LIKE @Like OR m.MoeinCode LIKE @Like OR m.MoeinCode LIKE @Prefix)
 ),
-MatchedDetil AS (
-    SELECT d.DetilId
-    FROM [accounting].[BaseDetil] d
-    WHERE d.IsDeleted = 0
-      AND (d.Title LIKE @Like OR d.DetilCode LIKE @Like OR d.DetilCode LIKE @Prefix)
-),
--- برای Detil: همهٔ مسیرهایی که DetilId در آن‌ها هست (با ایندکس Detil_Active)
-MatchedDetilLink AS (
-    SELECT dl.LinkId, dl.DetilId, dl.MoeinId
+DetailTree (
+    NodeId, Level, Code, Title, NodeType, ParentId, AccountCode,
+    IsActive, IsDeleted, Breadcrumb, DetilEntityId, LinkId, MoeinId, ParentLinkId
+) AS (
+    SELECT
+        d.DetilId, 3, d.DetilCode, d.Title,
+        N'BaseDetil', dl.MoeinId,
+        CAST(m.AccountCode + d.DetilCode AS NVARCHAR(4000)),
+        CAST(CASE WHEN d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT),
+        d.IsDeleted,
+        CAST(m.Breadcrumb + N' > ' + d.Title AS NVARCHAR(4000)),
+        d.DetilId, dl.LinkId, dl.MoeinId, dl.ParentLinkId
     FROM [accounting].[BaseDetilLink] dl
-    INNER JOIN MatchedDetil md ON md.DetilId = dl.DetilId
-    WHERE dl.IsDeleted = 0 AND dl.IsActive = 1
+    INNER JOIN BaseMoeins m ON m.NodeId = dl.MoeinId
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
+    WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0 AND d.IsDeleted = 0
+
+    UNION ALL
+
+    SELECT
+        d.DetilId, parent.Level + 1, d.DetilCode, d.Title,
+        N'BaseDetil', dl.ParentLinkId,
+        CAST(parent.AccountCode + d.DetilCode AS NVARCHAR(4000)),
+        CAST(CASE WHEN parent.IsActive = 1 AND d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT),
+        d.IsDeleted,
+        CAST(parent.Breadcrumb + N' > ' + d.Title AS NVARCHAR(4000)),
+        d.DetilId, dl.LinkId, dl.MoeinId, dl.ParentLinkId
+    FROM [accounting].[BaseDetilLink] dl
+    INNER JOIN DetailTree parent ON parent.LinkId = dl.ParentLinkId
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
+    WHERE dl.IsDeleted = 0 AND d.IsDeleted = 0 AND dl.MoeinId = parent.MoeinId
+),
+AllNodes AS (
+    SELECT * FROM BaseCols
+    UNION ALL SELECT * FROM BaseMoeins
+    UNION ALL SELECT * FROM DetailTree
 )
 SELECT
-    t.NodeId, t.Level, t.AccountCode, t.Code, t.Title, t.NodeType, t.ParentId,
-    t.IsActive, t.IsDeleted,
-    t.DetilEntityId, t.LinkId, t.MoeinId
-FROM (
-    -- 1. Col های منطبق (مسیر ریشه)
-    SELECT
-        c.ColId AS NodeId, 1 AS Level, c.ColCode AS AccountCode, c.ColCode AS Code, c.Title,
-        N'BaseCol' AS NodeType, NULL AS ParentId, c.IsActive, c.IsDeleted,
-        NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
-    FROM [accounting].[BaseCol] c
-    INNER JOIN MatchedCol mc ON mc.ColId = c.ColId
-    WHERE c.IsDeleted = 0
-
-    UNION ALL
-
-    -- 2. Moein های منطبق (مسیر ریشه تا Moein)
-    SELECT
-        m.MoeinId AS NodeId, 2 AS Level,
-        bc.ColCode + m.MoeinCode AS AccountCode,
-        m.MoeinCode AS Code, m.Title,
-        N'BaseMoein' AS NodeType, m.ColId AS ParentId, m.IsActive, m.IsDeleted,
-        NULL AS DetilEntityId, NULL AS LinkId, NULL AS MoeinId
-    FROM [accounting].[BaseMoein] m
-    INNER JOIN MatchedMoein mm ON mm.MoeinId = m.MoeinId
-    INNER JOIN [accounting].[BaseCol] bc ON bc.ColId = m.ColId AND bc.IsDeleted = 0
-    WHERE m.IsDeleted = 0
-
-    UNION ALL
-
-    -- 3. Detil های منطبق — هر Detil در هر مسیر (ممکن است چند ردیف باشد)
-    SELECT
-        d.DetilId AS NodeId, 3 AS Level,
-        bc.ColCode + m.MoeinCode + d.DetilCode AS AccountCode,
-        d.DetilCode AS Code, d.Title,
-        N'BaseDetil' AS NodeType, dl.LinkId AS ParentId,
-        CASE WHEN d.IsActive = 1 AND dl.IsActive = 1 THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS IsActive,
-        d.IsDeleted,
-        d.DetilId AS DetilEntityId, dl.LinkId AS LinkId, dl.MoeinId
-    FROM MatchedDetilLink dl
-    INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
-    INNER JOIN [accounting].[BaseCol] bc ON bc.ColId = m.ColId AND bc.IsDeleted = 0
-    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId AND d.IsDeleted = 0
-) t
-ORDER BY t.AccountCode, t.Level
-OPTION (RECOMPILE);
+    NodeId, Level, AccountCode, Code, Title, NodeType, ParentId,
+    IsActive, IsDeleted, Breadcrumb,
+    0 AS ChildCount,
+    DetilEntityId, LinkId, MoeinId, ParentLinkId
+FROM AllNodes
+WHERE @Term <> N''
+  AND (Title LIKE @Like OR Code LIKE @Like OR AccountCode LIKE @Like OR Breadcrumb LIKE @Like)
+ORDER BY AccountCode, Level, LinkId
+OPTION (MAXRECURSION 32767, RECOMPILE);

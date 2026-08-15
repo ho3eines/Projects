@@ -7,6 +7,15 @@
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="_isValid">
             <MudGrid Spacing="2">
+                @if (!IsEditMode)
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                            این حساب به‌عنوان <b>سطح @TargetLevel</b>
+                            @(ParentLinkId.HasValue ? "زیر تفصیلی انتخاب‌شده" : "زیر حساب معین") ذخیره می‌شود.
+                        </MudAlert>
+                    </MudItem>
+                }
                 @* در حالت ویرایش، انتخاب بین «موجود/جدید» بی‌معناست. *@
                 <MudItem xs="12" Class="@(IsEditMode ? "d-none" : null)">
                     <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" OverrideStyles="false">
@@ -73,6 +82,9 @@
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter, EditorRequired] public int MoeinId { get; set; }
+    /// <summary>NULL=سطح ۳ زیر معین؛ مقدار=LinkId تفصیلی والد برای سطح ۴+.</summary>
+    [Parameter] public int? ParentLinkId { get; set; }
+    [Parameter] public int TargetLevel { get; set; } = 3;
     /// <summary>اگر در حالت ویرایش، شناسهٔ Link/Detil پاس می‌شود.</summary>
     [Parameter] public int EditLinkId { get; set; }
     [Parameter] public int EditDetilId { get; set; }
@@ -182,6 +194,7 @@
                     LinkId = 0,
                     DetilId = _selectedDetil.DetilId,
                     MoeinId,
+                    ParentLinkId,
                     Description = "",
                     IsActive = _isActive,
                     CreatedBy = Session.UserName,
@@ -242,6 +255,7 @@
                         LinkId = 0,
                         DetilId = existing.DetilId,
                         MoeinId,
+                        ParentLinkId,
                         Description = "",
                         IsActive = _isActive,
                         CreatedBy = Session.UserName,
@@ -277,6 +291,7 @@
                     LinkId = 0,
                     DetilId = created.DetilId,
                     MoeinId,
+                    ParentLinkId,
                     Description = "",
                     IsActive = _isActive,
                     CreatedBy = Session.UserName,

@@ -54,9 +54,9 @@
                         <div class="tz-pickertree__scroll" @ref="_scrollRef" tabindex="0" @onkeydown="OnKeyDown">
                             @foreach (var n in _flat)
                             {
-                                var isSelected = n.NodeId == _selected?.NodeId && n.NodeType == _selected?.NodeType;
+                                var isSelected = NodeKey(n) == NodeKey(_selected);
                                 var isInvalid = IsInvalidSelection(n);
-                                <div class="tz-pickertree__row @(isSelected ? "is-selected" : null) @(isInvalid ? "is-invalid" : null) @(n.NodeId == _highlightedNodeId ? "is-highlighted" : null)"
+                                <div class="tz-pickertree__row @(isSelected ? "is-selected" : null) @(isInvalid ? "is-invalid" : null) @(NodeKey(n) == _highlightedNodeKey ? "is-highlighted" : null)"
                                      style="padding-right:@((n.Level - 1) * 24 + 12)px"
                                      @onclick="@(() => Select(n))"
                                      @ondblclick="@(() => TryConfirm(n))">
@@ -168,8 +168,14 @@
     private bool _loading = true;
     private List<ChartTreeNode> _flat = new();
     private ChartTreeNode? _selected;
-    private int _highlightedNodeId;
+    private string _highlightedNodeKey = "";
     private List<BreadcrumbItem> _breadcrumbs = new();
+
+    private static string NodeKey(ChartTreeNode? n) => n is null
+        ? ""
+        : n.NodeType == "BaseDetil"
+            ? $"BaseDetil:{n.LinkId ?? n.NodeId}"
+            : $"{n.NodeType}:{n.NodeId}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -231,13 +237,13 @@
             _loading = false;
             if (_flat.Count > 0)
             {
-                _highlightedNodeId = _flat[0].NodeId;
+                _highlightedNodeKey = NodeKey(_flat[0]);
                 _selected = _flat[0];
                 await BuildBreadcrumbAsync(_selected);
             }
             else
             {
-                _highlightedNodeId = 0;
+                _highlightedNodeKey = "";
                 _selected = null;
                 _breadcrumbs = new();
             }
@@ -247,7 +253,7 @@
     private void Select(ChartTreeNode n)
     {
         _selected = n;
-        _highlightedNodeId = n.NodeId;
+        _highlightedNodeKey = NodeKey(n);
         _ = BuildBreadcrumbAsync(n);
     }
 
@@ -286,19 +292,19 @@
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
         if (_flat.Count == 0) return;
-        var idx = _flat.FindIndex(x => x.NodeId == _highlightedNodeId);
+        var idx = _flat.FindIndex(x => NodeKey(x) == _highlightedNodeKey);
         if (idx < 0) idx = 0;
         switch (e.Key)
         {
             case "ArrowDown":
                 idx = Math.Min(idx + 1, _flat.Count - 1);
-                _highlightedNodeId = _flat[idx].NodeId;
+                _highlightedNodeKey = NodeKey(_flat[idx]);
                 _selected = _flat[idx];
                 await BuildBreadcrumbAsync(_selected);
                 break;
             case "ArrowUp":
                 idx = Math.Max(idx - 1, 0);
-                _highlightedNodeId = _flat[idx].NodeId;
+                _highlightedNodeKey = NodeKey(_flat[idx]);
                 _selected = _flat[idx];
                 await BuildBreadcrumbAsync(_selected);
                 break;

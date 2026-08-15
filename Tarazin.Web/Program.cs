@@ -1,9 +1,14 @@
 using System.Globalization;
+using System.Text;
 using MudBlazor;
 using MudBlazor.Services;
 using Tarazin.Data;
 using Tarazin.Services;
 using Tarazin.Web;
+
+// جلوگیری از نمایش «؟» به‌جای حروف فارسی در کنسول ویندوز/dotnet watch.
+Console.InputEncoding = Encoding.UTF8;
+Console.OutputEncoding = Encoding.UTF8;
 
 var fa = CultureInfo.GetCultureInfo("fa-IR");
 CultureInfo.DefaultThreadCurrentCulture = fa;
@@ -62,13 +67,34 @@ using (var scope = app.Services.CreateScope())
     var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Tarazin.Startup");
     var (raw, source) = TarazinConnection.ResolveRaw(app.Configuration);
 
-    logger.LogInformation("ConncetionString: {Source} | Value: {Value}",
+    logger.LogInformation("ConnectionString: {Source} | Value: {Value}",
         source, TarazinConnection.Mask(raw));
 
     try
     {
         await TarazinDbInitializer.EnsureInitializedAsync(scope.ServiceProvider);
-        logger.LogInformation("DataBase Started!");
+
+        // فقط «اتصال موفق» کافی نیست؛ مقصد واقعی SQL Server، نام دیتابیس،
+        // فایل MDF/LDF و شمارنده‌های اصلی را لاگ می‌کنیم تا اتصال به instance
+        // اشتباه (مثلاً . در برابر localhost,1433) فوراً مشخص شود.
+        try
+        {
+            var db = scope.ServiceProvider.GetRequiredService<DbService>();
+            var storage = await db.QueryFirstOrDefaultAsync<DatabaseStorageInfo>(
+                "central", "DatabaseStorageInfo");
+
+            logger.LogInformation(
+                "Database ready | Server={Server} | Database={Database} | Files={Files} | " +
+                "BaseDetil={BaseDetil} | BaseDetilLink={BaseDetilLink} | PriceRates={PriceRates} | RateHistory={RateHistory}",
+                storage?.ServerName, storage?.DatabaseName, storage?.DataFiles,
+                storage?.BaseDetilCount, storage?.BaseDetilLinkCount,
+                storage?.PriceRateCount, storage?.RateHistoryCount);
+        }
+        catch (Exception proofEx)
+        {
+            // خطای نمایش اطلاعات تشخیصی نباید راه‌اندازی موفق دیتابیس را خراب کند.
+            logger.LogWarning(proofEx, "Database initialized, but persistence details could not be read");
+        }
     }
     catch (Exception ex)
     {
