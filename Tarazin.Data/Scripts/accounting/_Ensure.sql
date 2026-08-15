@@ -72,13 +72,14 @@ BEGIN
 END
 
 -- =============================================
--- جداول پایهٔ سه‌سطحی: BaseCol (کل) / BaseMoein (معین) / BaseDetil (تفصیلی)
+-- جداول پایهٔ چندسطحی: BaseCol (کل) / BaseMoein (معین) / BaseDetil (تفصیلی سطح ۳+)
 -- طراحی مطابق PRD §جداول پایه:
 --   - BaseCol.Code: 2 رقم
 --   - BaseMoein.Code: 3 رقم
 --   - BaseDetil.Code: 7 رقم
 --   - AccountCode = ترکیب مسیر BaseCol + BaseMoein + BaseDetil[...]
 --   - تفصیلی یکپارچه: BaseDetil یک‌بار ایجاد می‌شود و در چند مسیر قرار می‌گیرد.
+--   - سطح ۴+ با ParentLinkId خودارجاع در BaseDetilLink ساخته می‌شود.
 -- =============================================
 
 -- BaseCol — حساب کل
@@ -169,7 +170,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetil_Title' AND 
     CREATE INDEX IX_BaseDetil_Title ON [accounting].[BaseDetil](Title) INCLUDE (DetilCode, IsDeleted);
 GO
 
--- BaseDetilLink — پیوند تفصیلی به معین (هر تفصیلی می‌تواند در چند مسیر باشد)
+-- BaseDetilLink — «محل قرارگیری» یک تفصیلی در درخت.
+-- ParentLinkId=NULL یعنی سطح ۳ و فرزند مستقیم Moein؛ مقدار غیر NULL یعنی
+-- فرزند یک محل قرارگیری تفصیلی دیگر (سطح ۴ به بعد). MoeinId روی همهٔ نسل‌ها
+-- نگه داشته می‌شود تا مالک مسیر و کنترل یکپارچگی سریع و صریح باشد.
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t
     JOIN sys.schemas s ON t.schema_id = s.schema_id
@@ -177,8 +181,9 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [accounting].[BaseDetilLink] (
         LinkId         INT IDENTITY(1,1) PRIMARY KEY,
-        DetilId        INT NOT NULL,                  -- FK → BaseDetil
-        MoeinId        INT NOT NULL,                  -- FK → BaseMoein (مسیر قرارگیری)
+        DetilId        INT NOT NULL,                  -- FK → BaseDetil (موجودیت مشترک)
+        MoeinId        INT NOT NULL,                  -- FK → BaseMoein (ریشهٔ مسیر)
+        ParentLinkId   INT NULL,                      -- NULL=سطح۳؛ FK خودارجاع=سطح۴+
         [Description]  NVARCHAR(500) NULL,
         IsActive       BIT NOT NULL DEFAULT 1,
         IsDeleted      BIT NOT NULL DEFAULT 0,
@@ -187,18 +192,41 @@ BEGIN
         CreatedBy      NVARCHAR(100) NULL,
         UpdatedBy      NVARCHAR(100) NULL,
         CONSTRAINT FK_BaseDetilLink_Detil FOREIGN KEY (DetilId) REFERENCES [accounting].[BaseDetil](DetilId),
-        CONSTRAINT FK_BaseDetilLink_Moein FOREIGN KEY (MoeinId) REFERENCES [accounting].[BaseMoein](MoeinId)
+        CONSTRAINT FK_BaseDetilLink_Moein FOREIGN KEY (MoeinId) REFERENCES [accounting].[BaseMoein](MoeinId),
+        CONSTRAINT FK_BaseDetilLink_Parent FOREIGN KEY (ParentLinkId) REFERENCES [accounting].[BaseDetilLink](LinkId)
     );
     CREATE INDEX IX_BaseDetilLink_Detil ON [accounting].[BaseDetilLink](DetilId);
     CREATE INDEX IX_BaseDetilLink_Moein ON [accounting].[BaseDetilLink](MoeinId);
+    CREATE INDEX IX_BaseDetilLink_Parent ON [accounting].[BaseDetilLink](ParentLinkId);
 END
+GO
+
+-- Migration برای دیتابیس‌های موجود: رکوردهای قدیمی با ParentLinkId=NULL همان
+-- سطح ۳ باقی می‌مانند و هیچ داده‌ای جابه‌جا یا حذف نمی‌شود.
+IF OBJECT_ID(N'accounting.BaseDetilLink', N'U') IS NOT NULL
+   AND COL_LENGTH(N'accounting.BaseDetilLink', N'ParentLinkId') IS NULL
+    ALTER TABLE [accounting].[BaseDetilLink] ADD ParentLinkId INT NULL;
+GO
+
+IF OBJECT_ID(N'accounting.BaseDetilLink', N'U') IS NOT NULL
+   AND NOT EXISTS (
+       SELECT 1 FROM sys.foreign_keys
+       WHERE name = N'FK_BaseDetilLink_Parent'
+         AND parent_object_id = OBJECT_ID(N'accounting.BaseDetilLink'))
+    ALTER TABLE [accounting].[BaseDetilLink] WITH CHECK
+        ADD CONSTRAINT FK_BaseDetilLink_Parent
+        FOREIGN KEY (ParentLinkId) REFERENCES [accounting].[BaseDetilLink](LinkId);
+GO
 
 -- ایندکس‌های بهینه برای Link (حیاتی‌ترین جدول — بیشترین ردیف را دارد)
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetilLink_Moein_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseDetilLink]'))
-    CREATE INDEX IX_BaseDetilLink_Moein_Active ON [accounting].[BaseDetilLink](MoeinId, IsDeleted, IsActive) INCLUDE (DetilId);
+    CREATE INDEX IX_BaseDetilLink_Moein_Active ON [accounting].[BaseDetilLink](MoeinId, IsDeleted, IsActive) INCLUDE (DetilId, ParentLinkId);
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetilLink_Detil_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseDetilLink]'))
-    CREATE INDEX IX_BaseDetilLink_Detil_Active ON [accounting].[BaseDetilLink](DetilId, IsDeleted, IsActive) INCLUDE (MoeinId);
+    CREATE INDEX IX_BaseDetilLink_Detil_Active ON [accounting].[BaseDetilLink](DetilId, IsDeleted, IsActive) INCLUDE (MoeinId, ParentLinkId);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetilLink_Parent_Active' AND object_id = OBJECT_ID(N'[accounting].[BaseDetilLink]'))
+    CREATE INDEX IX_BaseDetilLink_Parent_Active ON [accounting].[BaseDetilLink](ParentLinkId, IsDeleted, IsActive) INCLUDE (DetilId, MoeinId);
 GO
 
 -- Contract: TaxRule (owner: accounting) — config-driven Persian tax engine (PRD §8).

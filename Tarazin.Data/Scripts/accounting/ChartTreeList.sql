@@ -1,89 +1,79 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/ChartTreeList.sql
 -- Schema: accounting
--- برگرداندن کل درخت حساب‌ها به‌صورت مسطح با سلسله‌مراتب:
---   Level 1: BaseCol
---   Level 2: BaseMoein (ColId → BaseCol)
---   Level 3: BaseDetil از طریق BaseDetilLink (MoeinId → BaseMoein)
---   Level 4+: BaseDetilهایی که خودشان والد سایر DetilLinkها هستند (multi-level detail)
---
--- هر ردیف شامل AccountCode ترکیبی مسیر است.
--- همچنین ردیف‌های Level 3 به بعد به ازای هر «مسیر» تکرار می‌شوند
--- (اگر یک تفصیلی در چند مسیر باشد، هر مسیر یک ردیف).
+-- خروجی مسطح درخت چندسطحی (قرارداد قدیمی IdPath/CodePath حفظ شده است).
 -- =============================================
--- پارامتر @IncludeInactive=0: فقط حساب‌های فعال.
--- @IncludeInactive=1: همه (شامل غیرفعال).
--- برای "نمایش حساب غیرفعال در جستجو" از @IncludeInactive=1 در کوئری جستجو استفاده می‌شود.
-
 ;WITH BaseCols AS (
     SELECT
-        c.ColId        AS NodeId,
-        1              AS Level,
-        CAST(c.ColId AS NVARCHAR(20)) AS IdPath,
-        CAST(c.ColCode AS NVARCHAR(200)) AS CodePath,
-        c.ColCode      AS Code,
-        c.Title        AS Title,
-        N'BaseCol'     AS NodeType,
-        NULL           AS ParentId,
-        c.IsActive     AS IsActive,
-        c.IsDeleted    AS IsDeleted
+        c.ColId AS NodeId, 1 AS Level,
+        CAST(N'C:' + CAST(c.ColId AS NVARCHAR(20)) AS NVARCHAR(1000)) AS IdPath,
+        CAST(c.ColCode AS NVARCHAR(4000)) AS CodePath,
+        c.ColCode AS Code, c.Title, N'BaseCol' AS NodeType,
+        CAST(NULL AS INT) AS ParentId, c.IsActive, c.IsDeleted,
+        CAST(NULL AS INT) AS DetilEntityId, CAST(NULL AS INT) AS LinkId,
+        CAST(NULL AS INT) AS MoeinId, CAST(NULL AS INT) AS ParentLinkId,
+        CAST(c.Title AS NVARCHAR(4000)) AS FullPathTitle
     FROM [accounting].[BaseCol] c
-    WHERE c.IsDeleted = 0
-      AND (@IncludeInactive = 1 OR c.IsActive = 1)
+    WHERE c.IsDeleted = 0 AND (@IncludeInactive = 1 OR c.IsActive = 1)
 ),
-BaseMoeins AS (
+BaseMoeins (
+    NodeId, Level, IdPath, CodePath, Code, Title, NodeType, ParentId,
+    IsActive, IsDeleted, DetilEntityId, LinkId, MoeinId, ParentLinkId, FullPathTitle
+) AS (
     SELECT
-        m.MoeinId      AS NodeId,
-        2              AS Level,
-        CAST(bc.IdPath + N'/' + CAST(m.MoeinId AS NVARCHAR(20)) AS NVARCHAR(200)) AS IdPath,
-        CAST(bc.CodePath + m.MoeinCode AS NVARCHAR(200)) AS CodePath,
-        m.MoeinCode    AS Code,
-        m.Title        AS Title,
-        N'BaseMoein'   AS NodeType,
-        m.ColId        AS ParentId,
-        m.IsActive     AS IsActive,
-        m.IsDeleted    AS IsDeleted
+        m.MoeinId, 2,
+        CAST(c.IdPath + N'/M:' + CAST(m.MoeinId AS NVARCHAR(20)) AS NVARCHAR(1000)),
+        CAST(c.CodePath + m.MoeinCode AS NVARCHAR(4000)),
+        m.MoeinCode, m.Title, N'BaseMoein', m.ColId, m.IsActive, m.IsDeleted,
+        CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT),
+        CAST(c.FullPathTitle + N' > ' + m.Title AS NVARCHAR(4000))
     FROM [accounting].[BaseMoein] m
-    JOIN BaseCols bc ON bc.NodeId = m.ColId
-    WHERE m.IsDeleted = 0
-      AND (@IncludeInactive = 1 OR m.IsActive = 1)
+    INNER JOIN BaseCols c ON c.NodeId = m.ColId
+    WHERE m.IsDeleted = 0 AND (@IncludeInactive = 1 OR m.IsActive = 1)
 ),
-BaseDetils AS (
-    -- Level 3: BaseDetil از طریق BaseDetilLink در مسیر معین فعلی
+DetailTree (
+    NodeId, Level, IdPath, CodePath, Code, Title, NodeType, ParentId,
+    IsActive, IsDeleted, DetilEntityId, LinkId, MoeinId, ParentLinkId, FullPathTitle
+) AS (
     SELECT
-        d.DetilId      AS NodeId,
-        3              AS Level,
-        CAST(bm.IdPath + N'/' + CAST(dl.LinkId AS NVARCHAR(20)) AS NVARCHAR(200)) AS IdPath,
-        CAST(bm.CodePath + d.DetilCode AS NVARCHAR(200)) AS CodePath,
-        d.DetilCode    AS Code,
-        d.Title        AS Title,
-        N'BaseDetil'   AS NodeType,
-        dl.LinkId      AS ParentId,  -- در سطح پیوند
-        d.IsActive     AS IsActive,
-        d.IsDeleted    AS IsDeleted,
-        d.DetilId      AS DetilEntityId,
-        dl.LinkId      AS LinkId,
-        dl.MoeinId     AS MoeinId
+        d.DetilId, 3,
+        CAST(m.IdPath + N'/L:' + CAST(dl.LinkId AS NVARCHAR(20)) AS NVARCHAR(1000)),
+        CAST(m.CodePath + d.DetilCode AS NVARCHAR(4000)),
+        d.DetilCode, d.Title, N'BaseDetil', dl.MoeinId,
+        CAST(CASE WHEN d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT),
+        d.IsDeleted, d.DetilId, dl.LinkId, dl.MoeinId, dl.ParentLinkId,
+        CAST(m.FullPathTitle + N' > ' + d.Title AS NVARCHAR(4000))
     FROM [accounting].[BaseDetilLink] dl
-    JOIN BaseMoeins bm ON bm.NodeId = dl.MoeinId
-    JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
-    WHERE dl.IsDeleted = 0
-      AND d.IsDeleted = 0
-      AND (@IncludeInactive = 1 OR (d.IsActive = 1 AND dl.IsActive = 1))
+    INNER JOIN BaseMoeins m ON m.NodeId = dl.MoeinId
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
+    WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0 AND d.IsDeleted = 0
+      AND (@IncludeInactive = 1 OR (dl.IsActive = 1 AND d.IsActive = 1))
+
+    UNION ALL
+
+    SELECT
+        d.DetilId, parent.Level + 1,
+        CAST(parent.IdPath + N'/L:' + CAST(dl.LinkId AS NVARCHAR(20)) AS NVARCHAR(1000)),
+        CAST(parent.CodePath + d.DetilCode AS NVARCHAR(4000)),
+        d.DetilCode, d.Title, N'BaseDetil', dl.ParentLinkId,
+        CAST(CASE WHEN parent.IsActive = 1 AND d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT),
+        d.IsDeleted, d.DetilId, dl.LinkId, dl.MoeinId, dl.ParentLinkId,
+        CAST(parent.FullPathTitle + N' > ' + d.Title AS NVARCHAR(4000))
+    FROM [accounting].[BaseDetilLink] dl
+    INNER JOIN DetailTree parent ON parent.LinkId = dl.ParentLinkId
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
+    WHERE dl.IsDeleted = 0 AND d.IsDeleted = 0 AND dl.MoeinId = parent.MoeinId
+      AND (@IncludeInactive = 1 OR (dl.IsActive = 1 AND d.IsActive = 1))
+),
+AllNodes AS (
+    SELECT * FROM BaseCols
+    UNION ALL SELECT * FROM BaseMoeins
+    UNION ALL SELECT * FROM DetailTree
 )
 SELECT
-    NodeId, Level, IdPath, CodePath, Code, Title, NodeType, ParentId, IsActive, IsDeleted,
-    -- AccountCode = ترکیب کدهای مسیر. Col+Moein+Detil.
-    -- در Level 1 و 2 نیز CodePath فقط شامل کدهای خودشان تا آن سطح است.
-    CodePath AS AccountCode,
-    -- عنوان کامل مسیر (Breadcrumb): از طریق Cross Apply از جداول پایه
-    NULL AS FullPathTitle,
-    DetilEntityId, LinkId, MoeinId
-FROM (
-    SELECT * FROM BaseCols
-    UNION ALL
-    SELECT * FROM BaseMoeins
-    UNION ALL
-    SELECT * FROM BaseDetils
-) tree
-ORDER BY CodePath, Level, Code;
+    NodeId, Level, IdPath, CodePath, Code, Title, NodeType, ParentId,
+    IsActive, IsDeleted, CodePath AS AccountCode, FullPathTitle,
+    DetilEntityId, LinkId, MoeinId, ParentLinkId
+FROM AllNodes
+ORDER BY CodePath, Level, LinkId
+OPTION (MAXRECURSION 32767, RECOMPILE);

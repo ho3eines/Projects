@@ -1,32 +1,71 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/BaseDetilUsagePaths.sql
 -- Schema: accounting
--- تمام مسیرهایی که یک DetilId در آن‌ها قرار گرفته است.
--- بهینه‌سازی: ایندکس IX_BaseDetilLink_Detil_Active (DetilId, IsDeleted, IsActive)
--- جستجوی مستقیم روی DetilId را با covering index تسریع می‌کند.
+-- تمام placementهای یک موجودیت تفصیلی، در هر عمق و هر مسیر.
 -- =============================================
+;WITH DetailTree AS (
+    SELECT
+        dl.LinkId,
+        dl.ParentLinkId,
+        dl.MoeinId,
+        dl.DetilId,
+        3 AS Level,
+        CAST(c.ColCode + m.MoeinCode + d.DetilCode AS NVARCHAR(4000)) AS AccountCode,
+        CAST(c.Title + N' > ' + m.Title + N' > ' + d.Title AS NVARCHAR(4000)) AS PathTitle,
+        dl.IsActive AS LinkIsActive,
+        c.ColId,
+        c.ColCode,
+        c.Title AS ColTitle,
+        m.MoeinCode,
+        m.Title AS MoeinTitle,
+        d.DetilCode,
+        d.Title AS DetilTitle
+    FROM [accounting].[BaseDetilLink] dl
+    INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
+    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId AND d.IsDeleted = 0
+    WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0
+
+    UNION ALL
+
+    SELECT
+        dl.LinkId,
+        dl.ParentLinkId,
+        dl.MoeinId,
+        dl.DetilId,
+        parent.Level + 1,
+        CAST(parent.AccountCode + d.DetilCode AS NVARCHAR(4000)),
+        CAST(parent.PathTitle + N' > ' + d.Title AS NVARCHAR(4000)),
+        dl.IsActive,
+        parent.ColId,
+        parent.ColCode,
+        parent.ColTitle,
+        parent.MoeinCode,
+        parent.MoeinTitle,
+        d.DetilCode,
+        d.Title
+    FROM [accounting].[BaseDetilLink] dl
+    INNER JOIN DetailTree parent ON parent.LinkId = dl.ParentLinkId
+    INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId AND d.IsDeleted = 0
+    WHERE dl.IsDeleted = 0 AND dl.MoeinId = parent.MoeinId
+)
 SELECT
-    dl.LinkId        AS LinkId,
-    dl.MoeinId       AS MoeinId,
-    dl.DetilId       AS DetilId,
-    dl.IsActive      AS LinkIsActive,
-    c.ColId          AS ColId,
-    c.ColCode        AS ColCode,
-    c.Title          AS ColTitle,
-    m.MoeinCode      AS MoeinCode,
-    m.Title          AS MoeinTitle,
-    d.DetilCode      AS DetilCode,
-    d.Title          AS DetilTitle,
-    c.ColCode + m.MoeinCode + d.DetilCode AS AccountCode,
-    c.Title + N' > ' + m.Title AS PathTitle
-FROM [accounting].[BaseDetilLink] dl
-INNER JOIN [accounting].[BaseMoein] m  ON m.MoeinId  = dl.MoeinId
-INNER JOIN [accounting].[BaseCol]   c  ON c.ColId    = m.ColId
-INNER JOIN [accounting].[BaseDetil] d  ON d.DetilId  = dl.DetilId
-WHERE dl.DetilId = @DetilId
-  AND dl.IsDeleted = 0
-  AND m.IsDeleted = 0
-  AND c.IsDeleted = 0
-  AND d.IsDeleted = 0
-ORDER BY c.ColCode, m.MoeinCode
-OPTION (RECOMPILE);
+    LinkId,
+    ParentLinkId,
+    MoeinId,
+    DetilId,
+    Level,
+    LinkIsActive,
+    ColId,
+    ColCode,
+    ColTitle,
+    MoeinCode,
+    MoeinTitle,
+    DetilCode,
+    DetilTitle,
+    AccountCode,
+    PathTitle
+FROM DetailTree
+WHERE DetilId = @DetilId
+ORDER BY AccountCode, LinkId
+OPTION (MAXRECURSION 32767, RECOMPILE);
