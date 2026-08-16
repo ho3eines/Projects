@@ -5,10 +5,11 @@
 @inject AccountPickerService AccountPicker
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@using Tarazin.Ui.Modules.Accounting.Components
 
 <PageTitle>ثبت سند — حسابداری</PageTitle>
 
-<PageHeader Title="ثبت سند حسابداری" Subtitle="سند روزنامه با ردیف‌های بدهکار و بستانکار — باید متوازن باشد." Eyebrow="حسابداری" />
+<PageHeader Title="ثبت سند حسابداری" Subtitle="سند روزنامه با ردیف‌های بدهکار و بستانکار — باید متوازن باشد. روی هر ردیف کلیک کنید تا انتخاب شده و سبز شود." Eyebrow="حسابداری" />
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
@@ -28,8 +29,6 @@
             <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            @* وضعیت اولیهٔ سند در چرخه؛ تأیید/تأیید نهایی از صفحهٔ خود سند و با
-               دسترسی مربوطه انجام می‌شود. *@
             <MudSelect T="string" Label="وضعیت اولیه" @bind-Value="_status" Variant="Variant.Outlined">
                 <MudSelectItem Value="@AccountingDocumentStatus.Note">یادداشت</MudSelectItem>
                 <MudSelectItem Value="@AccountingDocumentStatus.Draft">سند موقت</MudSelectItem>
@@ -39,10 +38,12 @@
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند</MudText>
+    <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند — برای مرور تفصیلی یک ردیف را انتخاب کنید</MudText>
 
     <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
-              @bind-SelectedItem="_selectedLine" SelectOnRowClick="true">
+              @bind-SelectedItem="_selectedLine" SelectOnRowClick="true"
+              RowStyleFunc="SelectedRowStyle"
+              OnRowClick="OnRowClick">
         <HeaderContent>
             <MudTh style="width:42%">حساب</MudTh>
             <MudTh>شرح</MudTh>
@@ -74,19 +75,36 @@
                                  Margin="Margin.Dense" Min="0" Format="#,##0.##" />
             </MudTd>
             <MudTd DataLabel="">
-                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
-                               Size="Size.Small" Disabled="@(_lines.Count <= 1)"
-                               OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                <span @onclick:stopPropagation="true">
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
+                                   Size="Size.Small" Disabled="@(_lines.Count <= 1)"
+                                   OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                </span>
             </MudTd>
         </RowTemplate>
     </MudTable>
 
+    @if (_selectedLine is not null)
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+            ردیف انتخاب شد: <b>@(_selectedLine.AccountCode ?? "—") — @(_selectedLine.AccountTitle ?? "بدون عنوان")</b>
+            @if (CanShowSelectedDetail)
+            {
+                <span> — حساب تفصیلی است و قابل مرور می‌باشد.</span>
+            }
+            else if (!string.IsNullOrWhiteSpace(_selectedLine.AccountCode))
+            {
+                <span> — این حساب تفصیلی نهایی نیست، مرور گردش فقط برای تفصیلی‌ها امکان‌پذیر است.</span>
+            }
+        </MudAlert>
+    }
+
     <MudGrid Class="mb-4">
         <MudItem xs="12" sm="6">
-            <MudText Typo="Typo.body2">جمع بدهکار: <b>@TotalDebit.ToString("N0")</b></MudText>
+            <MudText Typo="Typo.body2">جمع بدهکار: <b>@SafeMoney(TotalDebit)</b></MudText>
         </MudItem>
         <MudItem xs="12" sm="6">
-            <MudText Typo="Typo.body2">جمع بستانکار: <b>@TotalCredit.ToString("N0")</b></MudText>
+            <MudText Typo="Typo.body2">جمع بستانکار: <b>@SafeMoney(TotalCredit)</b></MudText>
         </MudItem>
         <MudItem xs="12">
             <MudChip T="string" Color="@(IsBalanced ? Color.Success : Color.Error)" Size="Size.Small">
@@ -95,17 +113,33 @@
         </MudItem>
     </MudGrid>
 
-    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine" StartIcon="@Icons.Material.Filled.Add">
-        + ردیف
-    </MudButton>
-    <MudButton Variant="Variant.Outlined" Color="Color.Info" OnClick="ShowSelectedDetail"
-               Disabled="@(!CanShowSelectedDetail)" StartIcon="@Icons.Material.Filled.ManageSearch" Class="ms-2">
-        نمایش تفصیلی
-    </MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
-               StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
-        ثبت سند
-    </MudButton>
+    <div class="d-flex flex-wrap" style="gap:8px">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine" StartIcon="@Icons.Material.Filled.Add">
+            + ردیف
+        </MudButton>
+
+        @if (CanShowSelectedDetail)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ShowSelectedDetailAsync"
+                       StartIcon="@Icons.Material.Filled.ManageSearch" Class="ms-2">
+                نمایش تفصیلی
+            </MudButton>
+        }
+        else
+        {
+            <MudTooltip Text="برای نمایش گردش، ابتدا یک ردیف با حساب تفصیلی نهایی انتخاب کنید و دسترسی گزارشات را داشته باشید.">
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" Disabled="true"
+                           StartIcon="@Icons.Material.Filled.ManageSearch" Class="ms-2">
+                    نمایش تفصیلی
+                </MudButton>
+            </MudTooltip>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
+            ثبت سند
+        </MudButton>
+    </div>
 </MudPaper>
 
 @code {
@@ -120,87 +154,222 @@
     private string _status = AccountingDocumentStatus.Draft;
     private bool _busy;
 
-    private decimal TotalDebit => _lines.Sum(l => l.Debit);
-    private decimal TotalCredit => _lines.Sum(l => l.Credit);
-    private bool IsBalanced => TotalDebit == TotalCredit && TotalDebit > 0;
-    private bool CanShowSelectedDetail => Session.HasPermission(
-            TarazinPermissions.For("accounting", TarazinActions.Reports))
-        && _selectedLine is not null
-        && !string.IsNullOrWhiteSpace(_selectedLine.AccountCode)
-        && _selectedLine.PickedAccount?.NodeType == "BaseDetil";
+    private decimal TotalDebit
+    {
+        get
+        {
+            try { return _lines.Sum(l => l.Debit); } catch { return 0; }
+        }
+    }
+    private decimal TotalCredit
+    {
+        get
+        {
+            try { return _lines.Sum(l => l.Credit); } catch { return 0; }
+        }
+    }
+    private bool IsBalanced
+    {
+        get
+        {
+            try { return TotalDebit == TotalCredit && TotalDebit > 0; } catch { return false; }
+        }
+    }
+
+    private bool CanShowSelectedDetail
+    {
+        get
+        {
+            try
+            {
+                return Session.HasPermission(TarazinPermissions.For("accounting", TarazinActions.Reports))
+                       && _selectedLine is not null
+                       && !string.IsNullOrWhiteSpace(_selectedLine.AccountCode)
+                       && _selectedLine.PickedAccount?.NodeType == "BaseDetil";
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    private string SelectedRowStyle(JournalLineRow row, int index)
+    {
+        try
+        {
+            if (row is not null && ReferenceEquals(row, _selectedLine))
+                return "background-color: #c8e6c9; border-left: 4px solid #2e7d32;"; // سبز
+            return "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<JournalLineRow> args)
+    {
+        try
+        {
+            if (args?.Item is not null)
+            {
+                _selectedLine = args.Item;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در انتخاب ردیف: {ex.Message}", Severity.Error);
+        }
+    }
 
     protected override void OnInitialized()
     {
-        AddLine();
+        try
+        {
+            AddLine();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در مقداردهی اولیه: {ex.Message}", Severity.Error);
+            _lines = new List<JournalLineRow> { new JournalLineRow() };
+        }
     }
 
-    private void AddLine() => _lines.Add(new JournalLineRow());
+    private void AddLine()
+    {
+        try
+        {
+            _lines.Add(new JournalLineRow());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در افزودن ردیف: {ex.Message}", Severity.Error);
+        }
+    }
 
     private async Task ConfirmRemoveLineAsync(int index)
     {
-        if (_lines.Count <= 1 || index < 0 || index >= _lines.Count)
-            return;
+        try
+        {
+            if (_lines.Count <= 1 || index < 0 || index >= _lines.Count)
+                return;
 
-        var confirmed = await DialogService.ShowMessageBoxAsync(
-            "تأیید حذف",
-            "آیا این ردیف از سند حذف شود؟",
-            yesText: "حذف",
-            cancelText: "انصراف");
+            var confirmed = await DialogService.ShowMessageBoxAsync(
+                "تأیید حذف",
+                "آیا این ردیف از سند حذف شود؟",
+                yesText: "حذف",
+                cancelText: "انصراف");
 
-        if (confirmed is true)
-            _lines.RemoveAt(index);
+            if (confirmed is true)
+            {
+                var toRemove = _lines[index];
+                if (ReferenceEquals(toRemove, _selectedLine))
+                    _selectedLine = null;
+                _lines.RemoveAt(index);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در حذف ردیف: {ex.Message}", Severity.Error);
+        }
     }
 
     private void OnAccountPick(int index, AccountPickerResult? picked)
     {
-        if (index < 0 || index >= _lines.Count) return;
-        var line = _lines[index];
-        if (picked is null)
+        try
         {
-            line.PickedAccount = null;
-            line.AccountId = 0;
-            line.AccountCode = "";
-            line.AccountTitle = "";
-            return;
+            if (index < 0 || index >= _lines.Count) return;
+            var line = _lines[index];
+            if (picked is null)
+            {
+                line.PickedAccount = null;
+                line.AccountId = 0;
+                line.AccountCode = "";
+                line.AccountTitle = "";
+                return;
+            }
+            line.PickedAccount = picked;
+            line.AccountId = picked.Id;
+            line.AccountCode = picked.AccountCode;
+            line.AccountTitle = picked.Title;
         }
-        line.PickedAccount = picked;
-        line.AccountId = picked.Id;
-        line.AccountCode = picked.AccountCode;
-        line.AccountTitle = picked.Title;
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در انتخاب حساب: {ex.Message}", Severity.Error);
+        }
     }
 
+    private async Task ShowSelectedDetailAsync()
+    {
+        try
+        {
+            if (!CanShowSelectedDetail || _selectedLine is null)
+            {
+                Snackbar.Add("برای نمایش مرور تفصیلی، یک ردیف با حساب تفصیلی نهایی انتخاب کنید.", Severity.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_selectedLine.AccountCode))
+            {
+                Snackbar.Add("کد حساب انتخاب‌شده نامعتبر است.", Severity.Warning);
+                return;
+            }
+
+            var parameters = new DialogParameters
+            {
+                ["AccountCode"] = _selectedLine.AccountCode,
+                ["AccountTitle"] = _selectedLine.AccountTitle
+            };
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+
+            var dialog = await DialogService.ShowAsync<DetailAccountHistoryDialog>("مرور تفصیلی", parameters, options);
+            await dialog.Result;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در نمایش دیالوگ مرور تفصیلی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // سازگاری با کد قدیمی - در صورت فراخوانی مستقیم
     private void ShowSelectedDetail()
     {
-        if (!CanShowSelectedDetail) return;
-        Nav.NavigateTo($"/accounting/reports?report=detail&accountCode={Uri.EscapeDataString(_selectedLine!.AccountCode)}");
+        _ = ShowSelectedDetailAsync();
     }
 
     private async Task SaveAsync()
     {
         if (_busy) return;
-        if (!IsBalanced)
-        {
-            Snackbar.Add("بدهی و بستانکاری سند باید برابر باشد.", Severity.Warning);
-            return;
-        }
-
-        if (_lines.Any(l => (l.Debit <= 0 && l.Credit <= 0) || (l.Debit > 0 && l.Credit > 0)))
-        {
-            Snackbar.Add("هر ردیف باید فقط یک مبلغ بدهکار یا بستانکار مثبت داشته باشد.", Severity.Warning);
-            return;
-        }
-
-        // اعتبارسنجی: تمام ردیف‌ها باید حساب انتخاب‌شده داشته باشند
-        if (_lines.Any(l => l.AccountId == 0))
-        {
-            Snackbar.Add("برای تمام ردیف‌ها باید حساب انتخاب شود.", Severity.Warning);
-            return;
-        }
-
-        _busy = true;
         try
         {
-            var linesJson = JsonSerializer.Serialize(_lines.Select(l => new
+            if (!IsBalanced)
+            {
+                Snackbar.Add("بدهی و بستانکاری سند باید برابر باشد.", Severity.Warning);
+                return;
+            }
+
+            if (_lines.Any(l => (l.Debit <= 0 && l.Credit <= 0) || (l.Debit > 0 && l.Credit > 0)))
+            {
+                Snackbar.Add("هر ردیف باید فقط یک مبلغ بدهکار یا بستانکار مثبت داشته باشد.", Severity.Warning);
+                return;
+            }
+
+            if (_lines.Any(l => l.AccountId == 0))
+            {
+                Snackbar.Add("برای تمام ردیف‌ها باید حساب انتخاب شود.", Severity.Warning);
+                return;
+            }
+
+            _busy = true;
+
+            var linesJson = System.Text.Json.JsonSerializer.Serialize(_lines.Select(l => new
             {
                 l.AccountId,
                 l.AccountCode,
@@ -221,16 +390,22 @@
 
             Snackbar.Add("سند با موفقیت ثبت شد.", Severity.Success);
             _lines.Clear();
+            _selectedLine = null;
             AddLine();
             _counterParty = "";
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"خطا در ثبت سند: {ex.Message}", Severity.Error);
         }
         finally
         {
             _busy = false;
         }
+    }
+
+    private static string SafeMoney(decimal value)
+    {
+        try { return value == 0 ? "—" : value.ToString("N0"); } catch { return "—"; }
     }
 }

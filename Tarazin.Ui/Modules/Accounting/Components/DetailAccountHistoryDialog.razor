@@ -1,0 +1,247 @@
+@using System.Globalization
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">مرور تفصیلی — @AccountCode</MudText>
+        @if (!string.IsNullOrWhiteSpace(AccountTitle))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@AccountTitle</MudText>
+        }
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+            <MudText>در حال بارگذاری گردش حساب...</MudText>
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+        }
+        else if (_summary is null)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">اطلاعات حساب تفصیلی یافت نشد.</MudAlert>
+        }
+        else
+        {
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">مانده اول دوره</MudText>
+                        <MudText Typo="Typo.body1"><b>@SafeBalance(_summary.OpeningBalance)</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">جمع بدهکار</MudText>
+                        <MudText Typo="Typo.body1" Color="Color.Primary"><b>@SafeMoney(_summary.Debit)</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">جمع بستانکار</MudText>
+                        <MudText Typo="Typo.body1" Color="Color.Secondary"><b>@SafeMoney(_summary.Credit)</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">مانده نهایی</MudText>
+                        <MudText Typo="Typo.body1"><b>@SafeBalance(_summary.FinalBalance)</b></MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <MudPaper Elevation="0" Outlined="true" Class="pa-2 mb-2">
+                <MudText Typo="Typo.subtitle2">@_summary.DetilCode — @_summary.DetilTitle</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">کل: @_summary.ColCode — @_summary.ColTitle | معین: @_summary.MoeinCode — @_summary.MoeinTitle</MudText>
+            </MudPaper>
+
+            <MudTable T="DetailAccountTransactionRow" Items="_transactions" Dense="true" Hover="true" Striped="true" RowsPerPage="10">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh>
+                    <MudTh>شماره سند</MudTh>
+                    <MudTh>شرح سند</MudTh>
+                    <MudTh>شرح ردیف</MudTh>
+                    <MudTh>بدهکار</MudTh>
+                    <MudTh>بستانکار</MudTh>
+                    <MudTh>مانده</MudTh>
+                    <MudTh>وضعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@SafeDate(context.DocumentDate)</MudTd>
+                    <MudTd>@(context.DocumentNumber ?? context.DocumentId.ToString())</MudTd>
+                    <MudTd>@(context.DocumentDescription ?? "")</MudTd>
+                    <MudTd>@(context.LineDescription ?? "")</MudTd>
+                    <MudTd>@SafeMoney(context.Debit)</MudTd>
+                    <MudTd>@SafeMoney(context.Credit)</MudTd>
+                    <MudTd>@SafeBalance(context.Balance)</MudTd>
+                    <MudTd>
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@SafeStatus(context.Status)</MudChip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">گردشی در این بازه یافت نشد.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[]{10,25,50})" /></PagerContent>
+            </MudTable>
+
+            <div class="d-flex align-center justify-space-between mt-3 flex-wrap" style="gap:8px">
+                <MudText Typo="Typo.caption">کل ردیف‌ها: @_totalRows.ToString("N0")</MudText>
+                <div class="d-flex" style="gap:8px">
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@(_page==0 || _loading)" OnClick="()=>ChangePageAsync(-1)">قبلی</MudButton>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@((_page+1)*PageSize >= _totalRows || _loading)" OnClick="()=>ChangePageAsync(1)">بعدی</MudButton>
+                </div>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">بستن</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Cancel" StartIcon="@Icons.Material.Filled.Check">تأیید</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const string Schema = "accounting";
+    private const int PageSize = 10;
+    private static readonly DateTime AllHistoryFrom = new(1753, 1, 1);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string AccountCode { get; set; } = "";
+    [Parameter] public string? AccountTitle { get; set; }
+
+    private bool _loading = true;
+    private string _error = "";
+    private DetailAccountSummaryRow? _summary;
+    private List<DetailAccountTransactionRow> _transactions = new();
+    private long _totalRows;
+    private int _page;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _loading = true;
+            _error = "";
+
+            if (string.IsNullOrWhiteSpace(AccountCode))
+            {
+                _error = "کد حساب تفصیلی نامعتبر است.";
+                return;
+            }
+
+            var from = AllHistoryFrom;
+            var to = DateTime.Today;
+
+            try
+            {
+                _summary = await Db.QueryFirstOrDefaultAsync<DetailAccountSummaryRow>(Schema, "DetailAccountSummary", new
+                {
+                    AccountCode = AccountCode,
+                    FromDate = from,
+                    ToDate = to,
+                    StatusFilter = "",
+                    DocumentNumber = ""
+                });
+            }
+            catch (Exception ex)
+            {
+                _error = $"خطا در بارگذاری خلاصه حساب: {ex.Message}";
+                Snackbar.Add(_error, Severity.Error);
+                return;
+            }
+
+            if (_summary is null)
+            {
+                _transactions.Clear();
+                _totalRows = 0;
+                return;
+            }
+
+            try
+            {
+                var tx = await Db.QueryAsync<DetailAccountTransactionRow>(Schema, "DetailAccountTransactions", new
+                {
+                    AccountCode = AccountCode,
+                    FromDate = from,
+                    ToDate = to,
+                    StatusFilter = "",
+                    DocumentNumber = "",
+                    SkipRows = _page * PageSize,
+                    TakeSize = PageSize
+                });
+                _transactions = (tx ?? Array.Empty<DetailAccountTransactionRow>()).ToList();
+                _totalRows = _transactions.FirstOrDefault()?.TotalRows ?? 0;
+            }
+            catch (Exception ex)
+            {
+                _transactions.Clear();
+                _totalRows = 0;
+                _error = $"خطا در بارگذاری گردش: {ex.Message}";
+                Snackbar.Add(_error, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"خطای غیرمنتظره: {ex.Message}";
+            Snackbar.Add(_error, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ChangePageAsync(int delta)
+    {
+        try
+        {
+            var next = _page + delta;
+            if (next < 0) return;
+            if (_totalRows > 0 && next * PageSize >= _totalRows) return;
+            _page = next;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در صفحه‌بندی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private static string SafeMoney(decimal v)
+    {
+        try { return v == 0 ? "—" : v.ToString("N0"); } catch { return "—"; }
+    }
+    private static string SafeBalance(decimal v)
+    {
+        try { return v == 0 ? "صفر" : $"{Math.Abs(v):N0} {(v>0?"بدهکار":"بستانکار")}"; } catch { return "—"; }
+    }
+    private static string SafeDate(DateTime dt)
+    {
+        try { return dt.ToString("yyyy/MM/dd"); } catch { return "—"; }
+    }
+    private static string SafeStatus(string? s)
+    {
+        try { return AccountingDocumentStatus.Title(s); } catch { return s ?? ""; }
+    }
+    private static Color StatusColor(string? status)
+    {
+        try
+        {
+            return AccountingDocumentStatus.Normalize(status) switch
+            {
+                AccountingDocumentStatus.Finalized => Color.Success,
+                AccountingDocumentStatus.Confirmed => Color.Info,
+                AccountingDocumentStatus.Draft => Color.Warning,
+                _ => Color.Default
+            };
+        }
+        catch { return Color.Default; }
+    }
+}
