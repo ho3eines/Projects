@@ -35,7 +35,7 @@
     <MudGrid Spacing="2" AlignItems="Center.Center">
         <MudItem xs="12" md="5">
             <MudTextField @ref="_searchRef"
-                          Label="جستجو (نام، کد، AccountCode)"
+                          Label="جستجو (نام، کد گره، کد حساب)"
                           @bind-Value="_search"
                           Immediate="true"
                           DebounceInterval="180"
@@ -134,17 +134,17 @@
                             Level @_selected.Level
                         </MudChip>
                     </MudItem>
-                    <MudItem xs="5"><MudText Color="Color.Secondary">کد (Code)</MudText></MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">کد حساب</MudText></MudItem>
+                    <MudItem xs="7" Class="d-flex align-center">
+                        <code style="direction:ltr"><b>@_selected.AccountCode</b></code>
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                       OnClick="@(() => Copy("کد حساب", _selected.AccountCode))" />
+                    </MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">کد گره (@TypeTitle(_selected.NodeType))</MudText></MudItem>
                     <MudItem xs="7" Class="d-flex align-center">
                         <code style="direction:ltr">@_selected.Code</code>
                         <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                       OnClick="@(() => Copy("Code", _selected.Code))" />
-                    </MudItem>
-                    <MudItem xs="5"><MudText Color="Color.Secondary">AccountCode</MudText></MudItem>
-                    <MudItem xs="7" Class="d-flex align-center">
-                        <code style="direction:ltr">@_selected.AccountCode</code>
-                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                       OnClick="@(() => Copy("AccountCode", _selected.AccountCode))" />
+                                       OnClick="@(() => Copy("کد گره", _selected.Code))" />
                     </MudItem>
                     <MudItem xs="5"><MudText Color="Color.Secondary">تعداد فرزند</MudText></MudItem>
                     <MudItem xs="7">@_selected.ChildCount</MudItem>
@@ -233,12 +233,12 @@
                         </MudButton>
                     }
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
-                               StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => Copy("Code", _selected.Code))">
-                        کپی Code
+                               StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => Copy("کد گره", _selected.Code))">
+                        کپی کد گره
                     </MudButton>
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
-                               StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => Copy("AccountCode", _selected.AccountCode))">
-                        کپی AccountCode
+                               StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => Copy("کد حساب", _selected.AccountCode))">
+                        کپی کد حساب
                     </MudButton>
                     @if (CanDelete)
                     {
@@ -503,7 +503,8 @@
                 LinkId = _selected.LinkId
             })).ToList();
             _selectedBreadcrumb = rows
-                .Select(r => new BreadcrumbItem($"{r.Code} | {r.Title}", href: null))
+                // در مسیر هم «کد حساب» (مسیر کامل تا آن سطح) نمایش داده می‌شود.
+                .Select(r => new BreadcrumbItem($"{r.AccountCode} | {r.Title}", href: null))
                 .ToList();
         }
         catch
@@ -612,7 +613,10 @@
                 }
             </span>
             <span class="tz-charttree__row" @onclick="@(() => SelectNode(n))">
-                <span class="tz-charttree__code">@n.Code</span>
+                @* در درختواره «کد حساب» (مسیر کامل) مهم است، نه کد کوتاهِ خودِ گره؛
+                   کد کوتاه به‌صورت ثانویه کنارش می‌آید. *@
+                <span class="tz-charttree__code" title="@($"کد حساب: {n.AccountCode} — کد گره: {n.Code}")">@n.AccountCode</span>
+                <span class="tz-charttree__own">@n.Code</span>
                 <span class="tz-charttree__title">@n.Title</span>
                 @if (!n.IsActive)
                 {

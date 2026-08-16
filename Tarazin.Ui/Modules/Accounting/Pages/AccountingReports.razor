@@ -99,7 +99,7 @@
                     <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
                     <MudButton Variant="@(_detilLevel == 2 && _detailSummary is null ? Variant.Filled : Variant.Text)"
                                Color="Color.Primary" OnClick="ShowDetilMoeinsAsync" Disabled="_loading">
-                        @_detilCol.Code — @_detilCol.Title
+                        @_detilCol.AccountCode — @_detilCol.Title
                     </MudButton>
                 }
                 @if (_detilMoein is not null)
@@ -107,7 +107,7 @@
                     <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
                     <MudButton Variant="@(_detilLevel == 3 && _detilPlacements.Count == 0 && _detailSummary is null ? Variant.Filled : Variant.Text)"
                                Color="Color.Primary" OnClick="ShowDetilPlacementsAsync" Disabled="_loading">
-                        @_detilMoein.Code — @_detilMoein.Title
+                        @_detilMoein.AccountCode — @_detilMoein.Title
                     </MudButton>
                 }
                 @foreach (var node in _detilPlacements)
@@ -115,7 +115,7 @@
                     <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
                     <MudButton Variant="@(IsCurrentPlacement(node) && _detailSummary is null ? Variant.Filled : Variant.Text)"
                                Color="Color.Primary" OnClick="@(() => ShowDetilChildrenAsync(node))" Disabled="_loading">
-                        @node.Code — @node.Title
+                        @node.AccountCode — @node.Title
                     </MudButton>
                 }
                 @if (_detailSummary is not null)
@@ -141,7 +141,7 @@
                 <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
                 <MudButton Variant="@(_hierarchyLevel == 2 && _detailSummary is null ? Variant.Filled : Variant.Text)"
                            Color="Color.Primary" OnClick="ShowSelectedColAsync" Disabled="_loading">
-                    @_selectedCol.Code — @_selectedCol.Title
+                    @_selectedCol.AccountCode — @_selectedCol.Title
                 </MudButton>
             }
             @if (_selectedMoein is not null)
@@ -149,7 +149,7 @@
                 <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
                 <MudButton Variant="@(_hierarchyLevel == 3 && _selectedDetails.Count == 0 && _detailSummary is null ? Variant.Filled : Variant.Text)"
                            Color="Color.Primary" OnClick="ShowSelectedMoeinAsync" Disabled="_loading">
-                    @_selectedMoein.Code — @_selectedMoein.Title
+                    @_selectedMoein.AccountCode — @_selectedMoein.Title
                 </MudButton>
             }
             @foreach (var detail in _selectedDetails)
@@ -157,7 +157,7 @@
                 <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
                 <MudButton Variant="@(IsCurrentDetailParent(detail) && _detailSummary is null ? Variant.Filled : Variant.Text)"
                            Color="Color.Primary" OnClick="@(() => ShowDetailChildrenAsync(detail))" Disabled="_loading">
-                    @detail.Code — @detail.Title
+                    @detail.AccountCode — @detail.Title
                 </MudButton>
             }
             @if (_detailSummary is not null)
@@ -185,11 +185,11 @@ else if (_report == "hierarchy" && _detailSummary is null)
         <MudTable T="AccountingHierarchyRow" Items="_hierarchy" Hover="true" Dense="true" Striped="true"
                   OnRowClick="OnHierarchyRowClickAsync">
             <HeaderContent>
-                <MudTh>کد</MudTh><MudTh>عنوان حساب</MudTh><MudTh>زیرمجموعه</MudTh><MudTh>ماهیت</MudTh>
+                <MudTh>کد حساب</MudTh><MudTh>عنوان حساب</MudTh><MudTh>زیرمجموعه</MudTh><MudTh>ماهیت</MudTh>
                 <MudTh>جمع بدهکار</MudTh><MudTh>جمع بستانکار</MudTh><MudTh>مانده</MudTh><MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="کد"><code>@context.Code</code></MudTd>
+                <MudTd DataLabel="کد حساب"><code style="direction:ltr">@context.AccountCode</code></MudTd>
                 <MudTd DataLabel="عنوان"><MudText Color="Color.Primary"><b>@context.Title</b></MudText></MudTd>
                 <MudTd DataLabel="زیرمجموعه">
                     @if (context.ChildCount > 0)
@@ -278,11 +278,11 @@ else if (_report == "detail")
         <MudTable T="AccountingHierarchyRow" Items="_detilDrill" Hover="true" Dense="true" Striped="true"
                   OnRowClick="OnDetilDrillRowClickAsync">
             <HeaderContent>
-                <MudTh>کد</MudTh><MudTh>عنوان حساب</MudTh><MudTh>زیرمجموعه</MudTh>
+                <MudTh>کد حساب</MudTh><MudTh>عنوان حساب</MudTh><MudTh>زیرمجموعه</MudTh>
                 <MudTh>جمع بدهکار</MudTh><MudTh>جمع بستانکار</MudTh><MudTh>مانده</MudTh><MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="کد"><code>@context.Code</code></MudTd>
+                <MudTd DataLabel="کد حساب"><code style="direction:ltr">@context.AccountCode</code></MudTd>
                 <MudTd DataLabel="عنوان"><MudText Color="Color.Primary"><b>@context.Title</b></MudText></MudTd>
                 <MudTd DataLabel="زیرمجموعه">
                     @if (context.ChildCount > 0)

@@ -674,12 +674,22 @@ body {
 .tz-charttree__code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.78rem;
-    color: var(--mud-palette-text-secondary);
-    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
     padding: 0.05rem 0.45rem;
     border-radius: 5px;
     flex-shrink: 0;
     direction: ltr;
+}
+
+/* کد کوتاهِ خودِ گره — ثانویه، کنار کد حساب */
+.tz-charttree__own {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.7rem;
+    color: var(--mud-palette-text-disabled);
+    direction: ltr;
+    flex-shrink: 0;
 }
 
 .tz-charttree__title {
@@ -761,8 +771,9 @@ body {
 .tz-pickertree__code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.78rem;
-    color: var(--mud-palette-text-secondary);
-    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 13%, transparent);
     padding: 0.05rem 0.45rem;
     border-radius: 5px;
     flex-shrink: 0;

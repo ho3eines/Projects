@@ -26,19 +26,16 @@
                         @TypeTitle(Value.NodeType)
                     </MudChip>
                     <b>@Value.Title</b>
+                    @* شناسهٔ اصلیِ حساب، «کد حساب» (مسیر کامل) است. *@
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">
+                        کد حساب: @Value.AccountCode
+                    </MudChip>
                     <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
-                        کد: @Value.Code
+                        کد گره: @Value.Code
                     </MudChip>
-                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
-                        AccountCode: @Value.AccountCode
-                    </MudChip>
-                    <MudTooltip Text="کپی Code">
+                    <MudTooltip Text="کپی کد حساب">
                         <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                       OnClick="@(() => Copy("Code", Value.Code))" />
-                    </MudTooltip>
-                    <MudTooltip Text="کپی AccountCode">
-                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                       OnClick="@(() => Copy("AccountCode", Value.AccountCode))" />
+                                       OnClick="@(() => Copy("کد حساب", Value.AccountCode))" />
                     </MudTooltip>
                     <MudTooltip Text="پاک کردن">
                         <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error"

@@ -11,7 +11,7 @@
         <MudGrid Spacing="2">
             <MudItem xs="12">
                 <MudTextField @ref="_searchRef"
-                              Label="جستجو (نام، کد، AccountCode)"
+                              Label="جستجو (نام، کد گره، کد حساب)"
                               @bind-Value="_search"
                               Variant="Variant.Outlined"
                               Immediate="true"
@@ -83,9 +83,11 @@
                                             <MudIcon Icon="@(n.ChildCount>0 ? Icons.Material.Filled.Folder : Icons.Material.Filled.Article)" Size="Size.Small" Color="@(n.ChildCount>0 ? Color.Warning : Color.Success)" />
                                         }
                                     </span>
-                                    <span class="tz-pickertree__code">@n.Code</span>
+                                    @* «کد حساب» (مسیر کامل) شناسهٔ اصلی ردیف است؛
+                                       کد کوتاهِ خودِ گره فقط به‌صورت ثانویه نمایش داده می‌شود. *@
+                                    <span class="tz-pickertree__code" title="@($"کد حساب: {n.AccountCode} — کد گره: {n.Code}")">@n.AccountCode</span>
                                     <span class="tz-pickertree__title">@n.Title</span>
-                                    <span class="tz-pickertree__acc">@n.AccountCode</span>
+                                    <span class="tz-pickertree__acc">@n.Code</span>
                                     @if (!n.IsActive)
                                     {
                                         <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">غیرفعال</MudChip>
@@ -118,17 +120,17 @@
                             <MudItem xs="7"><b>@_selected.Title</b></MudItem>
                             <MudItem xs="5"><MudText Color="Color.Secondary">نوع</MudText></MudItem>
                             <MudItem xs="7">@TypeTitle(_selected.NodeType)</MudItem>
-                            <MudItem xs="5"><MudText Color="Color.Secondary">کد</MudText></MudItem>
+                            <MudItem xs="5"><MudText Color="Color.Secondary">کد حساب</MudText></MudItem>
                             <MudItem xs="7" Class="d-flex align-center">
-                                <code>@_selected.Code</code>
+                                <code style="direction:ltr"><b>@_selected.AccountCode</b></code>
                                 <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                               OnClick="@(() => Copy("Code", _selected.Code))" />
+                                               OnClick="@(() => Copy("کد حساب", _selected.AccountCode))" />
                             </MudItem>
-                            <MudItem xs="5"><MudText Color="Color.Secondary">AccountCode</MudText></MudItem>
+                            <MudItem xs="5"><MudText Color="Color.Secondary">کد گره</MudText></MudItem>
                             <MudItem xs="7" Class="d-flex align-center">
-                                <code>@_selected.AccountCode</code>
+                                <code style="direction:ltr">@_selected.Code</code>
                                 <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                               OnClick="@(() => Copy("AccountCode", _selected.AccountCode))" />
+                                               OnClick="@(() => Copy("کد گره", _selected.Code))" />
                             </MudItem>
                             <MudItem xs="5"><MudText Color="Color.Secondary">مسیر</MudText></MudItem>
                             <MudItem xs="7">
@@ -493,7 +495,8 @@
                 LinkId = n.LinkId
             })).ToList();
             _breadcrumbs = rows
-                .Select(r => new BreadcrumbItem($"{r.Code} | {r.Title}", href: null))
+                // در مسیر هم «کد حساب» (مسیر کامل تا آن سطح) نمایش داده می‌شود.
+                .Select(r => new BreadcrumbItem($"{r.AccountCode} | {r.Title}", href: null))
                 .ToList();
         }
         catch
