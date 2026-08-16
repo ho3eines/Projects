@@ -1,9 +1,12 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/TrialBalanceReport.sql
 -- Schema: accounting
--- Query. تراز آزمایشی از گردش واقعی؛ بدون JOIN چندبرابرکننده.
+-- تراز آزمایشی از گردش واقعی؛ بدون JOIN چندبرابرکننده.
 -- ChartOfAccounts فقط برای ماهیت حساب قدیمی و با تطابق دقیق کد خوانده می‌شود.
 -- =============================================
+DECLARE @Status NVARCHAR(50) = NULLIF(LTRIM(RTRIM(@StatusFilter)), N'');
+DECLARE @Number NVARCHAR(50) = NULLIF(LTRIM(RTRIM(@DocumentNumber)), N'');
+
 ;WITH Turnover AS (
     SELECT
         l.AccountCode,
@@ -14,15 +17,19 @@
     INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
         AND d.IsDeleted = 0
         AND d.DocumentDate BETWEEN @FromDate AND @ToDate
+        AND (@Status IS NULL OR d.Status = @Status)
+        AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
     GROUP BY l.AccountCode
 )
 SELECT
-    t.AccountCode,
-    t.AccountTitle,
-    a.AccountType,
-    t.Debit,
-    t.Credit,
-    t.Debit - t.Credit AS Balance
-FROM Turnover t
-LEFT JOIN [accounting].[ChartOfAccounts] a ON a.AccountCode = t.AccountCode AND a.IsDeleted = 0
-ORDER BY t.AccountCode;
+    turnover.AccountCode,
+    turnover.AccountTitle,
+    account.AccountType,
+    turnover.Debit,
+    turnover.Credit,
+    turnover.Debit - turnover.Credit AS Balance
+FROM Turnover turnover
+LEFT JOIN [accounting].[ChartOfAccounts] account
+    ON account.AccountCode = turnover.AccountCode
+   AND account.IsDeleted = 0
+ORDER BY turnover.AccountCode;

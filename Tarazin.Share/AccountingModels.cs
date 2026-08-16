@@ -182,6 +182,8 @@ public class AccountingHierarchyRow
     public int? MoeinId { get; set; }
     public int? DetilId { get; set; }
     public int? LinkId { get; set; }
+    public int? ParentLinkId { get; set; }
+    public int ChildCount { get; set; }
     public string AccountCode { get; set; } = "";
     public string? AccountNature { get; set; }
     public decimal Debit { get; set; }

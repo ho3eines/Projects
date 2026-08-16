@@ -1,6 +1,8 @@
 @using System.Globalization
 @inject DbService Db
 @inject ISnackbar Snackbar
+@inject UserSession Session
+@inject NavigationManager Nav
 
 <MudDialog>
     <TitleContent>
@@ -58,7 +60,9 @@
                 <MudText Typo="Typo.caption" Color="Color.Secondary">کل: @_summary.ColCode — @_summary.ColTitle | معین: @_summary.MoeinCode — @_summary.MoeinTitle</MudText>
             </MudPaper>
 
-            <MudTable T="DetailAccountTransactionRow" Items="_transactions" Dense="true" Hover="true" Striped="true" RowsPerPage="10">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">برای باز کردن سند روی هر ردیف گردش کلیک کنید.</MudText>
+            <MudTable T="DetailAccountTransactionRow" Items="_transactions" Dense="true" Hover="true" Striped="true" RowsPerPage="10"
+                      OnRowClick="OnTransactionRowClick">
                 <HeaderContent>
                     <MudTh>تاریخ</MudTh>
                     <MudTh>شماره سند</MudTh>
@@ -209,6 +213,45 @@
         catch (Exception ex)
         {
             Snackbar.Add($"خطا در صفحه‌بندی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void OnTransactionRowClick(TableRowClickEventArgs<DetailAccountTransactionRow> args)
+    {
+        if (args.Item is not { } row)
+            return;
+
+        var documentId = row.DocumentId;
+        if (documentId <= 0)
+        {
+            Snackbar.Add("شناسه سند نامعتبر است.", Severity.Warning);
+            return;
+        }
+
+        bool canOpen;
+        try
+        {
+            canOpen = Session.HasPermission(TarazinPermissions.For("accounting", TarazinActions.View));
+        }
+        catch
+        {
+            canOpen = false;
+        }
+
+        if (!canOpen)
+        {
+            Snackbar.Add("دسترسی مشاهده سند حسابداری را ندارید.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            MudDialog.Close();
+            Nav.NavigateTo($"/accounting/document/{documentId}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در باز کردن سند: {ex.Message}", Severity.Error);
         }
     }
 
