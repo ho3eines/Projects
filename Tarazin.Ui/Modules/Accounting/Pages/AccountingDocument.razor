@@ -5,11 +5,12 @@
 @inject AccountPickerService AccountPicker
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@using Tarazin.Ui.Modules.Accounting.Components
 
 <PageTitle>سند حسابداری — حسابداری</PageTitle>
 
 <PageHeader Title="@($"سند {(_document?.DocumentNumber ?? "")}")"
-            Subtitle="نمایش، ویرایش، تغییر وضعیت و حذف سند حسابداری."
+            Subtitle="نمایش، ویرایش، تغییر وضعیت و حذف سند حسابداری. روی ردیف کلیک کنید تا سبز شود و مرور تفصیلی فعال شود."
             Eyebrow="حسابداری">
     <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowForward"
                Href="/accounting">
@@ -36,7 +37,7 @@ else
     <MudPaper Elevation="1" Class="pa-4 mb-4">
         <div class="d-flex align-center flex-wrap mb-3" style="gap:8px">
             <MudChip T="string" Size="Size.Small" Color="@StatusColor(_status)">
-                وضعیت: @AccountingDocumentStatus.Title(_status)
+                وضعیت: @SafeTitle(_status)
             </MudChip>
             @if (IsReadOnly)
             {
@@ -70,10 +71,12 @@ else
     </MudPaper>
 
     <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند</MudText>
+        <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند — انتخاب ردیف برای مرور تفصیلی</MudText>
 
         <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
-                  @bind-SelectedItem="_selectedLine" SelectOnRowClick="true">
+                  @bind-SelectedItem="_selectedLine" SelectOnRowClick="true"
+                  RowStyleFunc="SelectedRowStyle"
+                  OnRowClick="OnRowClick">
             <HeaderContent>
                 <MudTh style="width:42%">حساب</MudTh>
                 <MudTh>شرح</MudTh>
@@ -109,19 +112,28 @@ else
                                      ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
                 </MudTd>
                 <MudTd DataLabel="">
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
-                                   Size="Size.Small" Disabled="@(IsReadOnly || _lines.Count <= 1)"
-                                   OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                    <span @onclick:stopPropagation="true">
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
+                                       Size="Size.Small" Disabled="@(IsReadOnly || _lines.Count <= 1)"
+                                       OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                    </span>
                 </MudTd>
             </RowTemplate>
         </MudTable>
 
+        @if (_selectedLine is not null)
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                ردیف انتخاب شد: <b>@(_selectedLine.AccountCode ?? "—") — @(_selectedLine.AccountTitle ?? "")</b>
+            </MudAlert>
+        }
+
         <MudGrid Class="mb-4">
             <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.body2">جمع بدهکار: <b>@TotalDebit.ToString("N0")</b></MudText>
+                <MudText Typo="Typo.body2">جمع بدهکار: <b>@SafeMoney(TotalDebit)</b></MudText>
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.body2">جمع بستانکار: <b>@TotalCredit.ToString("N0")</b></MudText>
+                <MudText Typo="Typo.body2">جمع بستانکار: <b>@SafeMoney(TotalCredit)</b></MudText>
             </MudItem>
             <MudItem xs="12">
                 <MudChip T="string" Color="@(IsBalanced ? Color.Success : Color.Error)" Size="Size.Small">
@@ -130,21 +142,35 @@ else
             </MudItem>
         </MudGrid>
 
-        <MudButton Variant="Variant.Outlined" Color="Color.Info" OnClick="ShowSelectedDetail"
-                   Disabled="@(!CanShowSelectedDetail)" StartIcon="@Icons.Material.Filled.ManageSearch">
-            نمایش تفصیلی
-        </MudButton>
-        @if (!IsReadOnly)
-        {
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
-                       StartIcon="@Icons.Material.Filled.Add" Class="ms-2">
-                + ردیف
-            </MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
-                       StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
-                ذخیره تغییرات
-            </MudButton>
-        }
+        <div class="d-flex flex-wrap" style="gap:8px">
+            @if (CanShowSelectedDetail)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ShowSelectedDetailAsync"
+                           StartIcon="@Icons.Material.Filled.ManageSearch">
+                    نمایش تفصیلی
+                </MudButton>
+            }
+            else
+            {
+                <MudTooltip Text="یک ردیف با حساب تفصیلی انتخاب کنید تا مرور گردش نمایش داده شود.">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Info" Disabled="true" StartIcon="@Icons.Material.Filled.ManageSearch">
+                        نمایش تفصیلی
+                    </MudButton>
+                </MudTooltip>
+            }
+
+            @if (!IsReadOnly)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
+                           StartIcon="@Icons.Material.Filled.Add" Class="ms-2">
+                    + ردیف
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
+                    ذخیره تغییرات
+                </MudButton>
+            }
+        </div>
     </MudPaper>
 
     <MudPaper Elevation="1" Class="pa-4">
@@ -155,7 +181,7 @@ else
                 <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
                            StartIcon="@Icons.Material.Filled.ArrowUpward"
                            OnClick="@(() => ChangeStatusAsync(NextStatus))">
-                    @($"تغییر به «{AccountingDocumentStatus.Title(NextStatus)}»")
+                    @($"تغییر به «{SafeTitle(NextStatus)}»")
                 </MudButton>
             }
             @if (PreviousStatus is not null && CanChangeStatusTo(PreviousStatus))
@@ -163,7 +189,7 @@ else
                 <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
                            StartIcon="@Icons.Material.Filled.ArrowDownward"
                            OnClick="@(() => ChangeStatusAsync(PreviousStatus))">
-                    @($"برگشت به «{AccountingDocumentStatus.Title(PreviousStatus)}»")
+                    @($"برگشت به «{SafeTitle(PreviousStatus)}»")
                 </MudButton>
             }
             @if (CanDeleteDocument)
@@ -193,37 +219,99 @@ else
     private bool _loading = true;
     private bool _busy;
 
-    private decimal TotalDebit => _lines.Sum(l => l.Debit);
-    private decimal TotalCredit => _lines.Sum(l => l.Credit);
-    private bool IsBalanced => TotalDebit == TotalCredit && TotalDebit > 0;
-    private bool CanShowSelectedDetail => Session.HasPermission(
-            TarazinPermissions.For("accounting", TarazinActions.Reports))
-        && _selectedLine is not null
-        && !string.IsNullOrWhiteSpace(_selectedLine.AccountCode)
-        && _selectedLine.AccountCode.Length >= 12;
+    private decimal TotalDebit
+    {
+        get { try { return _lines.Sum(l => l.Debit); } catch { return 0; } }
+    }
+    private decimal TotalCredit
+    {
+        get { try { return _lines.Sum(l => l.Credit); } catch { return 0; } }
+    }
+    private bool IsBalanced
+    {
+        get { try { return TotalDebit == TotalCredit && TotalDebit > 0; } catch { return false; } }
+    }
 
-    // ── دسترسی + وضعیت ─────────────────────────────────────────────────
-    // قانون: ویرایش = «دسترسی ویرایش سند» و «وضعیت قابل ویرایش». داشتن
-    // دسترسی به‌تنهایی کافی نیست و برعکس.
-    private bool HasEditPermission => Session.HasPermission(TarazinPermissions.DocumentEdit);
-    private bool IsStatusEditable => AccountingDocumentStatus.IsEditable(_status);
+    private bool CanShowSelectedDetail
+    {
+        get
+        {
+            try
+            {
+                return Session.HasPermission(TarazinPermissions.For("accounting", TarazinActions.Reports))
+                       && _selectedLine is not null
+                       && !string.IsNullOrWhiteSpace(_selectedLine.AccountCode)
+                       && _selectedLine.AccountCode.Length >= 12;
+            }
+            catch { return false; }
+        }
+    }
+
+    private string SelectedRowStyle(JournalLineRow row, int index)
+    {
+        try
+        {
+            if (row is not null && ReferenceEquals(row, _selectedLine))
+                return "background-color: #c8e6c9; border-left: 4px solid #2e7d32;";
+            return "";
+        }
+        catch { return ""; }
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<JournalLineRow> args)
+    {
+        try
+        {
+            if (args?.Item is not null)
+                _selectedLine = args.Item;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در انتخاب ردیف: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private bool HasEditPermission
+    {
+        get { try { return Session.HasPermission(TarazinPermissions.DocumentEdit); } catch { return false; } }
+    }
+    private bool IsStatusEditable
+    {
+        get { try { return AccountingDocumentStatus.IsEditable(_status); } catch { return false; } }
+    }
     private bool CanEditDocument => HasEditPermission && IsStatusEditable;
     private bool IsReadOnly => !CanEditDocument;
 
-    private bool CanDeleteDocument =>
-        Session.HasPermission(TarazinPermissions.DocumentDelete) && IsStatusEditable;
+    private bool CanDeleteDocument
+    {
+        get
+        {
+            try { return Session.HasPermission(TarazinPermissions.DocumentDelete) && IsStatusEditable; }
+            catch { return false; }
+        }
+    }
 
     private string ReadOnlyReason => !HasEditPermission
         ? "فقط خواندنی — دسترسی ویرایش سند حسابداری را ندارید."
         : "فقط خواندنی — سند در وضعیت تأییدشده/تأیید نهایی قابل ویرایش نیست.";
 
-    private string? NextStatus => AccountingDocumentStatus.Next(_status);
-    private string? PreviousStatus => AccountingDocumentStatus.Previous(_status);
+    private string? NextStatus
+    {
+        get { try { return AccountingDocumentStatus.Next(_status); } catch { return null; } }
+    }
+    private string? PreviousStatus
+    {
+        get { try { return AccountingDocumentStatus.Previous(_status); } catch { return null; } }
+    }
 
     private bool CanChangeStatusTo(string? target)
     {
-        var permission = AccountingDocumentStatus.PermissionFor(_status, target);
-        return permission is not null && Session.HasPermission(permission);
+        try
+        {
+            var permission = AccountingDocumentStatus.PermissionFor(_status, target);
+            return permission is not null && Session.HasPermission(permission);
+        }
+        catch { return false; }
     }
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
@@ -233,10 +321,7 @@ else
         _loading = true;
         try
         {
-            _document = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(Schema, "DocumentById", new
-            {
-                DocumentId
-            });
+            _document = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(Schema, "DocumentById", new { DocumentId });
 
             if (_document is null)
             {
@@ -245,13 +330,13 @@ else
             }
 
             _selectedLine = null;
-            _status = AccountingDocumentStatus.Normalize(_document.Status);
+            try { _status = AccountingDocumentStatus.Normalize(_document.Status); } catch { _status = AccountingDocumentStatus.Draft; }
             _documentDate = _document.DocumentDate;
             _documentType = string.IsNullOrWhiteSpace(_document.DocumentType) ? "Journal" : _document.DocumentType!;
             _counterParty = _document.CounterPartyName ?? "";
 
             var rows = await Db.QueryAsync<DocumentLineRow>(Schema, "DocumentLines", new { DocumentId });
-            _lines = rows.Select(r => new JournalLineRow
+            _lines = (rows ?? Array.Empty<DocumentLineRow>()).Select(r => new JournalLineRow
             {
                 AccountId = r.AccountId,
                 AccountCode = r.AccountCode,
@@ -259,7 +344,6 @@ else
                 Description = r.Description ?? "",
                 Debit = r.Debit,
                 Credit = r.Credit,
-                // تا وقتی کاربر حساب را عوض نکرده، همان حساب ذخیره‌شده نمایش داده می‌شود.
                 PickedAccount = new AccountPickerResult
                 {
                     Id = r.AccountId,
@@ -275,7 +359,7 @@ else
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"خطا در بارگذاری سند: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -283,88 +367,145 @@ else
         }
     }
 
-    private static string AccountLabel(JournalLineRow line) =>
-        string.IsNullOrWhiteSpace(line.AccountTitle) ? "— انتخاب حساب —" : $"{line.AccountCode} — {line.AccountTitle}";
+    private static string AccountLabel(JournalLineRow line)
+    {
+        try
+        {
+            return string.IsNullOrWhiteSpace(line.AccountTitle) ? "— انتخاب حساب —" : $"{line.AccountCode} — {line.AccountTitle}";
+        }
+        catch { return "—"; }
+    }
 
     private void AddLine()
     {
-        if (IsReadOnly) return;
-        _lines.Add(new JournalLineRow());
+        try
+        {
+            if (IsReadOnly) return;
+            _lines.Add(new JournalLineRow());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در افزودن ردیف: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task ConfirmRemoveLineAsync(int index)
     {
-        if (IsReadOnly || _lines.Count <= 1 || index < 0 || index >= _lines.Count)
-            return;
+        try
+        {
+            if (IsReadOnly || _lines.Count <= 1 || index < 0 || index >= _lines.Count)
+                return;
 
-        var confirmed = await DialogService.ShowMessageBoxAsync(
-            "تأیید حذف",
-            "آیا این ردیف از سند حذف شود؟",
-            yesText: "حذف",
-            cancelText: "انصراف");
+            var confirmed = await DialogService.ShowMessageBoxAsync(
+                "تأیید حذف",
+                "آیا این ردیف از سند حذف شود؟",
+                yesText: "حذف",
+                cancelText: "انصراف");
 
-        if (confirmed is true)
-            _lines.RemoveAt(index);
+            if (confirmed is true)
+            {
+                if (ReferenceEquals(_lines[index], _selectedLine))
+                    _selectedLine = null;
+                _lines.RemoveAt(index);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در حذف ردیف: {ex.Message}", Severity.Error);
+        }
     }
 
     private void OnAccountPick(int index, AccountPickerResult? picked)
     {
-        if (IsReadOnly) return;
-        if (index < 0 || index >= _lines.Count) return;
-        var line = _lines[index];
-        if (picked is null)
+        try
         {
-            line.PickedAccount = null;
-            line.AccountId = 0;
-            line.AccountCode = "";
-            line.AccountTitle = "";
-            return;
+            if (IsReadOnly) return;
+            if (index < 0 || index >= _lines.Count) return;
+            var line = _lines[index];
+            if (picked is null)
+            {
+                line.PickedAccount = null;
+                line.AccountId = 0;
+                line.AccountCode = "";
+                line.AccountTitle = "";
+                return;
+            }
+            line.PickedAccount = picked;
+            line.AccountId = picked.Id;
+            line.AccountCode = picked.AccountCode;
+            line.AccountTitle = picked.Title;
         }
-        line.PickedAccount = picked;
-        line.AccountId = picked.Id;
-        line.AccountCode = picked.AccountCode;
-        line.AccountTitle = picked.Title;
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در انتخاب حساب: {ex.Message}", Severity.Error);
+        }
     }
 
-    private void ShowSelectedDetail()
+    private async Task ShowSelectedDetailAsync()
     {
-        if (!CanShowSelectedDetail) return;
-        Nav.NavigateTo($"/accounting/reports?report=detail&accountCode={Uri.EscapeDataString(_selectedLine!.AccountCode)}");
+        try
+        {
+            if (!CanShowSelectedDetail || _selectedLine is null)
+            {
+                Snackbar.Add("برای مرور تفصیلی یک ردیف با حساب تفصیلی معتبر انتخاب کنید.", Severity.Warning);
+                return;
+            }
+
+            var parameters = new DialogParameters
+            {
+                ["AccountCode"] = _selectedLine.AccountCode,
+                ["AccountTitle"] = _selectedLine.AccountTitle
+            };
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+
+            var dialog = await DialogService.ShowAsync<DetailAccountHistoryDialog>("مرور تفصیلی", parameters, options);
+            await dialog.Result;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در نمایش دیالوگ مرور تفصیلی: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task SaveAsync()
     {
         if (_busy) return;
 
-        // بررسی مجدد دسترسی + وضعیت در زمان اجرا (نه فقط نمایش دکمه).
-        if (!CanEditDocument)
-        {
-            Snackbar.Add(ReadOnlyReason, Severity.Warning);
-            return;
-        }
-
-        if (!IsBalanced)
-        {
-            Snackbar.Add("بدهی و بستانکاری سند باید برابر باشد.", Severity.Warning);
-            return;
-        }
-
-        if (_lines.Any(l => (l.Debit <= 0 && l.Credit <= 0) || (l.Debit > 0 && l.Credit > 0)))
-        {
-            Snackbar.Add("هر ردیف باید فقط یک مبلغ بدهکار یا بستانکار مثبت داشته باشد.", Severity.Warning);
-            return;
-        }
-
-        if (_lines.Any(l => l.AccountId == 0))
-        {
-            Snackbar.Add("برای تمام ردیف‌ها باید حساب انتخاب شود.", Severity.Warning);
-            return;
-        }
-
-        _busy = true;
         try
         {
-            var linesJson = JsonSerializer.Serialize(_lines.Select(l => new
+            if (!CanEditDocument)
+            {
+                Snackbar.Add(ReadOnlyReason, Severity.Warning);
+                return;
+            }
+
+            if (!IsBalanced)
+            {
+                Snackbar.Add("بدهی و بستانکاری سند باید برابر باشد.", Severity.Warning);
+                return;
+            }
+
+            if (_lines.Any(l => (l.Debit <= 0 && l.Credit <= 0) || (l.Debit > 0 && l.Credit > 0)))
+            {
+                Snackbar.Add("هر ردیف باید فقط یک مبلغ بدهکار یا بستانکار مثبت داشته باشد.", Severity.Warning);
+                return;
+            }
+
+            if (_lines.Any(l => l.AccountId == 0))
+            {
+                Snackbar.Add("برای تمام ردیف‌ها باید حساب انتخاب شود.", Severity.Warning);
+                return;
+            }
+
+            _busy = true;
+
+            var linesJson = System.Text.Json.JsonSerializer.Serialize(_lines.Select(l => new
             {
                 l.AccountId,
                 l.AccountCode,
@@ -388,7 +529,7 @@ else
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"خطا در ذخیره سند: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -400,22 +541,22 @@ else
     {
         if (_busy || target is null) return;
 
-        // بررسی مجدد دسترسی در زمان اجرا — نمایش دکمه به‌تنهایی کافی نیست.
-        if (!CanChangeStatusTo(target))
-        {
-            Snackbar.Add("دسترسی لازم برای این تغییر وضعیت را ندارید.", Severity.Warning);
-            return;
-        }
-
-        var confirm = await DialogService.ShowMessageBoxAsync(
-            "تأیید تغییر وضعیت",
-            $"وضعیت سند از «{AccountingDocumentStatus.Title(_status)}» به «{AccountingDocumentStatus.Title(target)}» تغییر کند؟",
-            yesText: "تأیید", cancelText: "انصراف");
-        if (confirm is not true) return;
-
-        _busy = true;
         try
         {
+            if (!CanChangeStatusTo(target))
+            {
+                Snackbar.Add("دسترسی لازم برای این تغییر وضعیت را ندارید.", Severity.Warning);
+                return;
+            }
+
+            var confirm = await DialogService.ShowMessageBoxAsync(
+                "تأیید تغییر وضعیت",
+                $"وضعیت سند از «{SafeTitle(_status)}» به «{SafeTitle(target)}» تغییر کند؟",
+                yesText: "تأیید", cancelText: "انصراف");
+            if (confirm is not true) return;
+
+            _busy = true;
+
             await Db.ExecuteAsync(Schema, "DocumentStatusChange", new
             {
                 DocumentId,
@@ -423,12 +564,12 @@ else
                 ExpectedStatus = _status,
                 UpdatedBy = Session.UserName
             });
-            Snackbar.Add($"وضعیت سند به «{AccountingDocumentStatus.Title(target)}» تغییر کرد.", Severity.Success);
+            Snackbar.Add($"وضعیت سند به «{SafeTitle(target)}» تغییر کرد.", Severity.Success);
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"خطا در تغییر وضعیت: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -440,24 +581,23 @@ else
     {
         if (_busy) return;
 
-        // بررسی مجدد دسترسی + وضعیت در زمان اجرا.
-        if (!CanDeleteDocument)
-        {
-            Snackbar.Add("امکان حذف این سند وجود ندارد (دسترسی یا وضعیت سند).", Severity.Warning);
-            return;
-        }
-
-        var confirm = await DialogService.ShowMessageBoxAsync(
-            "تأیید حذف سند",
-            $"آیا از حذف سند «{_document?.DocumentNumber}» مطمئن هستید؟ این عملیات قابل بازگشت نیست.",
-            yesText: "حذف سند", cancelText: "انصراف");
-
-        // فقط در صورت تأیید کاربر حذف انجام می‌شود؛ انصراف هیچ تغییری نمی‌دهد.
-        if (confirm is not true) return;
-
-        _busy = true;
         try
         {
+            if (!CanDeleteDocument)
+            {
+                Snackbar.Add("امکان حذف این سند وجود ندارد (دسترسی یا وضعیت سند).", Severity.Warning);
+                return;
+            }
+
+            var confirm = await DialogService.ShowMessageBoxAsync(
+                "تأیید حذف سند",
+                $"آیا از حذف سند «{_document?.DocumentNumber}» مطمئن هستید؟ این عملیات قابل بازگشت نیست.",
+                yesText: "حذف سند", cancelText: "انصراف");
+
+            if (confirm is not true) return;
+
+            _busy = true;
+
             await Db.ExecuteAsync(Schema, "DocumentDelete", new
             {
                 DocumentId,
@@ -468,7 +608,7 @@ else
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"خطا در حذف سند: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -476,11 +616,28 @@ else
         }
     }
 
-    private static Color StatusColor(string? status) => AccountingDocumentStatus.Normalize(status) switch
+    private static Color StatusColor(string? status)
     {
-        AccountingDocumentStatus.Finalized => Color.Success,
-        AccountingDocumentStatus.Confirmed => Color.Info,
-        AccountingDocumentStatus.Draft => Color.Warning,
-        _ => Color.Default
-    };
+        try
+        {
+            return AccountingDocumentStatus.Normalize(status) switch
+            {
+                AccountingDocumentStatus.Finalized => Color.Success,
+                AccountingDocumentStatus.Confirmed => Color.Info,
+                AccountingDocumentStatus.Draft => Color.Warning,
+                _ => Color.Default
+            };
+        }
+        catch { return Color.Default; }
+    }
+
+    private static string SafeTitle(string? status)
+    {
+        try { return AccountingDocumentStatus.Title(status); } catch { return status ?? ""; }
+    }
+
+    private static string SafeMoney(decimal v)
+    {
+        try { return v == 0 ? "—" : v.ToString("N0"); } catch { return "—"; }
+    }
 }
