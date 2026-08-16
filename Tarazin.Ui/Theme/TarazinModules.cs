@@ -48,7 +48,6 @@ public static class TarazinModules
                 new("جداول پایه", "/accounting/chart", Icons.Material.Filled.AccountTree, TarazinPermissions.ChartView),
                 new("عملیات ویژه", "/accounting/special", Icons.Material.Filled.AutoFixHigh, Perm("accounting", TarazinActions.Special)),
                 new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment, Perm("accounting", TarazinActions.Reports)),
-                new("امکانات", "/accounting/settings", Icons.Material.Filled.Tune, Perm("accounting", TarazinActions.Settings)),
             ]),
         new("inventory", "انبار", "رسید و حواله، کارتکس، موجودی کالا",
             "/inventory", Icons.Material.Filled.Inventory2, "#4A6B3A",
@@ -128,9 +127,18 @@ public static class TarazinModules
 
     private static string Perm(string module, string action) => TarazinPermissions.For(module, action);
 
+    private static string NormalizeRelativePath(string? relativePath)
+    {
+        var value = (relativePath ?? "").Trim();
+        var suffix = value.IndexOfAny(['?', '#']);
+        if (suffix >= 0)
+            value = value[..suffix];
+        return value.Trim('/').ToLowerInvariant();
+    }
+
     public static TarazinModule? Match(string relativePath)
     {
-        var path = (relativePath ?? "").Trim().Trim('/').ToLowerInvariant();
+        var path = NormalizeRelativePath(relativePath);
         if (string.IsNullOrEmpty(path) || path is "login" or "diag")
             return null;
         var key = path.Split('/', 2)[0];
@@ -143,7 +151,7 @@ public static class TarazinModules
     /// </summary>
     public static string? RequiredPermissionFor(string relativePath)
     {
-        var path = "/" + (relativePath ?? "").Trim().Trim('/').ToLowerInvariant();
+        var path = "/" + NormalizeRelativePath(relativePath);
         if (path is "/" or "/login" or "/diag")
             return null;
 
@@ -170,7 +178,7 @@ public static class TarazinModules
 
     public static bool IsActive(string currentPath, string href)
     {
-        var cur = "/" + (currentPath ?? "").Trim().Trim('/').ToLowerInvariant();
+        var cur = "/" + NormalizeRelativePath(currentPath);
         var target = "/" + (href ?? "").Trim().Trim('/').ToLowerInvariant();
         if (cur == "/") return target == "/";
         if (target == "/") return cur == "/";

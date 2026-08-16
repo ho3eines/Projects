@@ -133,6 +133,7 @@ public class DocumentLineRow
 /// <summary>دفتر روزنامه — ردیف‌های سند در بازهٔ تاریخ.</summary>
 public class DailyBookRow
 {
+    public int DocumentLineId { get; set; }
     public int DocumentId { get; set; }
     public DateTime DocumentDate { get; set; }
     public string DocumentNumber { get; set; } = "";
@@ -143,6 +144,8 @@ public class DailyBookRow
     public string? Description { get; set; }
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
+    public decimal Balance { get; set; }
+    public string? Status { get; set; }
 }
 
 /// <summary>دفتر کل — جمع و ماندهٔ هر حساب.</summary>
@@ -165,4 +168,62 @@ public class TrialBalanceRow
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
     public decimal Balance { get; set; }
+}
+
+/// <summary>یک سطح از گزارش سلسله‌مراتبی کل ← معین ← تفصیلی.</summary>
+public class AccountingHierarchyRow
+{
+    public int NodeId { get; set; }
+    public int Level { get; set; }
+    public string Code { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string NodeType { get; set; } = "";
+    public int? ColId { get; set; }
+    public int? MoeinId { get; set; }
+    public int? DetilId { get; set; }
+    public int? LinkId { get; set; }
+    public string AccountCode { get; set; } = "";
+    public string? AccountNature { get; set; }
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+    public decimal Balance { get; set; }
+}
+
+/// <summary>خلاصهٔ گردش یک تفصیلی در مسیر دقیق انتخاب‌شده.</summary>
+public class DetailAccountSummaryRow
+{
+    public int DetilId { get; set; }
+    public int LinkId { get; set; }
+    public string AccountCode { get; set; } = "";
+    public string DetilCode { get; set; } = "";
+    public string DetilTitle { get; set; } = "";
+    public int ColId { get; set; }
+    public string ColCode { get; set; } = "";
+    public string ColTitle { get; set; } = "";
+    public int MoeinId { get; set; }
+    public string MoeinCode { get; set; } = "";
+    public string MoeinTitle { get; set; } = "";
+    public decimal OpeningBalance { get; set; }
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+    public decimal FinalBalance { get; set; }
+}
+
+/// <summary>یک گردش بدهکار/بستانکار تفصیلی با ماندهٔ تجمعی.</summary>
+public class DetailAccountTransactionRow
+{
+    public int DocumentLineId { get; set; }
+    public int DocumentId { get; set; }
+    public DateTime DocumentDate { get; set; }
+    public string DocumentNumber { get; set; } = "";
+    public string? DocumentType { get; set; }
+    public string? DocumentDescription { get; set; }
+    public string? LineDescription { get; set; }
+    public string AccountCode { get; set; } = "";
+    public string AccountTitle { get; set; } = "";
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+    public decimal Balance { get; set; }
+    public string? Status { get; set; }
+    public long TotalRows { get; set; }
 }

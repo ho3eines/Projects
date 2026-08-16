@@ -72,7 +72,8 @@ else
     <MudPaper Elevation="1" Class="pa-4 mb-4">
         <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند</MudText>
 
-        <MudTable Items="_lines" Hover="true" Dense="true" Class="mb-4">
+        <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
+                  @bind-SelectedItem="_selectedLine" SelectOnRowClick="true">
             <HeaderContent>
                 <MudTh style="width:42%">حساب</MudTh>
                 <MudTh>شرح</MudTh>
@@ -129,10 +130,14 @@ else
             </MudItem>
         </MudGrid>
 
+        <MudButton Variant="Variant.Outlined" Color="Color.Info" OnClick="ShowSelectedDetail"
+                   Disabled="@(!CanShowSelectedDetail)" StartIcon="@Icons.Material.Filled.ManageSearch">
+            نمایش تفصیلی
+        </MudButton>
         @if (!IsReadOnly)
         {
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
-                       StartIcon="@Icons.Material.Filled.Add">
+                       StartIcon="@Icons.Material.Filled.Add" Class="ms-2">
                 + ردیف
             </MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
@@ -180,6 +185,7 @@ else
 
     private DailyDocumentRow? _document;
     private List<JournalLineRow> _lines = new();
+    private JournalLineRow? _selectedLine;
     private DateTime? _documentDate = DateTime.Today;
     private string _documentType = "Journal";
     private string _counterParty = "";
@@ -190,6 +196,11 @@ else
     private decimal TotalDebit => _lines.Sum(l => l.Debit);
     private decimal TotalCredit => _lines.Sum(l => l.Credit);
     private bool IsBalanced => TotalDebit == TotalCredit && TotalDebit > 0;
+    private bool CanShowSelectedDetail => Session.HasPermission(
+            TarazinPermissions.For("accounting", TarazinActions.Reports))
+        && _selectedLine is not null
+        && !string.IsNullOrWhiteSpace(_selectedLine.AccountCode)
+        && _selectedLine.AccountCode.Length >= 12;
 
     // ── دسترسی + وضعیت ─────────────────────────────────────────────────
     // قانون: ویرایش = «دسترسی ویرایش سند» و «وضعیت قابل ویرایش». داشتن
@@ -233,6 +244,7 @@ else
                 return;
             }
 
+            _selectedLine = null;
             _status = AccountingDocumentStatus.Normalize(_document.Status);
             _documentDate = _document.DocumentDate;
             _documentType = string.IsNullOrWhiteSpace(_document.DocumentType) ? "Journal" : _document.DocumentType!;
@@ -251,9 +263,10 @@ else
                 PickedAccount = new AccountPickerResult
                 {
                     Id = r.AccountId,
-                    Code = r.AccountCode,
+                    Code = r.AccountCode.Length >= 7 ? r.AccountCode[^7..] : r.AccountCode,
                     AccountCode = r.AccountCode,
-                    Title = r.Title
+                    Title = r.Title,
+                    NodeType = r.AccountCode.Length >= 12 ? "BaseDetil" : ""
                 }
             }).ToList();
 
@@ -313,6 +326,12 @@ else
         line.AccountTitle = picked.Title;
     }
 
+    private void ShowSelectedDetail()
+    {
+        if (!CanShowSelectedDetail) return;
+        Nav.NavigateTo($"/accounting/reports?report=detail&accountCode={Uri.EscapeDataString(_selectedLine!.AccountCode)}");
+    }
+
     private async Task SaveAsync()
     {
         if (_busy) return;
@@ -330,6 +349,12 @@ else
             return;
         }
 
+        if (_lines.Any(l => (l.Debit <= 0 && l.Credit <= 0) || (l.Debit > 0 && l.Credit > 0)))
+        {
+            Snackbar.Add("هر ردیف باید فقط یک مبلغ بدهکار یا بستانکار مثبت داشته باشد.", Severity.Warning);
+            return;
+        }
+
         if (_lines.Any(l => l.AccountId == 0))
         {
             Snackbar.Add("برای تمام ردیف‌ها باید حساب انتخاب شود.", Severity.Warning);
@@ -342,6 +367,7 @@ else
             var linesJson = JsonSerializer.Serialize(_lines.Select(l => new
             {
                 l.AccountId,
+                l.AccountCode,
                 l.Description,
                 l.Debit,
                 l.Credit
