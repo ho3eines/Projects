@@ -1,21 +1,27 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/DailyBookReport.sql
 -- Schema: accounting
--- Query. دفتر روزنامه — ردیف‌های سند در بازهٔ تاریخ.
+-- Query. دفتر روزنامه — ردیف‌های واقعی سند در بازهٔ تاریخ.
 -- =============================================
 SELECT
+    l.DocumentLineId,
     l.DocumentId,
     d.DocumentDate,
     d.DocumentNumber,
     d.DocumentType,
     d.CounterPartyName,
     l.AccountCode,
-    l.Title        AS AccountTitle,
+    l.Title AS AccountTitle,
     l.Description,
     l.Debit,
-    l.Credit
+    l.Credit,
+    d.Status,
+    SUM(l.Debit - l.Credit) OVER (
+        PARTITION BY l.AccountCode
+        ORDER BY d.DocumentDate, d.DocumentId, l.DocumentLineId
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS Balance
 FROM [accounting].[DocumentLines] l
-JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
+INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
 WHERE d.DocumentDate BETWEEN @FromDate AND @ToDate
   AND d.IsDeleted = 0
-ORDER BY d.DocumentDate, d.DocumentNumber, l.DocumentLineId;
+ORDER BY d.DocumentDate, d.DocumentId, l.DocumentLineId;

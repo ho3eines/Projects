@@ -1,19 +1,28 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/TrialBalanceReport.sql
 -- Schema: accounting
--- Query. تراز آزمایشی — ماندهٔ همهٔ حساب‌ها در بازهٔ تاریخ.
+-- Query. تراز آزمایشی از گردش واقعی؛ بدون JOIN چندبرابرکننده.
+-- ChartOfAccounts فقط برای ماهیت حساب قدیمی و با تطابق دقیق کد خوانده می‌شود.
 -- =============================================
+;WITH Turnover AS (
+    SELECT
+        l.AccountCode,
+        MAX(l.Title) AS AccountTitle,
+        SUM(l.Debit) AS Debit,
+        SUM(l.Credit) AS Credit
+    FROM [accounting].[DocumentLines] l
+    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
+        AND d.IsDeleted = 0
+        AND d.DocumentDate BETWEEN @FromDate AND @ToDate
+    GROUP BY l.AccountCode
+)
 SELECT
-    a.AccountCode,
-    a.Title        AS AccountTitle,
+    t.AccountCode,
+    t.AccountTitle,
     a.AccountType,
-    ISNULL(SUM(l.Debit), 0)          AS Debit,
-    ISNULL(SUM(l.Credit), 0)         AS Credit,
-    ISNULL(SUM(l.Debit), 0) - ISNULL(SUM(l.Credit), 0) AS Balance
-FROM [accounting].[ChartOfAccounts] a
-LEFT JOIN [accounting].[DocumentLines] l ON l.AccountId = a.AccountId
-LEFT JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
-      AND d.DocumentDate BETWEEN @FromDate AND @ToDate AND d.IsDeleted = 0
-WHERE a.IsDeleted = 0
-GROUP BY a.AccountCode, a.Title, a.AccountType
-ORDER BY a.AccountCode;
+    t.Debit,
+    t.Credit,
+    t.Debit - t.Credit AS Balance
+FROM Turnover t
+LEFT JOIN [accounting].[ChartOfAccounts] a ON a.AccountCode = t.AccountCode AND a.IsDeleted = 0
+ORDER BY t.AccountCode;

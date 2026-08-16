@@ -4,6 +4,7 @@
 @inject IDialogService DialogService
 @inject AccountPickerService AccountPicker
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>ثبت سند — حسابداری</PageTitle>
 
@@ -40,7 +41,8 @@
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند</MudText>
 
-    <MudTable Items="_lines" Hover="true" Dense="true" Class="mb-4">
+    <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
+              @bind-SelectedItem="_selectedLine" SelectOnRowClick="true">
         <HeaderContent>
             <MudTh style="width:42%">حساب</MudTh>
             <MudTh>شرح</MudTh>
@@ -96,6 +98,10 @@
     <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine" StartIcon="@Icons.Material.Filled.Add">
         + ردیف
     </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Info" OnClick="ShowSelectedDetail"
+               Disabled="@(!CanShowSelectedDetail)" StartIcon="@Icons.Material.Filled.ManageSearch" Class="ms-2">
+        نمایش تفصیلی
+    </MudButton>
     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
                StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
         ثبت سند
@@ -107,6 +113,7 @@
     private const string Schema = "accounting";
 
     private List<JournalLineRow> _lines = new();
+    private JournalLineRow? _selectedLine;
     private DateTime? _documentDate = DateTime.Today;
     private string _documentType = "Journal";
     private string _counterParty = "";
@@ -116,6 +123,11 @@
     private decimal TotalDebit => _lines.Sum(l => l.Debit);
     private decimal TotalCredit => _lines.Sum(l => l.Credit);
     private bool IsBalanced => TotalDebit == TotalCredit && TotalDebit > 0;
+    private bool CanShowSelectedDetail => Session.HasPermission(
+            TarazinPermissions.For("accounting", TarazinActions.Reports))
+        && _selectedLine is not null
+        && !string.IsNullOrWhiteSpace(_selectedLine.AccountCode)
+        && _selectedLine.PickedAccount?.NodeType == "BaseDetil";
 
     protected override void OnInitialized()
     {
@@ -157,12 +169,24 @@
         line.AccountTitle = picked.Title;
     }
 
+    private void ShowSelectedDetail()
+    {
+        if (!CanShowSelectedDetail) return;
+        Nav.NavigateTo($"/accounting/reports?report=detail&accountCode={Uri.EscapeDataString(_selectedLine!.AccountCode)}");
+    }
+
     private async Task SaveAsync()
     {
         if (_busy) return;
         if (!IsBalanced)
         {
             Snackbar.Add("بدهی و بستانکاری سند باید برابر باشد.", Severity.Warning);
+            return;
+        }
+
+        if (_lines.Any(l => (l.Debit <= 0 && l.Credit <= 0) || (l.Debit > 0 && l.Credit > 0)))
+        {
+            Snackbar.Add("هر ردیف باید فقط یک مبلغ بدهکار یا بستانکار مثبت داشته باشد.", Severity.Warning);
             return;
         }
 
@@ -179,6 +203,7 @@
             var linesJson = JsonSerializer.Serialize(_lines.Select(l => new
             {
                 l.AccountId,
+                l.AccountCode,
                 l.Description,
                 l.Debit,
                 l.Credit

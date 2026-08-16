@@ -35,6 +35,7 @@ SELECT
 FROM OPENJSON(@LinesJson)
 WITH (
     AccountId   INT,
+    AccountCode NVARCHAR(4000),
     Description NVARCHAR(500),
     Debit       DECIMAL(18,2),
     Credit      DECIMAL(18,2)
@@ -42,6 +43,15 @@ WITH (
 
 IF @TotalDebit <> @TotalCredit OR @TotalDebit <= 0
     THROW 51041, N'بدهی و بستانکاری سند برابر نیست', 1;
+
+IF EXISTS (
+    SELECT 1 FROM OPENJSON(@LinesJson)
+    WITH (Debit DECIMAL(18,2), Credit DECIMAL(18,2)) j
+    WHERE ISNULL(j.Debit, 0) < 0 OR ISNULL(j.Credit, 0) < 0
+       OR (ISNULL(j.Debit, 0) = 0 AND ISNULL(j.Credit, 0) = 0)
+       OR (ISNULL(j.Debit, 0) > 0 AND ISNULL(j.Credit, 0) > 0)
+)
+    THROW 51042, N'هر ردیف باید فقط یک مبلغ بدهکار یا بستانکار مثبت داشته باشد', 1;
 
 DECLARE @DocDate DATE = CAST(@DocumentDate AS DATE);
 DECLARE @CounterParty NVARCHAR(200) = NULLIF(@CounterPartyName, N'');
@@ -62,56 +72,93 @@ BEGIN TRAN;
     ;WITH Lines AS (
         SELECT
             j.AccountId,
+            NULLIF(LTRIM(RTRIM(j.AccountCode)), N'') AS AccountCode,
             j.Description,
             j.Debit,
             j.Credit
         FROM OPENJSON(@LinesJson)
         WITH (
             AccountId   INT,
+            AccountCode NVARCHAR(4000),
             Description NVARCHAR(500),
             Debit       DECIMAL(18,2),
             Credit      DECIMAL(18,2)
         ) j
     ),
-Resolved AS (
-    SELECT
-        l.AccountId,
-        l.Description,
-        l.Debit,
-        l.Credit,
-        COALESCE(d.DetilId, m.MoeinId, c.ColId, coa.AccountId) AS ResolvedAccountId,
-        COALESCE(c.ColCode + m.MoeinCode + d.DetilCode,
-                 c.ColCode + m.MoeinCode,
-                 c.ColCode,
-                 coa.AccountCode) AS ResolvedAccountCode,
-        COALESCE(d.Title, m.Title, c.Title, coa.Title) AS ResolvedTitle
-    FROM Lines l
-    OUTER APPLY (
-        SELECT TOP 1 bd.DetilId, bd.DetilCode, bd.Title
-        FROM [accounting].[BaseDetil] bd
-        WHERE bd.DetilId = l.AccountId AND bd.IsDeleted = 0
-    ) d
-    OUTER APPLY (
-        SELECT TOP 1 dl.MoeinId
+    DetailPaths AS (
+        SELECT
+            dl.LinkId, dl.ParentLinkId, dl.MoeinId, dl.DetilId, bd.Title,
+            CAST(c.ColCode + m.MoeinCode + bd.DetilCode AS NVARCHAR(4000)) AS AccountCode
         FROM [accounting].[BaseDetilLink] dl
-        WHERE dl.DetilId = d.DetilId AND dl.IsDeleted = 0
-    ) dl
-    OUTER APPLY (
-        SELECT TOP 1 mm.MoeinId, mm.MoeinCode, mm.Title, mm.ColId
-        FROM [accounting].[BaseMoein] mm
-        WHERE mm.MoeinId = COALESCE(dl.MoeinId, l.AccountId) AND mm.IsDeleted = 0
-    ) m
-    OUTER APPLY (
-        SELECT TOP 1 cc.ColId, cc.ColCode, cc.Title
-        FROM [accounting].[BaseCol] cc
-        WHERE cc.ColId = COALESCE(m.ColId, l.AccountId) AND cc.IsDeleted = 0
-    ) c
-    OUTER APPLY (
-        SELECT TOP 1 co.AccountId, co.AccountCode, co.Title
-        FROM [accounting].[ChartOfAccounts] co
-        WHERE co.AccountId = l.AccountId AND co.IsDeleted = 0
-    ) coa
-)
+        INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
+        INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+        INNER JOIN [accounting].[BaseDetil] bd ON bd.DetilId = dl.DetilId AND bd.IsDeleted = 0
+        WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0
+
+        UNION ALL
+
+        SELECT
+            dl.LinkId, dl.ParentLinkId, dl.MoeinId, dl.DetilId, bd.Title,
+            CAST(parent.AccountCode + bd.DetilCode AS NVARCHAR(4000))
+        FROM [accounting].[BaseDetilLink] dl
+        INNER JOIN DetailPaths parent ON parent.LinkId = dl.ParentLinkId AND parent.MoeinId = dl.MoeinId
+        INNER JOIN [accounting].[BaseDetil] bd ON bd.DetilId = dl.DetilId AND bd.IsDeleted = 0
+        WHERE dl.IsDeleted = 0
+    ),
+    Resolved AS (
+        SELECT
+            l.AccountId, l.Description, l.Debit, l.Credit,
+            CASE WHEN LEN(l.AccountCode) >= 12 THEN exactPath.DetilId
+                 WHEN l.AccountCode IS NOT NULL THEN legacyExact.AccountId
+                 ELSE COALESCE(d.DetilId, m.MoeinId, c.ColId, coa.AccountId) END AS ResolvedAccountId,
+            CASE WHEN LEN(l.AccountCode) >= 12 THEN exactPath.AccountCode
+                 WHEN l.AccountCode IS NOT NULL THEN legacyExact.AccountCode
+                 ELSE COALESCE(c.ColCode + m.MoeinCode + d.DetilCode,
+                               c.ColCode + m.MoeinCode, c.ColCode, coa.AccountCode) END AS ResolvedAccountCode,
+            CASE WHEN LEN(l.AccountCode) >= 12 THEN exactPath.Title
+                 WHEN l.AccountCode IS NOT NULL THEN legacyExact.Title
+                 ELSE COALESCE(d.Title, m.Title, c.Title, coa.Title) END AS ResolvedTitle
+        FROM Lines l
+        OUTER APPLY (
+            SELECT TOP (1) p.DetilId, p.AccountCode, p.Title
+            FROM DetailPaths p
+            WHERE p.DetilId = l.AccountId AND p.AccountCode = l.AccountCode
+            ORDER BY p.LinkId
+        ) exactPath
+        OUTER APPLY (
+            SELECT TOP (1) co.AccountId, co.AccountCode, co.Title
+            FROM [accounting].[ChartOfAccounts] co
+            WHERE LEN(l.AccountCode) < 12
+              AND co.AccountId = l.AccountId AND co.AccountCode = l.AccountCode
+              AND co.IsDeleted = 0
+        ) legacyExact
+        OUTER APPLY (
+            SELECT TOP 1 bd.DetilId, bd.DetilCode, bd.Title
+            FROM [accounting].[BaseDetil] bd
+            WHERE l.AccountCode IS NULL AND bd.DetilId = l.AccountId AND bd.IsDeleted = 0
+        ) d
+        OUTER APPLY (
+            SELECT TOP 1 dl.MoeinId
+            FROM [accounting].[BaseDetilLink] dl
+            WHERE dl.DetilId = d.DetilId AND dl.IsDeleted = 0
+            ORDER BY dl.LinkId
+        ) dl
+        OUTER APPLY (
+            SELECT TOP 1 mm.MoeinId, mm.MoeinCode, mm.Title, mm.ColId
+            FROM [accounting].[BaseMoein] mm
+            WHERE mm.MoeinId = COALESCE(dl.MoeinId, l.AccountId) AND mm.IsDeleted = 0
+        ) m
+        OUTER APPLY (
+            SELECT TOP 1 cc.ColId, cc.ColCode, cc.Title
+            FROM [accounting].[BaseCol] cc
+            WHERE cc.ColId = COALESCE(m.ColId, l.AccountId) AND cc.IsDeleted = 0
+        ) c
+        OUTER APPLY (
+            SELECT TOP 1 co.AccountId, co.AccountCode, co.Title
+            FROM [accounting].[ChartOfAccounts] co
+            WHERE co.AccountId = l.AccountId AND co.IsDeleted = 0
+        ) coa
+    )
 INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
 SELECT
     @DocumentId,
@@ -122,9 +169,12 @@ SELECT
     ISNULL(r.Debit, 0),
     ISNULL(r.Credit, 0)
 FROM Resolved r
-WHERE r.ResolvedAccountId IS NOT NULL;
+WHERE r.ResolvedAccountId IS NOT NULL
+OPTION (MAXRECURSION 32767);
 
-    IF @@ROWCOUNT = 0
+    DECLARE @InsertedLines INT = @@ROWCOUNT;
+    DECLARE @ExpectedLines INT = (SELECT COUNT(*) FROM OPENJSON(@LinesJson));
+    IF @InsertedLines <> @ExpectedLines
     BEGIN
         ROLLBACK;
         THROW 51044, N'حساب نامعتبر در ردیف‌های سند', 1;

@@ -1,163 +1,310 @@
 @page "/accounting/reports"
 @inject DbService Db
+@inject UserSession Session
+@inject AccountPickerService Picker
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>گزارشات — حسابداری</PageTitle>
 
-<PageHeader Title="گزارشات حسابداری" Subtitle="دفتر روزنامه، دفتر کل و تراز آزمایشی." />
+<PageHeader Title="گزارشات حسابداری"
+            Subtitle="دفتر روزنامه، دفتر کل، تراز آزمایشی، گزارش سلسله‌مراتبی و گردش تفصیلی واقعی."
+            Eyebrow="حسابداری" />
+
 <MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudGrid>
+    <MudGrid Spacing="2">
         <MudItem xs="12" sm="6" md="3">
-            <MudSelect T="string" Label="گزارش" @bind-Value="_report" Variant="Variant.Outlined">
+            <MudSelect T="string" Label="گزارش" Value="_report" ValueChanged="ChangeReportAsync" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("hierarchy")">گزارش سلسله‌مراتبی</MudSelectItem>
+                <MudSelectItem Value="@("detail")">گردش تفصیلی</MudSelectItem>
                 <MudSelectItem Value="@("daily")">دفتر روزنامه</MudSelectItem>
                 <MudSelectItem Value="@("ledger")">دفتر کل</MudSelectItem>
                 <MudSelectItem Value="@("trial")">تراز آزمایشی</MudSelectItem>
             </MudSelect>
         </MudItem>
-        @if (_report == "ledger")
+        <MudItem xs="12" sm="6" md="2">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+        </MudItem>
+        @if (_report is "hierarchy" or "detail")
         {
-            <MudItem xs="12" sm="6" md="3">
-                <MudSelect T="int" Label="حساب" @bind-Value="_accountId" Variant="Variant.Outlined">
-                    <MudSelectItem Value="0">— همهٔ حساب‌ها —</MudSelectItem>
-                    @foreach (var a in _accounts)
+            <MudItem xs="12" sm="6" md="2">
+                <MudSelect T="string" Label="وضعیت سند" @bind-Value="_status" Variant="Variant.Outlined" Clearable="true">
+                    <MudSelectItem T="string" Value="@((string?)null)">همه وضعیت‌ها</MudSelectItem>
+                    @foreach (var status in AccountingDocumentStatus.Ordered)
                     {
-                        <MudSelectItem Value="@a.AccountId">@a.AccountCode — @a.Title</MudSelectItem>
+                        <MudSelectItem Value="@status">@AccountingDocumentStatus.Title(status)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
+            <MudItem xs="12" sm="6" md="2">
+                <MudTextField Label="شماره سند" @bind-Value="_documentNumber" Variant="Variant.Outlined" Clearable="true" />
+            </MudItem>
         }
-        <MudItem xs="12" sm="6" md="3">
-            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
-        </MudItem>
-        <MudItem xs="12" sm="12" md="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow"
-                       OnClick="LoadAsync" Disabled="_loading">
+        <MudItem xs="12" md="1" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search" OnClick="ApplyFiltersAsync" Disabled="_loading">
                 اجرا
             </MudButton>
         </MudItem>
     </MudGrid>
+    @if (_report == "detail")
+    {
+        <MudDivider Class="my-3" />
+        <div class="d-flex align-center flex-wrap" style="gap:8px">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AccountTree"
+                       OnClick="PickDetailAsync" Disabled="_loading">
+                انتخاب / جستجوی تفصیلی
+            </MudButton>
+            @if (!string.IsNullOrWhiteSpace(_detailAccountCode))
+            {
+                <MudChip T="string" Color="Color.Info" Variant="Variant.Outlined">
+                    مسیر انتخاب‌شده: @_detailAccountCode
+                </MudChip>
+            }
+        </div>
+    }
 </MudPaper>
 
-<MudPaper Elevation="1" Class="pa-4">
-    @if (_loading)
-    {
-        <MudProgressLinear Indeterminate="true" />
-    }
-    else if (_report == "daily")
-    {
-        <MudTable Items="_dailyBook" Hover="true" Dense="true" Striped="true">
+@if (_report == "hierarchy")
+{
+    <MudPaper Elevation="1" Class="pa-3 mb-4">
+        <div class="d-flex align-center flex-wrap" style="gap:4px">
+            <MudButton Variant="@(_hierarchyLevel == 1 ? Variant.Filled : Variant.Text)" Color="Color.Primary"
+                       OnClick="ResetHierarchyAsync">حساب کل</MudButton>
+            @if (_selectedCol is not null)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                <MudButton Variant="@(_hierarchyLevel == 2 ? Variant.Filled : Variant.Text)" Color="Color.Primary"
+                           OnClick="BackToMoeinAsync">@_selectedCol.Code — @_selectedCol.Title</MudButton>
+            }
+            @if (_selectedMoein is not null)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                <MudButton Variant="@(_hierarchyLevel == 3 ? Variant.Filled : Variant.Text)" Color="Color.Primary"
+                           OnClick="BackToDetailAsync">@_selectedMoein.Code — @_selectedMoein.Title</MudButton>
+            }
+            @if (_detailSummary is not null)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                <MudChip T="string" Color="Color.Tertiary">تفصیلی: @_detailSummary.DetilCode — @_detailSummary.DetilTitle</MudChip>
+                <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                <MudChip T="string" Variant="Variant.Outlined">سند / ردیف سند</MudChip>
+            }
+        </div>
+    </MudPaper>
+}
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else if (_report == "hierarchy" && _detailSummary is null)
+{
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-3">@HierarchyTitle</MudText>
+        <MudTable T="AccountingHierarchyRow" Items="_hierarchy" Hover="true" Dense="true" Striped="true">
             <HeaderContent>
-                <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>طرف حساب</MudTh>
-                <MudTh>حساب</MudTh><MudTh>شرح</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh>
+                <MudTh>کد</MudTh><MudTh>عنوان حساب</MudTh><MudTh>ماهیت</MudTh>
+                <MudTh>جمع بدهکار</MudTh><MudTh>جمع بستانکار</MudTh><MudTh>مانده</MudTh><MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="تاریخ">@context.DocumentDate.ToString("yyyy/MM/dd")</MudTd>
-                <MudTd DataLabel="شماره">@context.DocumentNumber</MudTd>
-                <MudTd DataLabel="طرف حساب">@context.CounterPartyName</MudTd>
-                <MudTd DataLabel="حساب">@context.AccountCode — @context.AccountTitle</MudTd>
-                <MudTd DataLabel="شرح">@context.Description</MudTd>
-                <MudTd DataLabel="بدهکار">@context.Debit.ToString("N0")</MudTd>
-                <MudTd DataLabel="بستانکار">@context.Credit.ToString("N0")</MudTd>
+                <MudTd DataLabel="کد"><code>@context.Code</code></MudTd>
+                <MudTd DataLabel="عنوان">
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => DrillDownAsync(context))">
+                        @context.Title
+                    </MudButton>
+                </MudTd>
+                <MudTd DataLabel="ماهیت">@(NatureTitle(context.AccountNature))</MudTd>
+                <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd>
+                <MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+                <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+                <MudTd><MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Color="Color.Primary" OnClick="@(() => DrillDownAsync(context))" /></MudTd>
             </RowTemplate>
-            <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
+            <NoRecordsContent><MudText Color="Color.Secondary">در این سطح و بازه، گردش مرتبطی وجود ندارد.</MudText></NoRecordsContent>
         </MudTable>
-    }
-    else if (_report == "ledger")
-    {
-        <MudTable Items="_ledger" Hover="true" Dense="true" Striped="true">
+    </MudPaper>
+}
+else if ((_report == "detail" || _report == "hierarchy") && _detailSummary is not null)
+{
+    @DetailReportContent()
+}
+else if (_report == "detail")
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AccountTree">
+        برای مشاهده مانده اول دوره و تمام گردش‌های بدهکار و بستانکار، یک حساب تفصیلی انتخاب کنید.
+    </MudAlert>
+}
+else if (_report == "daily")
+{
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudTable Items="_dailyBook" Hover="true" Dense="true" Striped="true" RowsPerPage="25">
             <HeaderContent>
-                <MudTh>کد</MudTh><MudTh>حساب</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh>
+                <MudTh>تاریخ</MudTh><MudTh>سند</MudTh><MudTh>حساب</MudTh><MudTh>شرح ردیف</MudTh>
+                <MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="کد">@context.AccountCode</MudTd>
-                <MudTd DataLabel="حساب">@context.AccountTitle</MudTd>
-                <MudTd DataLabel="بدهکار">@context.Debit.ToString("N0")</MudTd>
-                <MudTd DataLabel="بستانکار">@context.Credit.ToString("N0")</MudTd>
-                <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+                <MudTd>@context.DocumentDate.ToString("yyyy/MM/dd")</MudTd>
+                <MudTd>@DocumentLink(context.DocumentId, context.DocumentNumber)</MudTd>
+                <MudTd>@context.AccountCode — @context.AccountTitle</MudTd>
+                <MudTd>@context.Description</MudTd>
+                <MudTd>@Money(context.Debit)</MudTd><MudTd>@Money(context.Credit)</MudTd>
+                <MudTd>@BalanceText(context.Balance)</MudTd>
+                <MudTd>@StatusChip(context.Status)</MudTd>
             </RowTemplate>
+            <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
         </MudTable>
-    }
-    else
-    {
-        <MudTable Items="_trial" Hover="true" Dense="true" Striped="true">
-            <HeaderContent>
-                <MudTh>کد</MudTh><MudTh>حساب</MudTh><MudTh>نوع</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh>
-            </HeaderContent>
+    </MudPaper>
+}
+else if (_report == "ledger")
+{
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudTable Items="_ledger" Hover="true" Dense="true" Striped="true" RowsPerPage="25">
+            <HeaderContent><MudTh>کد کامل حساب</MudTh><MudTh>حساب</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh></HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="کد">@context.AccountCode</MudTd>
-                <MudTd DataLabel="حساب">@context.AccountTitle</MudTd>
-                <MudTd DataLabel="نوع">@context.AccountType</MudTd>
-                <MudTd DataLabel="بدهکار">@context.Debit.ToString("N0")</MudTd>
-                <MudTd DataLabel="بستانکار">@context.Credit.ToString("N0")</MudTd>
-                <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+                <MudTd><code>@context.AccountCode</code></MudTd><MudTd>@context.AccountTitle</MudTd>
+                <MudTd>@Money(context.Debit)</MudTd><MudTd>@Money(context.Credit)</MudTd><MudTd>@BalanceText(context.Balance)</MudTd>
             </RowTemplate>
+            <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
         </MudTable>
-    }
-</MudPaper>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudTable Items="_trial" Hover="true" Dense="true" Striped="true" RowsPerPage="25">
+            <HeaderContent><MudTh>کد</MudTh><MudTh>حساب</MudTh><MudTh>ماهیت</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh></HeaderContent>
+            <RowTemplate>
+                <MudTd><code>@context.AccountCode</code></MudTd><MudTd>@context.AccountTitle</MudTd><MudTd>@NatureTitle(context.AccountType)</MudTd>
+                <MudTd>@Money(context.Debit)</MudTd><MudTd>@Money(context.Credit)</MudTd><MudTd>@BalanceText(context.Balance)</MudTd>
+            </RowTemplate>
+            <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
+            <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+}
 
 @code {
     private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
     private const string Schema = "accounting";
+    private const int DetailPageSize = 50;
+    private static readonly DateTime AllHistoryFrom = new(1753, 1, 1);
 
-    private List<ChartOfAccountRow> _accounts = new();
-    private List<DailyBookRow> _dailyBook = new();
-    private List<GeneralLedgerRow> _ledger = new();
-    private List<TrialBalanceRow> _trial = new();
-    private string _report = "daily";
-    private int _accountId;
+    [Parameter, SupplyParameterFromQuery(Name = "report")] public string? RequestedReport { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "accountCode")] public string? RequestedAccountCode { get; set; }
+
+    private readonly List<DailyBookRow> _dailyBook = new();
+    private readonly List<GeneralLedgerRow> _ledger = new();
+    private readonly List<TrialBalanceRow> _trial = new();
+    private List<AccountingHierarchyRow> _hierarchy = new();
+    private List<DetailAccountTransactionRow> _detailTransactions = new();
+    private AccountingHierarchyRow? _selectedCol;
+    private AccountingHierarchyRow? _selectedMoein;
+    private DetailAccountSummaryRow? _detailSummary;
+    private string _report = "hierarchy";
+    private string? _detailAccountCode;
+    private string? _status;
+    private string _documentNumber = "";
+    // در گزارش تفصیلی/سلسله‌مراتبی، خالی بودن «از تاریخ» یعنی تمام سوابق.
     private DateTime? _from;
-    private DateTime? _to;
+    private DateTime? _to = DateTime.Today;
+    private int _hierarchyLevel = 1;
+    private int _detailPage;
+    private long _detailTotalRows;
     private bool _loading = true;
+    private string _appliedQueryKey = "";
 
-    protected override async Task OnInitializedAsync()
+    private string HierarchyTitle => _hierarchyLevel switch
     {
-        _from = DateTime.Today.AddMonths(-1);
-        _to = DateTime.Today;
-        _accounts = (await Db.QueryAsync<ChartOfAccountRow>(Schema, "ChartOfAccountSearch", new
+        1 => "حساب‌های کل",
+        2 => $"حساب‌های معینِ «{_selectedCol?.Title}»",
+        _ => $"حساب‌های تفصیلیِ «{_selectedMoein?.Title}»"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var queryKey = $"{RequestedReport}|{RequestedAccountCode}";
+        if (_appliedQueryKey == queryKey && !_loading)
+            return;
+        _appliedQueryKey = queryKey;
+
+        if (RequestedReport is "hierarchy" or "detail" or "daily" or "ledger" or "trial")
+            _report = RequestedReport;
+        if ((_report is "daily" or "ledger" or "trial") && _from is null)
+            _from = DateTime.Today.AddMonths(-1);
+        if (!string.IsNullOrWhiteSpace(RequestedAccountCode))
         {
-            SearchText = "",
-            SkipRows = 0,
-            TakeSize = 500
-        })).ToList();
+            _report = "detail";
+            _detailAccountCode = RequestedAccountCode.Trim();
+        }
         await LoadAsync();
+    }
+
+    private async Task ChangeReportAsync(string value)
+    {
+        _report = value;
+        _from = _report is "detail" or "hierarchy" ? null : DateTime.Today.AddMonths(-1);
+        if (_report != "hierarchy")
+        {
+            _selectedCol = null;
+            _selectedMoein = null;
+            _hierarchyLevel = 1;
+        }
+        if (_report != "detail")
+        {
+            _detailSummary = null;
+            _detailAccountCode = null;
+            _detailTransactions.Clear();
+        }
+        await LoadAsync();
+    }
+
+    private Task ApplyFiltersAsync()
+    {
+        _detailPage = 0;
+        return LoadAsync();
     }
 
     private async Task LoadAsync()
     {
+        if (_from?.Date > _to?.Date)
+        {
+            Snackbar.Add("تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.", Severity.Warning);
+            return;
+        }
+
         _loading = true;
         try
         {
-            var from = _from?.Date ?? DateTime.Today.AddMonths(-1);
+            var from = _from?.Date ?? AllHistoryFrom;
             var to = _to?.Date ?? DateTime.Today;
-
             switch (_report)
             {
+                case "hierarchy":
+                    if (!string.IsNullOrWhiteSpace(_detailAccountCode))
+                        await LoadDetailAsync(from, to);
+                    else
+                        await LoadHierarchyAsync(from, to);
+                    break;
+                case "detail":
+                    if (!string.IsNullOrWhiteSpace(_detailAccountCode))
+                        await LoadDetailAsync(from, to);
+                    break;
                 case "daily":
-                    _dailyBook = (await Db.QueryAsync<DailyBookRow>(Schema, "DailyBookReport", new
-                    {
-                        FromDate = from,
-                        ToDate = to
-                    })).ToList();
+                    _dailyBook.Clear();
+                    _dailyBook.AddRange(await Db.QueryAsync<DailyBookRow>(Schema, "DailyBookReport", new { FromDate = from, ToDate = to }));
                     break;
                 case "ledger":
-                    _ledger = (await Db.QueryAsync<GeneralLedgerRow>(Schema, "GeneralLedgerReport", new
-                    {
-                        AccountId = _accountId == 0 ? (int?)null : _accountId,
-                        FromDate = from,
-                        ToDate = to
-                    })).ToList();
+                    _ledger.Clear();
+                    _ledger.AddRange(await Db.QueryAsync<GeneralLedgerRow>(Schema, "GeneralLedgerReport", new { AccountId = (int?)null, FromDate = from, ToDate = to }));
                     break;
                 default:
-                    _trial = (await Db.QueryAsync<TrialBalanceRow>(Schema, "TrialBalanceReport", new
-                    {
-                        FromDate = from,
-                        ToDate = to
-                    })).ToList();
+                    _trial.Clear();
+                    _trial.AddRange(await Db.QueryAsync<TrialBalanceRow>(Schema, "TrialBalanceReport", new { FromDate = from, ToDate = to }));
                     break;
             }
         }
@@ -170,4 +317,196 @@
             _loading = false;
         }
     }
+
+    private async Task LoadHierarchyAsync(DateTime from, DateTime to)
+    {
+        _hierarchy = (await Db.QueryAsync<AccountingHierarchyRow>(Schema, "AccountingHierarchyReport", new
+        {
+            Level = _hierarchyLevel,
+            ColId = _selectedCol?.NodeId,
+            MoeinId = _selectedMoein?.NodeId,
+            FromDate = from,
+            ToDate = to,
+            StatusFilter = _status ?? "",
+            DocumentNumber = _documentNumber ?? ""
+        })).ToList();
+    }
+
+    private async Task LoadDetailAsync(DateTime from, DateTime to)
+    {
+        _detailSummary = await Db.QueryFirstOrDefaultAsync<DetailAccountSummaryRow>(Schema, "DetailAccountSummary", new
+        {
+            AccountCode = _detailAccountCode,
+            FromDate = from,
+            ToDate = to,
+            StatusFilter = _status ?? "",
+            DocumentNumber = _documentNumber ?? ""
+        });
+        if (_detailSummary is null)
+        {
+            _detailTransactions.Clear();
+            _detailTotalRows = 0;
+            Snackbar.Add("مسیر تفصیلی انتخاب‌شده در ساختار حساب‌ها پیدا نشد.", Severity.Warning);
+            return;
+        }
+        _detailTransactions = (await Db.QueryAsync<DetailAccountTransactionRow>(Schema, "DetailAccountTransactions", new
+        {
+            AccountCode = _detailAccountCode,
+            FromDate = from,
+            ToDate = to,
+            StatusFilter = _status ?? "",
+            DocumentNumber = _documentNumber ?? "",
+            SkipRows = _detailPage * DetailPageSize,
+            TakeSize = DetailPageSize
+        })).ToList();
+        _detailTotalRows = _detailTransactions.FirstOrDefault()?.TotalRows ?? 0;
+    }
+
+    private async Task DrillDownAsync(AccountingHierarchyRow row)
+    {
+        _detailPage = 0;
+        if (_hierarchyLevel == 1)
+        {
+            _selectedCol = row;
+            _selectedMoein = null;
+            _hierarchyLevel = 2;
+        }
+        else if (_hierarchyLevel == 2)
+        {
+            _selectedMoein = row;
+            _hierarchyLevel = 3;
+        }
+        else
+        {
+            _detailAccountCode = row.AccountCode;
+            await LoadAsync();
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task ResetHierarchyAsync()
+    {
+        _selectedCol = null; _selectedMoein = null; _detailSummary = null; _detailAccountCode = null;
+        _hierarchyLevel = 1; _detailPage = 0;
+        await LoadAsync();
+    }
+
+    private async Task BackToMoeinAsync()
+    {
+        _selectedMoein = null; _detailSummary = null; _detailAccountCode = null;
+        _hierarchyLevel = 2; _detailPage = 0;
+        await LoadAsync();
+    }
+
+    private async Task BackToDetailAsync()
+    {
+        _detailSummary = null; _detailAccountCode = null; _hierarchyLevel = 3; _detailPage = 0;
+        await LoadAsync();
+    }
+
+    private async Task PickDetailAsync()
+    {
+        var picked = await Picker.PickAsync(new AccountPickerOptions
+        {
+            Title = "انتخاب حساب تفصیلی برای گزارش گردش",
+            AllowedType = AccountPickerType.Detil,
+            TransactionalOnly = true
+        });
+        if (picked is null) return;
+        _detailAccountCode = picked.AccountCode;
+        _detailPage = 0;
+        await LoadAsync();
+    }
+
+    private async Task ChangeDetailPageAsync(int delta)
+    {
+        var next = _detailPage + delta;
+        if (next < 0 || next * DetailPageSize >= _detailTotalRows) return;
+        _detailPage = next;
+        await LoadAsync();
+    }
+
+    private void OpenDocument(int documentId)
+    {
+        if (CanOpenDocument)
+            Nav.NavigateTo($"/accounting/document/{documentId}");
+    }
+
+    private bool CanOpenDocument => Session.HasPermission(TarazinPermissions.For("accounting", TarazinActions.View));
+    private static string Money(decimal value) => value == 0 ? "—" : value.ToString("N0");
+    private static string BalanceText(decimal value) => value == 0 ? "صفر" : $"{Math.Abs(value):N0} {(value > 0 ? "بدهکار" : "بستانکار")}";
+    private static string NatureTitle(string? value) => value switch
+    {
+        "Asset" => "دارایی (بدهکار)", "Expense" => "هزینه (بدهکار)",
+        "Liability" => "بدهی (بستانکار)", "Equity" => "حقوق مالکانه (بستانکار)",
+        "Income" => "درآمد (بستانکار)", _ => "—"
+    };
+
+    private RenderFragment DocumentLink(int id, string number) => builder =>
+    {
+        builder.OpenComponent<MudButton>(0);
+        builder.AddAttribute(1, "Variant", Variant.Text);
+        builder.AddAttribute(2, "Color", Color.Primary);
+        builder.AddAttribute(3, "Size", Size.Small);
+        builder.AddAttribute(4, "Disabled", !CanOpenDocument);
+        builder.AddAttribute(5, "OnClick", EventCallback.Factory.Create(this, () => OpenDocument(id)));
+        builder.AddAttribute(6, "ChildContent", (RenderFragment)(b => b.AddContent(0, number)));
+        builder.CloseComponent();
+    };
+
+    private RenderFragment StatusChip(string? status) => builder =>
+    {
+        builder.OpenComponent<MudChip<string>>(0);
+        builder.AddAttribute(1, "Size", Size.Small);
+        builder.AddAttribute(2, "Color", StatusColor(status));
+        builder.AddAttribute(3, "ChildContent", (RenderFragment)(b => b.AddContent(0, AccountingDocumentStatus.Title(status))));
+        builder.CloseComponent();
+    };
+
+    private RenderFragment DetailReportContent() => @<div>
+        <MudGrid Spacing="2" Class="mb-4">
+            <StatCard Label="مانده اول دوره" Value="@BalanceText(_detailSummary!.OpeningBalance)" Icon="@Icons.Material.Filled.FirstPage" Accent="#607D8B" />
+            <StatCard Label="جمع بدهکار" Value="@Money(_detailSummary.Debit)" Icon="@Icons.Material.Filled.SouthWest" Accent="#1E4B73" />
+            <StatCard Label="جمع بستانکار" Value="@Money(_detailSummary.Credit)" Icon="@Icons.Material.Filled.NorthEast" Accent="#C49A3C" />
+            <StatCard Label="مانده نهایی" Value="@BalanceText(_detailSummary.FinalBalance)" Icon="@Icons.Material.Filled.Balance" Accent="#0E4D4A" />
+        </MudGrid>
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudText Typo="Typo.h6">@_detailSummary.DetilCode — @_detailSummary.DetilTitle</MudText>
+            <MudText Color="Color.Secondary" Class="mt-1">
+                کل: @_detailSummary.ColCode — @_detailSummary.ColTitle | معین: @_detailSummary.MoeinCode — @_detailSummary.MoeinTitle
+            </MudText>
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" Class="mt-2">AccountCode: @_detailSummary.AccountCode</MudChip>
+        </MudPaper>
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">گردش بدهکار و بستانکار تفصیلی</MudText>
+            <MudTable Items="_detailTransactions" Hover="true" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh><MudTh>شماره سند</MudTh><MudTh>شرح / طرف حساب سند</MudTh><MudTh>شرح ردیف</MudTh>
+                    <MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.DocumentDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd>@DocumentLink(context.DocumentId, context.DocumentNumber)</MudTd>
+                    <MudTd>@context.DocumentDescription</MudTd><MudTd>@context.LineDescription</MudTd>
+                    <MudTd>@Money(context.Debit)</MudTd><MudTd>@Money(context.Credit)</MudTd>
+                    <MudTd>@BalanceText(context.Balance)</MudTd><MudTd>@StatusChip(context.Status)</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">در این بازه گردشی ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+            <div class="d-flex align-center justify-end mt-3" style="gap:8px">
+                <MudText Typo="Typo.caption">@($"نمایش {(_detailTotalRows == 0 ? 0 : _detailPage * DetailPageSize + 1)} تا {Math.Min((_detailPage + 1) * DetailPageSize, _detailTotalRows)} از {_detailTotalRows:N0}")</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_detailPage == 0)" OnClick="@(() => ChangeDetailPageAsync(-1))" />
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(((_detailPage + 1) * DetailPageSize) >= _detailTotalRows)" OnClick="@(() => ChangeDetailPageAsync(1))" />
+            </div>
+        </MudPaper>
+    </div>;
+
+    private static Color StatusColor(string? status) => AccountingDocumentStatus.Normalize(status) switch
+    {
+        AccountingDocumentStatus.Finalized => Color.Success,
+        AccountingDocumentStatus.Confirmed => Color.Info,
+        AccountingDocumentStatus.Draft => Color.Warning,
+        _ => Color.Default
+    };
 }
