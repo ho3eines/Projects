@@ -1,9 +1,12 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/GeneralLedgerReport.sql
 -- Schema: accounting
--- Query. دفتر کل بر اساس کد واقعی ذخیره‌شده روی ردیف سند.
--- اتصال تاریخ در WHERE/INNER JOIN انجام می‌شود تا گردش خارج بازه وارد SUM نشود.
+-- دفتر کل بر اساس کد واقعی ذخیره‌شده روی ردیف سند.
+-- اتصال تاریخ و فیلتر سند در INNER JOIN انجام می‌شود تا گردش نامرتبط وارد SUM نشود.
 -- =============================================
+DECLARE @Status NVARCHAR(50) = NULLIF(LTRIM(RTRIM(@StatusFilter)), N'');
+DECLARE @Number NVARCHAR(50) = NULLIF(LTRIM(RTRIM(@DocumentNumber)), N'');
+
 SELECT
     MIN(l.AccountId) AS AccountId,
     l.AccountCode,
@@ -15,6 +18,8 @@ FROM [accounting].[DocumentLines] l
 INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
     AND d.IsDeleted = 0
     AND d.DocumentDate BETWEEN @FromDate AND @ToDate
+    AND (@Status IS NULL OR d.Status = @Status)
+    AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
 WHERE @AccountId IS NULL OR l.AccountId = @AccountId
 GROUP BY l.AccountCode
 HAVING SUM(l.Debit) <> 0 OR SUM(l.Credit) <> 0
