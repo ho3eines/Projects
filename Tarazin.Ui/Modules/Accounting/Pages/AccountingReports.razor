@@ -51,25 +51,80 @@
     @if (_report == "detail")
     {
         <MudDivider Class="my-3" />
-        <div class="d-flex align-center flex-wrap" style="gap:8px">
-            @if (_detailSummary is not null)
-            {
-                <MudButton Variant="Variant.Text" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowForward"
-                           OnClick="BackFromDetailAsync" Disabled="_loading">
-                    بازگشت
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="6">
+                @* گردش تفصیلی با «خودِ تفصیلی» شروع می‌شود، نه با انتخاب حساب:
+                   ابتدا تفصیلی، سپس کل‌هایی که در آن‌ها گردش دارد، بعد معین، بعد
+                   فرزندان تفصیلی تا آخرین برگ و در نهایت سند. *@
+                <MudAutocomplete T="BaseDetilRow"
+                                 Label="حساب تفصیلی (نام یا کد)"
+                                 Value="_detilEntity"
+                                 ValueChanged="OnDetilEntityChangedAsync"
+                                 SearchFunc="SearchDetilAsync"
+                                 ToStringFunc="DetilDisplay"
+                                 Variant="Variant.Outlined"
+                                 Adornment="Adornment.Start"
+                                 AdornmentIcon="@Icons.Material.Filled.Search"
+                                 ResetValueOnEmptyText="true"
+                                 CoerceText="true"
+                                 Clearable="true"
+                                 Disabled="_loading"
+                                 Placeholder="مثلاً: بانک ملی یا 0000123"
+                                 HelperText="ابتدا تفصیلی را انتخاب کنید؛ سپس حساب‌های کل، معین و زیرمجموعه‌ها تا سند باز می‌شوند." />
+            </MudItem>
+            <MudItem xs="12" md="6" Class="d-flex align-center flex-wrap" Style="gap:8px">
+                @if (_detilEntity is not null)
+                {
+                    <MudChip T="string" Color="Color.Tertiary" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Person">
+                        تفصیلی: @_detilEntity.DetilCode — @_detilEntity.Title
+                    </MudChip>
+                }
+                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AccountTree"
+                           OnClick="PickDetailAsync" Disabled="_loading">
+                    انتخاب از درخت حساب‌ها
                 </MudButton>
-            }
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AccountTree"
-                       OnClick="PickDetailAsync" Disabled="_loading">
-                انتخاب / جستجوی تفصیلی
-            </MudButton>
-            @if (!string.IsNullOrWhiteSpace(_detailAccountCode))
-            {
-                <MudChip T="string" Color="Color.Info" Variant="Variant.Outlined">
-                    مسیر انتخاب‌شده: @_detailAccountCode
-                </MudChip>
-            }
-        </div>
+            </MudItem>
+        </MudGrid>
+
+        @if (_detilEntity is not null)
+        {
+            <MudDivider Class="my-3" />
+            <div class="d-flex align-center flex-wrap" style="gap:4px">
+                <MudButton Variant="@(_detilLevel == 1 && _detailSummary is null ? Variant.Filled : Variant.Text)"
+                           Color="Color.Primary" OnClick="ShowDetilColsAsync" Disabled="_loading">
+                    حساب‌های کل
+                </MudButton>
+                @if (_detilCol is not null)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                    <MudButton Variant="@(_detilLevel == 2 && _detailSummary is null ? Variant.Filled : Variant.Text)"
+                               Color="Color.Primary" OnClick="ShowDetilMoeinsAsync" Disabled="_loading">
+                        @_detilCol.Code — @_detilCol.Title
+                    </MudButton>
+                }
+                @if (_detilMoein is not null)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                    <MudButton Variant="@(_detilLevel == 3 && _detilPlacements.Count == 0 && _detailSummary is null ? Variant.Filled : Variant.Text)"
+                               Color="Color.Primary" OnClick="ShowDetilPlacementsAsync" Disabled="_loading">
+                        @_detilMoein.Code — @_detilMoein.Title
+                    </MudButton>
+                }
+                @foreach (var node in _detilPlacements)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                    <MudButton Variant="@(IsCurrentPlacement(node) && _detailSummary is null ? Variant.Filled : Variant.Text)"
+                               Color="Color.Primary" OnClick="@(() => ShowDetilChildrenAsync(node))" Disabled="_loading">
+                        @node.Code — @node.Title
+                    </MudButton>
+                }
+                @if (_detailSummary is not null)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+                    <MudChip T="string" Variant="Variant.Outlined">گردش و سند</MudChip>
+                }
+            </div>
+        }
     }
 </MudPaper>
 
@@ -206,11 +261,49 @@ else if ((_report is "detail" or "hierarchy") && _detailSummary is not null)
         </div>
     </MudPaper>
 }
-else if (_report == "detail")
+else if (_report == "detail" && _detilEntity is null)
 {
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AccountTree">
-        برای مشاهده مانده اول دوره و تمام گردش‌های بدهکار و بستانکار، یک حساب تفصیلی انتخاب کنید.
+        ابتدا یک حساب تفصیلی انتخاب کنید؛ سپس حساب‌های کلی که این تفصیلی در آن‌ها بدهکار/بستانکار شده نمایش داده می‌شود،
+        و با کلیک روی هر ردیف، معین و سپس زیرمجموعه‌های تفصیلی تا آخرین سطح و در نهایت سند باز می‌شود.
     </MudAlert>
+}
+else if (_report == "detail")
+{
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-1">@DetilDrillTitle</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            برای رفتن به سطح بعد روی ردیف کلیک کنید؛ سند فقط پس از رسیدن به آخرین سطح تفصیلی باز می‌شود.
+        </MudText>
+        <MudTable T="AccountingHierarchyRow" Items="_detilDrill" Hover="true" Dense="true" Striped="true"
+                  OnRowClick="OnDetilDrillRowClickAsync">
+            <HeaderContent>
+                <MudTh>کد</MudTh><MudTh>عنوان حساب</MudTh><MudTh>زیرمجموعه</MudTh>
+                <MudTh>جمع بدهکار</MudTh><MudTh>جمع بستانکار</MudTh><MudTh>مانده</MudTh><MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="کد"><code>@context.Code</code></MudTd>
+                <MudTd DataLabel="عنوان"><MudText Color="Color.Primary"><b>@context.Title</b></MudText></MudTd>
+                <MudTd DataLabel="زیرمجموعه">
+                    @if (context.ChildCount > 0)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@context.ChildCount مورد</MudChip>
+                    }
+                    else if (context.NodeType == "BaseDetil")
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">گردش</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd>
+                <MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+                <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+                <MudTd><MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Color="Color.Primary" Size="Size.Small" /></MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Color="Color.Secondary">در این بازه، گردشی برای این تفصیلی در این سطح ثبت نشده است.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
 }
 else if (_report == "daily")
 {
@@ -285,6 +378,13 @@ else
     private readonly List<GeneralLedgerRow> _ledger = new();
     private readonly List<TrialBalanceRow> _trial = new();
     private readonly List<AccountingHierarchyRow> _selectedDetails = new();
+    // مسیر مرور گزارش «گردش تفصیلی»: تفصیلی → کل → معین → زیرتفصیلی‌ها → سند.
+    private readonly List<AccountingHierarchyRow> _detilPlacements = new();
+    private List<AccountingHierarchyRow> _detilDrill = new();
+    private BaseDetilRow? _detilEntity;
+    private AccountingHierarchyRow? _detilCol;
+    private AccountingHierarchyRow? _detilMoein;
+    private int _detilLevel = 1;
     private List<AccountingHierarchyRow> _hierarchy = new();
     private List<DetailAccountTransactionRow> _detailTransactions = new();
     private AccountingHierarchyRow? _selectedCol;
@@ -310,6 +410,14 @@ else
         2 => $"حساب‌های معینِ «{_selectedCol?.Title}»",
         3 => $"تفصیلی‌های «{_selectedMoein?.Title}»",
         _ => $"زیرمجموعه‌های تفصیلی «{_selectedDetails.LastOrDefault()?.Title}»"
+    };
+
+    private string DetilDrillTitle => _detilLevel switch
+    {
+        1 => $"حساب‌های کلِ گردش «{_detilEntity?.Title}»",
+        2 => $"حساب‌های معینِ «{_detilCol?.Title}» برای «{_detilEntity?.Title}»",
+        3 => $"مسیرهای تفصیلی «{_detilEntity?.Title}» زیر «{_detilMoein?.Title}»",
+        _ => $"زیرمجموعه‌های تفصیلی «{_detilPlacements.LastOrDefault()?.Title}»"
     };
 
     private string DetailPageCaption => $"نمایش {(_detailTotalRows == 0 ? 0 : _detailPage * DetailPageSize + 1)} تا {Math.Min((_detailPage + 1L) * DetailPageSize, _detailTotalRows)} از {_detailTotalRows:N0}";
@@ -344,6 +452,8 @@ else
         _report = value;
         _from = _report is "detail" or "hierarchy" ? null : DateTime.Today.AddMonths(-1);
         _detailReturnReport = null;
+        _detilEntity = null;
+        ClearDetilDrill();
         ClearDetail();
         ClearHierarchy();
         await LoadAsync();
@@ -379,10 +489,16 @@ else
                         await LoadHierarchyAsync(from, to);
                     break;
                 case "detail":
+                    // گردش تفصیلی: تا وقتی به برگ نرسیده‌ایم، سطح جاری درخت را نشان می‌دهیم.
                     if (!string.IsNullOrWhiteSpace(_detailAccountCode))
                         await LoadDetailAsync(from, to);
+                    else if (_detilEntity is not null)
+                        await LoadDetilDrillAsync(from, to);
                     else
+                    {
+                        _detilDrill = new();
                         ClearDetailRows();
+                    }
                     break;
                 case "daily":
                     _dailyBook.Clear();
@@ -440,6 +556,31 @@ else
         _hierarchy = result.ToList();
     }
 
+    /// <summary>یک سطح از مرور «گردش تفصیلی» را می‌خواند (کل ← معین ← زیرتفصیلی‌ها).</summary>
+    private async Task LoadDetilDrillAsync(DateTime from, DateTime to)
+    {
+        ClearDetailRows();
+        if (_detilEntity is null)
+        {
+            _detilDrill = new();
+            return;
+        }
+
+        var rows = await Db.QueryAsync<AccountingHierarchyRow>(Schema, "DetailTurnoverReport", new
+        {
+            DetilId = _detilEntity.DetilId,
+            Level = Math.Min(_detilLevel, 3),
+            ColId = _detilCol?.ColId ?? _detilCol?.NodeId,
+            MoeinId = _detilMoein?.MoeinId ?? _detilMoein?.NodeId,
+            ParentLinkId = _detilPlacements.LastOrDefault()?.LinkId,
+            FromDate = from,
+            ToDate = to,
+            StatusFilter = _status ?? "",
+            DocumentNumber = _documentNumber ?? ""
+        });
+        _detilDrill = rows.ToList();
+    }
+
     private async Task LoadDetailAsync(DateTime from, DateTime to)
     {
         _detailSummary = null;
@@ -460,6 +601,21 @@ else
         {
             Snackbar.Add("مسیر تفصیلی انتخاب‌شده در ساختار حساب‌ها پیدا نشد.", Severity.Warning);
             return;
+        }
+
+        // ورود مستقیم با ?accountCode= یا از دفتر کل/تراز: تفصیلیِ متناظر را هم
+        // می‌شناسیم تا دکمهٔ «بازگشت» به مرور همان تفصیلی برگردد، نه به صفحهٔ خالی.
+        if (_report == "detail" && _detilEntity is null && !string.IsNullOrWhiteSpace(_detailSummary.DetilCode))
+        {
+            try
+            {
+                _detilEntity = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>(
+                    Schema, "BaseDetilByCode", new { DetilCode = _detailSummary.DetilCode });
+            }
+            catch
+            {
+                _detilEntity = null;
+            }
         }
 
         await LoadDetailTransactionsAsync(from, to);
@@ -533,6 +689,56 @@ else
         }
 
         await OpenAccountDetailAsync(row.AccountCode, "hierarchy");
+    }
+
+    private async Task OnDetilDrillRowClickAsync(TableRowClickEventArgs<AccountingHierarchyRow> args)
+    {
+        if (args.Item is not { } row || _detilEntity is null)
+            return;
+
+        _detailPage = 0;
+
+        if (row.NodeType == "BaseCol")
+        {
+            _detilCol = row;
+            _detilMoein = null;
+            _detilPlacements.Clear();
+            _detilLevel = 2;
+            await LoadAsync();
+            return;
+        }
+
+        if (row.NodeType == "BaseMoein")
+        {
+            _detilMoein = row;
+            _detilPlacements.Clear();
+            _detilLevel = 3;
+            await LoadAsync();
+            return;
+        }
+
+        if (row.NodeType != "BaseDetil" || string.IsNullOrWhiteSpace(row.AccountCode))
+        {
+            Snackbar.Add("مسیر حساب انتخاب‌شده معتبر نیست.", Severity.Warning);
+            return;
+        }
+
+        // والدِ تفصیلی → یک سطح پایین‌تر؛ برگ نهایی → گردش و سند.
+        if (row.ChildCount > 0)
+        {
+            _detilPlacements.Add(row);
+            _detilLevel = row.Level + 1;
+            await LoadAsync();
+            if (!_lastLoadFailed && _detilDrill.Count > 0)
+                return;
+
+            _detilPlacements.RemoveAt(_detilPlacements.Count - 1);
+            _detilLevel = row.Level;
+            if (_lastLoadFailed)
+                return;
+        }
+
+        await OpenAccountDetailAsync(row.AccountCode, "detail");
     }
 
     private async Task OnLedgerRowClickAsync(TableRowClickEventArgs<GeneralLedgerRow> args)
@@ -625,6 +831,82 @@ else
         await LoadAsync();
     }
 
+    private async Task<IEnumerable<BaseDetilRow>> SearchDetilAsync(string value, CancellationToken ct)
+    {
+        try
+        {
+            return await Db.QueryAsync<BaseDetilRow>(Schema, "BaseDetilSearch", new { SearchText = value ?? "" });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در جستجوی تفصیلی: {ex.Message}", Severity.Error);
+            return Array.Empty<BaseDetilRow>();
+        }
+    }
+
+    private static string DetilDisplay(BaseDetilRow? d)
+        => d is null ? string.Empty : $"{d.DetilCode} | {d.Title}";
+
+    private async Task OnDetilEntityChangedAsync(BaseDetilRow? value)
+    {
+        _detilEntity = value;
+        ClearDetilDrill();
+        ClearDetail();
+        _detailReturnReport = null;
+        await LoadAsync();
+    }
+
+    private async Task ShowDetilColsAsync()
+    {
+        ClearDetail();
+        _detilCol = null;
+        _detilMoein = null;
+        _detilPlacements.Clear();
+        _detilLevel = 1;
+        await LoadAsync();
+    }
+
+    private async Task ShowDetilMoeinsAsync()
+    {
+        ClearDetail();
+        _detilMoein = null;
+        _detilPlacements.Clear();
+        _detilLevel = 2;
+        await LoadAsync();
+    }
+
+    private async Task ShowDetilPlacementsAsync()
+    {
+        ClearDetail();
+        _detilPlacements.Clear();
+        _detilLevel = 3;
+        await LoadAsync();
+    }
+
+    private async Task ShowDetilChildrenAsync(AccountingHierarchyRow node)
+    {
+        ClearDetail();
+        var index = _detilPlacements.FindIndex(x => x.LinkId == node.LinkId);
+        if (index < 0)
+            return;
+        if (index + 1 < _detilPlacements.Count)
+            _detilPlacements.RemoveRange(index + 1, _detilPlacements.Count - index - 1);
+        _detilLevel = node.Level + 1;
+        await LoadAsync();
+    }
+
+    private bool IsCurrentPlacement(AccountingHierarchyRow node)
+        => _detilPlacements.LastOrDefault()?.LinkId == node.LinkId;
+
+    private void ClearDetilDrill()
+    {
+        _detilCol = null;
+        _detilMoein = null;
+        _detilPlacements.Clear();
+        _detilLevel = 1;
+        _detilDrill = new();
+    }
+
     private async Task PickDetailAsync()
     {
         try
@@ -643,15 +925,34 @@ else
                 return;
             }
 
+            // انتخاب از درخت = انتخابِ همان موجودیت تفصیلی؛ مرور از سطح «حساب‌های کل»
+            // شروع می‌شود تا کاربر ببیند این تفصیلی در کدام کل‌ها گردش دارد.
             _detailReturnReport = null;
-            _detailAccountCode = picked.AccountCode;
+            _detailAccountCode = null;
             _detailPage = 0;
+            ClearDetail();
+            ClearDetilDrill();
+            _detilEntity = await FindDetilEntityAsync(picked);
+            if (_detilEntity is null)
+                Snackbar.Add("موجودیت تفصیلی این مسیر پیدا نشد.", Severity.Warning);
             await LoadAsync();
         }
         catch (Exception ex)
         {
             Snackbar.Add($"خطا در انتخاب تفصیلی: {ex.Message}", Severity.Error);
         }
+    }
+
+    /// <summary>موجودیت تفصیلیِ نتیجهٔ Picker را پیدا می‌کند (کد ۷ رقمی = یکتا در کل سیستم).</summary>
+    private async Task<BaseDetilRow?> FindDetilEntityAsync(AccountPickerResult picked)
+    {
+        var code = string.IsNullOrWhiteSpace(picked.Code) ? null : picked.Code.Trim();
+        if (code is null && !string.IsNullOrWhiteSpace(picked.AccountCode) && picked.AccountCode.Length >= 7)
+            code = picked.AccountCode[^7..];
+        if (string.IsNullOrWhiteSpace(code))
+            return null;
+
+        return await Db.QueryFirstOrDefaultAsync<BaseDetilRow>(Schema, "BaseDetilByCode", new { DetilCode = code });
     }
 
     private async Task ChangeDetailPageAsync(int delta)
