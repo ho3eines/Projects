@@ -1,7 +1,10 @@
 @inject DbService Db
 @inject ISnackbar Snackbar
 @inject UserSession Session
+@inject IDialogService DialogService
+@inject IJSRuntime JS
 @implements IAsyncDisposable
+@using Tarazin.Ui.Modules.Accounting.Components
 
 <MudDialog>
     <DialogContent>
@@ -31,8 +34,14 @@
                     <MudSelectItem T="string" Value="@("Detil")">فقط تفصیلی</MudSelectItem>
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" sm="6" Class="d-flex align-center">
+            <MudItem xs="12" sm="6" Class="d-flex align-center flex-wrap" Style="gap:8px">
                 <MudSwitch T="bool" @bind-Value="_showInactive" Color="Color.Default" Label="نمایش غیرفعال‌ها" />
+                @if (Options.TransactionalOnly)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.CheckCircle">
+                        فقط برگ نهایی تفصیلی قابل انتخاب است
+                    </MudChip>
+                }
             </MudItem>
         </MudGrid>
 
@@ -57,7 +66,7 @@
                                 var isSelected = NodeKey(n) == NodeKey(_selected);
                                 var isInvalid = IsInvalidSelection(n);
                                 <div class="tz-pickertree__row @(isSelected ? "is-selected" : null) @(isInvalid ? "is-invalid" : null) @(NodeKey(n) == _highlightedNodeKey ? "is-highlighted" : null)"
-                                     style="padding-right:@((n.Level - 1) * 24 + 12)px"
+                                     style="padding-right:@((n.Level - 1) * 24 + 12)px; @(isInvalid ? "opacity:0.6;" : "")"
                                      @onclick="@(() => Select(n))"
                                      @ondblclick="@(() => TryConfirm(n))">
                                     <span class="tz-pickertree__icon">
@@ -71,7 +80,7 @@
                                         }
                                         else
                                         {
-                                            <MudIcon Icon="@Icons.Material.Filled.Article" Size="Size.Small" />
+                                            <MudIcon Icon="@(n.ChildCount>0 ? Icons.Material.Filled.Folder : Icons.Material.Filled.Article)" Size="Size.Small" Color="@(n.ChildCount>0 ? Color.Warning : Color.Success)" />
                                         }
                                     </span>
                                     <span class="tz-pickertree__code">@n.Code</span>
@@ -83,7 +92,11 @@
                                     }
                                     @if (n.ChildCount > 0)
                                     {
-                                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text">@n.ChildCount فرزند</MudChip>
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AccountTree">@n.ChildCount زیرمجموعه</MudChip>
+                                    }
+                                    else if (n.NodeType == "BaseDetil")
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Check">برگ نهایی</MudChip>
                                     }
                                 </div>
                             }
@@ -125,6 +138,17 @@
                                     </ItemTemplate>
                                 </MudBreadcrumbs>
                             </MudItem>
+                            <MudItem xs="5"><MudText Color="Color.Secondary">فرزندان</MudText></MudItem>
+                            <MudItem xs="7">
+                                @if (_selected.ChildCount > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">@_selected.ChildCount زیرمجموعه دارد — فقط برگ نهایی قابل انتخاب است</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success">سطر آخر (برگ نهایی) — قابل انتخاب</MudChip>
+                                }
+                            </MudItem>
                             <MudItem xs="5"><MudText Color="Color.Secondary">وضعیت</MudText></MudItem>
                             <MudItem xs="7">
                                 <MudChip T="string" Size="Size.Small" Color="@(_selected.IsActive ? Color.Success : Color.Default)">
@@ -137,8 +161,40 @@
                         {
                             <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-3"
                                       Icon="@Icons.Material.Filled.WarningAmber">
-                                این حساب قابل انتخاب برای ثبت عملیات نیست. لطفاً یک حساب نهایی انتخاب کنید.
+                                این حساب قابل انتخاب برای ثبت عملیات نیست. لطفاً یک حساب تفصیلی نهایی (برگ) انتخاب کنید.
                             </MudAlert>
+                        }
+                        else if (_selected.NodeType == "BaseDetil" && _selected.ChildCount > 0)
+                        {
+                            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-3"
+                                      Icon="@Icons.Material.Filled.AccountTree">
+                                این تفصیلی دارای <b>@_selected.ChildCount زیرمجموعه</b> است و برای ثبت سند قابل انتخاب نیست.
+                                فقط سطر آخر (حساب‌های تفصیلی برگ نهایی) قابل انتخاب هستند.
+                                می‌توانید زیرمجموعه‌های آن را جستجو کرده و یک مورد نهایی را انتخاب کنید.
+                            </MudAlert>
+                        }
+
+                        @if (_selected.NodeType == "BaseDetil")
+                        {
+                            <MudDivider Class="my-3" />
+                            <div class="d-flex flex-wrap" style="gap:8px">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Info"
+                                           StartIcon="@Icons.Material.Filled.ManageSearch"
+                                           OnClick="OpenDetailHistoryAsync">
+                                    نمایش مرور تفصیلی
+                                </MudButton>
+                                @if (_selected.ChildCount > 0)
+                                {
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                                               StartIcon="@Icons.Material.Filled.FolderOpen"
+                                               OnClick="ShowChildrenAsync">
+                                        نمایش زیرمجموعه‌ها
+                                    </MudButton>
+                                }
+                            </div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                                مرور گردش برای هر تفصیلی (حتی والد) امکان‌پذیر است، اما انتخاب برای ثبت فقط برای برگ نهایی.
+                            </MudText>
                         }
                     }
                 </MudPaper>
@@ -153,8 +209,6 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@inject IJSRuntime JS
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
@@ -179,15 +233,22 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _typeFilter = Options.AllowedType switch
+        try
         {
-            AccountPickerType.Col => "Col",
-            AccountPickerType.Moein => "Moein",
-            AccountPickerType.Detil => "Detil",
-            _ => null
-        };
-        _showInactive = Options.ShowInactive;
-        await RefreshAsync();
+            _typeFilter = Options.AllowedType switch
+            {
+                AccountPickerType.Col => "Col",
+                AccountPickerType.Moein => "Moein",
+                AccountPickerType.Detil => "Detil",
+                _ => null
+            };
+            _showInactive = Options.ShowInactive;
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در مقداردهی اولیه درختواره: {ex.Message}", Severity.Error);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -199,19 +260,24 @@
                 if (_searchRef is not null)
                     await _searchRef.FocusAsync();
             }
-            catch { /* ignore focus errors on non-web hosts */ }
+            catch { }
         }
     }
 
     private async Task OnSearchChanged(string _)
     {
-        await RefreshAsync();
+        try { await RefreshAsync(); }
+        catch (Exception ex) { Snackbar.Add($"خطا در جستجو: {ex.Message}", Severity.Error); }
     }
 
     private async Task OnSearchCleared(MouseEventArgs _)
     {
-        _search = "";
-        await RefreshAsync();
+        try
+        {
+            _search = "";
+            await RefreshAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"خطا: {ex.Message}", Severity.Error); }
     }
 
     private async Task RefreshAsync()
@@ -219,104 +285,200 @@
         _loading = true;
         try
         {
-            _flat = (await Db.QueryAsync<ChartTreeNode>("accounting", "ChartAccountPickerList", new
+            try
             {
-                SearchText = _search ?? "",
-                AccountTypeFilter = _typeFilter,
-                AllowTransactionOnly = Options.TransactionalOnly ? 1 : 0,
-                IncludeInactive = _showInactive ? 1 : 0
-            })).ToList();
+                _flat = (await Db.QueryAsync<ChartTreeNode>("accounting", "ChartAccountPickerList", new
+                {
+                    SearchText = _search ?? "",
+                    AccountTypeFilter = _typeFilter,
+                    AllowTransactionOnly = Options.TransactionalOnly ? 1 : 0,
+                    IncludeInactive = _showInactive ? 1 : 0
+                })).ToList();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"خطا در بارگذاری درخت حساب‌ها: {ex.Message}", Severity.Error);
+                _flat = new();
+            }
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"خطای غیرمنتظره در بارگذاری: {ex.Message}", Severity.Error);
             _flat = new();
         }
         finally
         {
-            _loading = false;
-            if (_flat.Count > 0)
+            try
             {
-                _highlightedNodeKey = NodeKey(_flat[0]);
-                _selected = _flat[0];
-                await BuildBreadcrumbAsync(_selected);
+                _loading = false;
+                if (_flat.Count > 0)
+                {
+                    // انتخاب اولین برگ نهایی اگر در حالت transactional هستیم
+                    ChartTreeNode? firstLeaf = null;
+                    if (Options.TransactionalOnly)
+                    {
+                        firstLeaf = _flat.FirstOrDefault(x => x.NodeType == "BaseDetil" && x.ChildCount == 0);
+                    }
+                    var toSelect = firstLeaf ?? _flat[0];
+                    _highlightedNodeKey = NodeKey(toSelect);
+                    _selected = toSelect;
+                    await BuildBreadcrumbAsync(_selected);
+                }
+                else
+                {
+                    _highlightedNodeKey = "";
+                    _selected = null;
+                    _breadcrumbs = new();
+                }
             }
-            else
+            catch (Exception ex)
             {
+                Snackbar.Add($"خطا در پردازش نتایج: {ex.Message}", Severity.Error);
                 _highlightedNodeKey = "";
                 _selected = null;
-                _breadcrumbs = new();
             }
         }
     }
 
     private void Select(ChartTreeNode n)
     {
-        _selected = n;
-        _highlightedNodeKey = NodeKey(n);
-        _ = BuildBreadcrumbAsync(n);
+        try
+        {
+            if (n is null) return;
+            _selected = n;
+            _highlightedNodeKey = NodeKey(n);
+            _ = BuildBreadcrumbAsync(n);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در انتخاب: {ex.Message}", Severity.Error);
+        }
     }
 
     private bool IsInvalidSelection(ChartTreeNode n)
-        => Options.TransactionalOnly && n.NodeType != "BaseDetil";
+    {
+        try
+        {
+            if (n is null) return true;
 
-    private bool CanConfirm => _selected is not null && !IsInvalidSelection(_selected);
+            // قانون اصلی ثبت سند (TransactionalOnly=true):
+            // فقط تفصیلی برگ نهایی (ChildCount==0) قابل انتخاب است.
+            // اگر تفصیلی دارای زیرمجموعه (فرزند) باشد → غیرقابل انتخاب، فقط سطر آخر (برگ) قابل انتخاب.
+            if (Options.TransactionalOnly)
+            {
+                if (n.NodeType != "BaseDetil") return true;
+                if (n.ChildCount > 0) return true; // دارای زیرمجموعه → غیرقابل انتخاب برای ثبت سند
+                return false;
+            }
+
+            // در حالت غیر-transactional (مدیریت چارت و ...) محدودیت برگ نهایی اعمال نمی‌شود
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private bool CanConfirm
+    {
+        get
+        {
+            try { return _selected is not null && !IsInvalidSelection(_selected); }
+            catch { return false; }
+        }
+    }
 
     private void TryConfirm(ChartTreeNode? n)
     {
-        if (n is null) return;
-        Select(n);
-        if (CanConfirm) Confirm();
+        try
+        {
+            if (n is null) return;
+            Select(n);
+            if (CanConfirm) Confirm();
+            else
+            {
+                if (n.NodeType == "BaseDetil" && n.ChildCount > 0)
+                    Snackbar.Add($"این تفصیلی دارای {n.ChildCount} زیرمجموعه است و قابل انتخاب برای ثبت نیست. فقط برگ نهایی (سطر آخر) را انتخاب کنید.", Severity.Warning);
+                else
+                    Snackbar.Add("این حساب برای ثبت عملیات قابل انتخاب نیست.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا: {ex.Message}", Severity.Error);
+        }
     }
 
     private void Confirm()
     {
-        if (_selected is null) return;
-        if (!CanConfirm) return;
-        var r = new AccountPickerResult
+        try
         {
-            Id = _selected.NodeId,
-            Code = _selected.Code,
-            AccountCode = _selected.AccountCode,
-            Title = _selected.Title,
-            NodeType = _selected.NodeType,
-            DetilEntityId = _selected.DetilEntityId,
-            LinkId = _selected.LinkId,
-            MoeinId = _selected.MoeinId
-        };
-        MudDialog.Close(DialogResult.Ok(r));
+            if (_selected is null) return;
+            if (!CanConfirm)
+            {
+                if (_selected.NodeType == "BaseDetil" && _selected.ChildCount > 0)
+                    Snackbar.Add($"این تفصیلی دارای زیرمجموعه است — فقط سطر آخر بدون فرزند قابل انتخاب است.", Severity.Warning);
+                return;
+            }
+            var r = new AccountPickerResult
+            {
+                Id = _selected.NodeId,
+                Code = _selected.Code,
+                AccountCode = _selected.AccountCode,
+                Title = _selected.Title,
+                NodeType = _selected.NodeType,
+                DetilEntityId = _selected.DetilEntityId,
+                LinkId = _selected.LinkId,
+                MoeinId = _selected.MoeinId
+            };
+            MudDialog.Close(DialogResult.Ok(r));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در تأیید انتخاب: {ex.Message}", Severity.Error);
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
-        if (_flat.Count == 0) return;
-        var idx = _flat.FindIndex(x => NodeKey(x) == _highlightedNodeKey);
-        if (idx < 0) idx = 0;
-        switch (e.Key)
+        try
         {
-            case "ArrowDown":
-                idx = Math.Min(idx + 1, _flat.Count - 1);
-                _highlightedNodeKey = NodeKey(_flat[idx]);
-                _selected = _flat[idx];
-                await BuildBreadcrumbAsync(_selected);
-                break;
-            case "ArrowUp":
-                idx = Math.Max(idx - 1, 0);
-                _highlightedNodeKey = NodeKey(_flat[idx]);
-                _selected = _flat[idx];
-                await BuildBreadcrumbAsync(_selected);
-                break;
-            case "ArrowRight":
-            case "ArrowLeft":
-                break;
-            case "Enter":
-                if (CanConfirm) Confirm();
-                break;
-            case "Escape":
-                Cancel();
-                break;
+            if (_flat.Count == 0) return;
+            var idx = _flat.FindIndex(x => NodeKey(x) == _highlightedNodeKey);
+            if (idx < 0) idx = 0;
+            switch (e.Key)
+            {
+                case "ArrowDown":
+                    idx = Math.Min(idx + 1, _flat.Count - 1);
+                    _highlightedNodeKey = NodeKey(_flat[idx]);
+                    _selected = _flat[idx];
+                    await BuildBreadcrumbAsync(_selected);
+                    break;
+                case "ArrowUp":
+                    idx = Math.Max(idx - 1, 0);
+                    _highlightedNodeKey = NodeKey(_flat[idx]);
+                    _selected = _flat[idx];
+                    await BuildBreadcrumbAsync(_selected);
+                    break;
+                case "ArrowRight":
+                case "ArrowLeft":
+                    break;
+                case "Enter":
+                    if (CanConfirm) Confirm();
+                    else if (_selected is not null && _selected.ChildCount > 0)
+                        await ShowChildrenAsync();
+                    break;
+                case "Escape":
+                    Cancel();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در پیمایش: {ex.Message}", Severity.Error);
         }
     }
 
@@ -358,6 +520,65 @@
         catch (Exception ex)
         {
             Snackbar.Add("کپی ناموفق: " + ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task OpenDetailHistoryAsync()
+    {
+        try
+        {
+            if (_selected is null)
+            {
+                Snackbar.Add("ابتدا یک حساب انتخاب کنید.", Severity.Warning);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(_selected.AccountCode))
+            {
+                Snackbar.Add("کد حساب نامعتبر است.", Severity.Warning);
+                return;
+            }
+
+            var parameters = new DialogParameters
+            {
+                ["AccountCode"] = _selected.AccountCode,
+                ["AccountTitle"] = _selected.Title
+            };
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+
+            var dialog = await DialogService.ShowAsync<DetailAccountHistoryDialog>("مرور تفصیلی", parameters, options);
+            await dialog.Result;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در نمایش مرور تفصیلی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ShowChildrenAsync()
+    {
+        try
+        {
+            if (_selected is null) return;
+            if (_selected.ChildCount == 0)
+            {
+                Snackbar.Add("این حساب زیرمجموعه‌ای ندارد — همین سطر آخر قابل انتخاب است.", Severity.Info);
+                return;
+            }
+
+            // فیلتر جستجو را به AccountCode والد تنظیم می‌کنیم تا فقط فرزندان دیده شوند
+            _search = _selected.AccountCode;
+            await RefreshAsync();
+            Snackbar.Add($"زیرمجموعه‌های {_selected.Title} نمایش داده شد — فقط برگ نهایی بدون فرزند را انتخاب کنید.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در نمایش زیرمجموعه‌ها: {ex.Message}", Severity.Error);
         }
     }
 
