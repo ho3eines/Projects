@@ -11,7 +11,7 @@
         <MudGrid Spacing="2">
             <MudItem xs="12">
                 <MudTextField @ref="_searchRef"
-                              Label="جستجو (نام، کد گره، کد حساب)"
+                              Label="جستجو (نام، کد، گروه یا ماهیت حساب)"
                               @bind-Value="_search"
                               Variant="Variant.Outlined"
                               Immediate="true"
@@ -131,6 +131,23 @@
                                 <code style="direction:ltr">@_selected.Code</code>
                                 <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
                                                OnClick="@(() => Copy("کد گره", _selected.Code))" />
+                            </MudItem>
+                            <MudItem xs="5"><MudText Color="Color.Secondary">گروه حساب</MudText></MudItem>
+                            <MudItem xs="7">
+                                @if (_selected.AccountGroupId.HasValue)
+                                {
+                                    <span>@_selected.GroupCode | @_selected.GroupTitle</span>
+                                }
+                                else
+                                {
+                                    <span>— بدون گروه —</span>
+                                }
+                            </MudItem>
+                            <MudItem xs="5"><MudText Color="Color.Secondary">ماهیت حساب</MudText></MudItem>
+                            <MudItem xs="7">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">
+                                    @AccountNatureKind.Title(_selected.AccountNature)
+                                </MudChip>
                             </MudItem>
                             <MudItem xs="5"><MudText Color="Color.Secondary">مسیر</MudText></MudItem>
                             <MudItem xs="7">
@@ -430,6 +447,10 @@
                 AccountCode = _selected.AccountCode,
                 Title = _selected.Title,
                 NodeType = _selected.NodeType,
+                AccountGroupId = _selected.AccountGroupId,
+                GroupCode = _selected.GroupCode,
+                GroupTitle = _selected.GroupTitle,
+                AccountNature = _selected.AccountNature,
                 DetilEntityId = _selected.DetilEntityId,
                 LinkId = _selected.LinkId,
                 MoeinId = _selected.MoeinId

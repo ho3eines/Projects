@@ -20,8 +20,7 @@
                 <MudItem xs="12" sm="3">
                     <MudTextField Label="کد معین (3 رقم)" @bind-Value="_code"
                                   Required="true" RequiredError="کد معین الزامی است."
-                                  MaxLength="3" Immediate="true"
-                                  Variant="Variant.Outlined" Counter="3"
+                                  MaxLength="3" Immediate="true" Variant="Variant.Outlined" Counter="3"
                                   OnKeyDown="HandleKeyDown"
                                   HelperText="3 رقم — صفرهای ابتدایی حفظ می‌شود" />
                 </MudItem>
@@ -32,11 +31,31 @@
                                   OnAdornmentClick="@(() => Copy(AutoAccountCode))" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField Label="عنوان" @bind-Value="_title" Required="true"
+                    <MudTextField Label="عنوان" @bind-Value="_title" Required="true" MaxLength="200"
                                   RequiredError="عنوان الزامی است." OnKeyDown="HandleKeyDown" Variant="Variant.Outlined" />
                 </MudItem>
+                <MudItem xs="12" sm="7">
+                    <MudSelect T="int" Label="گروه حساب معین" @bind-Value="_groupId"
+                               @bind-Value:after="ApplyGroupDefaultNature"
+                               Variant="Variant.Outlined">
+                        <MudSelectItem T="int" Value="0">— بدون گروه —</MudSelectItem>
+                        @foreach (var group in _groups)
+                        {
+                            <MudSelectItem T="int" Value="@group.AccountGroupId">@group.GroupCode | @group.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="5">
+                    <MudSelect T="string" Label="ماهیت حساب" @bind-Value="_accountNature"
+                               Required="true" RequiredError="انتخاب ماهیت حساب الزامی است."
+                               Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Debit">بدهکار</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Credit">بستانکار</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Both">هر دو</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
                 <MudItem xs="12">
-                    <MudTextField Label="شرح" @bind-Value="_description" Lines="2" Variant="Variant.Outlined" />
+                    <MudTextField Label="شرح" @bind-Value="_description" Lines="2" MaxLength="500" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
@@ -61,6 +80,8 @@
     [Parameter] public string InitialCode { get; set; } = "";
     [Parameter] public string InitialTitle { get; set; } = "";
     [Parameter] public string InitialDescription { get; set; } = "";
+    [Parameter] public int? InitialAccountGroupId { get; set; }
+    [Parameter] public string InitialAccountNature { get; set; } = AccountNatureKind.Both;
     [Parameter] public bool InitialIsActive { get; set; } = true;
 
     [Inject] private IJSRuntime JS { get; set; } = default!;
@@ -72,8 +93,11 @@
     private string _code = "";
     private string _title = "";
     private string? _description;
+    private int _groupId;
+    private string _accountNature = AccountNatureKind.Both;
     private bool _isActive = true;
     private List<BaseColRow> _cols = new();
+    private List<AccountGroupRow> _groups = new();
 
     private string AutoAccountCode
     {
@@ -92,21 +116,39 @@
         _code = InitialCode;
         _title = InitialTitle;
         _description = InitialDescription;
+        _groupId = InitialAccountGroupId ?? 0;
+        _accountNature = string.IsNullOrWhiteSpace(InitialAccountNature) ? AccountNatureKind.Both : InitialAccountNature;
         _isActive = InitialIsActive;
         try
         {
-            _cols = (await Db.QueryAsync<BaseColRow>("accounting", "BaseColList", new { })).ToList();
+            var colsTask = Db.QueryAsync<BaseColRow>("accounting", "BaseColList", new { });
+            var groupsTask = Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
+            {
+                GroupType = AccountGroupType.Moein,
+                IncludeInactive = MoeinId > 0
+            });
+            await Task.WhenAll(colsTask, groupsTask);
+            _cols = colsTask.Result.ToList();
+            _groups = groupsTask.Result.ToList();
         }
-        catch
+        catch (Exception ex)
         {
             _cols = new();
+            _groups = new();
+            Snackbar.Add(ex.Message, Severity.Error);
         }
+    }
+
+    private void ApplyGroupDefaultNature()
+    {
+        if (MoeinId > 0 || _groupId == 0) return;
+        var group = _groups.FirstOrDefault(g => g.AccountGroupId == _groupId);
+        if (group is not null) _accountNature = group.DefaultNature;
     }
 
     private void HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !e.ShiftKey)
-            _ = SaveAsync();
+        if (e.Key == "Enter" && !e.ShiftKey) _ = SaveAsync();
     }
 
     private void Cancel() => MudDialog.Cancel();
@@ -140,6 +182,8 @@
                 MoeinCode = code,
                 Title = (_title ?? "").Trim(),
                 Description = _description?.Trim() ?? "",
+                AccountGroupId = _groupId == 0 ? (int?)null : _groupId,
+                AccountNature = _accountNature,
                 IsActive = _isActive,
                 CreatedBy = Session.UserName,
                 UpdatedBy = Session.UserName
@@ -164,6 +208,6 @@
             await JS.InvokeVoidAsync("navigator.clipboard.writeText", value);
             Snackbar.Add("AccountCode کپی شد.", Severity.Info);
         }
-        catch { /* ignore */ }
+        catch { }
     }
 }

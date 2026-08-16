@@ -30,7 +30,7 @@ BEGIN
             WHERE child.ColId = c.ColId AND child.IsDeleted = 0
         ) AS ChildCount,
         CAST(c.ColCode AS NVARCHAR(4000)) AS AccountCode,
-        CAST(NULL AS NVARCHAR(30)) AS AccountNature,
+        c.AccountNature,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) AS Debit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) AS Credit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit - l.Credit ELSE 0 END), 0) AS Balance
@@ -42,7 +42,7 @@ BEGIN
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
     WHERE c.IsDeleted = 0
-    GROUP BY c.ColId, c.ColCode, c.Title
+    GROUP BY c.ColId, c.ColCode, c.Title, c.AccountNature
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0
     ORDER BY c.ColCode;
@@ -72,7 +72,7 @@ BEGIN
               AND child.IsDeleted = 0
         ) AS ChildCount,
         CAST(c.ColCode + m.MoeinCode AS NVARCHAR(4000)) AS AccountCode,
-        CAST(NULL AS NVARCHAR(30)) AS AccountNature,
+        m.AccountNature,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) AS Debit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) AS Credit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit - l.Credit ELSE 0 END), 0) AS Balance
@@ -85,7 +85,7 @@ BEGIN
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
     WHERE m.IsDeleted = 0 AND m.ColId = @ColId
-    GROUP BY m.MoeinId, m.ColId, m.MoeinCode, m.Title, c.ColCode
+    GROUP BY m.MoeinId, m.ColId, m.MoeinCode, m.Title, m.AccountNature, c.ColCode
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0
     ORDER BY m.MoeinCode;
@@ -103,7 +103,8 @@ BEGIN
             3 AS TreeLevel,
             CAST(c.ColCode + m.MoeinCode + bd.DetilCode AS NVARCHAR(4000)) AS AccountCode,
             bd.DetilCode,
-            bd.Title
+            bd.Title,
+            bd.AccountNature
         FROM [accounting].[BaseDetilLink] dl
         INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
         INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
@@ -122,7 +123,8 @@ BEGIN
             parent.TreeLevel + 1,
             CAST(parent.AccountCode + bd.DetilCode AS NVARCHAR(4000)),
             bd.DetilCode,
-            bd.Title
+            bd.Title,
+            bd.AccountNature
         FROM [accounting].[BaseDetilLink] dl
         INNER JOIN DetailPaths parent
             ON parent.LinkId = dl.ParentLinkId
@@ -152,7 +154,7 @@ BEGIN
             WHERE child.ParentLinkId = path.LinkId
         ) AS ChildCount,
         path.AccountCode,
-        CAST(NULL AS NVARCHAR(30)) AS AccountNature,
+        path.AccountNature,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) AS Debit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) AS Credit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit - l.Credit ELSE 0 END), 0) AS Balance
@@ -178,7 +180,8 @@ BEGIN
         path.MoeinId,
         path.DetilId,
         path.ParentLinkId,
-        path.AccountCode
+        path.AccountCode,
+        path.AccountNature
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0
     ORDER BY path.AccountCode, path.LinkId

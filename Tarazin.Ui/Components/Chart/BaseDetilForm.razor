@@ -1,305 +1,314 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
-@inject IDialogService DialogService
 
 <MudDialog>
     <DialogContent>
-        <MudForm @ref="_form" @bind-IsValid="_isValid">
-            <MudGrid Spacing="2">
-                @if (!IsEditMode)
-                {
+        @if (Mode != DetilFormMode.Edit)
+        {
+            <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" OverrideStyles="false" Class="mb-3">
+                <MudButton OnClick="@(() => SetModeAsync(DetilFormMode.Create))"
+                           Variant="@(Mode == DetilFormMode.Create ? Variant.Filled : Variant.Outlined)"
+                           StartIcon="@Icons.Material.Filled.FiberNew">ایجاد تفصیلی جدید</MudButton>
+                <MudButton OnClick="@(() => SetModeAsync(DetilFormMode.LinkExisting))"
+                           Variant="@(Mode == DetilFormMode.LinkExisting ? Variant.Filled : Variant.Outlined)"
+                           StartIcon="@Icons.Material.Filled.Link">استفاده از تفصیلی موجود</MudButton>
+            </MudButtonGroup>
+        }
+
+        @if (Mode == DetilFormMode.LinkExisting)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mb-2">انتخاب تفصیلی موجود</MudText>
+            <MudTextField Value="@_search" ValueChanged="SearchChanged" Placeholder="جستجو با کد، عنوان یا گروه..."
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" DebounceInterval="300"
+                          Variant="Variant.Outlined" Class="mb-2" />
+            <MudTable Items="_existing" Dense="true" Hover="true" Striped="true"
+                      Breakpoint="Breakpoint.Sm" FixedHeader="true" Height="300px">
+                <HeaderContent>
+                    <MudTh>کد</MudTh>
+                    <MudTh>عنوان</MudTh>
+                    <MudTh>گروه</MudTh>
+                    <MudTh>ماهیت</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد"><span dir="ltr">@context.DetilCode</span></MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="گروه">@(context.GroupTitle ?? "—")</MudTd>
+                    <MudTd DataLabel="ماهیت">@AccountNatureKind.Title(context.AccountNature)</MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="@(() => LinkAsync(context))" Disabled="_busy">انتخاب</MudButton>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Class="pa-3">موردی یافت نشد.</MudText></NoRecordsContent>
+            </MudTable>
+        }
+        else
+        {
+            <MudForm @ref="_form" @bind-IsValid="_isValid">
+                <MudGrid Spacing="2">
                     <MudItem xs="12">
-                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
-                            این حساب به‌عنوان <b>سطح @TargetLevel</b>
-                            @(ParentLinkId.HasValue ? "زیر تفصیلی انتخاب‌شده" : "زیر حساب معین") ذخیره می‌شود.
+                        <MudAlert Severity="Severity.Info" Dense="true" Variant="Variant.Outlined">
+                            @(Mode == DetilFormMode.Create
+                                ? "شمارهٔ تفصیلی به‌صورت خودکار و قطعی از بازهٔ گروه انتخاب‌شده تخصیص می‌یابد."
+                                : "شمارهٔ تفصیلی در حالت ویرایش تغییر نمی‌کند.")
                         </MudAlert>
                     </MudItem>
-                }
-                @* در حالت ویرایش، انتخاب بین «موجود/جدید» بی‌معناست. *@
-                <MudItem xs="12" Class="@(IsEditMode ? "d-none" : null)">
-                    <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" OverrideStyles="false">
-                        <MudButton OnClick="@(() => SetMode(true))"
-                                   Variant="@(_useExisting ? Variant.Filled : Variant.Outlined)"
-                                   StartIcon="@Icons.Material.Filled.Link">استفاده از تفصیلی موجود</MudButton>
-                        <MudButton OnClick="@(() => SetMode(false))"
-                                   Variant="@(!_useExisting ? Variant.Filled : Variant.Outlined)"
-                                   StartIcon="@Icons.Material.Filled.FiberNew">ایجاد تفصیلی جدید</MudButton>
-                    </MudButtonGroup>
-                </MudItem>
-
-                @if (_useExisting)
-                {
+                    @if (_groups.Count == 0)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Warning" Dense="true">
+                                هنوز گروه تفصیلی فعالی تعریف نشده است. ابتدا از «مدیریت گروه‌ها» یک گروه با بازهٔ شماره ایجاد کنید.
+                            </MudAlert>
+                        </MudItem>
+                    }
+                    <MudItem xs="12" sm="7">
+                        <MudSelect T="int" Label="گروه حساب تفصیلی" @bind-Value="_groupId"
+                                   @bind-Value:after="OnGroupChangedAsync"
+                                   Required="true"
+                                   RequiredError="انتخاب گروه تفصیلی الزامی است."
+                                   Variant="Variant.Outlined">
+                            <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
+                            @foreach (var group in _groups)
+                            {
+                                <MudSelectItem T="int" Value="@group.AccountGroupId">
+                                    @group.GroupCode | @group.Title (@group.FromCode تا @group.ToCode)
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="5">
+                        <MudTextField Label="شماره تفصیلی"
+                                      Value="@DisplayedCode"
+                                      ReadOnly="true"
+                                      Variant="Variant.Outlined"
+                                      HelperText="@(Mode == DetilFormMode.Create ? "پیش‌نمایش؛ شماره نهایی هنگام ذخیره قطعی می‌شود" : null)" />
+                    </MudItem>
+                    @if (Mode == DetilFormMode.Create && _groupId != 0 && _nextCode is not null && !_nextCode.HasCapacity)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Warning" Dense="true">ظرفیت بازهٔ این گروه تکمیل شده است.</MudAlert>
+                        </MudItem>
+                    }
                     <MudItem xs="12">
-                        <MudAutocomplete T="BaseDetilRow"
-                                         Label="انتخاب تفصیلی"
-                                         @bind-Value="_selectedDetil"
-                                         SearchFunc="SearchDetilAsync"
-                                         ToStringFunc="DetilDisplay"
-                                         Required="true"
-                                         RequiredError="انتخاب تفصیلی الزامی است."
-                                         Variant="Variant.Outlined"
-                                         AdornmentIcon="@Icons.Material.Filled.Search"
-                                         Adornment="Adornment.Start"
-                                         ResetValueOnEmptyText="true"
-                                         CoerceText="true" />
+                        <MudTextField Label="عنوان" @bind-Value="_title" Required="true" MaxLength="200"
+                                      RequiredError="عنوان الزامی است." OnKeyDown="HandleKeyDown" Variant="Variant.Outlined" />
                     </MudItem>
-                }
-                else
-                {
-                    <MudItem xs="12" sm="4">
-                        <MudTextField Label="کد تفصیلی (7 رقم)" @bind-Value="_code" Required="true"
-                                      RequiredError="کد تفصیلی الزامی است." MaxLength="7"
-                                      Immediate="true" OnKeyDown="HandleKeyDown"
-                                      Variant="Variant.Outlined" Counter="7"
-                                      HelperText="7 رقم — صفرهای ابتدایی حفظ می‌شود" />
+                    <MudItem xs="12" sm="5">
+                        <MudSelect T="string" Label="ماهیت حساب" @bind-Value="_accountNature"
+                                   Required="true" RequiredError="انتخاب ماهیت حساب الزامی است."
+                                   Variant="Variant.Outlined">
+                            <MudSelectItem T="string" Value="@AccountNatureKind.Debit">بدهکار</MudSelectItem>
+                            <MudSelectItem T="string" Value="@AccountNatureKind.Credit">بستانکار</MudSelectItem>
+                            <MudSelectItem T="string" Value="@AccountNatureKind.Both">هر دو</MudSelectItem>
+                        </MudSelect>
                     </MudItem>
-                    <MudItem xs="12" sm="8">
-                        <MudTextField Label="عنوان" @bind-Value="_title" Required="true"
-                                      RequiredError="عنوان الزامی است." OnKeyDown="HandleKeyDown"
-                                      Variant="Variant.Outlined" />
+                    <MudItem xs="12" sm="7">
+                        <MudTextField Label="شرح" @bind-Value="_description" Lines="2" MaxLength="500" Variant="Variant.Outlined" />
                     </MudItem>
                     <MudItem xs="12">
-                        <MudTextField Label="شرح" @bind-Value="_description" Lines="2" Variant="Variant.Outlined" />
+                        <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
                     </MudItem>
-                }
-                <MudItem xs="12">
-                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
-                </MudItem>
-            </MudGrid>
-        </MudForm>
+                </MudGrid>
+            </MudForm>
+        }
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
-                   OnClick="SaveAsync" Disabled="_busy">
-            @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
-            ذخیره
-        </MudButton>
+        @if (Mode != DetilFormMode.LinkExisting)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="@(_busy || (Mode == DetilFormMode.Create && _nextCode is { HasCapacity: false }))">
+                @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
+                ذخیره
+            </MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public DetilFormMode Mode { get; set; } = DetilFormMode.Create;
     [Parameter, EditorRequired] public int MoeinId { get; set; }
-    /// <summary>NULL=سطح ۳ زیر معین؛ مقدار=LinkId تفصیلی والد برای سطح ۴+.</summary>
     [Parameter] public int? ParentLinkId { get; set; }
-    [Parameter] public int TargetLevel { get; set; } = 3;
-    /// <summary>اگر در حالت ویرایش، شناسهٔ Link/Detil پاس می‌شود.</summary>
-    [Parameter] public int EditLinkId { get; set; }
-    [Parameter] public int EditDetilId { get; set; }
+    [Parameter] public int DetilId { get; set; }
     [Parameter] public string InitialCode { get; set; } = "";
     [Parameter] public string InitialTitle { get; set; } = "";
-    [Parameter] public string InitialDescription { get; set; } = "";
+    [Parameter] public string? InitialDescription { get; set; }
+    [Parameter] public int? InitialAccountGroupId { get; set; }
+    [Parameter] public string InitialAccountNature { get; set; } = AccountNatureKind.Both;
     [Parameter] public bool InitialIsActive { get; set; } = true;
-    [Parameter] public bool ForceExistingMode { get; set; }
 
     private MudForm? _form;
     private bool _isValid;
     private bool _busy;
-    private bool _useExisting;
     private string _code = "";
     private string _title = "";
     private string? _description;
+    private int _groupId;
+    private string _accountNature = AccountNatureKind.Both;
     private bool _isActive = true;
-    private BaseDetilRow? _selectedDetil;
+    private string _search = "";
+    private List<BaseDetilRow> _existing = new();
+    private List<AccountGroupRow> _groups = new();
+    private DetilNextCodeRow? _nextCode;
 
-    /// <summary>حالت ویرایش یک تفصیلی موجود (نه ایجاد/پیوند).</summary>
-    private bool IsEditMode => EditDetilId > 0;
+    private string DisplayedCode => Mode == DetilFormMode.Create
+        ? (_nextCode?.NextCode ?? "—")
+        : _code;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // در حالت ویرایش همیشه فرمِ اطلاعاتِ تفصیلی نمایش داده می‌شود.
-        _useExisting = !IsEditMode && ForceExistingMode;
         _code = InitialCode;
         _title = InitialTitle;
         _description = InitialDescription;
+        _groupId = InitialAccountGroupId ?? 0;
+        _accountNature = string.IsNullOrWhiteSpace(InitialAccountNature) ? AccountNatureKind.Both : InitialAccountNature;
         _isActive = InitialIsActive;
+
+        if (Mode == DetilFormMode.LinkExisting)
+        {
+            await LoadExistingAsync();
+            return;
+        }
+
+        await LoadGroupsAsync();
+
+        if (Mode == DetilFormMode.Create && _groupId != 0)
+            await OnGroupChangedAsync();
     }
 
-    private void SetMode(bool useExisting)
+    private async Task SetModeAsync(DetilFormMode mode)
     {
-        _useExisting = useExisting;
+        Mode = mode;
+        if (mode == DetilFormMode.LinkExisting)
+            await LoadExistingAsync();
+        else if (_groups.Count == 0)
+            await LoadGroupsAsync();
+    }
+
+    private async Task LoadGroupsAsync()
+    {
+        try
+        {
+            _groups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
+            {
+                GroupType = AccountGroupType.Detil,
+                IncludeInactive = Mode == DetilFormMode.Edit
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            _groups = new();
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task OnGroupChangedAsync()
+    {
+        _nextCode = null;
+        if (_groupId == 0) return;
+
+        if (Mode == DetilFormMode.Create)
+        {
+            var group = _groups.FirstOrDefault(g => g.AccountGroupId == _groupId);
+            if (group is not null) _accountNature = group.DefaultNature;
+
+            try
+            {
+                _nextCode = await Db.QueryFirstOrDefaultAsync<DetilNextCodeRow>(
+                    "accounting", "BaseDetilNextCode", new { AccountGroupId = _groupId });
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async Task LoadExistingAsync()
+    {
+        try
+        {
+            _existing = (await Db.QueryAsync<BaseDetilRow>("accounting", "BaseDetilSearch", new
+            {
+                SearchText = _search,
+                Take = 100,
+                ExcludeMoeinId = MoeinId,
+                ExcludeParentLinkId = ParentLinkId
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task SearchChanged(string value)
+    {
+        _search = value;
+        await LoadExistingAsync();
     }
 
     private void HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !e.ShiftKey)
-            _ = SaveAsync();
+        if (e.Key == "Enter" && !e.ShiftKey) _ = SaveAsync();
     }
 
     private void Cancel() => MudDialog.Cancel();
 
-    private async Task<IEnumerable<BaseDetilRow>> SearchDetilAsync(string value, CancellationToken ct)
-    {
-        try
-        {
-            var rows = await Db.QueryAsync<BaseDetilRow>("accounting", "BaseDetilSearch", new
-            {
-                SearchText = value ?? ""
-            });
-            return rows;
-        }
-        catch
-        {
-            return Array.Empty<BaseDetilRow>();
-        }
-    }
-
-    private static string DetilDisplay(BaseDetilRow? d)
-    {
-        if (d is null) return string.Empty;
-        return $"{d.DetilCode} | {d.Title}";
-    }
-
     private async Task SaveAsync()
     {
         if (_busy) return;
+        await _form!.Validate();
+        if (!_isValid) return;
 
-        // ⚠ در حالت «استفاده از تفصیلی موجود» فیلدهای کد/عنوان اصلاً رندر
-        //   نمی‌شوند، ولی MudForm.Validate() آن‌ها را همچنان Required می‌بیند
-        //   و _isValid=false می‌ماند → دکمهٔ ذخیره بی‌صدا هیچ کاری نمی‌کرد.
-        //   پس فقط در حالت «ایجاد تفصیلی جدید» فرم را اعتبارسنجی می‌کنیم.
-        if (!_useExisting)
+        if (_groupId == 0)
         {
-            await _form!.Validate();
-            if (!_isValid) return;
-        }
-
-        // ⚠ باگ تاریخی (رفع شد): در حالت ویرایش (EditDetilId > 0) این بررسی
-        //   لازم نیست — ویرایشِ خودِ موجودیت تفصیلی به معین وابسته نیست، و
-        //   وقتی صفحه MoeinId نداشت (تفصیلی بدون مسیرِ مشخص) ویرایش بی‌صدا رد
-        //   می‌شد.
-        if (EditDetilId == 0 && MoeinId == 0)
-        {
-            Snackbar.Add("حساب معین نامشخص است.", Severity.Error);
+            Snackbar.Add("انتخاب گروه حساب تفصیلی الزامی است.", Severity.Warning);
             return;
         }
 
-        // ⚠ باگ تاریخی: _busy هرگز true نمی‌شد (فقط در finally صفر می‌شد)، پس
-        //   دابل‌کلیک روی «ذخیره» دو بار ثبت می‌کرد و دکمه هم قفل نمی‌شد.
         _busy = true;
         try
         {
-            if (_useExisting)
+            if (Mode == DetilFormMode.Create)
             {
-                if (_selectedDetil is null)
-                {
-                    Snackbar.Add("انتخاب تفصیلی الزامی است.", Severity.Warning);
-                    return;
-                }
-                // ایجاد پیوند (در صورت وجود، Idempotent)
-                await Db.ExecuteAsync("accounting", "BaseDetilLinkUpsert", new
-                {
-                    LinkId = 0,
-                    DetilId = _selectedDetil.DetilId,
-                    MoeinId,
-                    ParentLinkId,
-                    Description = "",
-                    IsActive = _isActive,
-                    CreatedBy = Session.UserName,
-                    UpdatedBy = Session.UserName
-                });
-                Snackbar.Add($"تفصیلی «{_selectedDetil.Title}» به این مسیر متصل شد.", Severity.Success);
-                MudDialog.Close(DialogResult.Ok(true));
-                return;
-            }
+                var created = await Db.ExecuteReturningAsync<BaseDetilCreateResult>(
+                    "accounting", "BaseDetilCreateAuto", new
+                    {
+                        MoeinId,
+                        ParentLinkId,
+                        AccountGroupId = _groupId,
+                        AccountNature = _accountNature,
+                        Title = (_title ?? "").Trim(),
+                        Description = _description?.Trim() ?? "",
+                        IsActive = _isActive,
+                        CreatedBy = Session.UserName
+                    }) ?? throw new InvalidOperationException("نتیجهٔ ایجاد حساب تفصیلی دریافت نشد.");
 
-            // حالت ایجاد تفصیلی جدید
-            var code = (_code ?? "").Trim();
-            if (code.Length != 7 || !code.All(char.IsDigit))
-            {
-                Snackbar.Add("کد تفصیلی باید دقیقاً ۷ رقم باشد.", Severity.Warning);
-                return;
+                Snackbar.Add($"حساب تفصیلی با شمارهٔ {created.DetilCode} ایجاد شد.", Severity.Success);
             }
-
-            // ⚠ باگ تاریخی (رفع شد): پارامتر EditDetilId اصلاً استفاده نمی‌شد؛
-            //   فرمِ «ویرایش تفصیلی» همیشه مسیر ایجاد را می‌رفت و چون کد تکراری
-            //   بود، فقط پیام «تفصیلی تکراری» می‌داد — یعنی ویرایش تفصیلی هرگز
-            //   کار نمی‌کرد. حالا در حالت ویرایش مستقیماً Upsert می‌شود.
-            if (EditDetilId > 0)
+            else
             {
                 await Db.ExecuteAsync("accounting", "BaseDetilUpsert", new
                 {
-                    DetilId = EditDetilId,
-                    DetilCode = code,
+                    DetilId,
+                    DetilCode = _code,
                     Title = (_title ?? "").Trim(),
                     Description = _description?.Trim() ?? "",
+                    AccountGroupId = _groupId == 0 ? (int?)null : _groupId,
+                    AccountNature = _accountNature,
                     IsActive = _isActive,
                     CreatedBy = Session.UserName,
                     UpdatedBy = Session.UserName
                 });
-                Snackbar.Add("ویرایش تفصیلی با موفقیت انجام شد.", Severity.Success);
-                MudDialog.Close(DialogResult.Ok(true));
-                return;
+                Snackbar.Add("ویرایش حساب تفصیلی انجام شد.", Severity.Success);
             }
 
-            // بررسی تکراری نبودن (پیشاپیش، با پیام دوستانه)
-            var existing = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>("accounting", "BaseDetilByCode", new
-            {
-                DetilCode = code
-            });
-
-            if (existing is not null)
-            {
-                // هشدار و پیشنهاد استفاده از موجود
-                var confirm = await DialogService.ShowMessageBoxAsync(
-                    "تفصیلی تکراری",
-                    $"این حساب تفصیلی قبلاً ایجاد شده است ({(existing.Title)}). آیا می‌خواهید از حساب تفصیلی موجود استفاده کنید؟",
-                    yesText: "استفاده از حساب موجود",
-                    cancelText: "انصراف");
-                if (confirm is true)
-                {
-                    await Db.ExecuteAsync("accounting", "BaseDetilLinkUpsert", new
-                    {
-                        LinkId = 0,
-                        DetilId = existing.DetilId,
-                        MoeinId,
-                        ParentLinkId,
-                        Description = "",
-                        IsActive = _isActive,
-                        CreatedBy = Session.UserName,
-                        UpdatedBy = Session.UserName
-                    });
-                    Snackbar.Add($"تفصیلی «{existing.Title}» به این مسیر متصل شد.", Severity.Success);
-                    MudDialog.Close(DialogResult.Ok(true));
-                }
-                return;
-            }
-
-            // DetilId=0 → ایجاد + پیوند
-            await Db.ExecuteAsync("accounting", "BaseDetilUpsert", new
-            {
-                DetilId = 0,
-                DetilCode = code,
-                Title = (_title ?? "").Trim(),
-                Description = _description?.Trim() ?? "",
-                IsActive = _isActive,
-                CreatedBy = Session.UserName,
-                UpdatedBy = Session.UserName
-            });
-
-            // پس از ایجاد، DetilId را با کد بازیابی می‌کنیم
-            var created = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>("accounting", "BaseDetilByCode", new
-            {
-                DetilCode = code
-            });
-            if (created is not null)
-            {
-                await Db.ExecuteAsync("accounting", "BaseDetilLinkUpsert", new
-                {
-                    LinkId = 0,
-                    DetilId = created.DetilId,
-                    MoeinId,
-                    ParentLinkId,
-                    Description = "",
-                    IsActive = _isActive,
-                    CreatedBy = Session.UserName,
-                    UpdatedBy = Session.UserName
-                });
-            }
-
-            Snackbar.Add("تفصیلی جدید ایجاد و به مسیر متصل شد.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
         catch (Exception ex)
@@ -310,5 +319,42 @@
         {
             _busy = false;
         }
+    }
+
+    private async Task LinkAsync(BaseDetilRow row)
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("accounting", "BaseDetilLinkUpsert", new
+            {
+                LinkId = 0,
+                row.DetilId,
+                MoeinId,
+                ParentLinkId,
+                Description = (string?)null,
+                IsActive = true,
+                CreatedBy = Session.UserName,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("تفصیلی موجود به مسیر انتخاب‌شده متصل شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public enum DetilFormMode
+    {
+        Create,
+        LinkExisting,
+        Edit
     }
 }

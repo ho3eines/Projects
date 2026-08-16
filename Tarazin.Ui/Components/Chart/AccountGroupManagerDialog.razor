@@ -1,0 +1,150 @@
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3" Style="flex-wrap:wrap; gap:8px;">
+            <MudSelect T="string" Label="نوع حساب" @bind-Value="_groupType" @bind-Value:after="LoadAsync"
+                       Dense="true" Variant="Variant.Outlined" Style="min-width:180px">
+                <MudSelectItem T="string" Value="@AccountGroupType.Col">حساب کل</MudSelectItem>
+                <MudSelectItem T="string" Value="@AccountGroupType.Moein">حساب معین</MudSelectItem>
+                <MudSelectItem T="string" Value="@AccountGroupType.Detil">حساب تفصیلی</MudSelectItem>
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddAsync">گروه جدید</MudButton>
+        </MudStack>
+
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            <MudTable Items="_groups" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>کد</MudTh>
+                    <MudTh>عنوان</MudTh>
+                    @if (_groupType == AccountGroupType.Detil)
+                    {
+                        <MudTh>بازهٔ شماره</MudTh>
+                    }
+                    <MudTh>ماهیت پیش‌فرض</MudTh>
+                    <MudTh>تعداد حساب</MudTh>
+                    <MudTh>وضعیت</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.GroupCode</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    @if (_groupType == AccountGroupType.Detil)
+                    {
+                        <MudTd DataLabel="بازه"><span dir="ltr">@context.FromCode — @context.ToCode</span></MudTd>
+                    }
+                    <MudTd DataLabel="ماهیت">@AccountNatureKind.Title(context.DefaultNature)</MudTd>
+                    <MudTd DataLabel="تعداد حساب">@context.AssignedAccountCount</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       Title="ویرایش" OnClick="@(() => EditAsync(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                       Title="حذف" Disabled="@(context.AssignedAccountCount > 0)"
+                                       OnClick="@(() => DeleteAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Class="pa-4">برای این نوع حساب هنوز گروهی تعریف نشده است.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Close">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string _groupType = AccountGroupType.Col;
+    private List<AccountGroupRow> _groups = new();
+    private bool _loading;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _groups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
+            {
+                GroupType = _groupType,
+                IncludeInactive = true
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            _groups = new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task AddAsync() => OpenFormAsync(null);
+    private Task EditAsync(AccountGroupRow row) => OpenFormAsync(row);
+
+    private async Task OpenFormAsync(AccountGroupRow? row)
+    {
+        var parameters = new DialogParameters<AccountGroupForm>
+        {
+            { x => x.AccountGroupId, row?.AccountGroupId ?? 0 },
+            { x => x.InitialGroupType, row?.GroupType ?? _groupType },
+            { x => x.InitialGroupCode, row?.GroupCode ?? "" },
+            { x => x.InitialTitle, row?.Title ?? "" },
+            { x => x.InitialFromCode, row?.FromCode },
+            { x => x.InitialToCode, row?.ToCode },
+            { x => x.InitialDefaultNature, row?.DefaultNature ?? AccountNatureKind.Both },
+            { x => x.InitialDescription, row?.Description },
+            { x => x.InitialIsActive, row?.IsActive ?? true }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialog = await Dialog.ShowAsync<AccountGroupForm>(row is null ? "گروه حساب جدید" : "ویرایش گروه حساب", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadAsync();
+    }
+
+    private async Task DeleteAsync(AccountGroupRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "حذف گروه حساب",
+            $"گروه «{row.Title}» حذف شود؟ این عملیات فقط برای گروه بدون حساب امکان‌پذیر است.",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed != true) return;
+
+        try
+        {
+            await Db.ExecuteAsync("accounting", "AccountGroupDelete", new
+            {
+                row.AccountGroupId,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("گروه حساب حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+}

@@ -9,6 +9,8 @@
 -- =============================================
 DECLARE @NormCode NVARCHAR(3) = RIGHT('000' + ISNULL(NULLIF(LTRIM(RTRIM(@MoeinCode)), ''), '000'), 3);
 DECLARE @ColCode  NVARCHAR(2);
+DECLARE @Nature NVARCHAR(10) = LTRIM(RTRIM(ISNULL(@AccountNature, N'')));
+DECLARE @GroupId INT = NULLIF(@AccountGroupId, 0);
 
 -- اعتبارسنجی کد
 IF @NormCode NOT LIKE '[0-9][0-9][0-9]'
@@ -16,6 +18,14 @@ IF @NormCode NOT LIKE '[0-9][0-9][0-9]'
 
 IF @Title IS NULL OR LTRIM(RTRIM(@Title)) = N''
     THROW 50021, N'عنوان حساب معین الزامی است.', 1;
+
+IF @Nature NOT IN (N'Debit', N'Credit', N'Both')
+    THROW 50026, N'ماهیت حساب باید بدهکار، بستانکار یا هر دو باشد.', 1;
+
+IF @GroupId IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM [accounting].[AccountGroups]
+    WHERE AccountGroupId = @GroupId AND GroupType = N'Moein' AND IsDeleted = 0)
+    THROW 50027, N'گروه انتخاب‌شده برای حساب معین معتبر نیست.', 1;
 
 -- والد باید وجود داشته باشد و فعال باشد
 SELECT @ColCode = ColCode
@@ -43,10 +53,11 @@ END
 IF @MoeinId = 0
 BEGIN
     INSERT INTO [accounting].[BaseMoein]
-        (ColId, MoeinCode, Title, [Description], IsActive, CreatedAt, CreatedBy)
+        (ColId, MoeinCode, Title, [Description], AccountGroupId, AccountNature,
+         IsActive, CreatedAt, CreatedBy)
     VALUES
         (@ColId, @NormCode, LTRIM(RTRIM(@Title)), NULLIF(LTRIM(RTRIM(@Description)), N''),
-         ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+         @GroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
 
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS NewId;
 END
@@ -62,6 +73,8 @@ BEGIN
         Title        = LTRIM(RTRIM(@Title)),
         [Description]= CASE WHEN @Description IS NULL THEN [Description]
                             ELSE NULLIF(LTRIM(RTRIM(@Description)), N'') END,
+        AccountGroupId = @GroupId,
+        AccountNature = @Nature,
         IsActive     = ISNULL(@IsActive, IsActive),
         UpdatedAt    = SYSUTCDATETIME(),
         UpdatedBy    = @UpdatedBy

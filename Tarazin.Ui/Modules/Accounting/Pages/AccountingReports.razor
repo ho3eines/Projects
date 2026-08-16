@@ -1041,6 +1041,10 @@ else
 
     private static string NatureTitle(string? value) => value switch
     {
+        AccountNatureKind.Debit => "بدهکار",
+        AccountNatureKind.Credit => "بستانکار",
+        AccountNatureKind.Both => "هر دو",
+        // AccountType قدیمیِ تراز آزمایشی مستقل از ماهیت جداول پایه است.
         "Asset" => "دارایی (بدهکار)",
         "Expense" => "هزینه (بدهکار)",
         "Liability" => "بدهی (بستانکار)",

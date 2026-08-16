@@ -112,6 +112,10 @@ public class AccountPickerResult
     public string AccountCode { get; set; } = "";
     public string Title { get; set; } = "";
     public string NodeType { get; set; } = "";
+    public int? AccountGroupId { get; set; }
+    public string? GroupCode { get; set; }
+    public string? GroupTitle { get; set; }
+    public string AccountNature { get; set; } = AccountNatureKind.Both;
     public int? DetilEntityId { get; set; }
     public int? LinkId { get; set; }
     public int? MoeinId { get; set; }
