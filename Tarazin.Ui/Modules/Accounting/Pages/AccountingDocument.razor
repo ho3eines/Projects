@@ -1,11 +1,11 @@
 @page "/accounting/document/{DocumentId:int}"
+@using Tarazin.Modules.Accounting.Components
 @inject DbService Db
 @inject UserSession Session
 @inject IDialogService DialogService
 @inject AccountPickerService AccountPicker
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
-@using Tarazin.Ui.Modules.Accounting.Components
 
 <PageTitle>سند حسابداری — حسابداری</PageTitle>
 
