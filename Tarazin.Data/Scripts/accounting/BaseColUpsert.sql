@@ -8,6 +8,8 @@
 -- غیرفعال‌سازی از روی درخت (که شرح را نمی‌داند) شرح موجود را پاک می‌کرد.
 -- =============================================
 DECLARE @NormCode NVARCHAR(2) = RIGHT('00' + ISNULL(NULLIF(LTRIM(RTRIM(@ColCode)), ''), '00'), 2);
+DECLARE @Nature NVARCHAR(10) = LTRIM(RTRIM(ISNULL(@AccountNature, N'')));
+DECLARE @GroupId INT = NULLIF(@AccountGroupId, 0);
 
 -- اعتبارسنجی: دقیقاً 2 رقم و فقط عدد.
 IF @NormCode NOT LIKE '[0-9][0-9]'
@@ -15,6 +17,14 @@ IF @NormCode NOT LIKE '[0-9][0-9]'
 
 IF @Title IS NULL OR LTRIM(RTRIM(@Title)) = N''
     THROW 50002, N'عنوان حساب کل الزامی است.', 1;
+
+IF @Nature NOT IN (N'Debit', N'Credit', N'Both')
+    THROW 50006, N'ماهیت حساب باید بدهکار، بستانکار یا هر دو باشد.', 1;
+
+IF @GroupId IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM [accounting].[AccountGroups]
+    WHERE AccountGroupId = @GroupId AND GroupType = N'Col' AND IsDeleted = 0)
+    THROW 50007, N'گروه انتخاب‌شده برای حساب کل معتبر نیست.', 1;
 
 -- بررسی تکراری نبودن کد (فقط برای رکوردهای غیرحذف‌شده).
 IF @ColId = 0 AND EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = @NormCode AND IsDeleted = 0)
@@ -32,10 +42,11 @@ END
 IF @ColId = 0
 BEGIN
     INSERT INTO [accounting].[BaseCol]
-        (ColCode, Title, [Description], IsActive, CreatedAt, CreatedBy)
+        (ColCode, Title, [Description], AccountGroupId, AccountNature,
+         IsActive, CreatedAt, CreatedBy)
     VALUES
         (@NormCode, LTRIM(RTRIM(@Title)), NULLIF(LTRIM(RTRIM(@Description)), N''),
-         ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+         @GroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
 
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS NewId;
 END
@@ -46,6 +57,8 @@ BEGIN
         Title         = LTRIM(RTRIM(@Title)),
         [Description] = CASE WHEN @Description IS NULL THEN [Description]
                              ELSE NULLIF(LTRIM(RTRIM(@Description)), N'') END,
+        AccountGroupId= @GroupId,
+        AccountNature = @Nature,
         IsActive      = ISNULL(@IsActive, IsActive),
         UpdatedAt     = SYSUTCDATETIME(),
         UpdatedBy     = @UpdatedBy

@@ -27,10 +27,13 @@ CREATE TABLE #DetilTree (
     ColId         INT NOT NULL,
     ColCode       NVARCHAR(10) NOT NULL,
     ColTitle      NVARCHAR(200) NOT NULL,
+    ColNature     NVARCHAR(10) NOT NULL,
     MoeinCode     NVARCHAR(10) NOT NULL,
     MoeinTitle    NVARCHAR(200) NOT NULL,
+    MoeinNature   NVARCHAR(10) NOT NULL,
     DetilCode     NVARCHAR(20) NOT NULL,
     DetilTitle    NVARCHAR(200) NOT NULL,
+    DetilNature   NVARCHAR(10) NOT NULL,
     AccountCode   NVARCHAR(400) NOT NULL,
     PathRank      INT NOT NULL
 );
@@ -45,10 +48,13 @@ CREATE TABLE #DetilTree (
         c.ColId,
         c.ColCode,
         c.Title AS ColTitle,
+        c.AccountNature AS ColNature,
         m.MoeinCode,
         m.Title AS MoeinTitle,
+        m.AccountNature AS MoeinNature,
         bd.DetilCode,
         bd.Title AS DetilTitle,
+        bd.AccountNature AS DetilNature,
         CAST(c.ColCode + m.MoeinCode + bd.DetilCode AS NVARCHAR(400)) AS AccountCode
     FROM [accounting].[BaseDetilLink] dl
     INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
@@ -67,10 +73,13 @@ CREATE TABLE #DetilTree (
         p.ColId,
         p.ColCode,
         p.ColTitle,
+        p.ColNature,
         p.MoeinCode,
         p.MoeinTitle,
+        p.MoeinNature,
         bd.DetilCode,
         bd.Title,
+        bd.AccountNature,
         CAST(p.AccountCode + bd.DetilCode AS NVARCHAR(400))
     FROM [accounting].[BaseDetilLink] dl
     INNER JOIN DetailTree p ON p.LinkId = dl.ParentLinkId AND p.MoeinId = dl.MoeinId
@@ -78,9 +87,11 @@ CREATE TABLE #DetilTree (
     WHERE dl.IsDeleted = 0
 )
 INSERT INTO #DetilTree (LinkId, ParentLinkId, MoeinId, DetilId, TreeLevel, ColId, ColCode,
-                        ColTitle, MoeinCode, MoeinTitle, DetilCode, DetilTitle, AccountCode, PathRank)
+                        ColTitle, ColNature, MoeinCode, MoeinTitle, MoeinNature,
+                        DetilCode, DetilTitle, DetilNature, AccountCode, PathRank)
 SELECT LinkId, ParentLinkId, MoeinId, DetilId, TreeLevel, ColId, ColCode,
-       ColTitle, MoeinCode, MoeinTitle, DetilCode, DetilTitle, AccountCode,
+       ColTitle, ColNature, MoeinCode, MoeinTitle, MoeinNature,
+       DetilCode, DetilTitle, DetilNature, AccountCode,
        -- مسیرهای تکراری (یک AccountCode از چند Link) فقط یک‌بار جمع می‌شوند تا
        -- گردشِ والدها دوبار شمرده نشود.
        ROW_NUMBER() OVER (PARTITION BY AccountCode ORDER BY LinkId)
@@ -107,7 +118,7 @@ BEGIN
         CAST(NULL AS INT) AS ParentLinkId,
         COUNT(DISTINCT t.MoeinId) AS ChildCount,
         CAST(t.ColCode AS NVARCHAR(4000)) AS AccountCode,
-        CAST(NULL AS NVARCHAR(30)) AS AccountNature,
+        t.ColNature AS AccountNature,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) AS Debit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) AS Credit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit - l.Credit ELSE 0 END), 0) AS Balance
@@ -120,7 +131,7 @@ BEGIN
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
     WHERE t.DetilId = @DetilId
       AND t.PathRank = 1
-    GROUP BY t.ColId, t.ColCode, t.ColTitle
+    GROUP BY t.ColId, t.ColCode, t.ColTitle, t.ColNature
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0
     ORDER BY t.ColCode;
@@ -140,7 +151,7 @@ BEGIN
         CAST(NULL AS INT) AS ParentLinkId,
         COUNT(DISTINCT t.LinkId) AS ChildCount,
         CAST(t.ColCode + t.MoeinCode AS NVARCHAR(4000)) AS AccountCode,
-        CAST(NULL AS NVARCHAR(30)) AS AccountNature,
+        t.MoeinNature AS AccountNature,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) AS Debit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) AS Credit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit - l.Credit ELSE 0 END), 0) AS Balance
@@ -154,7 +165,7 @@ BEGIN
     WHERE t.DetilId = @DetilId
       AND t.ColId = @ColId
       AND t.PathRank = 1
-    GROUP BY t.ColId, t.MoeinId, t.ColCode, t.MoeinCode, t.MoeinTitle
+    GROUP BY t.ColId, t.MoeinId, t.ColCode, t.MoeinCode, t.MoeinTitle, t.MoeinNature
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0
     ORDER BY t.MoeinCode;
@@ -176,7 +187,7 @@ BEGIN
         t.ParentLinkId,
         (SELECT COUNT(*) FROM #DetilTree child WHERE child.ParentLinkId = t.LinkId AND child.PathRank = 1) AS ChildCount,
         CAST(t.AccountCode AS NVARCHAR(4000)) AS AccountCode,
-        CAST(NULL AS NVARCHAR(30)) AS AccountNature,
+        t.DetilNature AS AccountNature,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) AS Debit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) AS Credit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit - l.Credit ELSE 0 END), 0) AS Balance
@@ -192,7 +203,7 @@ BEGIN
             (@ParentLinkId IS NULL AND t.DetilId = @DetilId AND t.MoeinId = @MoeinId)
             OR (@ParentLinkId IS NOT NULL AND t.ParentLinkId = @ParentLinkId)
           )
-    GROUP BY t.LinkId, t.TreeLevel, t.DetilCode, t.DetilTitle,
+    GROUP BY t.LinkId, t.TreeLevel, t.DetilCode, t.DetilTitle, t.DetilNature,
              t.ColId, t.MoeinId, t.DetilId, t.ParentLinkId, t.AccountCode
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0

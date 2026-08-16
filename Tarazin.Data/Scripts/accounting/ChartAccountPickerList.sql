@@ -1,7 +1,7 @@
 -- =============================================
--- Tarazin.Data/Scripts/accounting/ChartAccountPickerList.sql
--- Schema: accounting
--- Account Picker برای درخت چندسطحی. LinkId مسیر دقیق هر تفصیلی را مشخص می‌کند.
+-- Account Picker برای درخت چندسطحی، همراه با گروه و ماهیت حساب.
+-- LinkId مسیر دقیق هر تفصیلی را مشخص می‌کند.
+-- اطلاعات گروه بعد از CTE بازگشتی متصل می‌شود تا بخش بازگشتی فاقد OUTER JOIN باشد.
 -- =============================================
 DECLARE @Term NVARCHAR(200) = ISNULL(LTRIM(RTRIM(@SearchText)), N'');
 DECLARE @Like NVARCHAR(202) = N'%' + @Term + N'%';
@@ -12,6 +12,7 @@ DECLARE @Inactive BIT = CASE WHEN ISNULL(@IncludeInactive, 0) = 0 THEN 0 ELSE 1 
         c.ColId AS NodeId, 1 AS Level, c.ColCode AS Code, c.Title,
         N'BaseCol' AS NodeType, CAST(NULL AS INT) AS ParentId,
         CAST(c.ColCode AS NVARCHAR(4000)) AS AccountCode,
+        c.AccountGroupId, c.AccountNature,
         c.IsActive,
         CAST(c.Title AS NVARCHAR(4000)) AS Breadcrumb,
         CAST(NULL AS INT) AS DetilEntityId,
@@ -23,12 +24,14 @@ DECLARE @Inactive BIT = CASE WHEN ISNULL(@IncludeInactive, 0) = 0 THEN 0 ELSE 1 
 ),
 BaseMoeins (
     NodeId, Level, Code, Title, NodeType, ParentId, AccountCode,
+    AccountGroupId, AccountNature,
     IsActive, Breadcrumb, DetilEntityId, LinkId, MoeinId, ParentLinkId
 ) AS (
     SELECT
         m.MoeinId, 2, m.MoeinCode, m.Title,
         N'BaseMoein', m.ColId,
         CAST(c.AccountCode + m.MoeinCode AS NVARCHAR(4000)),
+        m.AccountGroupId, m.AccountNature,
         m.IsActive,
         CAST(c.Breadcrumb + N' > ' + m.Title AS NVARCHAR(4000)),
         CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT)
@@ -38,12 +41,14 @@ BaseMoeins (
 ),
 DetailTree (
     NodeId, Level, Code, Title, NodeType, ParentId, AccountCode,
+    AccountGroupId, AccountNature,
     IsActive, Breadcrumb, DetilEntityId, LinkId, MoeinId, ParentLinkId
 ) AS (
     SELECT
         d.DetilId, 3, d.DetilCode, d.Title,
         N'BaseDetil', dl.MoeinId,
         CAST(m.AccountCode + d.DetilCode AS NVARCHAR(4000)),
+        d.AccountGroupId, d.AccountNature,
         CAST(CASE WHEN d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT),
         CAST(m.Breadcrumb + N' > ' + d.Title AS NVARCHAR(4000)),
         d.DetilId, dl.LinkId, dl.MoeinId, dl.ParentLinkId
@@ -60,6 +65,7 @@ DetailTree (
         d.DetilId, parent.Level + 1, d.DetilCode, d.Title,
         N'BaseDetil', dl.ParentLinkId,
         CAST(parent.AccountCode + d.DetilCode AS NVARCHAR(4000)),
+        d.AccountGroupId, d.AccountNature,
         CAST(CASE WHEN parent.IsActive = 1 AND d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT),
         CAST(parent.Breadcrumb + N' > ' + d.Title AS NVARCHAR(4000)),
         d.DetilId, dl.LinkId, dl.MoeinId, dl.ParentLinkId
@@ -75,9 +81,15 @@ AllNodes AS (
     UNION ALL SELECT * FROM BaseMoeins
     UNION ALL SELECT * FROM DetailTree
 ),
+Enriched AS (
+    SELECT n.*, g.GroupCode, g.Title AS GroupTitle
+    FROM AllNodes n
+    LEFT JOIN [accounting].[AccountGroups] g
+        ON g.AccountGroupId = n.AccountGroupId AND g.IsDeleted = 0
+),
 Filtered AS (
     SELECT *
-    FROM AllNodes n
+    FROM Enriched n
     WHERE (@AccountTypeFilter IS NULL
            OR (@AccountTypeFilter = N'Col' AND n.NodeType = N'BaseCol')
            OR (@AccountTypeFilter = N'Moein' AND n.NodeType = N'BaseMoein')
@@ -86,11 +98,19 @@ Filtered AS (
            OR n.Title LIKE @Like
            OR n.Code LIKE @Like
            OR n.AccountCode LIKE @Like
-           OR n.Breadcrumb LIKE @Like)
+           OR n.Breadcrumb LIKE @Like
+           OR n.GroupCode LIKE @Like
+           OR n.GroupTitle LIKE @Like
+           OR n.AccountNature LIKE @Like
+           OR (N'بدهکار' LIKE @Like AND n.AccountNature = N'Debit')
+           OR (N'بستانکار' LIKE @Like AND n.AccountNature = N'Credit')
+           OR ((N'هر دو' LIKE @Like OR N'هردو' LIKE @Like) AND n.AccountNature = N'Both'))
 )
 SELECT
     n.NodeId, n.Level, n.Code, n.Title, n.NodeType, n.ParentId,
-    n.AccountCode, n.IsActive,
+    n.AccountCode,
+    n.AccountGroupId, n.GroupCode, n.GroupTitle, n.AccountNature,
+    n.IsActive,
     CASE n.NodeType
         WHEN N'BaseCol' THEN (SELECT COUNT(*) FROM BaseMoeins x WHERE x.ParentId = n.NodeId)
         WHEN N'BaseMoein' THEN (SELECT COUNT(*) FROM DetailTree x WHERE x.MoeinId = n.NodeId AND x.ParentLinkId IS NULL)

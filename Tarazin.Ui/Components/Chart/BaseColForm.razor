@@ -19,15 +19,34 @@
                                   HelperText="دقیقاً ۲ رقم — صفرهای ابتدایی حفظ می‌شود" />
                 </MudItem>
                 <MudItem xs="12" sm="8">
-                    <MudTextField Label="عنوان" @bind-Value="_title"
-                                  Required="true"
-                                  RequiredError="عنوان الزامی است."
-                                  OnKeyDown="HandleKeyDown"
-                                  Variant="Variant.Outlined" />
+                    <MudTextField Label="عنوان" @bind-Value="_title" MaxLength="200"
+                                  Required="true" RequiredError="عنوان الزامی است."
+                                  OnKeyDown="HandleKeyDown" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="7">
+                    <MudSelect T="int" Label="گروه حساب کل" @bind-Value="_groupId"
+                               @bind-Value:after="ApplyGroupDefaultNature"
+                               Variant="Variant.Outlined"
+                               HelperText="گروه برای طبقه‌بندی و فیلتر حساب‌ها استفاده می‌شود.">
+                        <MudSelectItem T="int" Value="0">— بدون گروه —</MudSelectItem>
+                        @foreach (var group in _groups)
+                        {
+                            <MudSelectItem T="int" Value="@group.AccountGroupId">@group.GroupCode | @group.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="5">
+                    <MudSelect T="string" Label="ماهیت حساب" @bind-Value="_accountNature"
+                               Required="true" RequiredError="انتخاب ماهیت حساب الزامی است."
+                               Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Debit">بدهکار</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Credit">بستانکار</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Both">هر دو</MudSelectItem>
+                    </MudSelect>
                 </MudItem>
                 <MudItem xs="12">
                     <MudTextField Label="شرح" @bind-Value="_description"
-                                  Lines="2" Variant="Variant.Outlined" />
+                                  Lines="2" MaxLength="500" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
@@ -51,6 +70,8 @@
     [Parameter] public string InitialCode { get; set; } = "";
     [Parameter] public string InitialTitle { get; set; } = "";
     [Parameter] public string InitialDescription { get; set; } = "";
+    [Parameter] public int? InitialAccountGroupId { get; set; }
+    [Parameter] public string InitialAccountNature { get; set; } = AccountNatureKind.Both;
     [Parameter] public bool InitialIsActive { get; set; } = true;
 
     private MudForm? _form;
@@ -59,23 +80,45 @@
     private string _code = "";
     private string _title = "";
     private string? _description;
+    private int _groupId;
+    private string _accountNature = AccountNatureKind.Both;
     private bool _isActive = true;
+    private List<AccountGroupRow> _groups = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _code = InitialCode;
         _title = InitialTitle;
         _description = InitialDescription;
+        _groupId = InitialAccountGroupId ?? 0;
+        _accountNature = string.IsNullOrWhiteSpace(InitialAccountNature) ? AccountNatureKind.Both : InitialAccountNature;
         _isActive = InitialIsActive;
+
+        try
+        {
+            _groups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
+            {
+                GroupType = AccountGroupType.Col,
+                IncludeInactive = ColId > 0
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            _groups = new();
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void ApplyGroupDefaultNature()
+    {
+        if (ColId > 0 || _groupId == 0) return;
+        var group = _groups.FirstOrDefault(g => g.AccountGroupId == _groupId);
+        if (group is not null) _accountNature = group.DefaultNature;
     }
 
     private void HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !e.ShiftKey)
-        {
-            // در تکست‌فیلد چندخطی با Shift+Enter
-            _ = SaveAsync();
-        }
+        if (e.Key == "Enter" && !e.ShiftKey) _ = SaveAsync();
     }
 
     private void Cancel() => MudDialog.Cancel();
@@ -86,7 +129,6 @@
         await _form!.Validate();
         if (!_isValid) return;
 
-        // اعتبارسنجی کد: فقط عدد، دقیقاً 2 رقم
         var code = (_code ?? "").Trim();
         if (code.Length != 2 || !code.All(char.IsDigit))
         {
@@ -103,6 +145,8 @@
                 ColCode = code,
                 Title = (_title ?? "").Trim(),
                 Description = _description?.Trim() ?? "",
+                AccountGroupId = _groupId == 0 ? (int?)null : _groupId,
+                AccountNature = _accountNature,
                 IsActive = _isActive,
                 CreatedBy = Session.UserName,
                 UpdatedBy = Session.UserName

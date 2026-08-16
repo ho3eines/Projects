@@ -229,6 +229,112 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetilLink_Parent_
     CREATE INDEX IX_BaseDetilLink_Parent_Active ON [accounting].[BaseDetilLink](ParentLinkId, IsDeleted, IsActive) INCLUDE (DetilId, MoeinId);
 GO
 
+-- =============================================
+-- گروه‌بندی و ماهیت حساب‌ها
+--   GroupType: Col | Moein | Detil
+--   DefaultNature/AccountNature: Debit | Credit | Both
+-- فقط گروه تفصیلی بازهٔ هفت‌رقمی دارد. تخصیص شماره داخل این بازه در
+-- BaseDetilCreateAuto و در یک تراکنش انجام می‌شود.
+-- =============================================
+IF OBJECT_ID(N'accounting.AccountGroups', N'U') IS NULL
+BEGIN
+    CREATE TABLE [accounting].[AccountGroups] (
+        AccountGroupId INT IDENTITY(1,1) PRIMARY KEY,
+        GroupType      NVARCHAR(10) NOT NULL,
+        GroupCode      NVARCHAR(20) NOT NULL,
+        Title          NVARCHAR(200) NOT NULL,
+        FromCode       NVARCHAR(7) NULL,
+        ToCode         NVARCHAR(7) NULL,
+        DefaultNature  NVARCHAR(10) NOT NULL CONSTRAINT DF_AccountGroups_DefaultNature DEFAULT N'Both',
+        [Description]  NVARCHAR(500) NULL,
+        IsActive       BIT NOT NULL CONSTRAINT DF_AccountGroups_IsActive DEFAULT 1,
+        IsDeleted      BIT NOT NULL CONSTRAINT DF_AccountGroups_IsDeleted DEFAULT 0,
+        CreatedAt      DATETIME2 NOT NULL CONSTRAINT DF_AccountGroups_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt      DATETIME2 NULL,
+        CreatedBy      NVARCHAR(100) NULL,
+        UpdatedBy      NVARCHAR(100) NULL,
+        CONSTRAINT CK_AccountGroups_Type CHECK (GroupType IN (N'Col', N'Moein', N'Detil')),
+        CONSTRAINT CK_AccountGroups_Nature CHECK (DefaultNature IN (N'Debit', N'Credit', N'Both')),
+        CONSTRAINT CK_AccountGroups_DetilRange CHECK (
+            (GroupType = N'Detil'
+             AND FromCode IS NOT NULL AND ToCode IS NOT NULL
+             AND LEN(FromCode) = 7 AND FromCode NOT LIKE N'%[^0-9]%'
+             AND LEN(ToCode) = 7 AND ToCode NOT LIKE N'%[^0-9]%'
+             AND FromCode <= ToCode)
+            OR
+            (GroupType <> N'Detil' AND FromCode IS NULL AND ToCode IS NULL)
+        )
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_AccountGroups_Type_Code_Active' AND object_id = OBJECT_ID(N'[accounting].[AccountGroups]'))
+    CREATE UNIQUE INDEX UX_AccountGroups_Type_Code_Active
+        ON [accounting].[AccountGroups](GroupType, GroupCode)
+        WHERE IsDeleted = 0;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AccountGroups_Type_Active' AND object_id = OBJECT_ID(N'[accounting].[AccountGroups]'))
+    CREATE INDEX IX_AccountGroups_Type_Active
+        ON [accounting].[AccountGroups](GroupType, IsDeleted, IsActive)
+        INCLUDE (GroupCode, Title, FromCode, ToCode, DefaultNature);
+GO
+
+-- مهاجرت بدون تخریب برای دیتابیس‌های موجود: حساب‌های قدیمی بدون گروه می‌مانند
+-- و ماهیت «هر دو» می‌گیرند تا کاربر به‌تدریج آن‌ها را طبقه‌بندی کند.
+IF COL_LENGTH(N'accounting.BaseCol', N'AccountGroupId') IS NULL
+    ALTER TABLE [accounting].[BaseCol] ADD AccountGroupId INT NULL;
+IF COL_LENGTH(N'accounting.BaseCol', N'AccountNature') IS NULL
+    ALTER TABLE [accounting].[BaseCol] ADD AccountNature NVARCHAR(10) NOT NULL
+        CONSTRAINT DF_BaseCol_AccountNature DEFAULT N'Both' WITH VALUES;
+GO
+
+IF COL_LENGTH(N'accounting.BaseMoein', N'AccountGroupId') IS NULL
+    ALTER TABLE [accounting].[BaseMoein] ADD AccountGroupId INT NULL;
+IF COL_LENGTH(N'accounting.BaseMoein', N'AccountNature') IS NULL
+    ALTER TABLE [accounting].[BaseMoein] ADD AccountNature NVARCHAR(10) NOT NULL
+        CONSTRAINT DF_BaseMoein_AccountNature DEFAULT N'Both' WITH VALUES;
+GO
+
+IF COL_LENGTH(N'accounting.BaseDetil', N'AccountGroupId') IS NULL
+    ALTER TABLE [accounting].[BaseDetil] ADD AccountGroupId INT NULL;
+IF COL_LENGTH(N'accounting.BaseDetil', N'AccountNature') IS NULL
+    ALTER TABLE [accounting].[BaseDetil] ADD AccountNature NVARCHAR(10) NOT NULL
+        CONSTRAINT DF_BaseDetil_AccountNature DEFAULT N'Both' WITH VALUES;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseCol_AccountGroup')
+    ALTER TABLE [accounting].[BaseCol] WITH CHECK
+        ADD CONSTRAINT FK_BaseCol_AccountGroup FOREIGN KEY (AccountGroupId)
+        REFERENCES [accounting].[AccountGroups](AccountGroupId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseMoein_AccountGroup')
+    ALTER TABLE [accounting].[BaseMoein] WITH CHECK
+        ADD CONSTRAINT FK_BaseMoein_AccountGroup FOREIGN KEY (AccountGroupId)
+        REFERENCES [accounting].[AccountGroups](AccountGroupId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseDetil_AccountGroup')
+    ALTER TABLE [accounting].[BaseDetil] WITH CHECK
+        ADD CONSTRAINT FK_BaseDetil_AccountGroup FOREIGN KEY (AccountGroupId)
+        REFERENCES [accounting].[AccountGroups](AccountGroupId);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_BaseCol_AccountNature')
+    ALTER TABLE [accounting].[BaseCol] WITH CHECK
+        ADD CONSTRAINT CK_BaseCol_AccountNature CHECK (AccountNature IN (N'Debit', N'Credit', N'Both'));
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_BaseMoein_AccountNature')
+    ALTER TABLE [accounting].[BaseMoein] WITH CHECK
+        ADD CONSTRAINT CK_BaseMoein_AccountNature CHECK (AccountNature IN (N'Debit', N'Credit', N'Both'));
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_BaseDetil_AccountNature')
+    ALTER TABLE [accounting].[BaseDetil] WITH CHECK
+        ADD CONSTRAINT CK_BaseDetil_AccountNature CHECK (AccountNature IN (N'Debit', N'Credit', N'Both'));
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseCol_AccountGroup' AND object_id = OBJECT_ID(N'[accounting].[BaseCol]'))
+    CREATE INDEX IX_BaseCol_AccountGroup ON [accounting].[BaseCol](AccountGroupId) WHERE AccountGroupId IS NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseMoein_AccountGroup' AND object_id = OBJECT_ID(N'[accounting].[BaseMoein]'))
+    CREATE INDEX IX_BaseMoein_AccountGroup ON [accounting].[BaseMoein](AccountGroupId) WHERE AccountGroupId IS NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetil_AccountGroup' AND object_id = OBJECT_ID(N'[accounting].[BaseDetil]'))
+    CREATE INDEX IX_BaseDetil_AccountGroup ON [accounting].[BaseDetil](AccountGroupId) WHERE AccountGroupId IS NOT NULL;
+GO
+
 -- Contract: TaxRule (owner: accounting) — config-driven Persian tax engine (PRD §8).
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t

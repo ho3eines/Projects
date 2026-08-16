@@ -133,6 +133,30 @@ public sealed class DbService
         }
     }
 
+    /// <summary>
+    /// Executes a mutating script that returns one result row and records the
+    /// same audit entry as <see cref="ExecuteAsync"/>. Use this for atomic
+    /// create/allocate scripts whose generated values must be returned.
+    /// </summary>
+    public async Task<T?> ExecuteReturningAsync<T>(
+        string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
+    {
+        var sql = Resolve(schema, scriptName);
+        await using var conn = Open();
+        try
+        {
+            var result = await conn.QueryFirstOrDefaultAsync<T>(
+                new CommandDefinition(sql, parameters, cancellationToken: ct));
+            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName, "Success", null, ct);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName, "Error", ex.Message, ct);
+            throw;
+        }
+    }
+
     public async Task<object?> ScalarAsync(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
     {

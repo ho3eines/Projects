@@ -17,6 +17,10 @@
                OnClick="OpenNewCol" Disabled="@(!CanCreate)">
         حساب کل جدید
     </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Category"
+               OnClick="OpenGroupManagerAsync" Disabled="@(!CanEdit)" Class="ms-2">
+        مدیریت گروه‌ها
+    </MudButton>
     <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AccountTree"
                OnClick="ExpandAll" Class="ms-2">
         باز کردن همه
@@ -145,6 +149,23 @@
                         <code style="direction:ltr">@_selected.Code</code>
                         <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
                                        OnClick="@(() => Copy("کد گره", _selected.Code))" />
+                    </MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">گروه حساب</MudText></MudItem>
+                    <MudItem xs="7">
+                        @if (_selected.AccountGroupId.HasValue)
+                        {
+                            <span>@_selected.GroupCode | @_selected.GroupTitle</span>
+                        }
+                        else
+                        {
+                            <span>— بدون گروه —</span>
+                        }
+                    </MudItem>
+                    <MudItem xs="5"><MudText Color="Color.Secondary">ماهیت حساب</MudText></MudItem>
+                    <MudItem xs="7">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">
+                            @AccountNatureKind.Title(_selected.AccountNature)
+                        </MudChip>
                     </MudItem>
                     <MudItem xs="5"><MudText Color="Color.Secondary">تعداد فرزند</MudText></MudItem>
                     <MudItem xs="7">@_selected.ChildCount</MudItem>
@@ -618,6 +639,11 @@
                 <span class="tz-charttree__code" title="@($"کد حساب: {n.AccountCode} — کد گره: {n.Code}")">@n.AccountCode</span>
                 <span class="tz-charttree__own">@n.Code</span>
                 <span class="tz-charttree__title">@n.Title</span>
+                @if (!string.IsNullOrWhiteSpace(n.GroupTitle))
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">@n.GroupTitle</MudChip>
+                }
+                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text">@AccountNatureKind.Title(n.AccountNature)</MudChip>
                 @if (!n.IsActive)
                 {
                     <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">غیرفعال</MudChip>
@@ -685,6 +711,16 @@
 
     // ======== عملیات‌ها ========
 
+    private async Task OpenGroupManagerAsync()
+    {
+        var dialog = await Dialog.ShowAsync<AccountGroupManagerDialog>(
+            "مدیریت گروه‌های حساب",
+            new DialogParameters(),
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true });
+        await dialog.Result;
+        await ReloadAsync();
+    }
+
     private async Task OpenNewCol()
     {
         var dlg = await Dialog.ShowAsync<BaseColForm>("ایجاد حساب کل جدید", new DialogParameters
@@ -749,11 +785,11 @@
             parentLinkId.HasValue ? $"افزودن تفصیلی سطح {targetLevel}" : "افزودن تفصیلی سطح ۳",
             new DialogParameters
             {
+                ["Mode"] = BaseDetilForm.DetilFormMode.Create,
                 ["MoeinId"] = moeinId.Value,
-                ["ParentLinkId"] = parentLinkId,
-                ["TargetLevel"] = targetLevel
+                ["ParentLinkId"] = parentLinkId
             },
-            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true });
         var r = await dlg.Result;
         if (r is { Canceled: false })
         {
@@ -779,6 +815,8 @@
                 ["InitialCode"] = _selected.Code,
                 ["InitialTitle"] = _selected.Title,
                 ["InitialDescription"] = colRow?.Description ?? "",
+                ["InitialAccountGroupId"] = _selected.AccountGroupId,
+                ["InitialAccountNature"] = _selected.AccountNature,
                 ["InitialIsActive"] = _selected.IsActive
             }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
             var r = await dlg.Result;
@@ -790,14 +828,19 @@
             // AccountCode شکننده بود و در صورت نیافتن، ColId=0 می‌فرستاد که
             // اسکریپت را با «حساب کل والد معتبر نیست» رد می‌کرد.
             int colId = _selected.ParentId ?? 0;
+            var moeinRow = (await Db.QueryAsync<BaseMoeinRow>(Schema, "BaseMoeinListByCol", new { ColId = colId }))
+                .FirstOrDefault(m => m.MoeinId == _selected.NodeId);
             var dlg = await Dialog.ShowAsync<BaseMoeinForm>("ویرایش حساب معین", new DialogParameters
             {
                 ["MoeinId"] = _selected.NodeId,
                 ["InitialColId"] = colId,
                 ["InitialCode"] = _selected.Code,
                 ["InitialTitle"] = _selected.Title,
+                ["InitialDescription"] = moeinRow?.Description ?? "",
+                ["InitialAccountGroupId"] = _selected.AccountGroupId,
+                ["InitialAccountNature"] = _selected.AccountNature,
                 ["InitialIsActive"] = _selected.IsActive
-            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+            }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true });
             var r = await dlg.Result;
             if (r is { Canceled: false }) await ReloadAsync();
         }
@@ -810,16 +853,18 @@
                 var det = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>(Schema, "BaseDetilByCode", new { DetilCode = _selected.Code });
                 if (det is null) { Snackbar.Add("تفصیلی پیدا نشد.", Severity.Error); return; }
 
-                // فرم در حالت فقط-نمایش «ویرایش اطلاعات تفصیلی» — با DetilUpsert در EditDetilId
                 var dlg = await Dialog.ShowAsync<BaseDetilForm>("ویرایش تفصیلی", new DialogParameters
                 {
+                    ["Mode"] = BaseDetilForm.DetilFormMode.Edit,
                     ["MoeinId"] = _selected.MoeinId ?? 0,
-                    ["EditDetilId"] = det.DetilId,
+                    ["DetilId"] = det.DetilId,
                     ["InitialCode"] = det.DetilCode,
                     ["InitialTitle"] = det.Title,
                     ["InitialDescription"] = det.Description ?? "",
+                    ["InitialAccountGroupId"] = det.AccountGroupId,
+                    ["InitialAccountNature"] = det.AccountNature,
                     ["InitialIsActive"] = det.IsActive
-                }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+                }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true });
                 var r = await dlg.Result;
                 if (r is { Canceled: false }) await ReloadAsync();
             }
@@ -1003,6 +1048,8 @@
                     ColCode = _selected.Code,
                     Title = _selected.Title,
                     Description = (string?)null,   // null = شرح فعلی حفظ شود
+                    AccountGroupId = _selected.AccountGroupId,
+                    AccountNature = _selected.AccountNature,
                     IsActive = false,
                     CreatedBy = Session.UserName,
                     UpdatedBy = Session.UserName
@@ -1018,6 +1065,8 @@
                     MoeinCode = _selected.Code,
                     Title = _selected.Title,
                     Description = (string?)null,   // null = شرح فعلی حفظ شود
+                    AccountGroupId = _selected.AccountGroupId,
+                    AccountNature = _selected.AccountNature,
                     IsActive = false,
                     CreatedBy = Session.UserName,
                     UpdatedBy = Session.UserName
@@ -1031,6 +1080,8 @@
                     DetilCode = _selected.Code,
                     Title = _selected.Title,
                     Description = (string?)null,   // null = شرح فعلی حفظ شود
+                    AccountGroupId = _selected.AccountGroupId,
+                    AccountNature = _selected.AccountNature,
                     IsActive = false,
                     CreatedBy = Session.UserName,
                     UpdatedBy = Session.UserName

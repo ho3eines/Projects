@@ -1,13 +1,5 @@
 -- =============================================
--- Tarazin.Data/Scripts/accounting/ChartTreeFull.sql
--- Schema: accounting
--- درخت کامل حساب‌ها با تفصیلی چندسطحی واقعی:
---   Level 1 = BaseCol
---   Level 2 = BaseMoein
---   Level 3 = BaseDetilLink با ParentLinkId=NULL
---   Level 4+ = BaseDetilLink با ParentLinkId به placement والد
---
--- BaseDetil موجودیت مشترک است؛ LinkId هویت گره در یک مسیر مشخص است.
+-- درخت کامل حساب‌ها با گروه، ماهیت و تفصیلی چندسطحی واقعی.
 -- @IncludeInactive: 0=فقط زنجیره‌های فعال، 1=همهٔ رکوردهای حذف‌نشده.
 -- =============================================
 ;WITH BaseCols AS (
@@ -19,6 +11,8 @@
         N'BaseCol' AS NodeType,
         CAST(NULL AS INT) AS ParentId,
         CAST(c.ColCode AS NVARCHAR(4000)) AS AccountCode,
+        c.AccountGroupId,
+        c.AccountNature,
         c.IsActive,
         c.IsDeleted,
         CAST(c.Title AS NVARCHAR(4000)) AS Breadcrumb,
@@ -39,6 +33,8 @@ BaseMoeins AS (
         N'BaseMoein' AS NodeType,
         m.ColId AS ParentId,
         CAST(bc.AccountCode + m.MoeinCode AS NVARCHAR(4000)) AS AccountCode,
+        m.AccountGroupId,
+        m.AccountNature,
         m.IsActive,
         m.IsDeleted,
         CAST(bc.Breadcrumb + N' > ' + m.Title AS NVARCHAR(4000)) AS Breadcrumb,
@@ -61,6 +57,8 @@ DetailTree AS (
         N'BaseDetil' AS NodeType,
         dl.MoeinId AS ParentId,
         CAST(bm.AccountCode + d.DetilCode AS NVARCHAR(4000)) AS AccountCode,
+        d.AccountGroupId,
+        d.AccountNature,
         CAST(CASE WHEN d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT) AS IsActive,
         d.IsDeleted,
         CAST(bm.Breadcrumb + N' > ' + d.Title AS NVARCHAR(4000)) AS Breadcrumb,
@@ -87,6 +85,8 @@ DetailTree AS (
         N'BaseDetil' AS NodeType,
         dl.ParentLinkId AS ParentId,
         CAST(parent.AccountCode + d.DetilCode AS NVARCHAR(4000)) AS AccountCode,
+        d.AccountGroupId,
+        d.AccountNature,
         CAST(CASE WHEN parent.IsActive = 1 AND d.IsActive = 1 AND dl.IsActive = 1 THEN 1 ELSE 0 END AS BIT) AS IsActive,
         d.IsDeleted,
         CAST(parent.Breadcrumb + N' > ' + d.Title AS NVARCHAR(4000)) AS Breadcrumb,
@@ -117,6 +117,10 @@ SELECT
     n.NodeType,
     n.ParentId,
     n.AccountCode,
+    n.AccountGroupId,
+    g.GroupCode,
+    g.Title AS GroupTitle,
+    n.AccountNature,
     n.IsActive,
     n.IsDeleted,
     n.Breadcrumb,
@@ -135,5 +139,7 @@ SELECT
     n.MoeinId,
     n.ParentLinkId
 FROM AllNodes n
+LEFT JOIN [accounting].[AccountGroups] g
+    ON g.AccountGroupId = n.AccountGroupId AND g.IsDeleted = 0
 ORDER BY n.AccountCode, n.Level, n.LinkId
 OPTION (MAXRECURSION 32767, RECOMPILE);

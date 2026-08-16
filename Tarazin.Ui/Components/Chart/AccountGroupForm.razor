@@ -1,0 +1,163 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Label="نوع گروه" @bind-Value="_groupType"
+                               Required="true" Disabled="@(AccountGroupId > 0)" Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@AccountGroupType.Col">حساب کل</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountGroupType.Moein">حساب معین</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountGroupType.Detil">حساب تفصیلی</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudTextField Label="کد گروه" @bind-Value="_groupCode" Required="true"
+                                  RequiredError="کد گروه الزامی است." MaxLength="20" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="5">
+                    <MudTextField Label="عنوان گروه" @bind-Value="_title" Required="true" MaxLength="200"
+                                  RequiredError="عنوان گروه الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+
+                @if (_groupType == AccountGroupType.Detil)
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info" Dense="true" Variant="Variant.Outlined">
+                            شماره‌های حساب تفصیلی این گروه به‌صورت خودکار از بازهٔ زیر تخصیص داده می‌شوند. بازهٔ گروه‌ها نباید هم‌پوشانی داشته باشد.
+                        </MudAlert>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="از شماره" @bind-Value="_fromCode" Required="true"
+                                      RequiredError="شماره شروع بازه الزامی است." MaxLength="7" Counter="7"
+                                      HelperText="دقیقاً ۷ رقم" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="تا شماره" @bind-Value="_toCode" Required="true"
+                                      RequiredError="شماره پایان بازه الزامی است." MaxLength="7" Counter="7"
+                                      HelperText="دقیقاً ۷ رقم" Variant="Variant.Outlined" />
+                    </MudItem>
+                }
+
+                <MudItem xs="12" sm="5">
+                    <MudSelect T="string" Label="ماهیت پیش‌فرض" @bind-Value="_defaultNature"
+                               Required="true" RequiredError="انتخاب ماهیت پیش‌فرض الزامی است."
+                               Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Debit">بدهکار</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Credit">بستانکار</MudSelectItem>
+                        <MudSelectItem T="string" Value="@AccountNatureKind.Both">هر دو</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="7">
+                    <MudTextField Label="شرح" @bind-Value="_description" Lines="2" MaxLength="500" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">
+            @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int AccountGroupId { get; set; }
+    [Parameter] public string InitialGroupType { get; set; } = AccountGroupType.Col;
+    [Parameter] public string InitialGroupCode { get; set; } = "";
+    [Parameter] public string InitialTitle { get; set; } = "";
+    [Parameter] public string? InitialFromCode { get; set; }
+    [Parameter] public string? InitialToCode { get; set; }
+    [Parameter] public string InitialDefaultNature { get; set; } = AccountNatureKind.Both;
+    [Parameter] public string? InitialDescription { get; set; }
+    [Parameter] public bool InitialIsActive { get; set; } = true;
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private string _groupType = AccountGroupType.Col;
+    private string _groupCode = "";
+    private string _title = "";
+    private string? _fromCode;
+    private string? _toCode;
+    private string _defaultNature = AccountNatureKind.Both;
+    private string? _description;
+    private bool _isActive = true;
+
+    protected override void OnInitialized()
+    {
+        _groupType = InitialGroupType;
+        _groupCode = InitialGroupCode;
+        _title = InitialTitle;
+        _fromCode = InitialFromCode;
+        _toCode = InitialToCode;
+        _defaultNature = string.IsNullOrWhiteSpace(InitialDefaultNature) ? AccountNatureKind.Both : InitialDefaultNature;
+        _description = InitialDescription;
+        _isActive = InitialIsActive;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        await _form!.Validate();
+        if (!_isValid) return;
+
+        if (_groupType == AccountGroupType.Detil)
+        {
+            var from = (_fromCode ?? "").Trim();
+            var to = (_toCode ?? "").Trim();
+            if (from.Length != 7 || !from.All(c => c is >= '0' and <= '9')
+                || to.Length != 7 || !to.All(c => c is >= '0' and <= '9'))
+            {
+                Snackbar.Add("شماره شروع و پایان گروه تفصیلی باید دقیقاً ۷ رقم باشند.", Severity.Warning);
+                return;
+            }
+            if (string.CompareOrdinal(from, to) > 0)
+            {
+                Snackbar.Add("شماره شروع نمی‌تواند از شماره پایان بزرگ‌تر باشد.", Severity.Warning);
+                return;
+            }
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("accounting", "AccountGroupUpsert", new
+            {
+                AccountGroupId,
+                GroupType = _groupType,
+                GroupCode = (_groupCode ?? "").Trim(),
+                Title = (_title ?? "").Trim(),
+                FromCode = _groupType == AccountGroupType.Detil ? _fromCode?.Trim() : null,
+                ToCode = _groupType == AccountGroupType.Detil ? _toCode?.Trim() : null,
+                DefaultNature = _defaultNature,
+                Description = _description?.Trim() ?? "",
+                IsActive = _isActive,
+                CreatedBy = Session.UserName,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add(AccountGroupId == 0 ? "گروه حساب ایجاد شد." : "گروه حساب ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
