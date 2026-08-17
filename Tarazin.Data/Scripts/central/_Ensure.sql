@@ -257,3 +257,90 @@ IF COL_LENGTH(N'central.RolePermissions', N'CreatedAt') IS NULL
     ALTER TABLE [central].[RolePermissions] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_RolePermissions_CreatedAt DEFAULT SYSUTCDATETIME();
 IF COL_LENGTH(N'central.RolePermissions', N'UpdatedAt') IS NULL
     ALTER TABLE [central].[RolePermissions] ADD UpdatedAt DATETIME2 NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company & Multi-Fiscal-Year
+-- ─────────────────────────────────────────────────────────────
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'Companies')
+BEGIN
+    CREATE TABLE [central].[Companies] (
+        CompanyId         INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyName       NVARCHAR(200) NOT NULL,
+        IsActive          BIT NOT NULL DEFAULT 1,
+        IsDeleted         BIT NOT NULL DEFAULT 0,
+        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt         DATETIME2 NULL,
+        CreatedBy         NVARCHAR(100) NULL,
+        UpdatedBy         NVARCHAR(100) NULL
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'FiscalYears')
+BEGIN
+    CREATE TABLE [central].[FiscalYears] (
+        FiscalYearId      INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId         INT NOT NULL,
+        YearName          NVARCHAR(50) NOT NULL,
+        StartDate         DATE NOT NULL,
+        EndDate           DATE NOT NULL,
+        IsActive          BIT NOT NULL DEFAULT 1,
+        IsDeleted         BIT NOT NULL DEFAULT 0,
+        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt         DATETIME2 NULL,
+        CreatedBy         NVARCHAR(100) NULL,
+        UpdatedBy         NVARCHAR(100) NULL,
+        CONSTRAINT FK_FiscalYears_Companies FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'UserCompanies')
+BEGIN
+    CREATE TABLE [central].[UserCompanies] (
+        UserId            INT NOT NULL,
+        CompanyId         INT NOT NULL,
+        CONSTRAINT PK_UserCompanies PRIMARY KEY (UserId, CompanyId),
+        CONSTRAINT FK_UserCompanies_Users FOREIGN KEY (UserId) REFERENCES [central].[Users](UserId),
+        CONSTRAINT FK_UserCompanies_Companies FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'UserFiscalYears')
+BEGIN
+    CREATE TABLE [central].[UserFiscalYears] (
+        UserId            INT NOT NULL,
+        FiscalYearId      INT NOT NULL,
+        CONSTRAINT PK_UserFiscalYears PRIMARY KEY (UserId, FiscalYearId),
+        CONSTRAINT FK_UserFiscalYears_Users FOREIGN KEY (UserId) REFERENCES [central].[Users](UserId),
+        CONSTRAINT FK_UserFiscalYears_FiscalYears FOREIGN KEY (FiscalYearId) REFERENCES [central].[FiscalYears](FiscalYearId)
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'UserActiveContext')
+BEGIN
+    CREATE TABLE [central].[UserActiveContext] (
+        UserId            INT NOT NULL PRIMARY KEY,
+        ActiveCompanyId   INT NULL,
+        ActiveFiscalYearId INT NULL,
+        CONSTRAINT FK_UserActiveContext_Users FOREIGN KEY (UserId) REFERENCES [central].[Users](UserId),
+        CONSTRAINT FK_UserActiveContext_Companies FOREIGN KEY (ActiveCompanyId) REFERENCES [central].[Companies](CompanyId),
+        CONSTRAINT FK_UserActiveContext_FiscalYears FOREIGN KEY (ActiveFiscalYearId) REFERENCES [central].[FiscalYears](FiscalYearId)
+    );
+END
+GO

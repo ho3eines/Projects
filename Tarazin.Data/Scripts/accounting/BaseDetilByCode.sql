@@ -20,4 +20,4 @@ SELECT
 FROM [accounting].[BaseDetil] d
 LEFT JOIN [accounting].[AccountGroups] g
     ON g.AccountGroupId = d.AccountGroupId AND g.IsDeleted = 0
-WHERE d.IsDeleted = 0 AND d.DetilCode = @NormCode;
+WHERE d.IsDeleted = 0 AND d.DetilCode = @NormCode AND d.CompanyId = @CompanyId;

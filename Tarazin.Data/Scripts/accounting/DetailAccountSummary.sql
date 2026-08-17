@@ -16,7 +16,7 @@ DECLARE @Number NVARCHAR(50) = NULLIF(LTRIM(RTRIM(@DocumentNumber)), N'');
            CAST(c.ColCode + m.MoeinCode + bd.DetilCode AS NVARCHAR(4000)) AS AccountCode
     FROM [accounting].[BaseDetilLink] dl
     INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
-    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0 AND c.CompanyId = @CompanyId
     INNER JOIN [accounting].[BaseDetil] bd ON bd.DetilId = dl.DetilId AND bd.IsDeleted = 0
     WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0
 
@@ -37,7 +37,7 @@ SelectedPath AS (
 Opening AS (
     SELECT ISNULL(SUM(l.Debit - l.Credit), 0) AS OpeningBalance
     FROM [accounting].[DocumentLines] l
-    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0
+    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
     WHERE l.AccountCode = @AccountCode AND d.DocumentDate < @From
       AND (@Status IS NULL OR d.Status = @Status)
       AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
@@ -45,7 +45,7 @@ Opening AS (
 PeriodTotals AS (
     SELECT ISNULL(SUM(l.Debit), 0) AS Debit, ISNULL(SUM(l.Credit), 0) AS Credit
     FROM [accounting].[DocumentLines] l
-    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0
+    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
     WHERE l.AccountCode = @AccountCode AND d.DocumentDate BETWEEN @From AND @To
       AND (@Status IS NULL OR d.Status = @Status)
       AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')

@@ -72,7 +72,7 @@ BreadcrumbRows AS (
         CAST(NULL AS INT) AS ParentId,
         CAST(c.ColCode AS NVARCHAR(MAX)) AS AccountCode
     FROM [accounting].[BaseCol] c
-    WHERE @ColRef IS NOT NULL AND c.ColId = @ColRef AND c.IsDeleted = 0
+    WHERE @ColRef IS NOT NULL AND c.ColId = @ColRef AND c.IsDeleted = 0 AND c.CompanyId = @CompanyId
 
     UNION ALL
 

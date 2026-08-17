@@ -18,7 +18,7 @@ SELECT
 FROM [accounting].[BaseDetil] d
 LEFT JOIN [accounting].[AccountGroups] g
     ON g.AccountGroupId = d.AccountGroupId AND g.IsDeleted = 0
-WHERE d.IsDeleted = 0
+WHERE d.IsDeleted = 0 AND d.CompanyId = @CompanyId
   AND (@SearchText = N'' OR d.Title LIKE N'%' + @SearchText + N'%'
        OR d.DetilCode LIKE N'%' + @SearchText + N'%'
        OR g.Title LIKE N'%' + @SearchText + N'%'

@@ -18,4 +18,4 @@ SELECT
     d.CreatedBy,
     d.UpdatedBy
 FROM [accounting].[Documents] d
-WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0;
+WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId;

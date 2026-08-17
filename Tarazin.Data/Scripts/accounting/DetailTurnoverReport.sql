@@ -58,7 +58,7 @@ CREATE TABLE #DetilTree (
         CAST(c.ColCode + m.MoeinCode + bd.DetilCode AS NVARCHAR(400)) AS AccountCode
     FROM [accounting].[BaseDetilLink] dl
     INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
-    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0 AND c.CompanyId = @CompanyId
     INNER JOIN [accounting].[BaseDetil] bd ON bd.DetilId = dl.DetilId AND bd.IsDeleted = 0
     WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0
 
@@ -125,7 +125,7 @@ BEGIN
     FROM #DetilTree t
     LEFT JOIN [accounting].[DocumentLines] l ON l.AccountCode LIKE t.AccountCode + N'%'
     LEFT JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
-        AND d.IsDeleted = 0
+        AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
         AND d.DocumentDate BETWEEN @From AND @To
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
@@ -158,7 +158,7 @@ BEGIN
     FROM #DetilTree t
     LEFT JOIN [accounting].[DocumentLines] l ON l.AccountCode LIKE t.AccountCode + N'%'
     LEFT JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
-        AND d.IsDeleted = 0
+        AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
         AND d.DocumentDate BETWEEN @From AND @To
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
@@ -194,7 +194,7 @@ BEGIN
     FROM #DetilTree t
     LEFT JOIN [accounting].[DocumentLines] l ON l.AccountCode LIKE t.AccountCode + N'%'
     LEFT JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
-        AND d.IsDeleted = 0
+        AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
         AND d.DocumentDate BETWEEN @From AND @To
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')

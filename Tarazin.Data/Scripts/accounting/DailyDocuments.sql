@@ -21,6 +21,8 @@ FROM [accounting].[Documents] d
 --   همچنان در فهرست «اسناد روز» دیده می‌شدند.
 WHERE d.DocumentDate BETWEEN @FromDate AND @ToDate
   AND d.IsDeleted = 0
+  AND d.CompanyId = @CompanyId
+  AND d.FiscalYearId = @FiscalYearId
   AND (@SearchText = '' OR d.DocumentNumber LIKE '%' + @SearchText + '%'
        OR d.CounterPartyName LIKE '%' + @SearchText + '%')
   AND (@DocumentType IS NULL OR d.DocumentType = @DocumentType)

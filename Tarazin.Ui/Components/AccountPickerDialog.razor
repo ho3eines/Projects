@@ -311,7 +311,7 @@
                     SearchText = _search ?? "",
                     AccountTypeFilter = _typeFilter,
                     AllowTransactionOnly = Options.TransactionalOnly ? 1 : 0,
-                    IncludeInactive = _showInactive ? 1 : 0
+                    IncludeInactive = _showInactive ? 1 : 0, CompanyId = Session.ActiveCompanyId
                 })).ToList();
             }
             catch (Exception ex)
@@ -513,7 +513,7 @@
             {
                 NodeId = n.NodeId,
                 NodeType = n.NodeType,
-                LinkId = n.LinkId
+                LinkId = n.LinkId, CompanyId = Session.ActiveCompanyId
             })).ToList();
             _breadcrumbs = rows
                 // در مسیر هم «کد حساب» (مسیر کامل تا آن سطح) نمایش داده می‌شود.

@@ -19,10 +19,10 @@ DECLARE @CurrentStatus NVARCHAR(50);
 
 SELECT @CurrentStatus = d.Status
 FROM [accounting].[Documents] d
-WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0;
+WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId;
 
 IF @CurrentStatus IS NULL
-    THROW 51045, N'سند پیدا نشد یا قبلاً حذف شده است', 1;
+    THROW 51045, N'سند پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت و سال مالی نیست', 1;
 
 IF @CurrentStatus NOT IN (N'Note', N'Draft')
     THROW 51046, N'سند در وضعیت فعلی قابل ویرایش نیست (فقط یادداشت و سند موقت).', 1;
@@ -64,7 +64,7 @@ BEGIN TRAN;
         TotalAmount      = @TotalDebit,
         UpdatedAt        = SYSUTCDATETIME(),
         UpdatedBy        = @UpdatedBy
-    WHERE DocumentId = @DocumentId AND IsDeleted = 0;
+    WHERE DocumentId = @DocumentId AND IsDeleted = 0 AND CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId;
 
     -- ردیف‌های قبلی جایگزین می‌شوند (همان قرارداد فرم ثبت سند).
     DELETE FROM [accounting].[DocumentLines] WHERE DocumentId = @DocumentId;

@@ -26,16 +26,16 @@ IF @GroupId IS NOT NULL AND NOT EXISTS (
     WHERE AccountGroupId = @GroupId AND GroupType = N'Col' AND IsDeleted = 0)
     THROW 50007, N'گروه انتخاب‌شده برای حساب کل معتبر نیست.', 1;
 
--- بررسی تکراری نبودن کد (فقط برای رکوردهای غیرحذف‌شده).
-IF @ColId = 0 AND EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = @NormCode AND IsDeleted = 0)
+-- بررسی تکراری نبودن کد (فقط برای رکوردهای غیرحذف‌شده در همان شرکت).
+IF @ColId = 0 AND EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = @NormCode AND IsDeleted = 0 AND CompanyId = @CompanyId)
     THROW 50003, N'این کد قبلاً برای حساب کل دیگری استفاده شده است.', 1;
 
 IF @ColId <> 0
 BEGIN
-    -- اگر کد تغییر کرده، تکراری نباشد.
+    -- اگر کد تغییر کرده، تکراری نباشد در همان شرکت.
     IF EXISTS (
         SELECT 1 FROM [accounting].[BaseCol]
-        WHERE ColCode = @NormCode AND IsDeleted = 0 AND ColId <> @ColId)
+        WHERE ColCode = @NormCode AND IsDeleted = 0 AND ColId <> @ColId AND CompanyId = @CompanyId)
         THROW 50004, N'این کد قبلاً برای حساب کل دیگری استفاده شده است.', 1;
 END
 
@@ -43,10 +43,10 @@ IF @ColId = 0
 BEGIN
     INSERT INTO [accounting].[BaseCol]
         (ColCode, Title, [Description], AccountGroupId, AccountNature,
-         IsActive, CreatedAt, CreatedBy)
+         IsActive, CreatedAt, CreatedBy, CompanyId)
     VALUES
         (@NormCode, LTRIM(RTRIM(@Title)), NULLIF(LTRIM(RTRIM(@Description)), N''),
-         @GroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+         @GroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy, @CompanyId);
 
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS NewId;
 END
@@ -62,10 +62,10 @@ BEGIN
         IsActive      = ISNULL(@IsActive, IsActive),
         UpdatedAt     = SYSUTCDATETIME(),
         UpdatedBy     = @UpdatedBy
-    WHERE ColId = @ColId AND IsDeleted = 0;
+    WHERE ColId = @ColId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
     IF @@ROWCOUNT = 0
-        THROW 50005, N'حساب کل پیدا نشد یا قبلاً حذف شده است.', 1;
+        THROW 50005, N'حساب کل پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت نیست.', 1;
 
     SELECT @ColId AS NewId;
 END

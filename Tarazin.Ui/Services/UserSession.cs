@@ -39,6 +39,10 @@ public sealed class UserSession : ICurrentUser
     public string RoleTitle { get; private set; } = "کاربر";  // عنوان فارسی نقش
     public int RoleId { get; private set; }
     public int UserId { get; private set; }
+    public int? ActiveCompanyId { get; private set; }
+    public string? ActiveCompanyName { get; private set; }
+    public int? ActiveFiscalYearId { get; private set; }
+    public string? ActiveFiscalYearName { get; private set; }
 
     /// <summary>کلیدهای دسترسی مؤثر کاربر (از نقشش).</summary>
     public IReadOnlyCollection<string> Permissions => _permissions;
@@ -47,9 +51,10 @@ public sealed class UserSession : ICurrentUser
     public bool IsAdmin => string.Equals(Role, TarazinRoles.Admin, StringComparison.OrdinalIgnoreCase);
 
     public async Task SignInAsync(int userId, string userName, string displayName,
-        string roleKey, string roleTitle, int roleId, IEnumerable<string>? permissions = null)
+        string roleKey, string roleTitle, int roleId, IEnumerable<string>? permissions = null,
+        int? activeCompanyId = null, string? activeCompanyName = null, int? activeFiscalYearId = null, string? activeFiscalYearName = null)
     {
-        Apply(userId, userName, displayName, roleKey, roleTitle, roleId, permissions);
+        Apply(userId, userName, displayName, roleKey, roleTitle, roleId, permissions, activeCompanyId, activeCompanyName, activeFiscalYearId, activeFiscalYearName);
 
         // نشست را در مرورگر هم ذخیره کن تا با رفرش صفحه از بین نرود.
         if (_store is not null)
@@ -62,9 +67,36 @@ public sealed class UserSession : ICurrentUser
                 Role = Role,
                 RoleTitle = RoleTitle,
                 RoleId = RoleId,
-                Permissions = _permissions.ToList()
+                Permissions = _permissions.ToList(),
+                ActiveCompanyId = ActiveCompanyId,
+                ActiveCompanyName = ActiveCompanyName,
+                ActiveFiscalYearId = ActiveFiscalYearId,
+                ActiveFiscalYearName = ActiveFiscalYearName
             });
         }
+    }
+
+    public async Task UpdateActiveContextAsync(int? companyId, string? companyName, int? fiscalYearId, string? fiscalYearName)
+    {
+        ActiveCompanyId = companyId;
+        ActiveCompanyName = companyName;
+        ActiveFiscalYearId = fiscalYearId;
+        ActiveFiscalYearName = fiscalYearName;
+
+        if (_store is not null && IsAuthenticated)
+        {
+            var data = await _store.LoadAsync();
+            if (data is not null)
+            {
+                data.ActiveCompanyId = companyId;
+                data.ActiveCompanyName = companyName;
+                data.ActiveFiscalYearId = fiscalYearId;
+                data.ActiveFiscalYearName = fiscalYearName;
+                await _store.SaveAsync(data);
+            }
+        }
+
+        Changed?.Invoke();
     }
 
     /// <summary>
@@ -81,7 +113,8 @@ public sealed class UserSession : ICurrentUser
             return;
 
         Apply(data.UserId, data.UserName, data.DisplayName,
-            data.Role, data.RoleTitle, data.RoleId, data.Permissions);
+            data.Role, data.RoleTitle, data.RoleId, data.Permissions,
+            data.ActiveCompanyId, data.ActiveCompanyName, data.ActiveFiscalYearId, data.ActiveFiscalYearName);
     }
 
     public async Task SignOutAsync()
@@ -93,6 +126,10 @@ public sealed class UserSession : ICurrentUser
         Role = "User";
         RoleTitle = "کاربر";
         RoleId = 0;
+        ActiveCompanyId = null;
+        ActiveCompanyName = null;
+        ActiveFiscalYearId = null;
+        ActiveFiscalYearName = null;
         _permissions.Clear();
         Changed?.Invoke();
 
@@ -101,7 +138,8 @@ public sealed class UserSession : ICurrentUser
     }
 
     private void Apply(int userId, string userName, string displayName,
-        string roleKey, string roleTitle, int roleId, IEnumerable<string>? permissions)
+        string roleKey, string roleTitle, int roleId, IEnumerable<string>? permissions,
+        int? activeCompanyId = null, string? activeCompanyName = null, int? activeFiscalYearId = null, string? activeFiscalYearName = null)
     {
         UserId = userId;
         UserName = userName;
@@ -109,6 +147,10 @@ public sealed class UserSession : ICurrentUser
         Role = string.IsNullOrWhiteSpace(roleKey) ? "User" : roleKey;
         RoleTitle = string.IsNullOrWhiteSpace(roleTitle) ? Role : roleTitle;
         RoleId = roleId;
+        ActiveCompanyId = activeCompanyId;
+        ActiveCompanyName = activeCompanyName;
+        ActiveFiscalYearId = activeFiscalYearId;
+        ActiveFiscalYearName = activeFiscalYearName;
 
         _permissions.Clear();
         if (permissions is not null)

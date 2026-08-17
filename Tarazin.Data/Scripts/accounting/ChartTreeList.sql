@@ -14,7 +14,7 @@
         CAST(NULL AS INT) AS MoeinId, CAST(NULL AS INT) AS ParentLinkId,
         CAST(c.Title AS NVARCHAR(4000)) AS FullPathTitle
     FROM [accounting].[BaseCol] c
-    WHERE c.IsDeleted = 0 AND (@IncludeInactive = 1 OR c.IsActive = 1)
+    WHERE c.IsDeleted = 0 AND c.CompanyId = @CompanyId AND (@IncludeInactive = 1 OR c.IsActive = 1)
 ),
 BaseMoeins (
     NodeId, Level, IdPath, CodePath, Code, Title, NodeType, ParentId,

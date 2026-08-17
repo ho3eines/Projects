@@ -18,7 +18,7 @@ DECLARE @Like NVARCHAR(202) = N'%' + @Term + N'%';
         CAST(NULL AS INT) AS MoeinId,
         CAST(NULL AS INT) AS ParentLinkId
     FROM [accounting].[BaseCol] c
-    WHERE c.IsDeleted = 0
+    WHERE c.IsDeleted = 0 AND c.CompanyId = @CompanyId
 ),
 BaseMoeins (
     NodeId, Level, Code, Title, NodeType, ParentId, AccountCode,

@@ -321,7 +321,7 @@ else
         _loading = true;
         try
         {
-            _document = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(Schema, "DocumentById", new { DocumentId });
+            _document = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(Schema, "DocumentById", new { DocumentId, CompanyId = Session.ActiveCompanyId, FiscalYearId = Session.ActiveFiscalYearId });
 
             if (_document is null)
             {
@@ -335,7 +335,7 @@ else
             _documentType = string.IsNullOrWhiteSpace(_document.DocumentType) ? "Journal" : _document.DocumentType!;
             _counterParty = _document.CounterPartyName ?? "";
 
-            var rows = await Db.QueryAsync<DocumentLineRow>(Schema, "DocumentLines", new { DocumentId });
+            var rows = await Db.QueryAsync<DocumentLineRow>(Schema, "DocumentLines", new { DocumentId, CompanyId = Session.ActiveCompanyId, FiscalYearId = Session.ActiveFiscalYearId });
             _lines = (rows ?? Array.Empty<DocumentLineRow>()).Select(r => new JournalLineRow
             {
                 AccountId = r.AccountId,
@@ -562,7 +562,9 @@ else
                 DocumentId,
                 NewStatus = target,
                 ExpectedStatus = _status,
-                UpdatedBy = Session.UserName
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
             Snackbar.Add($"وضعیت سند به «{SafeTitle(target)}» تغییر کرد.", Severity.Success);
             await LoadAsync();
@@ -601,7 +603,9 @@ else
             await Db.ExecuteAsync(Schema, "DocumentDelete", new
             {
                 DocumentId,
-                UpdatedBy = Session.UserName
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
             Snackbar.Add("سند حذف شد.", Severity.Success);
             Nav.NavigateTo("/accounting");

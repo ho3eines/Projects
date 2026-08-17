@@ -17,6 +17,8 @@ SELECT
 FROM [accounting].[DocumentLines] l
 INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
     AND d.IsDeleted = 0
+    AND d.CompanyId = @CompanyId
+    AND d.FiscalYearId = @FiscalYearId
     AND d.DocumentDate BETWEEN @FromDate AND @ToDate
     AND (@Status IS NULL OR d.Status = @Status)
     AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')

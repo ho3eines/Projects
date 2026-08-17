@@ -17,12 +17,14 @@
             <MudDatePicker Label="تاریخ سند" Culture="FaCulture" @bind-Date="_documentDate" />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined">
+            <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined" Disabled="@(!string.IsNullOrWhiteSpace(Type))">
                 <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
                 <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
                 <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
                 <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
                 <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
+                <MudSelectItem Value="@("Opening")">سند افتتاحیه</MudSelectItem>
+                <MudSelectItem Value="@("Closing")">سند اختتامیه</MudSelectItem>
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
@@ -223,8 +225,16 @@
         }
     }
 
+    [Parameter, SupplyParameterFromQuery]
+    public string? Type { get; set; }
+
     protected override void OnInitialized()
     {
+        if (!string.IsNullOrWhiteSpace(Type))
+        {
+            _documentType = Type;
+        }
+
         try
         {
             AddLine();

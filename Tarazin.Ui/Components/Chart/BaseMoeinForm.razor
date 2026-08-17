@@ -121,10 +121,10 @@
         _isActive = InitialIsActive;
         try
         {
-            var colsTask = Db.QueryAsync<BaseColRow>("accounting", "BaseColList", new { });
+            var colsTask = Db.QueryAsync<BaseColRow>("accounting", "BaseColList", new { CompanyId = Session.ActiveCompanyId });
             var groupsTask = Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
             {
-                GroupType = AccountGroupType.Moein,
+                GroupType = AccountGroupType.Moein, CompanyId = Session.ActiveCompanyId,
                 IncludeInactive = MoeinId > 0
             });
             await Task.WhenAll(colsTask, groupsTask);
@@ -179,6 +179,7 @@
             {
                 MoeinId,
                 ColId = _colId,
+                CompanyId = Session.ActiveCompanyId,
                 MoeinCode = code,
                 Title = (_title ?? "").Trim(),
                 Description = _description?.Trim() ?? "",

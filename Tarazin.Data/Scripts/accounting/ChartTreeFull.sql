@@ -22,6 +22,7 @@
         CAST(NULL AS INT) AS ParentLinkId
     FROM [accounting].[BaseCol] c
     WHERE c.IsDeleted = 0
+      AND c.CompanyId = @CompanyId
       AND (@IncludeInactive = 1 OR c.IsActive = 1)
 ),
 BaseMoeins AS (

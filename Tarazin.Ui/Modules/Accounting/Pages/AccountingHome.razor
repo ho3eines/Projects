@@ -107,7 +107,9 @@
                 SearchText = _search ?? "",
                 DocumentType = (string?)null,
                 SkipRows = 0,
-                TakeSize = 100
+                TakeSize = 100,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             })).ToList();
         }
         catch (Exception ex)
@@ -161,7 +163,9 @@
             await Db.ExecuteAsync(Schema, "DocumentDelete", new
             {
                 DocumentId = row.DocumentId,
-                UpdatedBy = Session.UserName
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
             Snackbar.Add("سند حذف شد.", Severity.Success);
             await LoadAsync();
