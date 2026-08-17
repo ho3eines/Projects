@@ -588,6 +588,53 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Documents_Fiscal
     ALTER TABLE [accounting].[Documents] WITH CHECK ADD CONSTRAINT FK_Documents_FiscalYear FOREIGN KEY (FiscalYearId) REFERENCES [central].[FiscalYears](FiscalYearId);
 GO
 
+-- بک‌فیل برای داده‌های قدیمی (قبل از اضافه‌شدن چندشرکتی):
+-- هر سند قدیمی که CompanyId/FiscalYearId ندارد به اولین شرکت/سال فعال
+-- تخصیص داده می‌شود تا ایندکس‌های یکتا پایین‌تر به‌درستی ساخته شوند.
+-- ⚠ این بک‌فیل باید قبل از ساخت ایندکس‌های یکتا انجام شود؛ در غیر این صورت
+--    چند سند با (NULL, NULL, شماره) باعث شکستِ CREATE UNIQUE INDEX می‌شوند.
+IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId IS NULL OR FiscalYearId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId INT = (
+        SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    DECLARE @DefaultFiscalYearId INT = (
+        SELECT TOP 1 FiscalYearId FROM [central].[FiscalYears]
+        WHERE CompanyId = @DefaultCompanyId AND IsDeleted = 0 ORDER BY FiscalYearId);
+
+    IF @DefaultCompanyId IS NOT NULL AND @DefaultFiscalYearId IS NOT NULL
+    BEGIN
+        UPDATE [accounting].[Documents]
+        SET CompanyId = @DefaultCompanyId,
+            FiscalYearId = @DefaultFiscalYearId
+        WHERE CompanyId IS NULL OR FiscalYearId IS NULL;
+    END
+END
+GO
+
+-- نرمال‌سازی شماره سند برای داده‌های قدیمی: تمام شماره‌ها به فرم ۸ رقمی
+-- صفر-پرشده تبدیل می‌شوند تا منطق یکتایی و شماره‌گذاری جدید درست کار کند.
+-- (مثلاً DOC-00001 یا شماره‌های غیرعددی قدیمی به عدد تبدیل و رزرو می‌شوند.)
+IF EXISTS (
+    SELECT 1 FROM [accounting].[Documents]
+    WHERE TRY_CONVERT(INT, DocumentNumber) IS NULL
+       OR LEN(DocumentNumber) <> 8
+)
+BEGIN
+    -- شماره‌های غیرقابل تبدیل یا فرمت قدیمی را به عدد یکتا تبدیل کن.
+    ;WITH ToFix AS (
+        SELECT DocumentId,
+               ROW_NUMBER() OVER (ORDER BY DocumentId) +
+               ISNULL((SELECT MAX(TRY_CONVERT(INT, DocumentNumber)) FROM [accounting].[Documents]
+                       WHERE TRY_CONVERT(INT, DocumentNumber) IS NOT NULL), 0) AS NewNum
+        FROM [accounting].[Documents]
+        WHERE TRY_CONVERT(INT, DocumentNumber) IS NULL OR LEN(DocumentNumber) <> 8
+    )
+    UPDATE d
+    SET d.DocumentNumber = RIGHT('00000000' + CAST(f.NewNum AS NVARCHAR(10)), 8)
+    FROM [accounting].[Documents] d INNER JOIN ToFix f ON f.DocumentId = d.DocumentId;
+END
+GO
+
 -- جلوگیری از ثبت چند سند افتتاحیه/اختتامیه برای یک (CompanyId + FiscalYearId)
 -- حتی در شرایط Race Condition. این ایندکس‌های فیلترشده در سطح دیتابیس
 -- تضمین می‌کنند که منطق Business (که قبل از INSERT بررسی می‌کند) به‌تنهایی
@@ -610,25 +657,4 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Documents_Number' AND
     CREATE UNIQUE INDEX UX_Documents_Number
         ON [accounting].[Documents](CompanyId, FiscalYearId, DocumentNumber)
         WHERE IsDeleted = 0;
-GO
-
--- بک‌فیل برای داده‌های قدیمی (قبل از اضافه‌شدن چندشرکتی):
--- هر سند قدیمی که CompanyId/FiscalYearId ندارد به اولین شرکت/سال فعال
--- تخصیص داده می‌شود تا ایندکس‌های یکتا به‌درستی ساخته شوند.
-IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId IS NULL OR FiscalYearId IS NULL)
-BEGIN
-    DECLARE @DefaultCompanyId INT = (
-        SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
-    DECLARE @DefaultFiscalYearId INT = (
-        SELECT TOP 1 FiscalYearId FROM [central].[FiscalYears]
-        WHERE CompanyId = @DefaultCompanyId AND IsDeleted = 0 ORDER BY FiscalYearId);
-
-    IF @DefaultCompanyId IS NOT NULL AND @DefaultFiscalYearId IS NOT NULL
-    BEGIN
-        UPDATE [accounting].[Documents]
-        SET CompanyId = @DefaultCompanyId,
-            FiscalYearId = @DefaultFiscalYearId
-        WHERE CompanyId IS NULL OR FiscalYearId IS NULL;
-    END
-END
 GO

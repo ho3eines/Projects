@@ -59,17 +59,25 @@ BEGIN
         WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId
           AND DocumentNumber = N'00000001' AND ISNULL(DocumentType, N'') <> N'Opening' AND IsDeleted = 0)
     BEGIN
+        -- همهٔ شماره‌های موجود را یک واحد جلو می‌بریم تا شمارهٔ ۱ برای
+        -- سند افتتاحیه آزاد شود. برای جلوگیری از نقض یکتایی در حین UPDATE
+        -- (مثلاً در حین جابه‌جایی ۰۲→۰۳ و ۰۱→۰۲)، در دو فاز کار می‌کنیم:
+        --   فاز ۱) هر شماره N را به N-1000000 (موقت/منفی) تبدیل می‌کنیم.
+        --   فاز ۲) اعداد موقت را با +1000001 به عدد نهایی (N+1) می‌بریم.
+        -- این کار به‌صورت داینامیک اجرا می‌شود تا CompanyId/FiscalYearId
+        -- به‌درستی فیلتر شوند.
         DECLARE @sql NVARCHAR(MAX) = N'
-            ;WITH Ordered AS (
-                SELECT DocumentId,
-                       ROW_NUMBER() OVER (ORDER BY TRY_CONVERT(INT, DocumentNumber) DESC, DocumentId DESC) + 1 AS NewNum
-                FROM [accounting].[Documents]
-                WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId
-                  AND TRY_CONVERT(INT, DocumentNumber) IS NOT NULL
-                  AND IsDeleted = 0
-            )
-            UPDATE o SET o.DocumentNumber = RIGHT(''00000000'' + CAST(src.NewNum AS NVARCHAR(10)), 8)
-            FROM [accounting].[Documents] o INNER JOIN Ordered src ON src.DocumentId = o.DocumentId;';
+            UPDATE [accounting].[Documents]
+            SET DocumentNumber = CAST(TRY_CONVERT(INT, DocumentNumber) - 1000000 AS NVARCHAR(20))
+            WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId
+              AND TRY_CONVERT(INT, DocumentNumber) IS NOT NULL
+              AND IsDeleted = 0;
+
+            UPDATE [accounting].[Documents]
+            SET DocumentNumber = RIGHT(''00000000'' + CAST(TRY_CONVERT(INT, DocumentNumber) + 1000001 AS NVARCHAR(10)), 8)
+            WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId
+              AND TRY_CONVERT(INT, DocumentNumber) < 0
+              AND IsDeleted = 0;';
         EXEC sp_executesql @sql, N'@CompanyId INT, @FiscalYearId INT', @CompanyId, @FiscalYearId;
     END
 

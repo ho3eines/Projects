@@ -89,7 +89,7 @@ SELECT
     AccountId,
     AccountCode,
     Title,
-    -- معک� مانده: اگر مانده بدهکار است (بدهکار > بستانکار)، آن را بستانکار کن.
+    -- معکوس مانده: اگر مانده بدهکار است (بدهکار > بستانکار)، آن را بستانکار کن.
     CASE WHEN TotalDebit > TotalCredit THEN 0 ELSE TotalDebit - TotalCredit END AS Debit,
     CASE WHEN TotalCredit > TotalDebit THEN 0 ELSE TotalCredit - TotalDebit END AS Credit
 FROM Balances;
