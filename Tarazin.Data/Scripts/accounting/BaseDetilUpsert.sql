@@ -3,6 +3,8 @@
 -- ایجاد حساب تفصیلی فقط از مسیر BaseDetilCreateAuto انجام می‌شود تا شماره از
 -- بازهٔ گروه، اتمیک و بدون استفادهٔ دوباره از شماره‌های حذف‌شده تخصیص یابد.
 -- @Description: مقدار NULL یعنی «تغییرش نده» و رشتهٔ خالی یعنی «پاکش کن».
+-- قانون چندشرکتی: ویرایش فقط روی تفصیلی متعلق به همان شرکت؛ گروه باید
+-- متعلق به همین شرکت (یا گروه سراسری با CompanyId=NULL) باشد.
 -- =============================================
 DECLARE @NormCode NVARCHAR(7) = RIGHT('0000000' + ISNULL(NULLIF(LTRIM(RTRIM(@DetilCode)), ''), '0000000'), 7);
 DECLARE @Nature NVARCHAR(10) = LTRIM(RTRIM(ISNULL(@AccountNature, N'')));
@@ -25,10 +27,10 @@ IF @Nature NOT IN (N'Debit', N'Credit', N'Both')
 
 SELECT @CurrentCode = DetilCode
 FROM [accounting].[BaseDetil]
-WHERE DetilId = @DetilId AND IsDeleted = 0;
+WHERE DetilId = @DetilId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
 IF @CurrentCode IS NULL
-    THROW 50044, N'حساب تفصیلی پیدا نشد یا قبلاً حذف شده است.', 1;
+    THROW 50044, N'حساب تفصیلی پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت نیست.', 1;
 IF @NormCode <> @CurrentCode
     THROW 50043, N'شمارهٔ حساب تفصیلی پس از تخصیص قابل تغییر نیست.', 1;
 
@@ -36,7 +38,8 @@ IF @GroupId IS NOT NULL
 BEGIN
     SELECT @GroupFrom = FromCode, @GroupTo = ToCode
     FROM [accounting].[AccountGroups]
-    WHERE AccountGroupId = @GroupId AND GroupType = N'Detil' AND IsDeleted = 0;
+    WHERE AccountGroupId = @GroupId AND GroupType = N'Detil' AND IsDeleted = 0
+      AND (CompanyId = @CompanyId OR CompanyId IS NULL);
 
     IF @GroupFrom IS NULL
         THROW 50046, N'گروه انتخاب‌شده برای حساب تفصیلی معتبر نیست.', 1;
@@ -53,6 +56,6 @@ SET Title          = LTRIM(RTRIM(@Title)),
     IsActive       = ISNULL(@IsActive, IsActive),
     UpdatedAt      = SYSUTCDATETIME(),
     UpdatedBy      = @UpdatedBy
-WHERE DetilId = @DetilId AND IsDeleted = 0;
+WHERE DetilId = @DetilId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
 SELECT @DetilId AS NewId;

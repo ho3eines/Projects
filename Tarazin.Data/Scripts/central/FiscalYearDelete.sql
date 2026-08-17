@@ -1,6 +1,7 @@
 -- =============================================
 -- Tarazin.Data/Scripts/central/FiscalYearDelete.sql
 -- Schema: central
+-- Cross-schema: accounting
 -- Execute. حذف نرم سال مالی.
 --
 -- ⚠ حذف سال مالی برای سال‌هایی که سند دارند یا بسته شده‌اند ممنوع است.

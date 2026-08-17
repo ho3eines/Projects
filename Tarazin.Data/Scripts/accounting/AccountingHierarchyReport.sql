@@ -27,7 +27,7 @@ BEGIN
         (
             SELECT COUNT(*)
             FROM [accounting].[BaseMoein] child
-            WHERE child.ColId = c.ColId AND child.IsDeleted = 0
+            WHERE child.ColId = c.ColId AND child.IsDeleted = 0 AND child.CompanyId = @CompanyId
         ) AS ChildCount,
         CAST(c.ColCode AS NVARCHAR(4000)) AS AccountCode,
         c.AccountNature,
@@ -72,6 +72,7 @@ BEGIN
             WHERE child.MoeinId = m.MoeinId
               AND child.ParentLinkId IS NULL
               AND child.IsDeleted = 0
+              AND child.CompanyId = @CompanyId
         ) AS ChildCount,
         CAST(c.ColCode + m.MoeinCode AS NVARCHAR(4000)) AS AccountCode,
         m.AccountNature,
@@ -88,7 +89,7 @@ BEGIN
         AND d.DocumentDate BETWEEN @From AND @To
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
-    WHERE m.IsDeleted = 0 AND m.ColId = @ColId
+    WHERE m.IsDeleted = 0 AND m.ColId = @ColId AND m.CompanyId = @CompanyId
     GROUP BY m.MoeinId, m.ColId, m.MoeinCode, m.Title, m.AccountNature, c.ColCode
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0
@@ -115,6 +116,7 @@ BEGIN
         INNER JOIN [accounting].[BaseDetil] bd ON bd.DetilId = dl.DetilId AND bd.IsDeleted = 0
         WHERE dl.ParentLinkId IS NULL
           AND dl.IsDeleted = 0
+          AND dl.CompanyId = @CompanyId
           AND dl.MoeinId = @MoeinId
 
         UNION ALL

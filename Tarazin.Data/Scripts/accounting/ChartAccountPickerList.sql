@@ -37,7 +37,7 @@ BaseMoeins (
         CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT), CAST(NULL AS INT)
     FROM [accounting].[BaseMoein] m
     INNER JOIN BaseCols c ON c.NodeId = m.ColId
-    WHERE m.IsDeleted = 0 AND (@Inactive = 1 OR m.IsActive = 1)
+    WHERE m.IsDeleted = 0 AND m.CompanyId = @CompanyId AND (@Inactive = 1 OR m.IsActive = 1)
 ),
 DetailTree (
     NodeId, Level, Code, Title, NodeType, ParentId, AccountCode,
@@ -56,7 +56,7 @@ DetailTree (
     INNER JOIN BaseMoeins m ON m.NodeId = dl.MoeinId
     INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     WHERE dl.ParentLinkId IS NULL
-      AND dl.IsDeleted = 0 AND d.IsDeleted = 0
+      AND dl.IsDeleted = 0 AND dl.CompanyId = @CompanyId AND d.IsDeleted = 0
       AND (@Inactive = 1 OR (dl.IsActive = 1 AND d.IsActive = 1))
 
     UNION ALL

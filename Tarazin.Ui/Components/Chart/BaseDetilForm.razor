@@ -220,7 +220,7 @@
             try
             {
                 _nextCode = await Db.QueryFirstOrDefaultAsync<DetilNextCodeRow>(
-                    "accounting", "BaseDetilNextCode", new { AccountGroupId = _groupId });
+                    "accounting", "BaseDetilNextCode", new { AccountGroupId = _groupId, CompanyId = Session.ActiveCompanyId });
             }
             catch (Exception ex)
             {

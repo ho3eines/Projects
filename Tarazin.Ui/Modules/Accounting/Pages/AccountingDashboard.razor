@@ -1,5 +1,6 @@
 @page "/accounting/dashboard"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>داشبورد — حسابداری</PageTitle>
@@ -40,6 +41,8 @@ else
                 ToDate = DateTime.Today,
                 SearchText = "",
                 DocumentType = (string?)null,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
                 SkipRows = 0,
                 TakeSize = 200
             });

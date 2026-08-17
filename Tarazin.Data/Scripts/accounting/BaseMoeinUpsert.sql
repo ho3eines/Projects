@@ -24,8 +24,9 @@ IF @Nature NOT IN (N'Debit', N'Credit', N'Both')
 
 IF @GroupId IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM [accounting].[AccountGroups]
-    WHERE AccountGroupId = @GroupId AND GroupType = N'Moein' AND IsDeleted = 0)
-    THROW 50027, N'گروه انتخاب‌شده برای حساب معین معتبر نیست.', 1;
+    WHERE AccountGroupId = @GroupId AND GroupType = N'Moein' AND IsDeleted = 0
+      AND (CompanyId = @CompanyId OR CompanyId IS NULL))
+    THROW 50027, N'گروه انتخاب‌شده برای حساب معین معتبر نیست یا متعلق به این شرکت نیست.', 1;
 
 -- والد باید وجود داشته باشد و فعال باشد
 SELECT @ColCode = ColCode
@@ -54,17 +55,17 @@ IF @MoeinId = 0
 BEGIN
     INSERT INTO [accounting].[BaseMoein]
         (ColId, MoeinCode, Title, [Description], AccountGroupId, AccountNature,
-         IsActive, CreatedAt, CreatedBy)
+         IsActive, CreatedAt, CreatedBy, CompanyId)
     VALUES
         (@ColId, @NormCode, LTRIM(RTRIM(@Title)), NULLIF(LTRIM(RTRIM(@Description)), N''),
-         @GroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+         @GroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy, @CompanyId);
 
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS NewId;
 END
 ELSE
 BEGIN
     -- بررسی تغییر ColId: والد جدید نباید دارای فرزند تکراری باشد.
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] WHERE MoeinId = @MoeinId AND IsDeleted = 0 AND ColId IN (SELECT ColId FROM [accounting].[BaseCol] WHERE CompanyId = @CompanyId))
+    IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] WHERE MoeinId = @MoeinId AND IsDeleted = 0 AND CompanyId = @CompanyId)
         THROW 50025, N'حساب معین پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت نیست.', 1;
 
     UPDATE [accounting].[BaseMoein]
@@ -78,7 +79,7 @@ BEGIN
         IsActive     = ISNULL(@IsActive, IsActive),
         UpdatedAt    = SYSUTCDATETIME(),
         UpdatedBy    = @UpdatedBy
-    WHERE MoeinId = @MoeinId AND IsDeleted = 0;
+    WHERE MoeinId = @MoeinId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
     SELECT @MoeinId AS NewId;
 END

@@ -85,6 +85,7 @@
             _groups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
             {
                 GroupType = _groupType,
+                CompanyId = Session.ActiveCompanyId,
                 IncludeInactive = true
             })).ToList();
         }
@@ -135,7 +136,8 @@
             await Db.ExecuteAsync("accounting", "AccountGroupDelete", new
             {
                 row.AccountGroupId,
-                UpdatedBy = Session.UserName
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
             });
             Snackbar.Add("گروه حساب حذف شد.", Severity.Success);
             await LoadAsync();

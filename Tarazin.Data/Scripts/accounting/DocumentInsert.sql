@@ -1,6 +1,7 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/DocumentInsert.sql
 -- Schema: accounting
+-- Cross-schema: central
 -- Execute. ثبت سند حسابداری (سند روزنامه).
 -- @LinesJson: آرایهٔ JSON از ردیف‌های بدهکار/بستانکار.
 -- AccountId می‌تواند به BaseDetil / BaseMoein / BaseCol / ChartOfAccounts اشاره کند.
@@ -127,7 +128,7 @@ BEGIN TRAN;
         INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
         INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
         INNER JOIN [accounting].[BaseDetil] bd ON bd.DetilId = dl.DetilId AND bd.IsDeleted = 0
-        WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0
+        WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0 AND dl.CompanyId = @CompanyId
 
         UNION ALL
 
@@ -169,23 +170,23 @@ BEGIN TRAN;
         OUTER APPLY (
             SELECT TOP 1 bd.DetilId, bd.DetilCode, bd.Title
             FROM [accounting].[BaseDetil] bd
-            WHERE l.AccountCode IS NULL AND bd.DetilId = l.AccountId AND bd.IsDeleted = 0
+            WHERE l.AccountCode IS NULL AND bd.DetilId = l.AccountId AND bd.IsDeleted = 0 AND bd.CompanyId = @CompanyId
         ) d
         OUTER APPLY (
             SELECT TOP 1 dl.MoeinId
             FROM [accounting].[BaseDetilLink] dl
-            WHERE dl.DetilId = d.DetilId AND dl.IsDeleted = 0
+            WHERE dl.DetilId = d.DetilId AND dl.IsDeleted = 0 AND dl.CompanyId = @CompanyId
             ORDER BY dl.LinkId
         ) dl
         OUTER APPLY (
             SELECT TOP 1 mm.MoeinId, mm.MoeinCode, mm.Title, mm.ColId
             FROM [accounting].[BaseMoein] mm
-            WHERE mm.MoeinId = COALESCE(dl.MoeinId, l.AccountId) AND mm.IsDeleted = 0
+            WHERE mm.MoeinId = COALESCE(dl.MoeinId, l.AccountId) AND mm.IsDeleted = 0 AND mm.CompanyId = @CompanyId
         ) m
         OUTER APPLY (
             SELECT TOP 1 cc.ColId, cc.ColCode, cc.Title
             FROM [accounting].[BaseCol] cc
-            WHERE cc.ColId = COALESCE(m.ColId, l.AccountId) AND cc.IsDeleted = 0
+            WHERE cc.ColId = COALESCE(m.ColId, l.AccountId) AND cc.IsDeleted = 0 AND cc.CompanyId = @CompanyId
         ) c
         OUTER APPLY (
             SELECT TOP 1 co.AccountId, co.AccountCode, co.Title

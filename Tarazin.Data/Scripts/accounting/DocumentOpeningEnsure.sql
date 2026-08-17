@@ -1,6 +1,7 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/DocumentOpeningEnsure.sql
 -- Schema: accounting
+-- Cross-schema: central
 -- Execute (system-only).
 --
 -- تضمین وجود «سند ابتدای دوره / افتتاحیه» برای یک (CompanyId + FiscalYearId).

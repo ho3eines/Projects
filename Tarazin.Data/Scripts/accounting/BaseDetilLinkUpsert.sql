@@ -9,6 +9,8 @@
 -- یک BaseDetil همچنان موجودیتی مشترک است و می‌تواند در چند مسیر/والد قرار
 -- بگیرد. یکتایی idempotent بر اساس (DetilId, MoeinId, ParentLinkId) است؛ پس
 -- افزودن زیر یک تفصیلی دیگر دیگر به ریشهٔ Moein برنمی‌گردد.
+-- قانون چندشرکتی: هر سه طرف پیوند (معین، تفصیلی، والد سطح ۴+) باید متعلق به
+-- همان شرکت باشند و CompanyId روی پیوند ثبت می‌شود (هم‌راستا با BaseDetilCreateAuto).
 -- =============================================
 DECLARE @NormalizedParentLinkId INT = NULLIF(@ParentLinkId, 0);
 DECLARE @MoeinExists BIT = 0;
@@ -18,26 +20,26 @@ DECLARE @ParentMoeinId INT = NULL;
 
 SELECT @MoeinExists = 1
 FROM [accounting].[BaseMoein]
-WHERE MoeinId = @MoeinId AND IsDeleted = 0;
+WHERE MoeinId = @MoeinId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
 SELECT @DetilExists = 1
 FROM [accounting].[BaseDetil]
-WHERE DetilId = @DetilId AND IsDeleted = 0;
+WHERE DetilId = @DetilId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
 IF @MoeinExists = 0
-    THROW 50060, N'حساب معین انتخاب‌شده معتبر نیست.', 1;
+    THROW 50060, N'حساب معین انتخاب‌شده معتبر نیست یا متعلق به این شرکت نیست.', 1;
 IF @DetilExists = 0
-    THROW 50061, N'حساب تفصیلی انتخاب‌شده معتبر نیست.', 1;
+    THROW 50061, N'حساب تفصیلی انتخاب‌شده معتبر نیست یا متعلق به این شرکت نیست.', 1;
 
--- والدِ سطح ۴+ باید یک placement فعال در همان مسیر Moein باشد.
+-- والدِ سطح ۴+ باید یک placement فعال در همان مسیر Moein و همان شرکت باشد.
 IF @NormalizedParentLinkId IS NOT NULL
 BEGIN
     SELECT @ParentMoeinId = MoeinId
     FROM [accounting].[BaseDetilLink]
-    WHERE LinkId = @NormalizedParentLinkId AND IsDeleted = 0;
+    WHERE LinkId = @NormalizedParentLinkId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
     IF @ParentMoeinId IS NULL
-        THROW 50062, N'تفصیلی والد پیدا نشد یا قبلاً حذف شده است.', 1;
+        THROW 50062, N'تفصیلی والد پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت نیست.', 1;
 
     IF @ParentMoeinId <> @MoeinId
         THROW 50063, N'تفصیلی والد به حساب معین دیگری تعلق دارد.', 1;
@@ -104,6 +106,7 @@ BEGIN
         IsActive      = ISNULL(@IsActive, 1),
         ParentLinkId  = @NormalizedParentLinkId,
         [Description] = NULLIF(LTRIM(RTRIM(@Description)), N''),
+        CompanyId     = @CompanyId,
         UpdatedAt     = SYSUTCDATETIME(),
         UpdatedBy     = @UpdatedBy
     WHERE LinkId = @ExistingId;
@@ -114,10 +117,10 @@ END
 
 -- ۳) placement تازه.
 INSERT INTO [accounting].[BaseDetilLink]
-    (DetilId, MoeinId, ParentLinkId, [Description], IsActive, CreatedAt, CreatedBy)
+    (DetilId, MoeinId, ParentLinkId, [Description], IsActive, CreatedAt, CreatedBy, CompanyId)
 VALUES
     (@DetilId, @MoeinId, @NormalizedParentLinkId,
      NULLIF(LTRIM(RTRIM(@Description)), N''),
-     ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+     ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy, @CompanyId);
 
 SELECT CAST(SCOPE_IDENTITY() AS INT) AS NewId;

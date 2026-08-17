@@ -1,6 +1,7 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/DocumentStatusChange.sql
 -- Schema: accounting
+-- Cross-schema: central
 -- Execute. تغییر وضعیت سند حسابداری.
 --
 -- چرخهٔ وضعیت (مقادیر ذخیره‌شده همان مقادیر تاریخی پروژه‌اند تا گزارش‌های

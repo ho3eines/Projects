@@ -23,8 +23,9 @@ IF @Nature NOT IN (N'Debit', N'Credit', N'Both')
 
 IF @GroupId IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM [accounting].[AccountGroups]
-    WHERE AccountGroupId = @GroupId AND GroupType = N'Col' AND IsDeleted = 0)
-    THROW 50007, N'گروه انتخاب‌شده برای حساب کل معتبر نیست.', 1;
+    WHERE AccountGroupId = @GroupId AND GroupType = N'Col' AND IsDeleted = 0
+      AND (CompanyId = @CompanyId OR CompanyId IS NULL))
+    THROW 50007, N'گروه انتخاب‌شده برای حساب کل معتبر نیست یا متعلق به این شرکت نیست.', 1;
 
 -- بررسی تکراری نبودن کد (فقط برای رکوردهای غیرحذف‌شده در همان شرکت).
 IF @ColId = 0 AND EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = @NormCode AND IsDeleted = 0 AND CompanyId = @CompanyId)

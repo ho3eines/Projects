@@ -1077,7 +1077,8 @@
             {
                 MoeinId = _selected.NodeId,
                 NewColId = picked.Id,
-                UpdatedBy = Session.UserName
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
             });
             Snackbar.Add("انتقال انجام شد.", Severity.Success);
             await ReloadAsync();
@@ -1113,11 +1114,11 @@
         {
             if (_selected.NodeType == "BaseCol")
             {
-                await Db.ExecuteAsync(Schema, "BaseColDelete", new { ColId = _selected.NodeId });
+                await Db.ExecuteAsync(Schema, "BaseColDelete", new { ColId = _selected.NodeId, CompanyId = Session.ActiveCompanyId });
             }
             else if (_selected.NodeType == "BaseMoein")
             {
-                await Db.ExecuteAsync(Schema, "BaseMoeinDelete", new { MoeinId = _selected.NodeId });
+                await Db.ExecuteAsync(Schema, "BaseMoeinDelete", new { MoeinId = _selected.NodeId, CompanyId = Session.ActiveCompanyId });
             }
             else if (_selected.NodeType == "BaseDetil" && _selected.DetilEntityId.HasValue)
             {
@@ -1125,14 +1126,15 @@
                 {
                     LinkId = _selected.LinkId ?? 0,
                     DetilId = _selected.DetilEntityId.Value,
-                    MoeinId = _selected.MoeinId ?? 0
+                    MoeinId = _selected.MoeinId ?? 0,
+                    CompanyId = Session.ActiveCompanyId
                 });
 
                 if (isLastPath)
                 {
                     try
                     {
-                        await Db.ExecuteAsync(Schema, "BaseDetilDelete", new { DetilId = _selected.DetilEntityId.Value });
+                        await Db.ExecuteAsync(Schema, "BaseDetilDelete", new { DetilId = _selected.DetilEntityId.Value, CompanyId = Session.ActiveCompanyId });
                     }
                     catch { }
                 }

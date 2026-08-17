@@ -2,6 +2,8 @@
 -- گروه‌های حساب کل، معین و تفصیلی.
 -- @GroupType: NULL/'' = همه | Col | Moein | Detil
 -- @IncludeInactive: 1 = فعال و غیرفعال
+-- قانون چندشرکتی: شمارش حساب‌های تخصیص‌یافته به هر گروه فقط در همان شرکت
+-- جمع می‌شود؛ نباید حساب‌های شرکت دیگر در آمار گروه دیده شوند.
 -- =============================================
 DECLARE @Type NVARCHAR(10) = NULLIF(LTRIM(RTRIM(@GroupType)), N'');
 
@@ -16,9 +18,9 @@ SELECT
     g.[Description],
     g.IsActive,
     CASE g.GroupType
-        WHEN N'Col' THEN (SELECT COUNT(*) FROM [accounting].[BaseCol] c WHERE c.AccountGroupId = g.AccountGroupId AND c.IsDeleted = 0)
-        WHEN N'Moein' THEN (SELECT COUNT(*) FROM [accounting].[BaseMoein] m WHERE m.AccountGroupId = g.AccountGroupId AND m.IsDeleted = 0)
-        WHEN N'Detil' THEN (SELECT COUNT(*) FROM [accounting].[BaseDetil] d WHERE d.AccountGroupId = g.AccountGroupId AND d.IsDeleted = 0)
+        WHEN N'Col' THEN (SELECT COUNT(*) FROM [accounting].[BaseCol] c WHERE c.AccountGroupId = g.AccountGroupId AND c.IsDeleted = 0 AND c.CompanyId = @CompanyId)
+        WHEN N'Moein' THEN (SELECT COUNT(*) FROM [accounting].[BaseMoein] m WHERE m.AccountGroupId = g.AccountGroupId AND m.IsDeleted = 0 AND m.CompanyId = @CompanyId)
+        WHEN N'Detil' THEN (SELECT COUNT(*) FROM [accounting].[BaseDetil] d WHERE d.AccountGroupId = g.AccountGroupId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId)
         ELSE 0
     END AS AssignedAccountCount,
     g.CreatedAt,

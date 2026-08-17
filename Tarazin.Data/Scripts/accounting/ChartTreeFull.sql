@@ -46,6 +46,7 @@ BaseMoeins AS (
     FROM [accounting].[BaseMoein] m
     INNER JOIN BaseCols bc ON bc.NodeId = m.ColId
     WHERE m.IsDeleted = 0
+      AND m.CompanyId = @CompanyId
       AND (@IncludeInactive = 1 OR m.IsActive = 1)
 ),
 DetailTree AS (
@@ -72,6 +73,7 @@ DetailTree AS (
     INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     WHERE dl.ParentLinkId IS NULL
       AND dl.IsDeleted = 0
+      AND dl.CompanyId = @CompanyId
       AND d.IsDeleted = 0
       AND (@IncludeInactive = 1 OR (dl.IsActive = 1 AND d.IsActive = 1))
 

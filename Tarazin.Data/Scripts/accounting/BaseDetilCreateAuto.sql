@@ -19,7 +19,7 @@ IF @Name = N''
     THROW 50140, N'عنوان حساب تفصیلی الزامی است.', 1;
 IF @Nature NOT IN (N'Debit', N'Credit', N'Both')
     THROW 50141, N'ماهیت حساب باید بدهکار، بستانکار یا هر دو باشد.', 1;
-IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId WHERE m.MoeinId = @MoeinId AND m.IsDeleted = 0 AND c.CompanyId = @CompanyId)
+IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId WHERE m.MoeinId = @MoeinId AND m.IsDeleted = 0 AND m.CompanyId = @CompanyId AND c.CompanyId = @CompanyId)
     THROW 50142, N'حساب معین انتخاب‌شده معتبر نیست یا متعلق به این شرکت نیست.', 1;
 
 IF @NormalizedParentLinkId IS NOT NULL
@@ -49,7 +49,8 @@ BEGIN TRY
     WHERE AccountGroupId = @AccountGroupId
       AND GroupType = N'Detil'
       AND IsDeleted = 0
-      AND IsActive = 1;
+      AND IsActive = 1
+      AND (CompanyId = @CompanyId OR CompanyId IS NULL);
 
     IF @From IS NULL
         THROW 50146, N'گروه تفصیلی فعال و معتبر نیست.', 1;

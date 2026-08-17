@@ -1,8 +1,17 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/_Seed.sql
 -- Schema: accounting
+-- Cross-schema: central
 -- Endpoint: execute (startup)
 -- =============================================
+-- شرکت/سال مالی پیش‌فرض: seed اسکیمای central اول اجرا می‌شود (ترتیب SeedAsync)،
+-- پس این مقدارها همیشه پر هستند؛ در غیر این صورت بک‌فیل _Ensure در اجرای بعدی
+-- داده‌های بدون مالک را به اولین شرکت فعال منتقل می‌کند.
+DECLARE @SeedCompanyId INT = (
+    SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+DECLARE @SeedFiscalYearId INT = (
+    SELECT TOP 1 FiscalYearId FROM [central].[FiscalYears]
+    WHERE CompanyId = @SeedCompanyId AND IsDeleted = 0 ORDER BY FiscalYearId);
 -- ⚠ ترتیب مهم است (باگ تاریخی — رفع شد): ردیف‌های سند (DocumentLines) با
 -- CROSS JOIN به ChartOfAccounts ساخته می‌شوند؛ اگر ابتدا حساب‌ها seed نشوند،
 -- آن CROSS JOIN صفر ردیف برمی‌گرداند و سند نمونه «بدون ردیف» می‌ماند
@@ -23,9 +32,9 @@ END
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[Documents])
 BEGIN
-    INSERT INTO [accounting].[Documents] (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy)
+    INSERT INTO [accounting].[Documents] (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy, CompanyId, FiscalYearId)
     VALUES
-        (N'DOC-00001', CAST(SYSDATETIME() AS DATE), N'Journal', N'شرکت نمونه', 250000000, N'IRR', N'Posted', N'seed');
+        (N'00000001', CAST(SYSDATETIME() AS DATE), N'Journal', N'شرکت نمونه', 250000000, N'IRR', N'Posted', N'seed', @SeedCompanyId, @SeedFiscalYearId);
 END
 
 -- Two balanced journal lines for the seeded document (بدهکار صندوق / بستانکار فروش).
@@ -35,13 +44,13 @@ BEGIN
     SELECT d.DocumentId, a.AccountId, a.AccountCode, a.Title, N'درآمد فروش', 250000000, 0
     FROM [accounting].[Documents] d
     CROSS JOIN [accounting].[ChartOfAccounts] a
-    WHERE d.DocumentNumber = N'DOC-00001' AND a.AccountCode = N'1000';
+    WHERE d.DocumentNumber = N'00000001' AND a.AccountCode = N'1000';
 
     INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
     SELECT d.DocumentId, a.AccountId, a.AccountCode, a.Title, N'درآمد فروش', 0, 250000000
     FROM [accounting].[Documents] d
     CROSS JOIN [accounting].[ChartOfAccounts] a
-    WHERE d.DocumentNumber = N'DOC-00001' AND a.AccountCode = N'4000';
+    WHERE d.DocumentNumber = N'00000001' AND a.AccountCode = N'4000';
 END
 
 -- حساب‌های ویژهٔ ماژول ارز و معاملات ارزی (PRD §34–§63) — افزودنی امن
@@ -93,69 +102,69 @@ END
 
 -- Cols
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = N'10')
-    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'10', N'دارایی‌ها', N'شامل دارایی‌های جاری و ثابت', 1, N'seed');
+    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'10', N'دارایی‌ها', N'شامل دارایی‌های جاری و ثابت', 1, N'seed', @SeedCompanyId);
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = N'20')
-    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'20', N'بدهی‌ها', N'شامل بدهی‌های جاری و بلندمدت', 1, N'seed');
+    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'20', N'بدهی‌ها', N'شامل بدهی‌های جاری و بلندمدت', 1, N'seed', @SeedCompanyId);
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = N'30')
-    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'30', N'درآمدها', N'درآمدهای عملیاتی و غیرعملیاتی', 1, N'seed');
+    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'30', N'درآمدها', N'درآمدهای عملیاتی و غیرعملیاتی', 1, N'seed', @SeedCompanyId);
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseCol] WHERE ColCode = N'40')
-    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'40', N'هزینه‌ها', N'هزینه‌های عملیاتی و متفرقه', 1, N'seed');
+    INSERT INTO [accounting].[BaseCol] (ColCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'40', N'هزینه‌ها', N'هزینه‌های عملیاتی و متفرقه', 1, N'seed', @SeedCompanyId);
 
 -- Moeins
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId
-               WHERE c.ColCode = N'10' AND m.MoeinCode = N'001')
-    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy)
-    SELECT ColId, N'001', N'دارایی جاری', N'شامل صندوق، بانک، موجودی کالا', 1, N'seed'
-    FROM [accounting].[BaseCol] WHERE ColCode = N'10';
+               WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'10' AND m.MoeinCode = N'001')
+    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    SELECT ColId, N'001', N'دارایی جاری', N'شامل صندوق، بانک، موجودی کالا', 1, N'seed', @SeedCompanyId
+    FROM [accounting].[BaseCol] WHERE CompanyId = @SeedCompanyId AND ColCode = N'10';
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId
-               WHERE c.ColCode = N'10' AND m.MoeinCode = N'002')
-    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy)
-    SELECT ColId, N'002', N'دارایی ثابت', N'شامل اموال، ماشین‌آلات، ساختمان', 1, N'seed'
-    FROM [accounting].[BaseCol] WHERE ColCode = N'10';
+               WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'10' AND m.MoeinCode = N'002')
+    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    SELECT ColId, N'002', N'دارایی ثابت', N'شامل اموال، ماشین‌آلات، ساختمان', 1, N'seed', @SeedCompanyId
+    FROM [accounting].[BaseCol] WHERE CompanyId = @SeedCompanyId AND ColCode = N'10';
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId
-               WHERE c.ColCode = N'20' AND m.MoeinCode = N'001')
-    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy)
-    SELECT ColId, N'001', N'بدهی‌های جاری', N'حساب‌های پرداختنی کوتاه‌مدت', 1, N'seed'
-    FROM [accounting].[BaseCol] WHERE ColCode = N'20';
+               WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'20' AND m.MoeinCode = N'001')
+    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    SELECT ColId, N'001', N'بدهی‌های جاری', N'حساب‌های پرداختنی کوتاه‌مدت', 1, N'seed', @SeedCompanyId
+    FROM [accounting].[BaseCol] WHERE CompanyId = @SeedCompanyId AND ColCode = N'20';
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId
-               WHERE c.ColCode = N'30' AND m.MoeinCode = N'001')
-    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy)
-    SELECT ColId, N'001', N'درآمد عملیاتی', N'فروش کالا و خدمات', 1, N'seed'
-    FROM [accounting].[BaseCol] WHERE ColCode = N'30';
+               WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'30' AND m.MoeinCode = N'001')
+    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    SELECT ColId, N'001', N'درآمد عملیاتی', N'فروش کالا و خدمات', 1, N'seed', @SeedCompanyId
+    FROM [accounting].[BaseCol] WHERE CompanyId = @SeedCompanyId AND ColCode = N'30';
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId
-               WHERE c.ColCode = N'40' AND m.MoeinCode = N'001')
-    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy)
-    SELECT ColId, N'001', N'هزینه‌های عملیاتی', N'شامل حقوق، اجاره، مواد', 1, N'seed'
-    FROM [accounting].[BaseCol] WHERE ColCode = N'40';
+               WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'40' AND m.MoeinCode = N'001')
+    INSERT INTO [accounting].[BaseMoein] (ColId, MoeinCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    SELECT ColId, N'001', N'هزینه‌های عملیاتی', N'شامل حقوق، اجاره، مواد', 1, N'seed', @SeedCompanyId
+    FROM [accounting].[BaseCol] WHERE CompanyId = @SeedCompanyId AND ColCode = N'40';
 
 -- Detils (تفصیلی‌های یکپارچه)
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WHERE DetilCode = N'0000123')
-    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'0000123', N'بانک ملی', N'حساب جاری ۱۲۳ نزد بانک ملی ایران', 1, N'seed');
+    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'0000123', N'بانک ملی', N'حساب جاری ۱۲۳ نزد بانک ملی ایران', 1, N'seed', @SeedCompanyId);
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WHERE DetilCode = N'0000456')
-    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'0000456', N'بانک ملت', N'حساب جاری ۴۵۶ نزد بانک ملت', 1, N'seed');
+    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'0000456', N'بانک ملت', N'حساب جاری ۴۵۶ نزد بانک ملت', 1, N'seed', @SeedCompanyId);
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WHERE DetilCode = N'0000789')
-    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'0000789', N'بانک صادرات', N'حساب جاری ۷۸۹ نزد بانک صادرات', 1, N'seed');
+    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'0000789', N'بانک صادرات', N'حساب جاری ۷۸۹ نزد بانک صادرات', 1, N'seed', @SeedCompanyId);
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WHERE DetilCode = N'0000001')
-    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'0000001', N'بانک‌ها', N'دسته‌بندی حساب‌های بانکی', 1, N'seed');
+    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'0000001', N'بانک‌ها', N'دسته‌بندی حساب‌های بانکی', 1, N'seed', @SeedCompanyId);
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WHERE DetilCode = N'0000002')
-    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy)
-    VALUES (N'0000002', N'صندوق اصلی', N'صندوق فروشگاه مرکزی', 1, N'seed');
+    INSERT INTO [accounting].[BaseDetil] (DetilCode, Title, [Description], IsActive, CreatedBy, CompanyId)
+    VALUES (N'0000002', N'صندوق اصلی', N'صندوق فروشگاه مرکزی', 1, N'seed', @SeedCompanyId);
 
 -- DetilLinks
 -- 10/001/0000001
@@ -164,12 +173,13 @@ IF NOT EXISTS (
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
     JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId
-    WHERE c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000001'
+    WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000001'
 )
-    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy)
-    SELECT d.DetilId, m.MoeinId, 1, N'seed'
+    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
+    SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
     FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
     WHERE d.DetilCode = N'0000001'
+      AND c.CompanyId = @SeedCompanyId
       AND c.ColCode   = N'10'
       AND m.MoeinCode = N'001'
       AND m.ColId     = c.ColId;
@@ -180,12 +190,13 @@ IF NOT EXISTS (
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
     JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId
-    WHERE c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000123'
+    WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000123'
 )
-    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy)
-    SELECT d.DetilId, m.MoeinId, 1, N'seed'
+    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
+    SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
     FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
     WHERE d.DetilCode = N'0000123'
+      AND c.CompanyId = @SeedCompanyId
       AND c.ColCode   = N'10'
       AND m.MoeinCode = N'001'
       AND m.ColId     = c.ColId;
@@ -196,12 +207,13 @@ IF NOT EXISTS (
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
     JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId
-    WHERE c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000456'
+    WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000456'
 )
-    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy)
-    SELECT d.DetilId, m.MoeinId, 1, N'seed'
+    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
+    SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
     FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
     WHERE d.DetilCode = N'0000456'
+      AND c.CompanyId = @SeedCompanyId
       AND c.ColCode   = N'10'
       AND m.MoeinCode = N'001'
       AND m.ColId     = c.ColId;
@@ -212,12 +224,13 @@ IF NOT EXISTS (
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
     JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId
-    WHERE c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000789'
+    WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'10' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000789'
 )
-    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy)
-    SELECT d.DetilId, m.MoeinId, 1, N'seed'
+    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
+    SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
     FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
     WHERE d.DetilCode = N'0000789'
+      AND c.CompanyId = @SeedCompanyId
       AND c.ColCode   = N'10'
       AND m.MoeinCode = N'001'
       AND m.ColId     = c.ColId;
@@ -228,12 +241,13 @@ IF NOT EXISTS (
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
     JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId
-    WHERE c.ColCode = N'20' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000123'
+    WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'20' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000123'
 )
-    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy)
-    SELECT d.DetilId, m.MoeinId, 1, N'seed'
+    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
+    SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
     FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
     WHERE d.DetilCode = N'0000123'
+      AND c.CompanyId = @SeedCompanyId
       AND c.ColCode   = N'20'
       AND m.MoeinCode = N'001'
       AND m.ColId     = c.ColId;
@@ -244,12 +258,13 @@ IF NOT EXISTS (
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
     JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId
-    WHERE c.ColCode = N'30' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000123'
+    WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'30' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000123'
 )
-    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy)
-    SELECT d.DetilId, m.MoeinId, 1, N'seed'
+    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
+    SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
     FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
     WHERE d.DetilCode = N'0000123'
+      AND c.CompanyId = @SeedCompanyId
       AND c.ColCode   = N'30'
       AND m.MoeinCode = N'001'
       AND m.ColId     = c.ColId;
@@ -260,12 +275,13 @@ IF NOT EXISTS (
     JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId
     JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
     JOIN [accounting].[BaseCol]   c ON c.ColId   = m.ColId
-    WHERE c.ColCode = N'40' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000002'
+    WHERE c.CompanyId = @SeedCompanyId AND c.ColCode = N'40' AND m.MoeinCode = N'001' AND d.DetilCode = N'0000002'
 )
-    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy)
-    SELECT d.DetilId, m.MoeinId, 1, N'seed'
+    INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
+    SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
     FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
     WHERE d.DetilCode = N'0000002'
+      AND c.CompanyId = @SeedCompanyId
       AND c.ColCode   = N'40'
       AND m.MoeinCode = N'001'
       AND m.ColId     = c.ColId;
