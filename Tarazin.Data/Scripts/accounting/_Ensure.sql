@@ -659,7 +659,13 @@ WHERE kc.parent_object_id = OBJECT_ID(N'[accounting].[BaseCol]')
   AND cols.ColCount = 1
   AND cols.LastCol = N'ColCode';
 IF @BaseColCodeUq IS NOT NULL
-    EXEC(N'ALTER TABLE [accounting].[BaseCol] DROP CONSTRAINT ' + QUOTENAME(@BaseColCodeUq) + N';');
+BEGIN
+    -- EXEC در T-SQL اجازهٔ الحاق رشته با + را درون پرانتز نمی‌دهد؛
+    -- ابتدا دستور در یک متغیر ساخته و سپس اجرا می‌شود (Msg 102: Incorrect syntax near 'QUOTENAME').
+    DECLARE @dropBaseColUqSql NVARCHAR(400) =
+        N'ALTER TABLE [accounting].[BaseCol] DROP CONSTRAINT ' + QUOTENAME(@BaseColCodeUq) + N';';
+    EXEC sp_executesql @dropBaseColUqSql;
+END
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_BaseCol_Company_Code' AND object_id = OBJECT_ID(N'[accounting].[BaseCol]'))

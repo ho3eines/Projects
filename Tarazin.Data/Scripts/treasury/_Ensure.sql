@@ -120,7 +120,13 @@ BEGIN
       AND c.name = N'SourceReference';
 
     IF @uqName IS NOT NULL
-        EXEC(N'ALTER TABLE [treasury].[CashMovements] DROP CONSTRAINT [' + @uqName + N']');
+    BEGIN
+        -- EXEC در T-SQL اجازهٔ الحاق رشته با + را درون پرانتز نمی‌دهد؛
+        -- ابتدا دستور در یک متغیر ساخته و سپس اجرا می‌شود (Msg 102: Incorrect syntax near '+').
+        DECLARE @dropTreasuryUqSql NVARCHAR(400) =
+            N'ALTER TABLE [treasury].[CashMovements] DROP CONSTRAINT ' + QUOTENAME(@uqName);
+        EXEC sp_executesql @dropTreasuryUqSql;
+    END
 
     IF NOT EXISTS (
         SELECT 1 FROM sys.indexes
