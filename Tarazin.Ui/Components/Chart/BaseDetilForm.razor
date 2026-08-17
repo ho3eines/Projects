@@ -19,7 +19,7 @@
         @if (Mode == DetilFormMode.LinkExisting)
         {
             <MudText Typo="Typo.subtitle2" Class="mb-2">انتخاب تفصیلی موجود</MudText>
-            <MudTextField Value="@_search" ValueChanged="SearchChanged" Placeholder="جستجو با کد، عنوان یا گروه..."
+            <MudTextField Value="@_search" ValueChanged="v => SearchChanged(v)" Placeholder="جستجو با کد، عنوان یا گروه..."
                           Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                           Immediate="true" DebounceInterval="300"
                           Variant="Variant.Outlined" Class="mb-2" />
