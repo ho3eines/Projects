@@ -14,7 +14,7 @@
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid Spacing="2">
         <MudItem xs="12" sm="6" md="3">
-            <MudSelect T="string" Label="گزارش" Value="_report" ValueChanged="ChangeReportAsync" Variant="Variant.Outlined" Disabled="_loading">
+            <MudSelect T="string" Label="گزارش" Value="_report" ValueChanged="v => ChangeReportAsync(v)" Variant="Variant.Outlined" Disabled="_loading">
                 <MudSelectItem T="string" Value="@("hierarchy")">مرور کل تا سند</MudSelectItem>
                 <MudSelectItem T="string" Value="@("detail")">گردش تفصیلی</MudSelectItem>
                 <MudSelectItem T="string" Value="@("daily")">دفتر روزنامه</MudSelectItem>
@@ -59,7 +59,7 @@
                 <MudAutocomplete T="BaseDetilRow"
                                  Label="حساب تفصیلی (نام یا کد)"
                                  Value="_detilEntity"
-                                 ValueChanged="OnDetilEntityChangedAsync"
+                                 ValueChanged="v => OnDetilEntityChangedAsync(v)"
                                  SearchFunc="SearchDetilAsync"
                                  ToStringFunc="DetilDisplay"
                                  Variant="Variant.Outlined"
