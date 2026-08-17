@@ -3,7 +3,7 @@
 -- Schema: central
 -- Query. Get all fiscal years for a company.
 -- =============================================
-SELECT 
+SELECT
     fy.FiscalYearId,
     fy.CompanyId,
     c.CompanyName,
@@ -11,6 +11,7 @@ SELECT
     fy.StartDate,
     fy.EndDate,
     fy.IsActive,
+    ISNULL(fy.[Status], N'Open') AS [Status],
     fy.CreatedAt,
     fy.UpdatedAt,
     fy.CreatedBy,

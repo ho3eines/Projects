@@ -521,7 +521,9 @@ else
                 DocumentDate = _documentDate ?? DateTime.Today,
                 DocumentType = _documentType,
                 CounterPartyName = _counterParty,
-                UpdatedBy = Session.UserName
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
 
             Snackbar.Add("تغییرات سند ذخیره شد.", Severity.Success);

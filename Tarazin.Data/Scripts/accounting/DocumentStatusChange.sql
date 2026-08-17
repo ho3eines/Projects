@@ -25,6 +25,12 @@ WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyI
 IF @RawStatus IS NULL
     THROW 51045, N'سند پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت و سال مالی نیست', 1;
 
+-- تغییر وضعیت سند در سال بسته ممنوع است (مگر برای بازگشایی که منطق جدا دارد).
+IF EXISTS (SELECT 1 FROM [central].[FiscalYears]
+           WHERE FiscalYearId = @FiscalYearId AND CompanyId = @CompanyId
+             AND ISNULL([Status], N'Open') = N'Closed')
+    THROW 51006, N'سال مالی بسته شده است؛ امکان تغییر وضعیت سند وجود ندارد.', 1;
+
 -- مقادیر ناشناختهٔ قدیمی مثل وضعیت «سند موقت» رفتار می‌کنند (هم‌راستا با
 -- AccountingDocumentStatus.Normalize در لایهٔ مشترک).
 SET @CurrentStatus = CASE WHEN @RawStatus IN (N'Note', N'Draft', N'Posted', N'Closed')

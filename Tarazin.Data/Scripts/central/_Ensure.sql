@@ -344,3 +344,31 @@ BEGIN
     );
 END
 GO
+
+-- ─────────────────────────────────────────────────────────────
+-- FiscalYear lifecycle: وضعیت سال مالی (Open / Closed) و یکتایی شرکت+سال
+-- ─────────────────────────────────────────────────────────────
+--
+-- ستون IsActive قدیمی برای «فعال/غیرفعال» نگه داشته می‌شود تا گزارش‌های
+-- موجود نشکنند. ستون جدید Status چرخهٔ حیات سال مالی را مدل می‌کند:
+--   Open   = سال باز است و ثبت سند عادی مجاز است.
+--   Closed = سال بسته شده و هیچ تغییر حسابداری (از طریق منطق عادی) پذیرفته نیست.
+IF COL_LENGTH(N'central.FiscalYears', N'Status') IS NULL
+    ALTER TABLE [central].[FiscalYears] ADD [Status] NVARCHAR(20) NOT NULL
+        CONSTRAINT DF_FiscalYears_Status DEFAULT N'Open';
+GO
+
+-- یکتایی (شرکت، نام سال) جلوی ایجاد سال مالی تکراری را حتی در شرایط
+-- هم‌زمان (Race Condition) در سطح دیتابیس می‌گیرد.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_FiscalYears_Company_Year' AND object_id = OBJECT_ID(N'central.FiscalYears'))
+    CREATE UNIQUE INDEX UX_FiscalYears_Company_Year
+        ON [central].[FiscalYears](CompanyId, YearName)
+        WHERE IsDeleted = 0;
+GO
+
+-- وضعیت سال‌های از قبل موجود (مقدار قدیمی NULL با مقدار پیش‌فرض پر شده،
+-- اما برای اطمینان در دیتابیس‌های ارتقا یافته صریحاً تنظیم می‌شود).
+UPDATE [central].[FiscalYears]
+SET [Status] = N'Open'
+WHERE [Status] IS NULL OR LTRIM(RTRIM([Status])) = N'';
+GO

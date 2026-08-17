@@ -16,6 +16,12 @@ WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyI
 IF @CurrentStatus IS NULL
     THROW 51045, N'سند پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت و سال مالی نیست', 1;
 
+-- حذف سند در سال مالی بسته ممنوع است.
+IF EXISTS (SELECT 1 FROM [central].[FiscalYears]
+           WHERE FiscalYearId = @FiscalYearId AND CompanyId = @CompanyId
+             AND ISNULL([Status], N'Open') = N'Closed')
+    THROW 51006, N'سال مالی بسته شده است؛ امکان حذف سند وجود ندارد.', 1;
+
 IF @CurrentStatus NOT IN (N'Note', N'Draft')
     THROW 51047, N'سند تأییدشده یا تأیید نهایی قابل حذف نیست.', 1;
 

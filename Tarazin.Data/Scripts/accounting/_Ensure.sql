@@ -587,3 +587,48 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Documents_Compan
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Documents_FiscalYear')
     ALTER TABLE [accounting].[Documents] WITH CHECK ADD CONSTRAINT FK_Documents_FiscalYear FOREIGN KEY (FiscalYearId) REFERENCES [central].[FiscalYears](FiscalYearId);
 GO
+
+-- جلوگیری از ثبت چند سند افتتاحیه/اختتامیه برای یک (CompanyId + FiscalYearId)
+-- حتی در شرایط Race Condition. این ایندکس‌های فیلترشده در سطح دیتابیس
+-- تضمین می‌کنند که منطق Business (که قبل از INSERT بررسی می‌کند) به‌تنهایی
+-- کافی نباشد و فراخوانی مستقیم هم نتواند دور بزند.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Documents_Opening' AND object_id = OBJECT_ID(N'accounting.Documents'))
+    CREATE UNIQUE INDEX UX_Documents_Opening
+        ON [accounting].[Documents](CompanyId, FiscalYearId)
+        WHERE DocumentType = N'Opening' AND IsDeleted = 0;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Documents_Closing' AND object_id = OBJECT_ID(N'accounting.Documents'))
+    CREATE UNIQUE INDEX UX_Documents_Closing
+        ON [accounting].[Documents](CompanyId, FiscalYearId)
+        WHERE DocumentType = N'Closing' AND IsDeleted = 0;
+GO
+
+-- شماره سند در هر (شرکت + سال) یکتاست. این یکتایی ضامن آن است که دو درخواست
+-- هم‌زمان نتوانند یک شماره را بگیرند.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Documents_Number' AND object_id = OBJECT_ID(N'accounting.Documents'))
+    CREATE UNIQUE INDEX UX_Documents_Number
+        ON [accounting].[Documents](CompanyId, FiscalYearId, DocumentNumber)
+        WHERE IsDeleted = 0;
+GO
+
+-- بک‌فیل برای داده‌های قدیمی (قبل از اضافه‌شدن چندشرکتی):
+-- هر سند قدیمی که CompanyId/FiscalYearId ندارد به اولین شرکت/سال فعال
+-- تخصیص داده می‌شود تا ایندکس‌های یکتا به‌درستی ساخته شوند.
+IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId IS NULL OR FiscalYearId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId INT = (
+        SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    DECLARE @DefaultFiscalYearId INT = (
+        SELECT TOP 1 FiscalYearId FROM [central].[FiscalYears]
+        WHERE CompanyId = @DefaultCompanyId AND IsDeleted = 0 ORDER BY FiscalYearId);
+
+    IF @DefaultCompanyId IS NOT NULL AND @DefaultFiscalYearId IS NOT NULL
+    BEGIN
+        UPDATE [accounting].[Documents]
+        SET CompanyId = @DefaultCompanyId,
+            FiscalYearId = @DefaultFiscalYearId
+        WHERE CompanyId IS NULL OR FiscalYearId IS NULL;
+    END
+END
+GO
