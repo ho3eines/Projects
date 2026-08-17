@@ -7,6 +7,7 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject DbService Db
+@inject AccountingContextService Context
 
 <MudLayout Class="tz-shell">
     <MudAppBar Elevation="0" Class="tz-appbar" Dense="false">
@@ -114,35 +115,41 @@
     </MudMainContent>
 </MudLayout>
 
-@if (Session.IsAuthenticated && (Session.ActiveCompanyId == null || Session.ActiveFiscalYearId == null))
+@* ───────────────────────────────────────────────────────────
+   قفل محیط کاری:
+   - اگر کاربر هیچ شرکتی ندارد → فرم ایجاد شرکت (اجباری، غیرقابل بستن).
+   - اگر شرکت دارد ولی سال فعال ندارد/سال جاری تضمین نشده →
+     خودِ AccountingContextService به‌صورت سیستمی آن را می‌سازد.
+   - انتخاب سال برای جابه‌جایی بین سال‌های موجود از «عملیات ویژه» انجام می‌شود.
+   ─────────────────────────────────────────────────────────── *@
+@if (Session.IsAuthenticated && _showCompanyLock)
 {
     <div class="tz-context-lock" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;">
         <MudPaper Elevation="5" Class="pa-6 mx-auto" Style="width: 100%; max-width: 450px; direction: rtl;">
             <div class="text-center mb-4 d-flex flex-column align-center">
                 <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="64" height="64" />
-                <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">انتخاب محیط کاری</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">لطفاً شرکت مالی و سال مالی فعال خود را انتخاب کنید.</MudText>
+                <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">ایجاد شرکت مالی</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                    برای شروع باید یک شرکت مالی ایجاد کنید. سال مالی به‌صورت خودکار توسط سیستم ساخته می‌شود.
+                </MudText>
             </div>
 
-            <MudForm @ref="_contextForm" @bind-IsValid="_contextValid">
-                <MudSelect T="int" Label="شرکت مالی" Value="_selectedContextCompId" ValueChanged="v => OnContextCompChanged(v)" Required="true" RequiredError="انتخاب شرکت مالی الزامی است." Variant="Variant.Outlined" Class="mb-4">
-                    <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
-                    @foreach (var c in _contextCompanies)
+            <MudForm @ref="_companyForm" @bind-IsValid="_companyValid">
+                <MudTextField Label="نام شرکت مالی" @bind-Value="_newCompanyName"
+                              Required="true" RequiredError="نام شرکت الزامی است."
+                              Variant="Variant.Outlined" Class="mb-4" Immediate="true" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
+                           OnClick="CreateCompanyAsync" StartIcon="@Icons.Material.Filled.AddBusiness"
+                           Disabled="@(!_companyValid || _busy)">
+                    @if (_busy)
                     {
-                        <MudSelectItem T="int" Value="@c.CompanyId">@c.CompanyName</MudSelectItem>
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
+                        <span>در حال ایجاد...</span>
                     }
-                </MudSelect>
-
-                <MudSelect T="int" Label="سال مالی" @bind-Value="_selectedContextYearId" Required="true" RequiredError="انتخاب سال مالی الزامی است." Variant="Variant.Outlined" Class="mb-5" Disabled="@(_selectedContextCompId == 0)">
-                    <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
-                    @foreach (var y in _contextYears)
+                    else
                     {
-                        <MudSelectItem T="int" Value="@y.FiscalYearId">@y.YearName</MudSelectItem>
+                        <span>ایجاد شرکت مالی و ورود</span>
                     }
-                </MudSelect>
-
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" OnClick="ConfirmActiveContextAsync" StartIcon="@Icons.Material.Filled.Check" Disabled="@(!_contextValid || _selectedContextYearId == 0)">
-                    تأیید و ورود
                 </MudButton>
             </MudForm>
         </MudPaper>
@@ -156,13 +163,13 @@
     private bool _denied;
     private string _denyMessage = "";
 
-    // Multi-Company variables
-    private MudForm? _contextForm;
-    private bool _contextValid;
-    private int _selectedContextCompId;
-    private int _selectedContextYearId;
-    private List<CompanyRow> _contextCompanies = new();
-    private List<FiscalYearRow> _contextYears = new();
+    // Multi-company state
+    private bool _loadingContext;
+    private bool _showCompanyLock;
+    private string _newCompanyName = "";
+    private bool _companyValid;
+    private MudForm? _companyForm;
+    private bool _busy;
 
     private string Initial =>
         string.IsNullOrWhiteSpace(Session.DisplayName) ? "ک" : Session.DisplayName[..1];
@@ -173,7 +180,7 @@
         Session.Changed += OnSessionChanged;
         Nav.LocationChanged += OnLocation;
         RefreshPath(Nav.Uri);
-        await CheckAndLoadActiveContextAsync();
+        await EnsureContextAsync();
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
@@ -182,7 +189,7 @@
     {
         RefreshPath(Nav.Uri);
         _ = InvokeAsync(async () => {
-            await CheckAndLoadActiveContextAsync();
+            await EnsureContextAsync();
             StateHasChanged();
         });
     }
@@ -191,93 +198,53 @@
     {
         RefreshPath(e.Location);
         _ = InvokeAsync(async () => {
-            await CheckAndLoadActiveContextAsync();
+            await EnsureContextAsync();
             StateHasChanged();
         });
     }
 
-    private async Task CheckAndLoadActiveContextAsync()
+    private async Task EnsureContextAsync()
     {
-        if (Session.IsAuthenticated)
-        {
-            if (Session.ActiveCompanyId == null || Session.ActiveFiscalYearId == null)
-            {
-                var active = await Db.QueryFirstOrDefaultAsync<UserActiveContextRow>("central", "UserActiveContextGet", new { UserId = Session.UserId });
-                if (active != null && active.ActiveCompanyId != null && active.ActiveFiscalYearId != null)
-                {
-                    await Session.UpdateActiveContextAsync(active.ActiveCompanyId.Value, active.ActiveCompanyName, active.ActiveFiscalYearId.Value, active.ActiveFiscalYearName);
-                }
-                else
-                {
-                    await LoadContextCompaniesAsync();
-                }
-            }
-        }
-    }
-
-    private async Task LoadContextCompaniesAsync()
-    {
+        if (!Session.IsAuthenticated || _loadingContext) return;
+        _loadingContext = true;
         try
         {
-            _contextCompanies = (await Db.QueryAsync<CompanyRow>("central", "UserAuthorizedCompanies", new { UserId = Session.UserId })).ToList();
-            if (_selectedContextCompId == 0 && _contextCompanies.Count > 0)
-            {
-                if (_contextCompanies.Count == 1)
-                {
-                    await OnContextCompChanged(_contextCompanies[0].CompanyId);
-                }
-            }
+            var state = await Context.ResolveAsync();
+            _showCompanyLock = state.RequiresCompany;
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"خطا در بارگذاری شرکت‌ها: {ex.Message}", Severity.Error);
+            Snackbar.Add($"خطا در آماده‌سازی محیط کاری: {ex.Message}", Severity.Error);
+            _showCompanyLock = true;
+        }
+        finally
+        {
+            _loadingContext = false;
         }
     }
 
-    private async Task OnContextCompChanged(int compId)
+    private async Task CreateCompanyAsync()
     {
-        _selectedContextCompId = compId;
-        _selectedContextYearId = 0;
-        _contextYears.Clear();
-        if (compId == 0) return;
+        if (_busy) return;
+        await (_companyForm?.Validate() ?? Task.CompletedTask);
+        if (!_companyValid || string.IsNullOrWhiteSpace(_newCompanyName)) return;
+
+        _busy = true;
         try
         {
-            _contextYears = (await Db.QueryAsync<FiscalYearRow>("central", "UserAuthorizedFiscalYears", new { UserId = Session.UserId, CompanyId = compId })).ToList();
-            if (_contextYears.Count == 1)
-            {
-                _selectedContextYearId = _contextYears[0].FiscalYearId;
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"خطا در بارگذاری سال‌های مالی: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task ConfirmActiveContextAsync()
-    {
-        if (_selectedContextCompId == 0 || _selectedContextYearId == 0) return;
-        try
-        {
-            var company = _contextCompanies.FirstOrDefault(c => c.CompanyId == _selectedContextCompId);
-            var year = _contextYears.FirstOrDefault(y => y.FiscalYearId == _selectedContextYearId);
-            if (company == null || year == null) return;
-
-            await Db.ExecuteAsync("central", "UserActiveContextSet", new
-            {
-                UserId = Session.UserId,
-                ActiveCompanyId = _selectedContextCompId,
-                ActiveFiscalYearId = _selectedContextYearId
-            });
-
-            await Session.UpdateActiveContextAsync(_selectedContextCompId, company.CompanyName, _selectedContextYearId, year.YearName);
-            Snackbar.Add($"محیط فعال: {company.CompanyName} - {year.YearName}", Severity.Success);
-            
+            await Context.CreateCompanyAsync(_newCompanyName.Trim());
+            Snackbar.Add($"شرکت «{_newCompanyName.Trim()}» با سال مالی جاری ایجاد شد.", Severity.Success);
+            _showCompanyLock = false;
+            _newCompanyName = "";
             Nav.NavigateTo(Nav.Uri, forceLoad: true);
         }
         catch (Exception ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 

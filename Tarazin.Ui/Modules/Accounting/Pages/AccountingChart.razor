@@ -337,7 +337,9 @@
                 }
             </MudSelect>
             <MudSpacer />
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewYearAsync" Disabled="@(_selectedCompId == 0 || !Session.IsAdmin)">سال مالی جدید</MudButton>
+            <MudAlert Severity="Severity.Info" Dense="true" Variant="Variant.Text">
+                سال‌های مالی به‌صورت خودکار توسط سیستم مدیریت می‌شوند و با تغییر شرکت/ورود کاربر ایجاد می‌گردند.
+            </MudAlert>
         </div>
 
         <MudTable T="FiscalYearRow" Items="_years" Loading="_loadingYears" Hover="true" Dense="true" Striped="true">
@@ -347,7 +349,6 @@
                 <MudTh>تاریخ شروع</MudTh>
                 <MudTh>تاریخ پایان</MudTh>
                 <MudTh>وضعیت</MudTh>
-                <MudTh>عملیات</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="شناسه">@context.FiscalYearId</MudTd>
@@ -355,13 +356,14 @@
                 <MudTd DataLabel="تاریخ شروع">@context.StartDate.ToString("yyyy/MM/dd")</MudTd>
                 <MudTd DataLabel="تاریخ پایان">@context.EndDate.ToString("yyyy/MM/dd")</MudTd>
                 <MudTd DataLabel="وضعیت">
-                    <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                        @(context.IsActive ? "فعال" : "غیرفعال")
-                    </MudChip>
-                </MudTd>
-                <MudTd DataLabel="عملیات">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenEditYearAsync(context))" Disabled="@(!Session.IsAdmin)" />
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteYearAsync(context))" Disabled="@(!Session.IsAdmin)" />
+                    @if (context.IsClosed)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error">بسته</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">باز</MudChip>
+                    }
                 </MudTd>
             </RowTemplate>
         </MudTable>
@@ -849,55 +851,6 @@
             await Db.ExecuteAsync("central", "CompanyDelete", new { CompanyId = row.CompanyId, UpdatedBy = Session.UserName });
             Snackbar.Add("شرکت حذف شد.", Severity.Success);
             await ReloadCompaniesAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-    }
-
-    // ======== Fiscal Year CRUD ========
-
-    private async Task OpenNewYearAsync()
-    {
-        if (_selectedCompId == 0) return;
-        var dlg = await Dialog.ShowAsync<FiscalYearFormDialog>("ایجاد سال مالی جدید", new DialogParameters
-        {
-            ["FiscalYearId"] = 0,
-            ["CompanyId"] = _selectedCompId
-        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
-        var r = await dlg.Result;
-        if (r is { Canceled: false }) await ReloadYearsAsync();
-    }
-
-    private async Task OpenEditYearAsync(FiscalYearRow row)
-    {
-        var dlg = await Dialog.ShowAsync<FiscalYearFormDialog>("ویرایش سال مالی", new DialogParameters
-        {
-            ["FiscalYearId"] = row.FiscalYearId,
-            ["CompanyId"] = row.CompanyId,
-            ["InitialYearName"] = row.YearName,
-            ["InitialStartDate"] = row.StartDate,
-            ["InitialEndDate"] = row.EndDate,
-            ["InitialIsActive"] = row.IsActive
-        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
-        var r = await dlg.Result;
-        if (r is { Canceled: false }) await ReloadYearsAsync();
-    }
-
-    private async Task DeleteYearAsync(FiscalYearRow row)
-    {
-        var confirm = await Dialog.ShowMessageBoxAsync(
-            "تأیید حذف سال مالی",
-            $"آیا از حذف سال مالی «{row.YearName}» مطمئن هستید؟",
-            yesText: "حذف", cancelText: "انصراف");
-        if (confirm is not true) return;
-
-        try
-        {
-            await Db.ExecuteAsync("central", "FiscalYearDelete", new { FiscalYearId = row.FiscalYearId, UpdatedBy = Session.UserName });
-            Snackbar.Add("سال مالی حذف شد.", Severity.Success);
-            await ReloadYearsAsync();
         }
         catch (Exception ex)
         {

@@ -17,15 +17,16 @@
             <MudDatePicker Label="تاریخ سند" Culture="FaCulture" @bind-Date="_documentDate" />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined" Disabled="@(!string.IsNullOrWhiteSpace(Type))">
+            <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined" Disabled="true">
                 <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
                 <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
                 <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
                 <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
                 <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
-                <MudSelectItem Value="@("Opening")">سند افتتاحیه</MudSelectItem>
-                <MudSelectItem Value="@("Closing")">سند اختتامیه</MudSelectItem>
             </MudSelect>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">
+                اسناد افتتاحیه و اختتامیه توسط سیستم به‌صورت خودکار ایجاد می‌شوند.
+            </MudText>
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
             <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined" />
@@ -225,15 +226,11 @@
         }
     }
 
-    [Parameter, SupplyParameterFromQuery]
-    public string? Type { get; set; }
-
     protected override void OnInitialized()
     {
-        if (!string.IsNullOrWhiteSpace(Type))
-        {
-            _documentType = Type;
-        }
+        // سند افتتاحیه/اختتامیه دیگر توسط کاربر به‌صورت دستی ساخته نمی‌شود؛
+        // این صفحه فقط برای ثبت سند عادی روزنامه است.
+        _documentType = "Journal";
 
         try
         {
@@ -395,7 +392,9 @@
                 DocumentType = _documentType,
                 CounterPartyName = _counterParty,
                 Status = _status,
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
 
             Snackbar.Add("سند با موفقیت ثبت شد.", Severity.Success);

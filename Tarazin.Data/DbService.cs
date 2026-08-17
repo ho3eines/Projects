@@ -199,7 +199,17 @@ public sealed class DbService
     /// <summary>Runs every <c>{schema}/_Ensure.sql</c> — creates schemas/tables.</summary>
     public async Task EnsureSchemaAsync(CancellationToken ct = default)
     {
-        foreach (var schema in _catalog.Schemas)
+        // ترتیب اجرا مهم است: اسکیمای central (کاربران، شرکت‌ها، سال‌های مالی
+        // و جداول دسترسی) باید پیش از بقیه ساخته شود چون اسکیماهای کسب‌وکار
+        // (مثل accounting) روی central.Companies / central.FiscalYears
+        // خارج‌کلید دارند. بدون این ترتیب، روی دیتابیس تازه خطای
+        // «FK references invalid table 'central.Companies'» رخ می‌دهد.
+        var schemas = _catalog.Schemas
+            .OrderBy(s => string.Equals(s, "central", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var schema in schemas)
         {
             if (_catalog.TryGet(schema, "_Ensure", out var ensure))
             {
@@ -212,7 +222,14 @@ public sealed class DbService
     /// <summary>Runs every <c>{schema}/_Seed.sql</c> — idempotent seed data.</summary>
     public async Task SeedAsync(CancellationToken ct = default)
     {
-        foreach (var schema in _catalog.Schemas)
+        // هم‌راستا با EnsureSchemaAsync: ابتدا central (شرکت/سال/دسترسی‌ها)
+        // تا بذرِ اسکیماهای وابسته، مقادیر صحیحِ خارج‌کلید را ببیند.
+        var schemas = _catalog.Schemas
+            .OrderBy(s => string.Equals(s, "central", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var schema in schemas)
         {
             if (_catalog.TryGet(schema, "_Seed", out var seed))
             {

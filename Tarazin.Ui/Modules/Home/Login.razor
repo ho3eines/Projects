@@ -3,6 +3,7 @@
 @inject AuthService Auth
 @inject UserService Users
 @inject UserSession Session
+@inject AccountingContextService Context
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
@@ -85,6 +86,20 @@
 
             // نشست هم در circuit و هم در مرورگر ذخیره می‌شود؛ مسیریابی داخلی
             // همان نشست را نگه می‌دارد و رفرش هم با بازیابی از مرورگر حفظ می‌شود.
+            //
+            // پس از ورود، محیط کاری (شرکت + سال مالی) به‌صورت خودکار تضمین
+            // می‌شود. اگر کاربر شرکت نداشته باشد، MainLayout یک Modal اجباری
+            // نمایش می‌دهد؛ در غیر این صورت سال جاری به‌صورت سیستمی ایجاد
+            // و فعال می‌شود.
+            try
+            {
+                await Context.ResolveAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"خطا در آماده‌سازی محیط کاری: {ex.Message}", Severity.Warning);
+            }
+
             Nav.NavigateTo("/");
         }
         finally

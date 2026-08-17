@@ -2,7 +2,7 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <base href="/" />
     <title>ترازین — مدیریت هوشمند کسب‌وکار</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -10,11 +10,120 @@
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
     <link href="_content/Tarazin.Ui/css/app.css" rel="stylesheet" />
+    <style>
+        /* ── Splash / Loading screen (pre-Blazor WebView) ── */
+        html, body, #app { height: 100%; margin: 0; }
+        #tz-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            font-family: "Vazirmatn", Tahoma, "Segoe UI", sans-serif;
+            color: #e8efea;
+            background:
+                radial-gradient(1200px 800px at 80% -10%, rgba(232, 200, 114, 0.18), transparent 60%),
+                radial-gradient(1000px 700px at -10% 110%, rgba(20, 104, 97, 0.35), transparent 60%),
+                linear-gradient(135deg, #0B3A38 0%, #0e4d4a 45%, #146861 100%);
+            transition: opacity .45s ease, visibility .45s ease;
+        }
+        #tz-splash.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .tz-splash__logo {
+            width: 96px;
+            height: 96px;
+            border-radius: 24px;
+            box-shadow: 0 18px 45px rgba(0,0,0,.35);
+            animation: tz-pop .8s ease both;
+        }
+        .tz-splash__title {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(90deg, #E8C872, #F4DE9C);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .tz-splash__subtitle {
+            font-size: 14px;
+            opacity: .8;
+            margin: -14px 0 0;
+        }
+        .tz-splash__bar {
+            width: 220px;
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.14);
+            overflow: hidden;
+        }
+        .tz-splash__bar::after {
+            content: "";
+            display: block;
+            height: 100%;
+            width: 40%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #C49A3C, #E8C872);
+            animation: tz-slide 1.1s ease-in-out infinite;
+        }
+        .tz-splash__hint {
+            font-size: 12px;
+            opacity: .6;
+        }
+        @@keyframes tz-pop {
+            0%   { transform: scale(.7); opacity: 0; }
+            60%  { transform: scale(1.06); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+        @@keyframes tz-slide {
+            0%   { transform: translateX(-250%); }
+            100% { transform: translateX(350%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .tz-splash__logo, .tz-splash__bar::after { animation: none; }
+        }
+    </style>
 </head>
 <body dir="rtl">
-    <div id="app">در حال بارگذاری ترازین…</div>
+    <!-- Splash screen: تا زمان آماده شدن BlazorWebView نمایش داده می‌شود -->
+    <div id="tz-splash" aria-live="polite" aria-busy="true">
+        <img class="tz-splash__logo" src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+        <h1 class="tz-splash__title">ترازین</h1>
+        <p class="tz-splash__subtitle">مدیریت هوشمند کسب‌وکار</p>
+        <div class="tz-splash__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+        <div class="tz-splash__hint">در حال آماده‌سازی…</div>
+    </div>
 
-    <script src="_framework/blazor.webview.js"></script>
+    <div id="app"></div>
+
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script>
+        (function () {
+            var splash = document.getElementById("tz-splash");
+            var timer = setTimeout(hideSplash, 8000);
+
+            function hideSplash() {
+                if (!splash) return;
+                clearTimeout(timer);
+                splash.classList.add("is-hidden");
+                setTimeout(function () {
+                    if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+                }, 600);
+            }
+
+            Blazor.start()
+                .then(function () {
+                    requestAnimationFrame(function () { requestAnimationFrame(hideSplash); });
+                })
+                .catch(hideSplash);
+        })();
+    </script>
 </body>
 </html>

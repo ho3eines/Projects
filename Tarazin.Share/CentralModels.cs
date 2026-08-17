@@ -70,10 +70,21 @@ public class FiscalYearRow
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public bool IsActive { get; set; }
+    /// <summary>چرخهٔ حیات سال مالی: Open | Closed.</summary>
+    public string Status { get; set; } = FiscalYearStatus.Open;
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
+
+    public bool IsClosed => string.Equals(Status, FiscalYearStatus.Closed, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>مقادیر معتبر چرخهٔ حیات سال مالی.</summary>
+public static class FiscalYearStatus
+{
+    public const string Open = "Open";
+    public const string Closed = "Closed";
 }
 
 /// <summary>محیط فعال کاربر</summary>
