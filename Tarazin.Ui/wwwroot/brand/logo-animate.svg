@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Loading">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#146861"/>
+      <stop offset="1" stop-color="#0B3A38"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="50%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#E8C872" stop-opacity="0.25"/>
+      <stop offset="0.45" stop-color="#E8C872" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#E8C872" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+
+    <style>
+      .spin { transform-origin: 32px 32px; animation: spin 1.05s linear infinite; }
+      .spinSlow { transform-origin: 32px 32px; animation: spin 2.2s linear infinite reverse; }
+      .orbit { transform-origin: 32px 32px; animation: spin 1.35s cubic-bezier(.4,0,.2,1) infinite; }
+      .pulse { animation: pulse 1.4s ease-in-out infinite; }
+      .iconPulse { animation: iconPulse 1.4s ease-in-out infinite; }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes pulse {
+        0%,100% { opacity: .55; transform: scale(1); }
+        50%     { opacity: .95; transform: scale(1.02); }
+      }
+      @keyframes iconPulse {
+        0%,100% { opacity: .92; }
+        50%     { opacity: 1; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .spin, .spinSlow, .orbit, .pulse, .iconPulse { animation: none !important; }
+      }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <circle class="pulse" cx="32" cy="30" r="26" fill="url(#glow)"/>
+
+  <!-- Animated loader rings -->
+  <g filter="url(#softShadow)">
+    <g class="spin">
+      <circle cx="32" cy="32" r="24" fill="none"
+              stroke="#E8C872" stroke-opacity="0.95" stroke-width="3.2"
+              stroke-linecap="round" stroke-dasharray="42 120"/>
+      <circle cx="32" cy="32" r="24" fill="none"
+              stroke="#E8C872" stroke-opacity="0.22" stroke-width="3.2"
+              stroke-linecap="round" stroke-dasharray="6 156"/>
+    </g>
+
+    <g class="spinSlow">
+      <circle cx="32" cy="32" r="18" fill="none"
+              stroke="#D4B06A" stroke-opacity="0.85" stroke-width="2.6"
+              stroke-linecap="round" stroke-dasharray="18 95"/>
+    </g>
+
+    <!-- Orbiting dots -->
+    <g class="orbit">
+      <g transform="translate(32 32)">
+        <circle cx="0" cy="-24" r="2.3" fill="#E8C872"/>
+        <circle cx="16" cy="18" r="1.8" fill="#D4B06A" opacity="0.95"/>
+        <circle cx="-18" cy="14" r="1.6" fill="#C49A3C" opacity="0.95"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Center icon (your mark) -->
+  <g class="iconPulse" filter="url(#softShadow)">
+    <path d="M32 11v34" stroke="#E8C872" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M16 22h32" stroke="#E8C872" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M16 22l-9 15c-1.4 2.4 0.2 6.6 5.2 7.4 4.8.8 8.6-2.2 9.4-5.8L16 22z" fill="#C49A3C"/>
+    <path d="M48 22l-5.6 16.6c.8 3.6 4.6 6.6 9.4 5.8 5-.8 6.6-5 5.2-7.4L48 22z" fill="#D4B06A"/>
+    <rect x="22" y="46" width="20" height="3.2" rx="1.6" fill="#E8C872"/>
+    <rect x="27" y="49.4" width="10" height="4.2" rx="1.4" fill="#E8C872"/>
+  </g>
+</svg>
