@@ -146,6 +146,7 @@
                 Description = _description?.Trim() ?? "",
                 IsActive = _isActive,
                 CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
                 UpdatedBy = Session.UserName
             });
             Snackbar.Add(AccountGroupId == 0 ? "گروه حساب ایجاد شد." : "گروه حساب ویرایش شد.", Severity.Success);

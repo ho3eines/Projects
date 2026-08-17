@@ -11,10 +11,10 @@ DECLARE @CurrentStatus NVARCHAR(50);
 
 SELECT @CurrentStatus = d.Status
 FROM [accounting].[Documents] d
-WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0;
+WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId;
 
 IF @CurrentStatus IS NULL
-    THROW 51045, N'سند پیدا نشد یا قبلاً حذف شده است', 1;
+    THROW 51045, N'سند پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت و سال مالی نیست', 1;
 
 IF @CurrentStatus NOT IN (N'Note', N'Draft')
     THROW 51047, N'سند تأییدشده یا تأیید نهایی قابل حذف نیست.', 1;
@@ -23,7 +23,7 @@ UPDATE [accounting].[Documents]
 SET IsDeleted = 1,
     UpdatedAt = SYSUTCDATETIME(),
     UpdatedBy = @UpdatedBy
-WHERE DocumentId = @DocumentId AND IsDeleted = 0;
+WHERE DocumentId = @DocumentId AND IsDeleted = 0 AND CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId;
 
 IF @@ROWCOUNT = 0
     THROW 51045, N'سند پیدا نشد یا قبلاً حذف شده است', 1;

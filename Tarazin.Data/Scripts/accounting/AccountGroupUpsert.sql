@@ -70,7 +70,7 @@ BEGIN TRY
     IF EXISTS (
         SELECT 1 FROM [accounting].[AccountGroups]
         WHERE GroupType = @Type AND GroupCode = @Code
-          AND IsDeleted = 0 AND AccountGroupId <> @AccountGroupId)
+          AND IsDeleted = 0 AND AccountGroupId <> @AccountGroupId AND (CompanyId = @CompanyId OR CompanyId IS NULL))
         THROW 50078, N'کد گروه در این نوع حساب تکراری است.', 1;
 
     IF @Type = N'Detil' AND EXISTS (
@@ -78,17 +78,17 @@ BEGIN TRY
         WHERE GroupType = N'Detil' AND IsDeleted = 0
           AND AccountGroupId <> @AccountGroupId
           AND CONVERT(INT, FromCode) <= CONVERT(INT, @To)
-          AND CONVERT(INT, ToCode) >= CONVERT(INT, @From))
+          AND CONVERT(INT, ToCode) >= CONVERT(INT, @From) AND (CompanyId = @CompanyId OR CompanyId IS NULL))
         THROW 50079, N'بازهٔ این گروه با یک گروه تفصیلی دیگر هم‌پوشانی دارد.', 1;
 
     IF @AccountGroupId = 0
     BEGIN
         INSERT INTO [accounting].[AccountGroups]
             (GroupType, GroupCode, Title, [Description], FromCode, ToCode,
-             DefaultNature, IsActive, CreatedAt, CreatedBy)
+             DefaultNature, IsActive, CreatedAt, CreatedBy, CompanyId)
         VALUES
             (@Type, @Code, @Name, NULLIF(LTRIM(RTRIM(@Description)), N''), @From, @To,
-             @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+             @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy, @CompanyId);
 
         SET @AccountGroupId = CAST(SCOPE_IDENTITY() AS INT);
     END
@@ -111,7 +111,7 @@ BEGIN TRY
             IsActive = ISNULL(@IsActive, IsActive),
             UpdatedAt = SYSUTCDATETIME(),
             UpdatedBy = @UpdatedBy
-        WHERE AccountGroupId = @AccountGroupId AND IsDeleted = 0;
+        WHERE AccountGroupId = @AccountGroupId AND IsDeleted = 0 AND (CompanyId = @CompanyId OR CompanyId IS NULL);
     END
 
     COMMIT TRANSACTION;

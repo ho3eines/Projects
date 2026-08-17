@@ -20,7 +20,7 @@ DECLARE @Inactive BIT = CASE WHEN ISNULL(@IncludeInactive, 0) = 0 THEN 0 ELSE 1 
         CAST(NULL AS INT) AS MoeinId,
         CAST(NULL AS INT) AS ParentLinkId
     FROM [accounting].[BaseCol] c
-    WHERE c.IsDeleted = 0 AND (@Inactive = 1 OR c.IsActive = 1)
+    WHERE c.IsDeleted = 0 AND c.CompanyId = @CompanyId AND (@Inactive = 1 OR c.IsActive = 1)
 ),
 BaseMoeins (
     NodeId, Level, Code, Title, NodeType, ParentId, AccountCode,

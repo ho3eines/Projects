@@ -1,0 +1,128 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField Label="سال مالی (مثلاً 1405)" @bind-Value="_yearName" @bind-Value:after="OnYearNameChanged" Required="true" RequiredError="نام سال الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="تاریخ شروع (شمسی)" Culture="FaCulture" @bind-Date="_startDate" ReadOnly="true" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="تاریخ پایان (شمسی)" Culture="FaCulture" @bind-Date="_endDate" ReadOnly="true" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="@(_busy || _startDate == null)">
+            @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int FiscalYearId { get; set; }
+    [Parameter] public int CompanyId { get; set; }
+    [Parameter] public string InitialYearName { get; set; } = "";
+    [Parameter] public DateTime? InitialStartDate { get; set; }
+    [Parameter] public DateTime? InitialEndDate { get; set; }
+    [Parameter] public bool InitialIsActive { get; set; } = true;
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private string _yearName = "";
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private bool _isActive = true;
+
+    protected override void OnInitialized()
+    {
+        _yearName = InitialYearName;
+        _startDate = InitialStartDate;
+        _endDate = InitialEndDate;
+        _isActive = InitialIsActive;
+        
+        if (FiscalYearId == 0 && !string.IsNullOrWhiteSpace(_yearName))
+        {
+            OnYearNameChanged();
+        }
+    }
+
+    private void OnYearNameChanged()
+    {
+        try
+        {
+            if (int.TryParse(_yearName.Trim(), out int year) && year >= 1300 && year <= 1500)
+            {
+                var pc = new System.Globalization.PersianCalendar();
+                _startDate = pc.ToDateTime(year, 1, 1, 0, 0, 0, 0);
+                int lastDay = pc.IsLeapYear(year) ? 30 : 29;
+                _endDate = pc.ToDateTime(year, 12, lastDay, 0, 0, 0, 0);
+            }
+            else
+            {
+                _startDate = null;
+                _endDate = null;
+            }
+        }
+        catch 
+        {
+            _startDate = null;
+            _endDate = null;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        await _form!.Validate();
+        if (!_isValid) return;
+
+        if (_startDate == null || _endDate == null)
+        {
+            Snackbar.Add("محاسبه تاریخ‌های شمسی با خطا مواجه شد. لطفاً نام سال مالی را تصحیح کنید.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("central", "FiscalYearUpsert", new
+            {
+                FiscalYearId,
+                CompanyId,
+                YearName = _yearName.Trim(),
+                StartDate = _startDate.Value,
+                EndDate = _endDate.Value,
+                IsActive = _isActive,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add(FiscalYearId == 0 ? "سال مالی با موفقیت ایجاد شد." : "تغییرات سال مالی ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

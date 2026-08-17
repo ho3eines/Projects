@@ -1,0 +1,75 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField Label="نام شرکت مالی" @bind-Value="_name" Required="true" RequiredError="نام شرکت الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">
+            @if (_busy) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" /> }
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int CompanyId { get; set; }
+    [Parameter] public string InitialName { get; set; } = "";
+    [Parameter] public bool InitialIsActive { get; set; } = true;
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private string _name = "";
+    private bool _isActive = true;
+
+    protected override void OnInitialized()
+    {
+        _name = InitialName;
+        _isActive = InitialIsActive;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        await _form!.Validate();
+        if (!_isValid) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("central", "CompanyUpsert", new
+            {
+                CompanyId,
+                CompanyName = _name.Trim(),
+                IsActive = _isActive,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add(CompanyId == 0 ? "شرکت مالی با موفقیت ایجاد شد." : "تغییرات شرکت مالی ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

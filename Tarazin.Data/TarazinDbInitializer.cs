@@ -109,7 +109,11 @@ public static class TarazinDbInitializer
     {
         var count = await db.ScalarAsync("central", "UserCount");
         if (count is not null && Convert.ToInt32(count) > 0)
+        {
+            var existingUsername = config["Tarazin:BootstrapAdminUser"] ?? "admin";
+            await db.ExecuteAsync("central", "EnsureAdminAccess", new { Username = existingUsername });
             return;
+        }
 
         var username = config["Tarazin:BootstrapAdminUser"] ?? "admin";
         var password = config["Tarazin:BootstrapAdminPassword"] ?? "admin";
@@ -124,5 +128,7 @@ public static class TarazinDbInitializer
             IsActive = true,
             CreatedBy = "bootstrap"
         });
+
+        await db.ExecuteAsync("central", "EnsureAdminAccess", new { Username = username });
     }
 }

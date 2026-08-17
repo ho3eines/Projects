@@ -1,9 +1,12 @@
 @inherits LayoutComponentBase
 @implements IDisposable
+@using Tarazin.Models
+@using Tarazin.Services
 @inject UserSession Session
 @inject UiPreferences Prefs
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject DbService Db
 
 <MudLayout Class="tz-shell">
     <MudAppBar Elevation="0" Class="tz-appbar" Dense="false">
@@ -23,6 +26,13 @@
             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="tz-appbar__mod"
                      Style="@($"border-color:{_module.Accent};color:{_module.Accent}")">
                 @_module.Title
+            </MudChip>
+        }
+
+        @if (Session.IsAuthenticated && Session.ActiveCompanyId != null && Session.ActiveFiscalYearId != null)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Business" Class="ms-2">
+                @Session.ActiveCompanyName | @Session.ActiveFiscalYearName
             </MudChip>
         }
 
@@ -104,6 +114,41 @@
     </MudMainContent>
 </MudLayout>
 
+@if (Session.IsAuthenticated && (Session.ActiveCompanyId == null || Session.ActiveFiscalYearId == null))
+{
+    <div class="tz-context-lock" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+        <MudPaper Elevation="5" Class="pa-6 mx-auto" Style="width: 100%; max-width: 450px; direction: rtl;">
+            <div class="text-center mb-4 d-flex flex-column align-center">
+                <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="64" height="64" />
+                <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">انتخاب محیط کاری</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">لطفاً شرکت مالی و سال مالی فعال خود را انتخاب کنید.</MudText>
+            </div>
+
+            <MudForm @ref="_contextForm" @bind-IsValid="_contextValid">
+                <MudSelect T="int" Label="شرکت مالی" Value="_selectedContextCompId" ValueChanged="OnContextCompChanged" Required="true" RequiredError="انتخاب شرکت مالی الزامی است." Variant="Variant.Outlined" Class="mb-4">
+                    <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
+                    @foreach (var c in _contextCompanies)
+                    {
+                        <MudSelectItem T="int" Value="@c.CompanyId">@c.CompanyName</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="int" Label="سال مالی" @bind-Value="_selectedContextYearId" Required="true" RequiredError="انتخاب سال مالی الزامی است." Variant="Variant.Outlined" Class="mb-5" Disabled="@(_selectedContextCompId == 0)">
+                    <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
+                    @foreach (var y in _contextYears)
+                    {
+                        <MudSelectItem T="int" Value="@y.FiscalYearId">@y.YearName</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" OnClick="ConfirmActiveContextAsync" StartIcon="@Icons.Material.Filled.Check" Disabled="@(!_contextValid || _selectedContextYearId == 0)">
+                    تأیید و ورود
+                </MudButton>
+            </MudForm>
+        </MudPaper>
+    </div>
+}
+
 @code {
     private bool _drawerOpen = true;
     private string _path = "";
@@ -111,31 +156,129 @@
     private bool _denied;
     private string _denyMessage = "";
 
+    // Multi-Company variables
+    private MudForm? _contextForm;
+    private bool _contextValid;
+    private int _selectedContextCompId;
+    private int _selectedContextYearId;
+    private List<CompanyRow> _contextCompanies = new();
+    private List<FiscalYearRow> _contextYears = new();
+
     private string Initial =>
         string.IsNullOrWhiteSpace(Session.DisplayName) ? "ک" : Session.DisplayName[..1];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Prefs.Changed += OnPrefsChanged;
         Session.Changed += OnSessionChanged;
         Nav.LocationChanged += OnLocation;
         RefreshPath(Nav.Uri);
+        await CheckAndLoadActiveContextAsync();
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
 
-    // بعد از بازیابی نشست (مثلاً رفرش) باید نوار بالا/منو از «ورود» به
-    // نام کاربر تغییر کند؛ بدون این، StateHasChanged روی MainLayout زده نمی‌شود.
     private void OnSessionChanged()
     {
         RefreshPath(Nav.Uri);
-        InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(async () => {
+            await CheckAndLoadActiveContextAsync();
+            StateHasChanged();
+        });
     }
 
     private void OnLocation(object? sender, LocationChangedEventArgs e)
     {
         RefreshPath(e.Location);
-        InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(async () => {
+            await CheckAndLoadActiveContextAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task CheckAndLoadActiveContextAsync()
+    {
+        if (Session.IsAuthenticated)
+        {
+            if (Session.ActiveCompanyId == null || Session.ActiveFiscalYearId == null)
+            {
+                var active = await Db.QueryFirstOrDefaultAsync<UserActiveContextRow>("central", "UserActiveContextGet", new { UserId = Session.UserId });
+                if (active != null && active.ActiveCompanyId != null && active.ActiveFiscalYearId != null)
+                {
+                    await Session.UpdateActiveContextAsync(active.ActiveCompanyId.Value, active.ActiveCompanyName, active.ActiveFiscalYearId.Value, active.ActiveFiscalYearName);
+                }
+                else
+                {
+                    await LoadContextCompaniesAsync();
+                }
+            }
+        }
+    }
+
+    private async Task LoadContextCompaniesAsync()
+    {
+        try
+        {
+            _contextCompanies = (await Db.QueryAsync<CompanyRow>("central", "UserAuthorizedCompanies", new { UserId = Session.UserId })).ToList();
+            if (_selectedContextCompId == 0 && _contextCompanies.Count > 0)
+            {
+                if (_contextCompanies.Count == 1)
+                {
+                    await OnContextCompChanged(_contextCompanies[0].CompanyId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری شرکت‌ها: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OnContextCompChanged(int compId)
+    {
+        _selectedContextCompId = compId;
+        _selectedContextYearId = 0;
+        _contextYears.Clear();
+        if (compId == 0) return;
+        try
+        {
+            _contextYears = (await Db.QueryAsync<FiscalYearRow>("central", "UserAuthorizedFiscalYears", new { UserId = Session.UserId, CompanyId = compId })).ToList();
+            if (_contextYears.Count == 1)
+            {
+                _selectedContextYearId = _contextYears[0].FiscalYearId;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری سال‌های مالی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ConfirmActiveContextAsync()
+    {
+        if (_selectedContextCompId == 0 || _selectedContextYearId == 0) return;
+        try
+        {
+            var company = _contextCompanies.FirstOrDefault(c => c.CompanyId == _selectedContextCompId);
+            var year = _contextYears.FirstOrDefault(y => y.FiscalYearId == _selectedContextYearId);
+            if (company == null || year == null) return;
+
+            await Db.ExecuteAsync("central", "UserActiveContextSet", new
+            {
+                UserId = Session.UserId,
+                ActiveCompanyId = _selectedContextCompId,
+                ActiveFiscalYearId = _selectedContextYearId
+            });
+
+            await Session.UpdateActiveContextAsync(_selectedContextCompId, company.CompanyName, _selectedContextYearId, year.YearName);
+            Snackbar.Add($"محیط فعال: {company.CompanyName} - {year.YearName}", Severity.Success);
+            
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 
     private void RefreshPath(string uri)

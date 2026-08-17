@@ -149,7 +149,9 @@
                     FromDate = from,
                     ToDate = to,
                     StatusFilter = "",
-                    DocumentNumber = ""
+                    DocumentNumber = "",
+                    CompanyId = Session.ActiveCompanyId,
+                    FiscalYearId = Session.ActiveFiscalYearId
                 });
             }
             catch (Exception ex)
@@ -175,6 +177,8 @@
                     ToDate = to,
                     StatusFilter = "",
                     DocumentNumber = "",
+                    CompanyId = Session.ActiveCompanyId,
+                    FiscalYearId = Session.ActiveFiscalYearId,
                     SkipRows = _page * PageSize,
                     TakeSize = PageSize
                 });

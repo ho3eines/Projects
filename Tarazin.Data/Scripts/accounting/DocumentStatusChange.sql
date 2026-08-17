@@ -20,10 +20,10 @@ IF @Target NOT IN (N'Note', N'Draft', N'Posted', N'Closed')
 
 SELECT @RawStatus = d.Status
 FROM [accounting].[Documents] d
-WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0;
+WHERE d.DocumentId = @DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId;
 
 IF @RawStatus IS NULL
-    THROW 51045, N'سند پیدا نشد یا قبلاً حذف شده است', 1;
+    THROW 51045, N'سند پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت و سال مالی نیست', 1;
 
 -- مقادیر ناشناختهٔ قدیمی مثل وضعیت «سند موقت» رفتار می‌کنند (هم‌راستا با
 -- AccountingDocumentStatus.Normalize در لایهٔ مشترک).
@@ -65,7 +65,7 @@ UPDATE [accounting].[Documents]
 SET Status    = @Target,
     UpdatedAt = SYSUTCDATETIME(),
     UpdatedBy = @UpdatedBy
-WHERE DocumentId = @DocumentId AND IsDeleted = 0 AND Status = @RawStatus;
+WHERE DocumentId = @DocumentId AND IsDeleted = 0 AND Status = @RawStatus AND CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId;
 
 IF @@ROWCOUNT = 0
     THROW 51049, N'وضعیت سند توسط کاربر دیگری تغییر کرده است؛ صفحه را تازه‌سازی کنید.', 1;

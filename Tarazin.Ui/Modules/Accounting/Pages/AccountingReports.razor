@@ -512,7 +512,9 @@ else
                         FromDate = from,
                         ToDate = to,
                         StatusFilter = _status ?? "",
-                        DocumentNumber = _documentNumber ?? ""
+                        DocumentNumber = _documentNumber ?? "",
+                        CompanyId = Session.ActiveCompanyId,
+                        FiscalYearId = Session.ActiveFiscalYearId
                     }));
                     break;
                 default:
@@ -537,7 +539,9 @@ else
         FromDate = from,
         ToDate = to,
         StatusFilter = _status ?? "",
-        DocumentNumber = _documentNumber ?? ""
+        DocumentNumber = _documentNumber ?? "",
+        CompanyId = Session.ActiveCompanyId,
+        FiscalYearId = Session.ActiveFiscalYearId
     };
 
     private async Task LoadHierarchyAsync(DateTime from, DateTime to)
@@ -551,7 +555,9 @@ else
             FromDate = from,
             ToDate = to,
             StatusFilter = _status ?? "",
-            DocumentNumber = _documentNumber ?? ""
+            DocumentNumber = _documentNumber ?? "",
+            CompanyId = Session.ActiveCompanyId,
+            FiscalYearId = Session.ActiveFiscalYearId
         });
         _hierarchy = result.ToList();
     }
@@ -576,7 +582,9 @@ else
             FromDate = from,
             ToDate = to,
             StatusFilter = _status ?? "",
-            DocumentNumber = _documentNumber ?? ""
+            DocumentNumber = _documentNumber ?? "",
+            CompanyId = Session.ActiveCompanyId,
+            FiscalYearId = Session.ActiveFiscalYearId
         });
         _detilDrill = rows.ToList();
     }
@@ -594,7 +602,9 @@ else
             FromDate = from,
             ToDate = to,
             StatusFilter = _status ?? "",
-            DocumentNumber = _documentNumber ?? ""
+            DocumentNumber = _documentNumber ?? "",
+            CompanyId = Session.ActiveCompanyId,
+            FiscalYearId = Session.ActiveFiscalYearId
         });
 
         if (_detailSummary is null)
@@ -610,7 +620,7 @@ else
             try
             {
                 _detilEntity = await Db.QueryFirstOrDefaultAsync<BaseDetilRow>(
-                    Schema, "BaseDetilByCode", new { DetilCode = _detailSummary.DetilCode });
+                    Schema, "BaseDetilByCode", new { DetilCode = _detailSummary.DetilCode, CompanyId = Session.ActiveCompanyId });
             }
             catch
             {
@@ -636,7 +646,9 @@ else
             StatusFilter = _status ?? "",
             DocumentNumber = _documentNumber ?? "",
             SkipRows = _detailPage * DetailPageSize,
-            TakeSize = DetailPageSize
+            TakeSize = DetailPageSize,
+            CompanyId = Session.ActiveCompanyId,
+            FiscalYearId = Session.ActiveFiscalYearId
         });
         _detailTransactions = rows.ToList();
         _detailTotalRows = _detailTransactions.FirstOrDefault()?.TotalRows ?? 0;
@@ -835,7 +847,7 @@ else
     {
         try
         {
-            return await Db.QueryAsync<BaseDetilRow>(Schema, "BaseDetilSearch", new { SearchText = value ?? "" });
+            return await Db.QueryAsync<BaseDetilRow>(Schema, "BaseDetilSearch", new { SearchText = value ?? "", CompanyId = Session.ActiveCompanyId });
         }
         catch (Exception ex)
         {
@@ -952,7 +964,7 @@ else
         if (string.IsNullOrWhiteSpace(code))
             return null;
 
-        return await Db.QueryFirstOrDefaultAsync<BaseDetilRow>(Schema, "BaseDetilByCode", new { DetilCode = code });
+        return await Db.QueryFirstOrDefaultAsync<BaseDetilRow>(Schema, "BaseDetilByCode", new { DetilCode = code, CompanyId = Session.ActiveCompanyId });
     }
 
     private async Task ChangeDetailPageAsync(int delta)

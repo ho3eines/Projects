@@ -538,3 +538,52 @@ IF COL_LENGTH(N'accounting.InventoryLedger', N'UpdatedAt') IS NULL
     ALTER TABLE [accounting].[InventoryLedger] ADD UpdatedAt DATETIME2 NULL;
 IF COL_LENGTH(N'accounting.GoldPriceSnapshot', N'CreatedAt') IS NULL
     ALTER TABLE [accounting].[GoldPriceSnapshot] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_GoldPriceSnapshot_CreatedAt DEFAULT SYSUTCDATETIME();
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company & Fiscal-Year schema changes
+-- ─────────────────────────────────────────────────────────────
+
+IF COL_LENGTH(N'accounting.BaseCol', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[BaseCol] ADD CompanyId INT NULL;
+GO
+
+IF COL_LENGTH(N'accounting.BaseDetil', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[BaseDetil] ADD CompanyId INT NULL;
+GO
+
+IF COL_LENGTH(N'accounting.BaseDetilLink', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[BaseDetilLink] ADD CompanyId INT NULL;
+GO
+
+IF COL_LENGTH(N'accounting.AccountGroups', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[AccountGroups] ADD CompanyId INT NULL;
+GO
+
+IF COL_LENGTH(N'accounting.Documents', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[Documents] ADD CompanyId INT NULL;
+GO
+
+IF COL_LENGTH(N'accounting.Documents', N'FiscalYearId') IS NULL
+    ALTER TABLE [accounting].[Documents] ADD FiscalYearId INT NULL;
+GO
+
+-- Constraints (safely referencing [central] schema tables)
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseCol_Company')
+    ALTER TABLE [accounting].[BaseCol] WITH CHECK ADD CONSTRAINT FK_BaseCol_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseDetil_Company')
+    ALTER TABLE [accounting].[BaseDetil] WITH CHECK ADD CONSTRAINT FK_BaseDetil_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseDetilLink_Company')
+    ALTER TABLE [accounting].[BaseDetilLink] WITH CHECK ADD CONSTRAINT FK_BaseDetilLink_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_AccountGroups_Company')
+    ALTER TABLE [accounting].[AccountGroups] WITH CHECK ADD CONSTRAINT FK_AccountGroups_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Documents_Company')
+    ALTER TABLE [accounting].[Documents] WITH CHECK ADD CONSTRAINT FK_Documents_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Documents_FiscalYear')
+    ALTER TABLE [accounting].[Documents] WITH CHECK ADD CONSTRAINT FK_Documents_FiscalYear FOREIGN KEY (FiscalYearId) REFERENCES [central].[FiscalYears](FiscalYearId);
+GO

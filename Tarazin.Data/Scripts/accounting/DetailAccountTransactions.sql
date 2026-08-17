@@ -12,7 +12,7 @@ DECLARE @Number NVARCHAR(50) = NULLIF(LTRIM(RTRIM(@DocumentNumber)), N'');
 ;WITH Opening AS (
     SELECT ISNULL(SUM(l.Debit - l.Credit), 0) AS Amount
     FROM [accounting].[DocumentLines] l
-    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0
+    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
     WHERE l.AccountCode = @AccountCode AND d.DocumentDate < @From
       AND (@Status IS NULL OR d.Status = @Status)
       AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
@@ -29,7 +29,7 @@ Movement AS (
             ORDER BY d.DocumentDate, d.DocumentId, l.DocumentLineId
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS PeriodBalance
     FROM [accounting].[DocumentLines] l
-    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0
+    INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
     WHERE l.AccountCode = @AccountCode AND d.DocumentDate BETWEEN @From AND @To
       AND (@Status IS NULL OR d.Status = @Status)
       AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')

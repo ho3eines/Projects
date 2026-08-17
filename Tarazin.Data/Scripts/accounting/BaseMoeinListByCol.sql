@@ -17,6 +17,7 @@ SELECT
     m.CreatedBy,
     m.UpdatedBy
 FROM [accounting].[BaseMoein] m
+INNER JOIN [accounting].[BaseCol] bc ON bc.ColId = m.ColId AND bc.CompanyId = @CompanyId
 LEFT JOIN [accounting].[AccountGroups] g
     ON g.AccountGroupId = m.AccountGroupId
    AND g.IsDeleted = 0

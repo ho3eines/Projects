@@ -30,10 +30,10 @@ IF @GroupId IS NOT NULL AND NOT EXISTS (
 -- والد باید وجود داشته باشد و فعال باشد
 SELECT @ColCode = ColCode
 FROM [accounting].[BaseCol]
-WHERE ColId = @ColId AND IsDeleted = 0;
+WHERE ColId = @ColId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
 IF @ColCode IS NULL
-    THROW 50022, N'حساب کل والد معتبر نیست یا حذف شده است.', 1;
+    THROW 50022, N'حساب کل والد معتبر نیست، متعلق به این شرکت نیست یا حذف شده است.', 1;
 
 -- تکراری نبودن کد در همان ColId
 IF @MoeinId = 0 AND EXISTS (
@@ -64,8 +64,8 @@ END
 ELSE
 BEGIN
     -- بررسی تغییر ColId: والد جدید نباید دارای فرزند تکراری باشد.
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] WHERE MoeinId = @MoeinId AND IsDeleted = 0)
-        THROW 50025, N'حساب معین پیدا نشد یا قبلاً حذف شده است.', 1;
+    IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] WHERE MoeinId = @MoeinId AND IsDeleted = 0 AND ColId IN (SELECT ColId FROM [accounting].[BaseCol] WHERE CompanyId = @CompanyId))
+        THROW 50025, N'حساب معین پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت نیست.', 1;
 
     UPDATE [accounting].[BaseMoein]
     SET ColId        = @ColId,

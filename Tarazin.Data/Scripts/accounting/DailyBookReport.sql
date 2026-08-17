@@ -27,6 +27,8 @@ FROM [accounting].[DocumentLines] l
 INNER JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
 WHERE d.DocumentDate BETWEEN @FromDate AND @ToDate
   AND d.IsDeleted = 0
+  AND d.CompanyId = @CompanyId
+  AND d.FiscalYearId = @FiscalYearId
   AND (@Status IS NULL OR d.Status = @Status)
   AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
 ORDER BY d.DocumentDate, d.DocumentId, l.DocumentLineId;

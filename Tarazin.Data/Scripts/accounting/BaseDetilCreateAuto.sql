@@ -19,17 +19,17 @@ IF @Name = N''
     THROW 50140, N'عنوان حساب تفصیلی الزامی است.', 1;
 IF @Nature NOT IN (N'Debit', N'Credit', N'Both')
     THROW 50141, N'ماهیت حساب باید بدهکار، بستانکار یا هر دو باشد.', 1;
-IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] WHERE MoeinId = @MoeinId AND IsDeleted = 0)
-    THROW 50142, N'حساب معین انتخاب‌شده معتبر نیست.', 1;
+IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseMoein] m INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId WHERE m.MoeinId = @MoeinId AND m.IsDeleted = 0 AND c.CompanyId = @CompanyId)
+    THROW 50142, N'حساب معین انتخاب‌شده معتبر نیست یا متعلق به این شرکت نیست.', 1;
 
 IF @NormalizedParentLinkId IS NOT NULL
 BEGIN
     SELECT @ParentMoeinId = MoeinId
     FROM [accounting].[BaseDetilLink]
-    WHERE LinkId = @NormalizedParentLinkId AND IsDeleted = 0;
+    WHERE LinkId = @NormalizedParentLinkId AND IsDeleted = 0 AND CompanyId = @CompanyId;
 
     IF @ParentMoeinId IS NULL
-        THROW 50143, N'تفصیلی والد پیدا نشد یا قبلاً حذف شده است.', 1;
+        THROW 50143, N'تفصیلی والد پیدا نشد، قبلاً حذف شده است یا متعلق به این شرکت نیست.', 1;
     IF @ParentMoeinId <> @MoeinId
         THROW 50144, N'تفصیلی والد به حساب معین دیگری تعلق دارد.', 1;
 END
@@ -78,18 +78,18 @@ BEGIN TRY
 
     INSERT INTO [accounting].[BaseDetil]
         (DetilCode, Title, [Description], AccountGroupId, AccountNature,
-         IsActive, CreatedAt, CreatedBy)
+         IsActive, CreatedAt, CreatedBy, CompanyId)
     VALUES
         (@Next, @Name, NULLIF(LTRIM(RTRIM(@Description)), N''),
-         @AccountGroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+         @AccountGroupId, @Nature, ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy, @CompanyId);
 
     SET @DetilId = CAST(SCOPE_IDENTITY() AS INT);
 
     INSERT INTO [accounting].[BaseDetilLink]
-        (DetilId, MoeinId, ParentLinkId, [Description], IsActive, CreatedAt, CreatedBy)
+        (DetilId, MoeinId, ParentLinkId, [Description], IsActive, CreatedAt, CreatedBy, CompanyId)
     VALUES
         (@DetilId, @MoeinId, @NormalizedParentLinkId, NULL,
-         ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy);
+         ISNULL(@IsActive, 1), SYSUTCDATETIME(), @CreatedBy, @CompanyId);
 
     COMMIT TRANSACTION;
 
