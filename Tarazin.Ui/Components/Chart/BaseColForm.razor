@@ -98,7 +98,7 @@
         {
             _groups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
             {
-                GroupType = AccountGroupType.Col,
+                GroupType = AccountGroupType.Col, CompanyId = Session.ActiveCompanyId,
                 IncludeInactive = ColId > 0
             })).ToList();
         }
@@ -143,6 +143,7 @@
             {
                 ColId,
                 ColCode = code,
+                CompanyId = Session.ActiveCompanyId,
                 Title = (_title ?? "").Trim(),
                 Description = _description?.Trim() ?? "",
                 AccountGroupId = _groupId == 0 ? (int?)null : _groupId,

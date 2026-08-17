@@ -47,3 +47,40 @@ public class GalleryItemRow
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
 }
+
+/// <summary>شرکت مالی</summary>
+public class CompanyRow
+{
+    public int CompanyId { get; set; }
+    public string CompanyName { get; set; } = "";
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+/// <summary>سال مالی</summary>
+public class FiscalYearRow
+{
+    public int FiscalYearId { get; set; }
+    public int CompanyId { get; set; }
+    public string CompanyName { get; set; } = "";
+    public string YearName { get; set; } = "";
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+/// <summary>محیط فعال کاربر</summary>
+public class UserActiveContextRow
+{
+    public int? ActiveCompanyId { get; set; }
+    public string? ActiveCompanyName { get; set; }
+    public int? ActiveFiscalYearId { get; set; }
+    public string? ActiveFiscalYearName { get; set; }
+}

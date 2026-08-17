@@ -47,6 +47,30 @@ IF EXISTS (
 DECLARE @DocDate DATE = CAST(@DocumentDate AS DATE);
 DECLARE @CounterParty NVARCHAR(200) = NULLIF(@CounterPartyName, N'');
 
+-- =============================================
+-- Opening and Closing Document Business Rules
+-- =============================================
+IF @DocumentType = N'Opening'
+BEGIN
+    IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND DocumentType = N'Opening' AND IsDeleted = 0)
+        THROW 51001, N'سند افتتاحیه برای این سال مالی قبلاً صادر شده است.', 1;
+
+    IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0)
+        THROW 51002, N'سند افتتاحیه باید اولین سند سال مالی باشد. در حال حاضر اسناد دیگری در این سال ثبت شده‌اند.', 1;
+END
+
+IF @DocumentType = N'Closing'
+BEGIN
+    IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND DocumentType = N'Closing' AND IsDeleted = 0)
+        THROW 51003, N'سند اختتامیه برای این سال مالی قبلاً صادر شده است.', 1;
+
+    IF NOT EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0)
+        THROW 51004, N'سال مالی فاقد هرگونه سند برای ثبت اختتامیه است.', 1;
+END
+
+IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND DocumentType = N'Closing' AND IsDeleted = 0)
+    THROW 51005, N'بعد از ثبت سند اختتامیه امکان ثبت سند جدید در این سال مالی وجود ندارد.', 1;
+
 -- وضعیت اولیهٔ سند در چرخه: یادداشت | سند موقت.
 -- سند تازه هرگز مستقیماً «تأیید شده»/«تأیید نهایی» ثبت نمی‌شود؛ برای آن باید
 -- از DocumentStatusChange (با دسترسی مربوطه) استفاده شود.
@@ -54,16 +78,27 @@ DECLARE @CounterParty NVARCHAR(200) = NULLIF(@CounterPartyName, N'');
 DECLARE @InitialStatus NVARCHAR(50) =
     CASE WHEN LTRIM(RTRIM(ISNULL(@Status, N''))) = N'Note' THEN N'Note' ELSE N'Draft' END;
 
+DECLARE @NextNum INT = 1;
+IF @DocumentType = N'Opening'
+BEGIN
+    SET @NextNum = 1;
+END
+ELSE
+BEGIN
+    SELECT @NextNum = ISNULL(MAX(TRY_CONVERT(INT, d.DocumentNumber)), 0) + 1
+    FROM [accounting].[Documents] d
+    WHERE d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId AND d.IsDeleted = 0;
+END
+
+DECLARE @DocNum NVARCHAR(50) = RIGHT('00000000' + CAST(@NextNum AS NVARCHAR(10)), 8);
+
 BEGIN TRAN;
     INSERT INTO [accounting].[Documents]
-        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted)
+        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted, CompanyId, FiscalYearId)
     VALUES
-        (N'', @DocDate, @DocumentType, @CounterParty, @TotalDebit, N'IRR', @InitialStatus, SYSUTCDATETIME(), @CreatedBy, 0);
+        (@DocNum, @DocDate, @DocumentType, @CounterParty, @TotalDebit, N'IRR', @InitialStatus, SYSUTCDATETIME(), @CreatedBy, 0, @CompanyId, @FiscalYearId);
 
     DECLARE @Did INT = SCOPE_IDENTITY();
-    UPDATE [accounting].[Documents]
-    SET DocumentNumber = N'DOC-' + RIGHT(N'00000' + CAST(@Did AS NVARCHAR(10)), 5)
-    WHERE DocumentId = @Did;
 
     -- مرحله ۲: درج ردیف‌ها با resolve به جدول BaseDetil/Moein/Col
     -- هر join با ایندکس PK یا ایندکس‌های پوششی سریع است.

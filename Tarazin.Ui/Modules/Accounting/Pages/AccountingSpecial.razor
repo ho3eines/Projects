@@ -1,36 +1,204 @@
 @page "/accounting/special"
+@using Tarazin.Models
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>عملیات ویژه — حسابداری</PageTitle>
 
-<PageHeader Title="عملیات ویژه" Subtitle="بستن دوره مالی — همهٔ اسناد بازه باید متوازن باشند." />
-<MudPaper Elevation="1" Class="pa-4">
-    <MudGrid>
-        <MudItem xs="12" sm="6" md="4">
-            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
-        </MudItem>
-        <MudItem xs="12" md="4">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
-                       StartIcon="@Icons.Material.Filled.LockClock" OnClick="ClosePeriodAsync"
-                       Disabled="_busy">
-                بستن دوره
-            </MudButton>
-        </MudItem>
-    </MudGrid>
-</MudPaper>
+<PageHeader Title="عملیات ویژه" Subtitle="مدیریت محیط کاری (شرکت و سال مالی فعال) و اسناد دوره‌ای" />
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4 h-100">
+            <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">انتخاب شرکت و سال مالی فعال</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                شرکت مالی و سال مالی فعال خود را تغییر دهید. تمام بخش‌های حسابداری، درختواره حساب‌ها و گزارشات بلافاصله با محیط فعال جدید هماهنگ خواهند شد.
+            </MudText>
+
+            <MudForm @ref="_form" @bind-IsValid="_isValid">
+                <MudSelect T="int" Label="شرکت مالی فعال" Value="_selectedCompId" ValueChanged="OnCompanyChanged" Required="true" RequiredError="انتخاب شرکت الزامی است." Variant="Variant.Outlined" Class="mb-4">
+                    <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
+                    @foreach (var c in _companies)
+                    {
+                        <MudSelectItem T="int" Value="@c.CompanyId">@c.CompanyName</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="int" Label="سال مالی فعال" @bind-Value="_selectedYearId" Required="true" RequiredError="انتخاب سال مالی الزامی است." Variant="Variant.Outlined" Class="mb-5" Disabled="@(_selectedCompId == 0)">
+                    <MudSelectItem T="int" Value="0">— انتخاب کنید —</MudSelectItem>
+                    @foreach (var y in _years)
+                    {
+                        <MudSelectItem T="int" Value="@y.FiscalYearId">@y.YearName (شروع: @y.StartDate.ToString("yyyy/MM/dd"))</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveContextAsync" Disabled="@(!_isValid || _busy)" FullWidth="true">
+                    تأیید و ثبت تغییرات محیط فعال
+                </MudButton>
+            </MudForm>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4 h-100">
+            <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">عملیات سال مالی و اسناد دوره‌ای</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                ثبت اسناد افتتاحیه و اختتامیه برای شرکت و سال مالی فعال جاری شما انجام می‌شود.
+            </MudText>
+
+            <div class="d-flex flex-column gap-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large" StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="RegisterOpeningAsync" Disabled="@(_busy)">
+                    ثبت سند افتتاحیه (اولین شماره: 00000001)
+                </MudButton>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    سند افتتاحیه باید اولین سند سال مالی باشد و شماره آن 00000001 خواهد بود. فقط یک افتتاحیه برای هر سال مالی مجاز است.
+                </MudText>
+
+                <MudDivider Class="my-2" />
+
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" Size="Size.Large" StartIcon="@Icons.Material.Filled.Stop" OnClick="RegisterClosingAsync" Disabled="@(_busy)">
+                    ثبت سند اختتامیه (آخرین شماره سال)
+                </MudButton>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    سند اختتامیه آخرین سند سال مالی فعال است و پس از آن امکان ثبت هیچ سند عادی جدیدی وجود نخواهد داشت.
+                </MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">بستن دوره مالی (تأیید نهایی اسناد)</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                تمام اسناد تأیید شده (Posted) بازهٔ انتخاب‌شده به وضعیت «تأیید نهایی» (Closed) تغییر خواهند یافت. همه اسناد باید متوازن باشند.
+            </MudText>
+            <MudGrid AlignItems="Center.Center">
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.LockClock" OnClick="ClosePeriodAsync"
+                               Disabled="_busy">
+                        بستن دوره
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
 @code {
     private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
     private const string Schema = "accounting";
 
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+
+    private List<CompanyRow> _companies = new();
+    private List<FiscalYearRow> _years = new();
+    private int _selectedCompId;
+    private int _selectedYearId;
+
     private DateTime? _from = DateTime.Today;
     private DateTime? _to = DateTime.Today;
-    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selectedCompId = Session.ActiveCompanyId ?? 0;
+        _selectedYearId = Session.ActiveFiscalYearId ?? 0;
+        await LoadCompaniesAsync();
+        await LoadYearsAsync();
+    }
+
+    private async Task LoadCompaniesAsync()
+    {
+        try
+        {
+            _companies = (await Db.QueryAsync<CompanyRow>("central", "UserAuthorizedCompanies", new { UserId = Session.UserId })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری شرکت‌ها: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadYearsAsync()
+    {
+        if (_selectedCompId == 0)
+        {
+            _years.Clear();
+            return;
+        }
+
+        try
+        {
+            _years = (await Db.QueryAsync<FiscalYearRow>("central", "UserAuthorizedFiscalYears", new { UserId = Session.UserId, CompanyId = _selectedCompId })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری سال‌های مالی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OnCompanyChanged(int compId)
+    {
+        _selectedCompId = compId;
+        _selectedYearId = 0;
+        await LoadYearsAsync();
+    }
+
+    private async Task SaveContextAsync()
+    {
+        if (_busy || _selectedCompId == 0 || _selectedYearId == 0) return;
+
+        _busy = true;
+        try
+        {
+            var company = _companies.FirstOrDefault(c => c.CompanyId == _selectedCompId);
+            var year = _years.FirstOrDefault(y => y.FiscalYearId == _selectedYearId);
+
+            if (company == null || year == null)
+            {
+                Snackbar.Add("شرکت یا سال مالی معتبر نیست.", Severity.Warning);
+                return;
+            }
+
+            await Db.ExecuteAsync("central", "UserActiveContextSet", new
+            {
+                UserId = Session.UserId,
+                ActiveCompanyId = _selectedCompId,
+                ActiveFiscalYearId = _selectedYearId
+            });
+
+            await Session.UpdateActiveContextAsync(_selectedCompId, company.CompanyName, _selectedYearId, year.YearName);
+            Snackbar.Add($"محیط فعال به «{company.CompanyName} - {year.YearName}» تغییر یافت.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در ذخیره محیط کاری: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void RegisterOpeningAsync()
+    {
+        Nav.NavigateTo("/accounting/entry?type=Opening");
+    }
+
+    private void RegisterClosingAsync()
+    {
+        Nav.NavigateTo("/accounting/entry?type=Closing");
+    }
 
     private async Task ClosePeriodAsync()
     {
@@ -42,7 +210,9 @@
             {
                 FromDate = _from?.Date ?? DateTime.Today,
                 ToDate = _to?.Date ?? DateTime.Today,
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
             Snackbar.Add("دوره با موفقیت بسته شد.", Severity.Success);
         }

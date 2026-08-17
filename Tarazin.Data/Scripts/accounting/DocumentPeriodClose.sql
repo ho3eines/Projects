@@ -12,7 +12,7 @@ FROM (
     SELECT d.DocumentId
     FROM [accounting].[Documents] d
     LEFT JOIN [accounting].[DocumentLines] l ON l.DocumentId = d.DocumentId
-    WHERE d.DocumentDate BETWEEN @FromDate AND @ToDate AND d.IsDeleted = 0
+    WHERE d.DocumentDate BETWEEN @FromDate AND @ToDate AND d.IsDeleted = 0 AND d.CompanyId = @CompanyId AND d.FiscalYearId = @FiscalYearId
       AND d.Status = N'Posted'
     GROUP BY d.DocumentId
     HAVING ISNULL(SUM(l.Debit), 0) <> ISNULL(SUM(l.Credit), 0)
@@ -28,4 +28,4 @@ IF @Bad > 0
 UPDATE [accounting].[Documents]
 SET Status = N'Closed', UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
 WHERE DocumentDate BETWEEN @FromDate AND @ToDate
-  AND Status = N'Posted' AND IsDeleted = 0;
+  AND Status = N'Posted' AND IsDeleted = 0 AND CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId;

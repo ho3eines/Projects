@@ -38,10 +38,12 @@ BEGIN
     LEFT JOIN [accounting].[DocumentLines] l ON l.AccountCode LIKE c.ColCode + N'%'
     LEFT JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
         AND d.IsDeleted = 0
+        AND d.CompanyId = @CompanyId
+        AND d.FiscalYearId = @FiscalYearId
         AND d.DocumentDate BETWEEN @From AND @To
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
-    WHERE c.IsDeleted = 0
+    WHERE c.IsDeleted = 0 AND c.CompanyId = @CompanyId
     GROUP BY c.ColId, c.ColCode, c.Title, c.AccountNature
     HAVING ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit ELSE 0 END), 0) <> 0
         OR ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) <> 0
@@ -77,10 +79,12 @@ BEGIN
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Credit ELSE 0 END), 0) AS Credit,
         ISNULL(SUM(CASE WHEN d.DocumentId IS NOT NULL THEN l.Debit - l.Credit ELSE 0 END), 0) AS Balance
     FROM [accounting].[BaseMoein] m
-    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+    INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0 AND c.CompanyId = @CompanyId
     LEFT JOIN [accounting].[DocumentLines] l ON l.AccountCode LIKE c.ColCode + m.MoeinCode + N'%'
     LEFT JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
         AND d.IsDeleted = 0
+        AND d.CompanyId = @CompanyId
+        AND d.FiscalYearId = @FiscalYearId
         AND d.DocumentDate BETWEEN @From AND @To
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')
@@ -107,7 +111,7 @@ BEGIN
             bd.AccountNature
         FROM [accounting].[BaseDetilLink] dl
         INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
-        INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
+        INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0 AND c.CompanyId = @CompanyId
         INNER JOIN [accounting].[BaseDetil] bd ON bd.DetilId = dl.DetilId AND bd.IsDeleted = 0
         WHERE dl.ParentLinkId IS NULL
           AND dl.IsDeleted = 0
@@ -163,6 +167,8 @@ BEGIN
     LEFT JOIN [accounting].[DocumentLines] l ON l.AccountCode LIKE path.AccountCode + N'%'
     LEFT JOIN [accounting].[Documents] d ON d.DocumentId = l.DocumentId
         AND d.IsDeleted = 0
+        AND d.CompanyId = @CompanyId
+        AND d.FiscalYearId = @FiscalYearId
         AND d.DocumentDate BETWEEN @From AND @To
         AND (@Status IS NULL OR d.Status = @Status)
         AND (@Number IS NULL OR d.DocumentNumber LIKE N'%' + @Number + N'%')

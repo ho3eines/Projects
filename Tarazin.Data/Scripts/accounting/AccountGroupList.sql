@@ -26,7 +26,7 @@ SELECT
     g.CreatedBy,
     g.UpdatedBy
 FROM [accounting].[AccountGroups] g
-WHERE g.IsDeleted = 0
+WHERE g.IsDeleted = 0 AND (g.CompanyId = @CompanyId OR g.CompanyId IS NULL)
   AND (@Type IS NULL OR g.GroupType = @Type)
   AND (@IncludeInactive = 1 OR g.IsActive = 1)
 ORDER BY

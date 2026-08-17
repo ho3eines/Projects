@@ -196,7 +196,7 @@
         {
             _groups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList", new
             {
-                GroupType = AccountGroupType.Detil,
+                GroupType = AccountGroupType.Detil, CompanyId = Session.ActiveCompanyId,
                 IncludeInactive = Mode == DetilFormMode.Edit
             })).ToList();
         }
@@ -235,7 +235,7 @@
         {
             _existing = (await Db.QueryAsync<BaseDetilRow>("accounting", "BaseDetilSearch", new
             {
-                SearchText = _search,
+                SearchText = _search, CompanyId = Session.ActiveCompanyId,
                 Take = 100,
                 ExcludeMoeinId = MoeinId,
                 ExcludeParentLinkId = ParentLinkId
@@ -282,6 +282,7 @@
                     {
                         MoeinId,
                         ParentLinkId,
+                        CompanyId = Session.ActiveCompanyId,
                         AccountGroupId = _groupId,
                         AccountNature = _accountNature,
                         Title = (_title ?? "").Trim(),
@@ -298,6 +299,7 @@
                 {
                     DetilId,
                     DetilCode = _code,
+                    CompanyId = Session.ActiveCompanyId,
                     Title = (_title ?? "").Trim(),
                     Description = _description?.Trim() ?? "",
                     AccountGroupId = _groupId == 0 ? (int?)null : _groupId,
@@ -331,6 +333,7 @@
             {
                 LinkId = 0,
                 row.DetilId,
+                CompanyId = Session.ActiveCompanyId,
                 MoeinId,
                 ParentLinkId,
                 Description = (string?)null,

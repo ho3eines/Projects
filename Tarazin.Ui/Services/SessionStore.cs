@@ -34,4 +34,8 @@ public sealed class UserSessionData
     public string RoleTitle { get; set; } = "";
     public int RoleId { get; set; }
     public List<string> Permissions { get; set; } = new();
+    public int? ActiveCompanyId { get; set; }
+    public string? ActiveCompanyName { get; set; }
+    public int? ActiveFiscalYearId { get; set; }
+    public string? ActiveFiscalYearName { get; set; }
 }

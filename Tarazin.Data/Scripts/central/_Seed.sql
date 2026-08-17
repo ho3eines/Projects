@@ -36,3 +36,24 @@ BEGIN
         (N'گزارشات انبار', N'کارتکس و موجودی', 2, 1, N'seed'),
         (N'فروشگاه اینترنتی', N'سبد خرید و سفارش', 3, 1, N'seed');
 END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM [central].[Companies])
+BEGIN
+    -- Seed default company (id 1)
+    SET IDENTITY_INSERT [central].[Companies] ON;
+    INSERT INTO [central].[Companies] (CompanyId, CompanyName, IsActive, CreatedBy)
+    VALUES (1, N'شرکت نمونه ترازین', 1, N'seed');
+    SET IDENTITY_INSERT [central].[Companies] OFF;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM [central].[FiscalYears])
+BEGIN
+    -- Seed default fiscal year 1405 for company 1
+    SET IDENTITY_INSERT [central].[FiscalYears] ON;
+    INSERT INTO [central].[FiscalYears] (FiscalYearId, CompanyId, YearName, StartDate, EndDate, IsActive, CreatedBy)
+    VALUES (1, 1, N'1405', '2026-03-21', '2027-03-20', 1, N'seed');
+    SET IDENTITY_INSERT [central].[FiscalYears] OFF;
+END
+GO
