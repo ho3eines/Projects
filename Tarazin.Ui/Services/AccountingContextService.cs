@@ -155,7 +155,7 @@ public sealed class AccountingContextService
     {
         var companies = (await GetAuthorizedCompaniesAsync(ct)).ToList();
         if (companies.Count == 0)
-            return ContextState.RequiresCompany();
+            return ContextState.MissingCompany();
 
         // اگر محیط فعال معتبر است همان را نگه دار.
         if (_session.ActiveCompanyId is int cid && _session.ActiveFiscalYearId is int fid)
@@ -199,7 +199,7 @@ public sealed class AccountingContextService
         FiscalYearRow? FiscalYear,
         IReadOnlyList<CompanyRow> Companies)
     {
-        public static ContextState RequiresCompany() => new(false, true, null, null, Array.Empty<CompanyRow>());
+        public static ContextState MissingCompany() => new(false, true, null, null, Array.Empty<CompanyRow>());
         public static ContextState Ready(CompanyRow c, FiscalYearRow fy, IReadOnlyList<CompanyRow> all) =>
             new(true, false, c, fy, all);
     }
