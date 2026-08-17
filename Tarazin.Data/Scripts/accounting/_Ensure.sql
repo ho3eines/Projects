@@ -1,6 +1,7 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/_Ensure.sql
 -- Schema: accounting
+-- Cross-schema: central
 -- Endpoint: execute (startup)
 -- =============================================
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'accounting')
@@ -90,7 +91,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [accounting].[BaseCol] (
         ColId          INT IDENTITY(1,1) PRIMARY KEY,
-        ColCode        NVARCHAR(2) NOT NULL UNIQUE,    -- دقیقاً 2 رقم، صفرهای ابتدایی حفظ می‌شود
+        ColCode        NVARCHAR(2) NOT NULL,            -- دقیقاً 2 رقم؛ یکتایی درون‌شرکتی با UX_BaseCol_Company_Code
         Title          NVARCHAR(200) NOT NULL,
         [Description]  NVARCHAR(500) NULL,
         IsActive       BIT NOT NULL DEFAULT 1,
@@ -548,6 +549,10 @@ IF COL_LENGTH(N'accounting.BaseCol', N'CompanyId') IS NULL
     ALTER TABLE [accounting].[BaseCol] ADD CompanyId INT NULL;
 GO
 
+IF COL_LENGTH(N'accounting.BaseMoein', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[BaseMoein] ADD CompanyId INT NULL;
+GO
+
 IF COL_LENGTH(N'accounting.BaseDetil', N'CompanyId') IS NULL
     ALTER TABLE [accounting].[BaseDetil] ADD CompanyId INT NULL;
 GO
@@ -572,6 +577,9 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseCol_Company')
     ALTER TABLE [accounting].[BaseCol] WITH CHECK ADD CONSTRAINT FK_BaseCol_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
 
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseMoein_Company')
+    ALTER TABLE [accounting].[BaseMoein] WITH CHECK ADD CONSTRAINT FK_BaseMoein_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BaseDetil_Company')
     ALTER TABLE [accounting].[BaseDetil] WITH CHECK ADD CONSTRAINT FK_BaseDetil_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
 
@@ -586,6 +594,92 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Documents_Compan
 
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Documents_FiscalYear')
     ALTER TABLE [accounting].[Documents] WITH CHECK ADD CONSTRAINT FK_Documents_FiscalYear FOREIGN KEY (FiscalYearId) REFERENCES [central].[FiscalYears](FiscalYearId);
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- بک‌فیل مالکیت چندشرکتی برای جداول پایهٔ درخت حساب‌ها
+-- داده‌های قدیمی (و seed قبل از این نسخه) CompanyId ندارند؛ چون همهٔ
+-- خوانده‌های درخت/لیست/گزارش شرکت‌محور هستند، بدون این بک‌فیل درختوارهٔ
+-- قدیمی در هیچ شرکتی دیده نمی‌شود.
+-- ترتیب مهم است: اول BaseCol، سپس BaseMoein از روی Col والد، سپس BaseDetil،
+-- و در انتها BaseDetilLink از روی معینِ ریشهٔ مسیر.
+-- ⚠ AccountGroups عمداً بک‌فیل نمی‌شود: CompanyId=NULL یعنی «گروه سراسری».
+-- ─────────────────────────────────────────────────────────────
+DECLARE @ChartDefaultCompanyId INT = (
+    SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+
+IF @ChartDefaultCompanyId IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'accounting.BaseCol', N'CompanyId') IS NOT NULL
+        UPDATE [accounting].[BaseCol] SET CompanyId = @ChartDefaultCompanyId WHERE CompanyId IS NULL;
+
+    IF COL_LENGTH(N'accounting.BaseMoein', N'CompanyId') IS NOT NULL
+    BEGIN
+        UPDATE m
+        SET m.CompanyId = c.CompanyId
+        FROM [accounting].[BaseMoein] m
+        INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId
+        WHERE m.CompanyId IS NULL AND c.CompanyId IS NOT NULL;
+
+        UPDATE [accounting].[BaseMoein] SET CompanyId = @ChartDefaultCompanyId WHERE CompanyId IS NULL;
+    END
+
+    IF COL_LENGTH(N'accounting.BaseDetil', N'CompanyId') IS NOT NULL
+        UPDATE [accounting].[BaseDetil] SET CompanyId = @ChartDefaultCompanyId WHERE CompanyId IS NULL;
+
+    IF COL_LENGTH(N'accounting.BaseDetilLink', N'CompanyId') IS NOT NULL
+    BEGIN
+        UPDATE dl
+        SET dl.CompanyId = m.CompanyId
+        FROM [accounting].[BaseDetilLink] dl
+        INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId
+        WHERE dl.CompanyId IS NULL AND m.CompanyId IS NOT NULL;
+
+        UPDATE [accounting].[BaseDetilLink] SET CompanyId = @ChartDefaultCompanyId WHERE CompanyId IS NULL;
+    END
+END
+GO
+
+-- مهاجرت یکتایی کد حساب کل از «سراسری» به «درون‌شرکتی»:
+-- CREATE TABLE قدیمی ColCode را UNIQUE سراسری می‌کرد که با قانون چندشرکتی
+-- (یکتایی کد فقط در هر شرکت — همان چیزی که BaseColUpsert چک می‌کند) ناسازگار
+-- بود و نمی‌گذاشت دو شرکت کد مشابه داشته باشند. قید خودکار قدیمی حذف و
+-- ایندکس یکتای فیلترشده (شرکت + کد، غیرحذف‌شده) جایگزین می‌شود.
+DECLARE @BaseColCodeUq NVARCHAR(128) = NULL;
+SELECT @BaseColCodeUq = kc.name
+FROM sys.key_constraints kc
+CROSS APPLY (
+    SELECT COUNT(*) AS ColCount, MAX(c.name) AS LastCol
+    FROM sys.index_columns ic
+    INNER JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+    WHERE ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+) cols
+WHERE kc.parent_object_id = OBJECT_ID(N'[accounting].[BaseCol]')
+  AND kc.type = N'UQ'
+  AND cols.ColCount = 1
+  AND cols.LastCol = N'ColCode';
+IF @BaseColCodeUq IS NOT NULL
+    EXEC(N'ALTER TABLE [accounting].[BaseCol] DROP CONSTRAINT ' + QUOTENAME(@BaseColCodeUq) + N';');
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_BaseCol_Company_Code' AND object_id = OBJECT_ID(N'[accounting].[BaseCol]'))
+    CREATE UNIQUE INDEX UX_BaseCol_Company_Code
+        ON [accounting].[BaseCol](CompanyId, ColCode)
+        WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+
+-- ایندکس‌های شرکت‌محور درخت (الگوی مهاجرت موجود: فیلترشده و idempotent)
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseCol_Company' AND object_id = OBJECT_ID(N'[accounting].[BaseCol]'))
+    CREATE INDEX IX_BaseCol_Company ON [accounting].[BaseCol](CompanyId, IsDeleted, IsActive) INCLUDE (ColCode, Title);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseMoein_Company' AND object_id = OBJECT_ID(N'[accounting].[BaseMoein]'))
+    CREATE INDEX IX_BaseMoein_Company ON [accounting].[BaseMoein](CompanyId, IsDeleted, IsActive) INCLUDE (ColId, MoeinCode, Title);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetil_Company' AND object_id = OBJECT_ID(N'[accounting].[BaseDetil]'))
+    CREATE INDEX IX_BaseDetil_Company ON [accounting].[BaseDetil](CompanyId, IsDeleted, IsActive) INCLUDE (DetilCode, Title);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseDetilLink_Company' AND object_id = OBJECT_ID(N'[accounting].[BaseDetilLink]'))
+    CREATE INDEX IX_BaseDetilLink_Company ON [accounting].[BaseDetilLink](CompanyId, IsDeleted) INCLUDE (DetilId, MoeinId, ParentLinkId, IsActive);
 GO
 
 -- بک‌فیل برای داده‌های قدیمی (قبل از اضافه‌شدن چندشرکتی):

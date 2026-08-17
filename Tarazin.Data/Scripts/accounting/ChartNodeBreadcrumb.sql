@@ -18,7 +18,7 @@ BEGIN
     SET @MoeinRef = @NodeId;
     SELECT @ColRef = m.ColId
     FROM [accounting].[BaseMoein] m
-    WHERE m.MoeinId = @MoeinRef AND m.IsDeleted = 0;
+    WHERE m.MoeinId = @MoeinRef AND m.IsDeleted = 0 AND m.CompanyId = @CompanyId;
 END
 ELSE IF @Type = N'BaseDetil'
 BEGIN
@@ -28,12 +28,13 @@ BEGIN
     FROM [accounting].[BaseDetilLink] dl
     WHERE dl.DetilId = @NodeId
       AND dl.IsDeleted = 0
+      AND dl.CompanyId = @CompanyId
       AND (@LinkId IS NULL OR dl.LinkId = @LinkId)
     ORDER BY CASE WHEN dl.LinkId = @LinkId THEN 0 ELSE 1 END, dl.IsActive DESC, dl.LinkId;
 
     SELECT @ColRef = m.ColId
     FROM [accounting].[BaseMoein] m
-    WHERE m.MoeinId = @MoeinRef AND m.IsDeleted = 0;
+    WHERE m.MoeinId = @MoeinRef AND m.IsDeleted = 0 AND m.CompanyId = @CompanyId;
 END
 
 ;WITH Ancestors AS (
@@ -88,6 +89,7 @@ BreadcrumbRows AS (
     FROM [accounting].[BaseMoein] m
     INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
     WHERE @MoeinRef IS NOT NULL AND m.MoeinId = @MoeinRef AND m.IsDeleted = 0
+      AND m.CompanyId = @CompanyId
 
     UNION ALL
 

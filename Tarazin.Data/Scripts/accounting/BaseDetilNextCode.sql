@@ -1,6 +1,7 @@
 -- =============================================
 -- پیش‌نمایش اولین شمارهٔ آزاد در بازهٔ یک گروه تفصیلی.
 -- تخصیص نهایی و همزمانی در BaseDetilCreateAuto کنترل می‌شود.
+-- قانون چندشرکتی: گروه باید متعلق به همین شرکت (یا سراسری) باشد.
 -- =============================================
 DECLARE @From NVARCHAR(7);
 DECLARE @To NVARCHAR(7);
@@ -11,10 +12,11 @@ FROM [accounting].[AccountGroups]
 WHERE AccountGroupId = @AccountGroupId
   AND GroupType = N'Detil'
   AND IsDeleted = 0
-  AND IsActive = 1;
+  AND IsActive = 1
+  AND (CompanyId = @CompanyId OR CompanyId IS NULL);
 
 IF @From IS NULL
-    THROW 50130, N'گروه تفصیلی فعال و معتبر نیست.', 1;
+    THROW 50130, N'گروه تفصیلی فعال و معتبر نیست یا متعلق به این شرکت نیست.', 1;
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WHERE DetilCode = @From)
     SET @Next = @From;
@@ -41,4 +43,5 @@ SELECT
     @Next AS NextCode,
     CAST(CASE WHEN @Next IS NULL THEN 0 ELSE 1 END AS BIT) AS HasCapacity
 FROM [accounting].[AccountGroups] g
-WHERE g.AccountGroupId = @AccountGroupId AND g.IsDeleted = 0;
+WHERE g.AccountGroupId = @AccountGroupId AND g.IsDeleted = 0
+  AND (g.CompanyId = @CompanyId OR g.CompanyId IS NULL);

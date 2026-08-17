@@ -1,6 +1,7 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/DocumentClosingGenerate.sql
 -- Schema: accounting
+-- Cross-schema: central
 -- Execute (system-only, with permission check by caller).
 --
 -- بستن سال مالی:

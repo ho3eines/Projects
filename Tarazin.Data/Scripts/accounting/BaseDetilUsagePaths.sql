@@ -21,10 +21,10 @@
         d.DetilCode,
         d.Title AS DetilTitle
     FROM [accounting].[BaseDetilLink] dl
-    INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0
+    INNER JOIN [accounting].[BaseMoein] m ON m.MoeinId = dl.MoeinId AND m.IsDeleted = 0 AND m.CompanyId = @CompanyId
     INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0 AND c.CompanyId = @CompanyId
     INNER JOIN [accounting].[BaseDetil] d ON d.DetilId = dl.DetilId AND d.IsDeleted = 0
-    WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0
+    WHERE dl.ParentLinkId IS NULL AND dl.IsDeleted = 0 AND dl.CompanyId = @CompanyId
 
     UNION ALL
 

@@ -22,5 +22,6 @@ LEFT JOIN [accounting].[AccountGroups] g
     ON g.AccountGroupId = m.AccountGroupId
    AND g.IsDeleted = 0
 WHERE m.ColId = @ColId
+  AND m.CompanyId = @CompanyId
   AND m.IsDeleted = 0
 ORDER BY m.MoeinCode;

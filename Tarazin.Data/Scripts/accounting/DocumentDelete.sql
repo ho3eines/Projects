@@ -1,6 +1,7 @@
 -- =============================================
 -- Tarazin.Data/Scripts/accounting/DocumentDelete.sql
 -- Schema: accounting
+-- Cross-schema: central
 -- Execute. حذف سند حسابداری (حذف نرم — همان قرارداد IsDeleted پروژه).
 --
 -- قانون: حذف فقط در وضعیت «یادداشت» (Note) و «سند موقت» (Draft) مجاز است؛

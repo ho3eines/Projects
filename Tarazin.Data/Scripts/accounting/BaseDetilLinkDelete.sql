@@ -8,12 +8,12 @@ DECLARE @Exists BIT = 0;
 DECLARE @ResolvedMoeinId INT = NULL;
 DECLARE @DetailCodePath NVARCHAR(MAX) = NULL;
 
--- مسیر دقیق همیشه با LinkId تشخیص داده می‌شود.
+-- مسیر دقیق همیشه با LinkId تشخیص داده می‌شود (فقط در شرکت جاری).
 SELECT
     @Exists = 1,
     @ResolvedMoeinId = dl.MoeinId
 FROM [accounting].[BaseDetilLink] dl
-WHERE dl.LinkId = @LinkId AND dl.IsDeleted = 0;
+WHERE dl.LinkId = @LinkId AND dl.IsDeleted = 0 AND dl.CompanyId = @CompanyId;
 
 -- سازگاری با فراخوان‌های قدیمیِ بدون LinkId؛ ریشهٔ سطح ۳ اولویت دارد.
 IF @Exists = 0 AND ISNULL(@DetilId, 0) <> 0 AND ISNULL(@MoeinId, 0) <> 0
@@ -26,11 +26,12 @@ BEGIN
     WHERE dl.DetilId = @DetilId
       AND dl.MoeinId = @MoeinId
       AND dl.IsDeleted = 0
+      AND dl.CompanyId = @CompanyId
     ORDER BY CASE WHEN dl.ParentLinkId IS NULL THEN 0 ELSE 1 END, dl.LinkId;
 END
 
 IF @Exists = 0
-    THROW 50070, N'محل قرارگیری تفصیلی پیدا نشد.', 1;
+    THROW 50070, N'محل قرارگیری تفصیلی پیدا نشد یا متعلق به این شرکت نیست.', 1;
 
 IF EXISTS (
     SELECT 1
@@ -63,10 +64,13 @@ INNER JOIN [accounting].[BaseCol] c ON c.ColId = m.ColId AND c.IsDeleted = 0
 WHERE m.MoeinId = @ResolvedMoeinId AND m.IsDeleted = 0;
 
 -- اگر روی خود مسیر یا زیرمسیرهای آن گردش ثبت شده باشد، placement حذف نمی‌شود.
+-- گردش فقط روی اسناد همین شرکت معتبر است (کدها بین شرکت‌ها ممکن است مشترک باشند).
 IF @AccountCode IS NOT NULL
    AND EXISTS (
         SELECT 1
         FROM [accounting].[DocumentLines] lines
+        INNER JOIN [accounting].[Documents] doc
+            ON doc.DocumentId = lines.DocumentId AND doc.CompanyId = @CompanyId
         WHERE lines.AccountCode LIKE @AccountCode + N'%'
    )
 BEGIN
