@@ -50,26 +50,27 @@ DECLARE @CounterParty NVARCHAR(200) = NULLIF(@CounterPartyName, N'');
 -- =============================================
 -- Opening and Closing Document Business Rules
 -- =============================================
+
+-- سال مالی بسته: هیچ سند عادی جدیدی پذیرفته نمی‌شود.
+-- (سند Opening/Closing فقط از مسیر سیستمی DocumentOpeningEnsure /
+--  DocumentClosingGenerate می‌آید و این مسیر را دور می‌زند.)
+IF @DocumentType NOT IN (N'Opening', N'Closing')
+   AND EXISTS (SELECT 1 FROM [central].[FiscalYears]
+               WHERE FiscalYearId = @FiscalYearId AND CompanyId = @CompanyId
+                 AND ISNULL([Status], N'Open') = N'Closed')
+    THROW 51006, N'سال مالی بسته شده است؛ امکان ثبت سند جدید وجود ندارد.', 1;
+
 IF @DocumentType = N'Opening'
 BEGIN
     IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND DocumentType = N'Opening' AND IsDeleted = 0)
         THROW 51001, N'سند افتتاحیه برای این سال مالی قبلاً صادر شده است.', 1;
-
-    IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0)
-        THROW 51002, N'سند افتتاحیه باید اولین سند سال مالی باشد. در حال حاضر اسناد دیگری در این سال ثبت شده‌اند.', 1;
 END
 
 IF @DocumentType = N'Closing'
 BEGIN
     IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND DocumentType = N'Closing' AND IsDeleted = 0)
         THROW 51003, N'سند اختتامیه برای این سال مالی قبلاً صادر شده است.', 1;
-
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0)
-        THROW 51004, N'سال مالی فاقد هرگونه سند برای ثبت اختتامیه است.', 1;
 END
-
-IF EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND DocumentType = N'Closing' AND IsDeleted = 0)
-    THROW 51005, N'بعد از ثبت سند اختتامیه امکان ثبت سند جدید در این سال مالی وجود ندارد.', 1;
 
 -- وضعیت اولیهٔ سند در چرخه: یادداشت | سند موقت.
 -- سند تازه هرگز مستقیماً «تأیید شده»/«تأیید نهایی» ثبت نمی‌شود؛ برای آن باید
