@@ -45,3 +45,14 @@ public sealed class CredentialBrokerError
     public string Code { get; set; } = "request_rejected";
     public string Message { get; set; } = "درخواست اتصال پذیرفته نشد.";
 }
+
+/// <summary>
+/// Payload served by the web connection endpoint (<c>api/{guid}</c>) to MAUI.
+/// Per the product decision the full, server-managed SQL connection string is
+/// returned; it must never be written to logs, diagnostics, or MAUI storage.
+/// </summary>
+public sealed class ConnectionStringPayload
+{
+    public Guid Guid { get; set; }
+    public string ConnectionString { get; set; } = "";
+}
