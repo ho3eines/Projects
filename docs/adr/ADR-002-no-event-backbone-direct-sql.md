@@ -37,9 +37,11 @@ The `Outbox` tables remain in `_Ensure.sql` (backward-compatible DDL) but are
 **dormant**: nothing writes the event rows anymore and no processor reads them.
 They can be dropped in a later cleanup migration.
 
-**Audit stays** — `AuditService` writes every mutating execution to
-`[central].[AuditLog]` with a SHA-256 `PrevHash`/`RowHash` chain, preserving the
-tamper-evident property without the outbox.
+**Audit stays** — `AuditService` writes mutating executions to tenant-aware
+`[central].[AuditLog]` with `PrevHash`/`RowHash` fields. Security review on
+2026-08-18 found that `RowHash` does not currently cover `PrevHash` and the
+lookup/insert is not serialized; tamper-evident correctness is therefore an open
+release gate, not an accepted guarantee.
 
 ## Consequences
 

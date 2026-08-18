@@ -22,12 +22,19 @@ public sealed class UserSession : ICurrentUser
 {
     private readonly HashSet<string> _permissions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ISessionStore? _store;
+    private readonly ICredentialSessionRevoker? _credentialRevoker;
 
     /// <summary>
     /// <paramref name="store"/> is optional: the web host injects a
     /// browser-storage-backed store; MAUI does not (no persistence).
     /// </summary>
-    public UserSession(ISessionStore? store = null) => _store = store;
+    public UserSession(
+        IEnumerable<ISessionStore> stores,
+        IEnumerable<ICredentialSessionRevoker> credentialRevokers)
+    {
+        _store = stores.SingleOrDefault();
+        _credentialRevoker = credentialRevokers.SingleOrDefault();
+    }
 
     /// <summary>Raised when authentication state changes (login/logout/restore).</summary>
     public event Action? Changed;
@@ -119,6 +126,18 @@ public sealed class UserSession : ICurrentUser
 
     public async Task SignOutAsync()
     {
+        if (_credentialRevoker is not null)
+        {
+            try
+            {
+                await _credentialRevoker.RevokeAndClearAsync();
+            }
+            catch
+            {
+                // Local erasure/logout must still complete if the API is unavailable.
+            }
+        }
+
         IsAuthenticated = false;
         UserId = 0;
         UserName = "";

@@ -95,7 +95,15 @@ def load_scripts() -> dict:
             raw = open(os.path.join(dirpath, f), encoding="utf-8").read()
             s = strip_sql(raw)
             dec = declared_vars(s)
-            used = {x.lower() for x in re.findall(r"@(\w+)", s)} - BUILTIN
+            # EXEC named arguments (for example @name = N'...') belong to the
+            # called procedure; they are not inputs required by this script.
+            usage = re.sub(
+                r"\bEXEC(?:UTE)?\b.*?;",
+                lambda match: re.sub(r"@(\w+)\s*=(?!=)", "", match.group(0)),
+                s,
+                flags=re.I | re.S,
+            )
+            used = {x.lower() for x in re.findall(r"@(\w+)", usage)} - BUILTIN
             scripts[f"{schema}/{name.lower()}"] = {
                 "required": sorted(used - dec),
                 "declared": dec,

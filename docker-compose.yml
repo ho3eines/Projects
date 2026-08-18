@@ -1,13 +1,14 @@
 # Tarazin — local stack (SQL Server only)
 # Usage:
+#   export MSSQL_SA_PASSWORD='<strong local-only value>'
 #   docker compose up -d
-#   (SQL Server on :1433 — the single Blazor Server app connects to it directly)
+#   (SQL Server on :1433 — only server-side tooling/the Web host connects to it)
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Tarazin!Master2026}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD to a strong local-only value before starting Compose}"
       MSSQL_PID: "Developer"
     ports:
       - "1433:1433"

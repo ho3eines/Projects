@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/branch/_Ensure.sql
 -- Schema: branch (شعب)
 -- Endpoint: execute (startup)

@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/assets/_Ensure.sql
 -- Schema: assets (اموال و دارایی ثابت)
 -- Endpoint: execute (startup)

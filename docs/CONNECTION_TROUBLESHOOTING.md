@@ -1,116 +1,62 @@
-# عیب‌یابی اتصال به SQL Server
+# عیب‌یابی اتصال امن
 
-> پاسخ کوتاه به سؤال «اصلاً کانکشن‌استرینگ خوانده می‌شود؟»
-> **بله، خوانده می‌شود.** مسیر خواندن سالم بود؛ خطایی که می‌دیدید از جای دیگری
-> می‌آمد: **دیتابیس `TarazinMaster` هرگز ساخته نمی‌شد.** جزئیات پایین‌تر.
+## معماری فعلی
 
----
+دو مسیر پیکربندی عمداً از هم جدا هستند:
 
-## ۱. مسیر خواندن رشتهٔ اتصال (تأییدشده)
+- **Web/API** تنها در سمت سرور، تنظیم اتصال SQL را از پیکربندی استقرار یا secret store دریافت می‌کند.
+- **MAUI** هیچ تنظیم، رمز یا کلید SQL ندارد. `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint`، یعنی نشانی غیرمحرمانهٔ HTTPS وب/API، را نگه می‌دارد.
 
-| هاست | منبع | وضعیت |
-|---|---|---|
-| `Tarazin.Web` | `appsettings.json` → `ConnectionStrings:DefaultConnection` | ✅ خوانده می‌شود (فایل با SDK وب به خروجی کپی می‌شود؛ حالا صریحاً هم در csproj تضمین شده) |
-| `Tarazin.Maui` | `appsettings.json` به‌صورت EmbeddedResource با `LogicalName="Tarazin.Maui.appsettings.json"` | ✅ نام منطقی با نامی که `MauiProgram` می‌خواند یکی است |
+در ورود MAUI، برنامه نام کاربری، رمز ورود و GUID مشتری را از طریق HTTPS به broker می‌فرستد. broker اعتبار کاربر، مشتری، شرکت و مجوز را بررسی می‌کند و فقط یک credential کوتاه‌عمر و محدود برمی‌گرداند. credential و session token فقط در حافظهٔ فرایند MAUI استفاده می‌شوند و با خروج، تمدید یا انقضا پاک/لغو می‌شوند.
 
-مقدار هر دو یکسان است:
+> مقدار اتصال SQL، رمز، bearer token یا پاسخ broker را در issue، screenshot، log، command history یا فایل پیکربندی MAUI قرار ندهید.
 
-```
-Server=localhost,1433;Database=TarazinMaster;User Id=sa;Password=Tarazin!Master2026;TrustServerCertificate=True;Encrypt=False
-```
+## راه‌اندازی SQL محلی
 
-ترتیب اولویت منابع (پس از این تغییرات):
-
-1. متغیر محیطی `TARAZIN_SQL_CONNECTION` — برای تولید/Docker/secret store
-2. `ConnectionStrings:DefaultConnection` در `appsettings.json`
-3. (فقط وب) `ConnectionStrings__DefaultConnection` که ASP.NET خودکار می‌خواند
-
----
-
-## ۲. علت واقعی خطا
-
-اسکریپت‌های `Tarazin.Data/Scripts/{schema}/_Ensure.sql` فقط **schema و جدول**
-می‌سازند و فرض می‌کنند دیتابیس از قبل هست:
-
-```sql
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'central')
-    EXEC(N'CREATE SCHEMA [central]');
-```
-
-هیچ‌جای پروژه `CREATE DATABASE` وجود نداشت. پس روی یک SQL Server تازه
-(مثلاً `docker compose up -d` روی volume خالی) اولین اتصال با
-`Database=TarazinMaster` شکست می‌خورد:
-
-```
-Msg 4060 — Cannot open database "TarazinMaster" requested by the login.
-```
-
-و چون این استثنا از عمق Dapper بالا می‌آمد، پیامش شبیه «خطای کانکشن‌استرینگ»
-به‌نظر می‌رسید — در حالی‌که رشتهٔ اتصال کاملاً درست خوانده شده بود.
-
----
-
-## ۳. چه چیزی اصلاح شد
-
-| # | تغییر | فایل |
-|---|---|---|
-| ۱ | ساخت خودکار دیتابیس در اولین اجرا (`EnsureDatabaseAsync` با اتصال به `master`) | `Tarazin.Data/DbService.cs` |
-| ۲ | نقطهٔ واحد خواندن/اعتبارسنجی رشتهٔ اتصال + پشتیبانی از `TARAZIN_SQL_CONNECTION` | `Tarazin.Data/TarazinConnection.cs` (جدید) |
-| ۳ | ترجمهٔ خطاهای SQL به پیام فارسی (`18456`, `4060`, `53`, …) | `DbService.Describe` |
-| ۴ | تست اتصال بدون پرتاب استثنا | `DbService.TestConnectionAsync` |
-| ۵ | صفحهٔ عیب‌یابی `/diag` — منبع رشته، مقدار ماسک‌شده، تست زنده، تعداد اسکریپت‌ها | `Tarazin.Ui/Modules/Home/Diagnostics.razor` (جدید) |
-| ۶ | وب دیگر موقع نبودن SQL کرش نمی‌کند؛ لاگ می‌کند و `/diag` را نشان می‌دهد | `Tarazin.Web/Program.cs` |
-| ۷ | MAUI اگر `appsettings.json` embed نشده باشد، فوراً با پیام روشن شکست می‌خورد | `Tarazin.Maui/MauiProgram.cs` |
-| ۸ | تضمین کپی `appsettings.json` به خروجی | `Tarazin.Web/Tarazin.Web.csproj` |
-| ۹ | اسکریپت تست اتصال بدون اجرای برنامه | `tools/test-connection.sh` |
-
-نکتهٔ امنیتی: رمز عبور در هیچ لاگ یا صفحه‌ای چاپ نمی‌شود —
-`TarazinConnection.Mask` همیشه آن را به `********` تبدیل می‌کند.
-
----
-
-## ۴. روش بررسی (به‌ترتیب)
+Compose دیگر رمز پیش‌فرض ندارد. پیش از اجرا یک رمز قوی و صرفاً محلی در محیط shell قرار دهید:
 
 ```bash
-# ۱) SQL بالا باشد
+export MSSQL_SA_PASSWORD='<strong local-only value>'
 docker compose up -d
 docker compose ps
-
-# ۲) تست اتصال بدون اجرای برنامه
 bash tools/test-connection.sh
-
-# ۳) اجرای وب
-dotnet run --project Tarazin.Web/Tarazin.Web.csproj
 ```
 
-در لاگ راه‌اندازی حالا دقیقاً این خط را می‌بینید:
+اسکریپت تست credential را چاپ نمی‌کند، مقدار پیش‌فرض ندارد و خطای خام driver را نیز بازنشر نمی‌کند. برای login توسعه‌ای غیر از `sa` می‌توان `TARAZIN_SQL_USER` و `TARAZIN_SQL_PASSWORD` را فقط در محیط همان فرایند تنظیم کرد.
 
-```
-رشتهٔ اتصال — منبع: پیکربندی ConnectionStrings:DefaultConnection | مقدار: Data Source=localhost,1433;Initial Catalog=TarazinMaster;User ID=sa;Password=********;...
-راه‌اندازی دیتابیس با موفقیت انجام شد.
-```
+## پیکربندی Web/API
 
-سپس در مرورگر: **`/diag`**
+اتصال Web را با secret injection سکوی استقرار فراهم کنید؛ برای نمونه از environment secret با نام `TARAZIN_SQL_CONNECTION` یا provider امن پیکربندی ASP.NET استفاده کنید. مقدار واقعی را در repository، `appsettings*.json`، Compose، CI YAML یا مستندات ننویسید.
 
----
+حساب issuer سمت سرور باید فقط مجوزهای لازم برای bootstrap پایگاه داده و ایجاد/لغو principalهای موقت broker را داشته باشد. MAUI نباید credential این حساب را دریافت کند.
 
-## ۵. جدول خطاهای رایج
+برای production:
 
-| پیام / کد | معنی | راه‌حل |
-|---|---|---|
-| «رشتهٔ اتصال پیدا نشد» | نه env هست نه appsettings خوانده شده | فایل کنار خروجی نیست یا در MAUI embed نشده |
-| SQL 4060 | دیتابیس وجود ندارد | حالا خودکار ساخته می‌شود؛ اگر کاربر مجوز `CREATE DATABASE` ندارد، دستی بسازید |
-| SQL 18456 | رمز/کاربر اشتباه | `MSSQL_SA_PASSWORD` را با `appsettings.json` یکی کنید |
-| SQL 53 / -1 / 258 | سرور در دسترس نیست | کانتینر بالا نیست یا پورت 1433 بسته است |
-| «قابل تجزیه نیست» | رمز شامل `;` یا `=` است | داخل `{}` بگذارید: `Password={pa;ss}` |
-| SSL/گواهی | TLS معتبر نیست | `TrustServerCertificate=True;Encrypt=False` (فقط توسعه) |
+- SQL encryption و اعتبارسنجی عادی گواهی باید فعال باشند.
+- bypass اعتبارسنجی گواهی فقط در محیط توسعهٔ کاملاً محلی مجاز است و نباید به production منتقل شود.
+- اگر TLS در reverse proxy خاتمه می‌یابد، `ReverseProxy:Enabled` را فعال و IP دقیق proxy بلافصل را در `ReverseProxy:KnownProxies` تنظیم کنید. forwarded header از proxy ناشناخته پذیرفته نمی‌شود.
 
----
+## پیکربندی MAUI
 
-## ۶. تولید: بیرون بردن رمز از سورس
+`Tarazin.Maui/appsettings.json` باید فقط endpoint باشد:
 
-```bash
-export TARAZIN_SQL_CONNECTION='Server=sql-prod,1433;Database=TarazinMaster;User Id=tarazin_app;Password={...};Encrypt=True'
+```json
+{
+  "ServerEndpoint": "https://api.example.invalid/"
+}
 ```
 
-این مقدار بر `appsettings.json` اولویت دارد و در هر دو هاست (وب و MAUI) کار می‌کند.
+در build غیر Debug، endpoint غیر HTTPS رد می‌شود. Android نیز cleartext traffic و application backup را صریحاً غیرفعال می‌کند. هیچ connection string، SQL password، decryption key یا token را به این فایل یا platform resourceها اضافه نکنید.
+
+## خطاهای امن و اقدام مناسب
+
+| وضعیت نمایشی | بررسی سمت اپراتور |
+|---|---|
+| مشتری یافت نشد یا مجاز نیست | ثبت server-side مشتری، فعال بودن شرکت و اتصال کاربر به شرکت را بررسی کنید. |
+| مشتری غیرفعال است | وضعیت مشتری، شرکت و `CredentialAccessEnabled` را در control plane بررسی کنید. |
+| نشست منقضی/لغو شده است | دوباره وارد شوید؛ token قبلی نباید reuse شود. |
+| سرویس ورود در دسترس نیست | HTTPS endpoint، proxy، DNS و سلامت Web/API را بدون چاپ secret بررسی کنید. |
+| SQL در دسترس نیست | شبکه، گواهی SQL، مجوز issuer و cleanup principalها را سمت سرور بررسی کنید. |
+| authentication/query محلی ناموفق است | credential استقرار را در secret store اصلاح کنید؛ آن را در chat یا log کپی نکنید. |
+
+برای خطاهای production فقط نوع خطا، request/correlation ID غیرمحرمانه و زمان را ثبت کنید. متن خام exceptionهای SQL/HTTP و headerهای Authorization نباید log شوند.

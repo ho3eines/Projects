@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/payroll/_Seed.sql
 -- Schema: payroll
 -- Endpoint: execute (startup)

@@ -22,10 +22,12 @@ Five projects with one-way dependencies (`Share ← Data ← Ui ← hosts`):
 - `Tarazin.Web/` — Blazor Server host (browser)
 - `Tarazin.Maui/` — MAUI Blazor Hybrid host (BlazorWebView, native)
 
-UI is **MudBlazor**. Data access is **Dapper over named TSQL scripts** executed
-**in the same process** — there is **no webapi, no WASM, no HTTP data layer**.
-Scripts are **embedded resources** in `Tarazin.Data` so both hosts work
-without any content root.
+UI is **MudBlazor**. Business-data access is **Dapper over named TSQL scripts**
+executed in the current host process — there is no public CRUD Web API or WASM
+data layer. The narrow MAUI credential broker is the only security API: it
+validates customer/user/company authorization and issues short-lived,
+revocable SQL credentials. Scripts are **embedded resources** in
+`Tarazin.Data` so both hosts work without a content root.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -36,7 +38,7 @@ without any content root.
 │        │ DbService.QueryAsync<T>(schema, script)              │
 │   Scripts/{schema}/{Name}.sql (embedded in Data) ── Dapper ─┐ │
 └─────────────────────────────────────────────────────────────┼──┘
-        host: Tarazin.Web (Blazor Server) / Tarazin.Maui (WebView) ▼
+        host: Web (server-only SQL secret) / MAUI (HTTPS credential broker) ▼
         SQL Server — TarazinMaster (one DB, one schema per product)
         [central] [accounting] [inventory] [treasury]
         [payroll] [goldshop] [store]
@@ -80,7 +82,7 @@ var count = await Db.ScalarAsync("central", "UserCount");
 ```
 
 - **Script name only** — the resolver is `ScriptCatalog`, which loads embedded
-  resources `Tarazin.Scripts.{schema}.{Name}.sql` from `Tarazin.Ui`
+  resources `Tarazin.Scripts.{schema}.{Name}.sql` from `Tarazin.Data`
   (self-loading singleton). Never write inline SQL in a page.
 - **Schema = scope guard** — a module only calls scripts of its own schema.
   Server-side scripts may read other schemas only with a
@@ -90,19 +92,26 @@ var count = await Db.ScalarAsync("central", "UserCount");
 
 ## 4. Auth & session
 
-- Login: `/login` → `AuthService.AuthenticateAsync(user, pass)` against
-  `[central].[Users]` (PBKDF2). No tokens, no URL parameters, no handshake.
+- Web login: `/login` → `AuthService.AuthenticateAsync(user, pass)` against
+  `[central].[Users]` (PBKDF2), using only server-side SQL configuration.
+- MAUI login also requires `CustomerGuid`. `RemoteCredentialSession` calls the
+  HTTPS broker login endpoint with nonce/timestamp and credentials; the broker
+  validates active customer/user/company and authorization before issuing a
+  short-lived SQL principal plus a bounded bearer session. Refresh rotates both;
+  sign-out revokes them. Neither is persisted by MAUI or sent in a URL.
 - Web: `UserSession` is per SignalR circuit (scoped).
-- MAUI: same services, but scoped ≈ app-wide singleton (single-user app).
-- Session: `UserSession` (scoped per circuit) — `IsAuthenticated`,
-  `DisplayName`, `Role`, `IsAdmin`, `SignIn/SignOut`.
-- Bootstrap admin `admin`/`admin` is created at startup only when `Users` is empty.
+- MAUI: the credential provider is memory-only; `UserSession` is scoped to the
+  native app service scope.
+- Bootstrap creation requires a strong deployment secret. There is no default
+  bootstrap password in source or configuration.
 
 ## 5. Audit
 
-**Automatic** — every `DbService.ExecuteAsync(...)` records an audit row
-(success or failure) into `[central].[AuditLog]` with a SHA-256
-`PrevHash`/`RowHash` chain. No manual call needed in pages.
+**Automatic** — every `DbService.ExecuteAsync(...)` attempts to record an
+owner-scoped audit row (success or failure) in `[central].[AuditLog]`. No manual
+call is needed in pages. This is not yet a correct tamper-evident chain:
+`RowHash` omits `PrevHash`, and predecessor lookup/insertion are not serialized.
+ADR-002 treats that defect as a release gate.
 
 ```csharp
 // happens automatically inside DbService.ExecuteAsync:
@@ -114,11 +123,11 @@ sensitive data). Audit failures are logged, never thrown.
 
 ## 6. Startup order
 
-`TarazinDbInitializer.EnsureInitializedAsync(services)` (shared):
-`DbService.EnsureSchemaAsync` (all `_Ensure.sql`) → `DbService.SeedAsync`
-(all `_Seed.sql`) → bootstrap admin. Web: called in `Program.cs` before
-`app.Run()`. MAUI: called from the shared `App.razor` OnInitializedAsync.
-Interlocked guard makes it run exactly once.
+`TarazinDbInitializer.EnsureInitializedAsync(services)` runs only in the Web
+host: `DbService.EnsureSchemaAsync` (all `_Ensure.sql`) →
+`DbService.SeedAsync` (all `_Seed.sql`) → optional bootstrap admin from a
+strong deployment secret. MAUI credentials explicitly cannot connect to
+`master` or initialize schemas; MAUI starts credential preparation at login.
 
 ## 7. Rules when adding a new module
 

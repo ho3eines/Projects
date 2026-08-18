@@ -2,6 +2,11 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-12 (supersedes ADR-001-single-webapi-architecture, 2026-08-12)
+
+> **Security clarification (2026-08-18):** «no webapi» در این ADR یعنی نبودن
+> API عمومی CRUD/transport برای دادهٔ کسب‌وکار. amendment امنیتی ADR-004 یک
+> broker محدود Web برای login/refresh/revoke و صدور credential موقت MAUI اضافه
+> می‌کند؛ عملیات کسب‌وکار همچنان مستقیم و in-process است.
 - **Deciders**: Product owner + Platform Architecture Team
 - **Technical story**: replaces the v1.5 topology (7 WASM clients + 1 webapi +
   shared library + NuGet package) with a single deployable.

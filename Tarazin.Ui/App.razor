@@ -2,7 +2,6 @@
 @implements IDisposable
 @inject UiPreferences Prefs
 @inject UserSession Session
-@inject PriceFeedScheduler FeedScheduler
 
 @* Shared App shell — hosted by BOTH the web host (Tarazin.Web/_Host.cshtml)
    and the MAUI Blazor Hybrid host (Tarazin.Maui/MainPage.xaml root component). *@
@@ -26,40 +25,17 @@
             </LayoutView>
         </NotFound>
     </Router>
-
-    @if (!string.IsNullOrWhiteSpace(_initError))
-    {
-        <div class="tz-init-error" role="alert">
-            <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" />
-            <div>
-                <strong>خطا در راه‌اندازی داده</strong>
-                <p>@_initError</p>
-            </div>
-        </div>
-    }
 </MudRTLProvider>
 
 @code {
     private readonly MudTheme _theme = TarazinTheme.Create();
     private bool _isDark;
-    private string _initError = "";
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         ApplyPersianCulture();
         Prefs.Changed += OnPrefsChanged;
         _isDark = Prefs.IsDarkMode;
-
-        try
-        {
-            await TarazinDbInitializer.EnsureInitializedAsync(ServiceProvider);
-            // بروزرسانی خودکار نرخ‌ها (PRD §56) — یک بار در فرایند، در هر دو هاست.
-            FeedScheduler.Start();
-        }
-        catch (Exception ex)
-        {
-            _initError = ex.Message;
-        }
     }
 
     // بازیابی نشست بعد از رفرش: ProtectedSessionStorage (و هر استور مرورگری)
@@ -96,6 +72,4 @@
     }
 
     public void Dispose() => Prefs.Changed -= OnPrefsChanged;
-
-    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 }

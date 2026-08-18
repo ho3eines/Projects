@@ -3,14 +3,16 @@ using System.Text;
 using System.Text.Json;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Tarazin.Models;
 
 namespace Tarazin.Data;
 
 /// <summary>
-/// Tamper-evident audit trail (hash chain) written to <c>[central].[AuditLog]</c>.
+/// Tenant-owned audit records written to <c>[central].[AuditLog]</c>.
+/// The current rows retain predecessor metadata, but are not yet a correct
+/// tamper-evident chain: <c>RowHash</c> omits <c>PrevHash</c>, and predecessor
+/// lookup/insertion are not serialized. ADR-002 records this release gate.
 ///
 /// Self-contained on purpose: it opens its own connection and resolves its own
 /// scripts so it never depends on <see cref="DbService"/> — that would create a
@@ -19,16 +21,15 @@ namespace Tarazin.Data;
 /// </summary>
 public sealed class AuditService
 {
-    private readonly string _connectionString;
+    private readonly ISqlConnectionProvider _connectionProvider;
     private readonly ScriptCatalog _catalog;
     private readonly ILogger<AuditService> _logger;
 
-    public AuditService(IConfiguration config, ScriptCatalog catalog, ILogger<AuditService> logger)
+    public AuditService(ISqlConnectionProvider connectionProvider, ScriptCatalog catalog, ILogger<AuditService> logger)
     {
+        _connectionProvider = connectionProvider;
         _catalog = catalog;
         _logger = logger;
-        // همان نقطهٔ واحد خواندن رشتهٔ اتصال که DbService استفاده می‌کند.
-        _connectionString = TarazinConnection.Resolve(config);
     }
 
     /// <summary>
@@ -43,18 +44,20 @@ public sealed class AuditService
         string schema,
         string scriptName,
         string? userName = null,
+        int? activeCompanyId = null,
         string outcome = "Success",
         string? error = null,
         CancellationToken ct = default)
     {
         try
         {
-            var prevHash = await LastRowHashAsync(ct);
+            var prevHash = await LastRowHashAsync(activeCompanyId, ct);
             var payload = JsonSerializer.Serialize(new
             {
                 SchemaName = schema,
                 ScriptName = scriptName,
                 UserName = userName,
+                CompanyId = activeCompanyId,
                 Outcome = outcome,
                 Error = error,
                 CreatedAt = DateTime.UtcNow
@@ -64,10 +67,10 @@ public sealed class AuditService
             if (!_catalog.TryGet("central", "AuditInsert", out var sql))
                 throw new InvalidOperationException("Named script 'central/AuditInsert' not found.");
 
-            await using var conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync(ct);
+            await using var conn = await OpenConnectionAsync(activeCompanyId, ct);
             await conn.ExecuteAsync(new CommandDefinition(sql, new
             {
+                CompanyId = activeCompanyId,
                 PrevHash = prevHash,
                 RowHash = rowHash,
                 SchemaName = schema,
@@ -79,20 +82,37 @@ public sealed class AuditService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Audit write failed for {Schema}/{Script}", schema, scriptName);
+            _logger.LogError("Audit write failed for {Schema}/{Script} ({ErrorType})",
+                schema, scriptName, ex.GetType().Name);
         }
     }
 
-    private async Task<string> LastRowHashAsync(CancellationToken ct)
+    private async Task<string> LastRowHashAsync(int? activeCompanyId, CancellationToken ct)
     {
         if (!_catalog.TryGet("central", "AuditLastRowHash", out var sql))
             return Sha256("genesis");
 
-        await using var conn = new SqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenConnectionAsync(activeCompanyId, ct);
         var last = await conn.QueryFirstOrDefaultAsync<AuditRow>(
-            new CommandDefinition(sql, cancellationToken: ct));
+            new CommandDefinition(sql, new { CompanyId = activeCompanyId }, cancellationToken: ct));
         return last?.RowHash ?? Sha256("genesis");
+    }
+
+    private async ValueTask<SqlConnection> OpenConnectionAsync(int? activeCompanyId, CancellationToken ct)
+    {
+        var connection = await _connectionProvider.OpenConnectionAsync(ct);
+        try
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                "EXEC sys.sp_set_session_context @key=N'TarazinCompanyId', @value=@CompanyId;",
+                new { CompanyId = activeCompanyId }, cancellationToken: ct));
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
 
     private static string Sha256(string text)

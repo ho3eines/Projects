@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/inventory/_Ensure.sql
 -- Schema: inventory (انبار آمل)
 -- Endpoint: execute (startup)

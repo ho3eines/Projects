@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/payroll/_Ensure.sql
 -- Schema: payroll (حقوق و دستمزد)
 -- Endpoint: execute (startup)

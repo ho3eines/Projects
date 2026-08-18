@@ -21,9 +21,9 @@
 
   <ItemGroup>
     <!--
-      صریح و نه ضمنی: appsettings.json باید همیشه کنار خروجی برنامه باشد،
-      وگرنه ConnectionStrings:DefaultConnection خوانده نمی‌شود و برنامه با
-      «رشتهٔ اتصال پیدا نشد» بالا نمی‌آید.
+      تنظیمات عمومی و غیرمحرمانه کنار خروجی می‌مانند. رشتهٔ اتصال SQL و رمز
+      bootstrap باید هنگام استقرار از secret store/متغیر محیطی تزریق شوند و
+      هرگز در appsettings منتشرشده قرار نگیرند.
     -->
     <Content Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="appsettings.*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" DependentUpon="appsettings.json" />
@@ -33,14 +33,5 @@
     <!-- Shared core: modules, models, services, scripts, layout -->
     <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
   </ItemGroup>
-	<Target Name="PostPublish" AfterTargets="AfterPublish">
-		<Warning Text="كپي كردن كرك هاي استيمول توي فولدر پابليش" />
-	</Target>
-	<ItemGroup>
-		<!-- کپی تمام DLLها از پوشه CrackDLL به خروجی -->
-		<None Include="..\Tarazin.Web\CrackDLL\*.dll">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
-	</ItemGroup>
+
 </Project>

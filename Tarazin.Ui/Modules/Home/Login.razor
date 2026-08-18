@@ -34,7 +34,13 @@
             <MudTextField @bind-Value="_password" Label="رمز عبور" Variant="Variant.Outlined"
                           InputType="@_pwdType" Adornment="Adornment.End"
                           AdornmentIcon="@_pwdIcon" OnAdornmentClick="TogglePwd"
-                          Immediate="true" Class="mb-5" Required="true" RequiredError="رمز عبور لازم است." />
+                          Immediate="true" Class="mb-4" Required="true" RequiredError="رمز عبور لازم است." />
+            @if (Auth.RequiresCustomerGuid)
+            {
+                <MudTextField @bind-Value="_customerGuid" Label="شناسه مشتری" Variant="Variant.Outlined"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Business"
+                              Immediate="true" Class="mb-5" Required="true" RequiredError="شناسه مشتری لازم است." />
+            }
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
                        Disabled="_busy" OnClick="LoginAsync" StartIcon="@Icons.Material.Filled.Login">
                 @(_busy ? "در حال ورود..." : "ورود")
@@ -42,8 +48,8 @@
         </MudForm>
 
         <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="mt-6 tz-login__hint"
-                  Icon="@Icons.Material.Filled.Info">
-            اولین اجرا: کاربر <b>admin</b> با رمز <b>admin</b>
+                  Icon="@Icons.Material.Filled.Security">
+            اطلاعات ورود و شناسه مشتری را فقط از مدیر سامانه دریافت کنید.
         </MudAlert>
     </main>
 </div>
@@ -55,6 +61,7 @@
     private bool _showPwd;
     private string _username = "";
     private string _password = "";
+    private string _customerGuid = "";
 
     private InputType _pwdType => _showPwd ? InputType.Text : InputType.Password;
     private string _pwdIcon => _showPwd ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility;
@@ -70,7 +77,18 @@
         _busy = true;
         try
         {
-            var user = await Auth.AuthenticateAsync(_username, _password);
+            Guid? customerGuid = null;
+            if (Auth.RequiresCustomerGuid)
+            {
+                if (!Guid.TryParse(_customerGuid, out var parsedGuid) || parsedGuid == Guid.Empty)
+                {
+                    Snackbar.Add("شناسه مشتری معتبر نیست.", Severity.Error);
+                    return;
+                }
+                customerGuid = parsedGuid;
+            }
+
+            var user = await Auth.AuthenticateAsync(_username, _password, customerGuid);
             if (user is null)
             {
                 Snackbar.Add("نام کاربری یا رمز عبور صحیح نیست.", Severity.Error);
@@ -95,15 +113,29 @@
             {
                 await Context.ResolveAsync();
             }
-            catch (Exception ex)
+            catch
             {
-                Snackbar.Add($"خطا در آماده‌سازی محیط کاری: {ex.Message}", Severity.Warning);
+                Snackbar.Add("آماده‌سازی محیط کاری کامل نشد. دوباره تلاش کنید.", Severity.Warning);
             }
 
             Nav.NavigateTo("/");
         }
+        catch (SafeAuthenticationException ex)
+        {
+            // Authentication may already have prepared a short-lived SQL
+            // principal before a later login step failed. Always revoke/erase
+            // it rather than leaving an unauthenticated credential session.
+            await Session.SignOutAsync();
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        catch
+        {
+            await Session.SignOutAsync();
+            Snackbar.Add("سرویس ورود یا پایگاه داده در دسترس نیست. دوباره تلاش کنید.", Severity.Error);
+        }
         finally
         {
+            _password = "";
             _busy = false;
         }
     }

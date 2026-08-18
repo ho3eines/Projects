@@ -23,13 +23,16 @@ public static class PasswordHasher
             return false;
 
         var parts = stored.Split('.');
-        if (parts.Length != 3 || !int.TryParse(parts[0], out var iter))
+        if (parts.Length != 3 || !int.TryParse(parts[0], out var iter) || iter is < 50_000 or > 1_000_000)
             return false;
 
         try
         {
             var salt = Convert.FromBase64String(parts[1]);
             var expected = Convert.FromBase64String(parts[2]);
+            if (salt.Length is < 8 or > 64 || expected.Length is < 16 or > 64)
+                return false;
+
             var actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iter, HashAlgorithmName.SHA256, expected.Length);
             return CryptographicOperations.FixedTimeEquals(actual, expected);
         }

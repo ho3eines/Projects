@@ -18,9 +18,11 @@
 4. **`Tarazin.Web`** — هاست وب (Blazor Server در مرورگر).
 5. **`Tarazin.Maui`** — هاست بومی (MAUI Blazor Hybrid در BlazorWebView).
 
-داده فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded در `Tarazin.Data`) که در
-همان پروسه با Dapper اجرا می‌شوند؛ **هیچ وب‌سرویس، هیچ لایهٔ HTTP برای داده وجود
-ندارد**.
+عملیات کسب‌وکار فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded در
+`Tarazin.Data`) و Dapper انجام می‌شوند. Web آن‌ها را با provider سمت سرور اجرا
+می‌کند. MAUI برای آماده‌سازی اتصال ابتدا broker محدود HTTPS را صدا می‌زند و سپس
+همان عملیات مستقیم و نامدار را با credential موقت اجرا می‌کند؛ broker یک API
+عمومی CRUD یا انتقال‌دهندهٔ دادهٔ کسب‌وکار نیست.
 
 > 📋 **PRD محصولات**: `PRD.md` · `PRD_All_Projects.md`
 > 🗺️ **برنامهٔ کار**: `docs/PLATFORM_ROADMAP.md`
@@ -48,7 +50,7 @@ Tarazin.slnx                       ← ۵ پروژه
 │   ├── AuditService.cs            ← ممیزی با زنجیرهٔ هش
 │   ├── PasswordHasher.cs          ← PBKDF2
 │   ├── ICurrentUser.cs            ← انتزاع کاربر جاری (بدون وابستگی به Ui)
-│   ├── TarazinDbInitializer.cs    ← ensure/seed/bootstrap-admin (هر دو هاست)
+│   ├── TarazinDbInitializer.cs    ← ensure/seed/bootstrap-admin (فقط Web)
 │   ├── DataServiceCollectionExtensions.cs  ← AddTarazinDataServices()
 │   └── Scripts/{schema}/*.sql     ← ۱۰۰ اسکریپت نامدار (EmbeddedResource)
 │
@@ -80,7 +82,7 @@ Tarazin.slnx                       ← ۵ پروژه
 │   ├── Program.cs                 ← AddServerSideBlazor + AddMudServices + AddTarazinUiServices + init
 │   ├── Pages/_Host.cshtml         ← قالب RTL؛ <component type="typeof(App)"> (از Tarazin.Ui)
 │   ├── _ViewImports.cshtml
-│   └── appsettings.json           ← ConnectionStrings + Tarazin:* (bootstrap admin)
+│   └── appsettings.json           ← تنظیمات عمومی؛ SQL/bootstrap secret از deployment
 │
 └── Tarazin.Maui/                  ← هاست MAUI Blazor Hybrid (فقط پوسته)
     ├── Tarazin.Maui.csproj        ← ref → Tarazin.Ui؛ TFM های android/ios/maccatalyst/windows
@@ -88,7 +90,7 @@ Tarazin.slnx                       ← ۵ پروژه
     ├── App.xaml / App.xaml.cs
     ├── MainPage.xaml              ← BlazorWebView + RootComponent → {x:Type tarazin:App}
     ├── wwwroot/index.html         ← RTL؛ blazor.webview.js + _content/Tarazin.Ui/css/app.css
-    ├── appsettings.json           ← Embedded
+    ├── appsettings.json           ← Embedded؛ فقط ServerEndpoint عمومی HTTPS
     ├── Resources/                 ← AppIcon, Splash, Styles
     └── Platforms/                 ← Android / iOS / MacCatalyst / Windows
 docker-compose.yml                 ← فقط SQL Server
@@ -141,17 +143,17 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 - خلاصهٔ همهٔ بخش‌های ماژول (کارت‌های آماری MudPaper)
 
 ## 🔐 Auth
-- ورود `/login` با کاربر bootstrap (`admin`/`admin` — در اولین اجرا ساخته می‌شود)
-- وب: نشست در `UserSession` (هر circuit) — MAUI: نشست در سطح اپ (scoped ≈ singleton)
+- bootstrap admin فقط در اولین initialization و با password الزامی از secret store ساخته می‌شود؛ password پیش‌فرض وجود ندارد.
+- وب: `AuthService` مستقیماً PBKDF2 را سمت سرور بررسی می‌کند و نشست در `UserSession` هر circuit است.
+- MAUI: فرم همان است، اما `CustomerGuid` نیز می‌گیرد؛ broker HTTPS کاربر، customer فعال، شرکت و عضویت را بررسی و یک نشست/SQL credential کوتاه‌عمر صادر می‌کند. نشست و credential فقط در حافظهٔ اپ هستند.
 - مدیریت کاربران در `/central/users`
 
 ## 🗄️ Data Layer
-- یک ConnectionString: `ConnectionStrings:DefaultConnection` → `TarazinMaster`
-  (وب: appsettings.json — MAUI: appsettings.json Embedded)
-- اسکریپت‌ها Embedded در `Tarazin.Data` → هر دو هاست مستقل از دیسک هستند
-- در استارت‌آپ: `TarazinDbInitializer.EnsureInitializedAsync` → `_Ensure.sql` ها →
-  `_Seed.sql` ها → bootstrap admin (اگر Users خالی است)
-- `DbService.QueryAsync<T>(schema, name, @params)` / `ExecuteAsync` / `ScalarAsync`
+- Web اتصال مدیریتی SQL را از secret استقرار می‌گیرد (`TARAZIN_SQL_CONNECTION` یا provider تنظیمات server-side). مقدار واقعی در repository نیست.
+- MAUI هیچ connection string دائمی ندارد. `RemoteCredentialSession` provider قابل‌جایگزینی Data را با credential موقت، encrypted SQL و certificate validation تغذیه می‌کند.
+- اسکریپت‌ها Embedded در `Tarazin.Data` هستند؛ embed شدن اسکریپت به معنی embed شدن credential نیست.
+- initialization دیتابیس فقط در Web اجرا می‌شود: `TarazinDbInitializer.EnsureInitializedAsync` → `_Ensure.sql`ها → `_Seed.sql`ها → RBAC → bootstrap admin → mobile RLS.
+- مسیر business پس از login تغییر نکرده است: `DbService.QueryAsync<T>(schema, name, @params)` / `ExecuteAsync` / `ScalarAsync`.
 
 ## 🕵️ Audit
 - **خودکار**: هر `DbService.ExecuteAsync(...)` یک ردیف ممیزی ثبت می‌کند
@@ -162,9 +164,10 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 ## 📱 MAUI Blazor Hybrid (خلاصه)
 - `Tarazin.Maui/MainPage.xaml`: `BlazorWebView` + `RootComponent` → `Tarazin.App` (از `Tarazin.Ui`)
 - `wwwroot/index.html`: اسکریپت رانتایم `_framework/blazor.webview.js` (نه server.js)
-- داده: همان `DbService`؛ توجه: `Microsoft.Data.SqlClient` روی **ویندوز/مک** کار می‌کند؛
-  برای اندروید/iOS به یک لایهٔ دادهٔ دیگر (مثلاً وب‌سرویس) نیاز است — جزییات در
-  `skills/blazor/blazor-maui-hybrid/SKILL.md`.
+- `appsettings.json` فقط `ServerEndpoint` عمومی HTTPS دارد؛ secret در package/IL قرار نمی‌گیرد.
+- login از broker امن Web credential موقت customer-bound می‌گیرد؛ سپس همان `DbService` و اسکریپت‌های نامدار مستقیم اجرا می‌شوند. login/refresh/revoke serialize و logout باعث revoke و پاک‌سازی local/pool می‌شود.
+- credential در حافظهٔ یک کلاینت compromise‌شده قابل استخراج است؛ دفاع بر TLS، عمر کوتاه، least privilege، RLS و revoke است، نه رمزنگاری با کلید دائمی داخل اپ.
+- سازگاری runtime مستقیم SqlClient برای هر target باید در build/E2E همان پلتفرم تأیید شود.
 - **پیش‌نیاز build محلی**: TFMهای `net8.0-android/ios/maccatalyst/windows` نیازمند
   workload مربوط به MAUI هستند؛ بدون آن restore با خطای `NU1012` (Platform version is not
   present) شکست می‌خورد. نصب: `dotnet workload install maui` (یا نصب
@@ -174,7 +177,7 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 ## ❌ Explicit Bans
 - ❌ پروژه/پکیج جدید خارج از پنج‌تایی `Share / Data / Ui / Web / Maui`
 - ❌ صفحهٔ جدید خارج از `Tarazin.Ui/Modules`؛ مدل جدید خارج از `Tarazin.Share`
-- ❌ وابستگی معکوس (Data → Ui یا Ui → Web) و `HttpClient` برای داده
+- ❌ وابستگی معکوس (Data → Ui یا Ui → Web) و HTTP برای CRUD/business data؛ broker محدود credential و feed رسمی بازار استثناهای مشخص‌اند
 - ❌ Bootstrap دستی، CSS سفارشی زیاد، DataGrid سفارشی (همه MudBlazor)
 - ❌ SQL خام در `.razor` و تعریف `DbService` در هاست‌ها
 - ❌ پرسیدن دوبارهٔ ساختار از کاربر

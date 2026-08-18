@@ -13,8 +13,14 @@ appsettings.Development.json
 *.nupkg
 project.lock.json
 artifacts/
+__pycache__/
+*.py[cod]
 .agents/skills
 .agents/skills/
 
 # scratch preview (not part of the app)
 preview/
+
+# Product-license material and patched vendor binaries are deployment secrets/artifacts.
+Tarazin.*/wwwroot/License/
+Tarazin.*/CrackDLL/

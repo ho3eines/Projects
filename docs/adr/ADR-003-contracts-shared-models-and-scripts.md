@@ -13,8 +13,9 @@ PRD §3 defines 8 shared contracts — `Party`, `ChartOfAccount`, `CurrencyRate`
 owners, consumers and a "v1 → v2, add fields, never break" versioning rule.
 
 v1.5 represented contracts as `share` DTOs + a JSON manifest + xUnit contract
-tests against a webapi. With ADR-001 there is no `share` project and no webapi
-to test over HTTP.
+tests against a CRUD webapi. With ADR-001 there is no legacy `share` project
+and no business-data API to test over HTTP. The later ADR-004 security amendment's
+credential broker has separate authorization/replay/expiry integration tests.
 
 ## Decision
 

@@ -101,8 +101,9 @@ MidRate / Spread). معاملات فقط `SystemRate` (یا نرخ دستیِ د
   و بررسی منبع بعدی؛ نرخ‌های معتبر قبلی دست نمی‌خورند (§57).
 - نرخ جدید فقط در `OnlineRate` می‌نشیند؛ ورود به `SystemRate` فقط با
   `RateOverride` (تأیید مدیر) یا تنظیم `AutoPromoteOnlineToSystem=1` (§46/§56).
-- `PriceFeedScheduler` (singleton) بروزرسانی خودکار را در هر دو هاست (وب/MAUI)
-  با فاصلهٔ قابل‌تنظیم اجرا می‌کند (§56).
+- `PriceFeedScheduler` (singleton) بروزرسانی خودکار server-side را در Web با
+  فاصلهٔ قابل‌تنظیم اجرا می‌کند (§56)؛ MAUI database initialization/scheduler
+  را اجرا نمی‌کند.
 
 ## ۶. دسترسی‌ها (§55)
 

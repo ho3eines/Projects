@@ -6,7 +6,6 @@
 SELECT
     u.UserId,
     u.Username,
-    u.PasswordHash,
     u.DisplayName,
     u.Role,
     u.RoleId,

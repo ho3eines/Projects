@@ -215,10 +215,11 @@ child سطح ۴. این محدودیت با UI قابل‌حل نبود و به 
 
 ### محل واقعی ذخیره در SQL Server
 
-داده‌ها in-memory یا فایل محلی نیستند. مقصد فعال را صفحهٔ `/diag` نشان می‌دهد؛
-مقدار پیش‌فرض وب `Server=.;Database=TarazinMaster` است، مگر اینکه
-`TARAZIN_SQL_CONNECTION` آن را override کرده باشد. جداول هم زیر schema
-`accounting` هستند، نه `dbo`:
+داده‌ها in-memory یا فایل محلی نیستند. صفحهٔ `/diag` فقط وضعیت امن provider را
+بدون نمایش مقصد یا credential نشان می‌دهد. Web اتصال را از secret استقرار
+`TARAZIN_SQL_CONNECTION` می‌گیرد و مقدار پیش‌فرض source-controlled ندارد. MAUI
+نیز فقط پس از broker HTTPS از credential کوتاه‌عمر حافظه‌ای استفاده می‌کند.
+جداول زیر schema `accounting` هستند، نه `dbo`:
 
 ```sql
 USE [TarazinMaster];

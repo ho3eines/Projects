@@ -1,181 +1,102 @@
 @page "/diag"
-@* DbService عمداً با @inject گرفته نمی‌شود: اگر رشتهٔ اتصال نباشد سازندهٔ آن
-   استثنا می‌دهد و همین صفحه — که قرار است علت را نشان دهد — کرش می‌کند.
-   پس با ServiceProvider و داخل try/catch گرفته می‌شود. *@
-@inject IServiceProvider Services
-@inject ScriptCatalog Catalog
-@inject IConfiguration Config
+@using Tarazin.Data
+@inject DbService Db
 
-<PageTitle>عیب‌یابی اتصال — ترازین</PageTitle>
+<PageTitle>عیب‌یابی اتصال</PageTitle>
 
-<PageHeader Title="عیب‌یابی اتصال به دیتابیس"
-            Subtitle="منبع رشتهٔ اتصال، تست زنده و کاتالوگ اسکریپت‌ها." />
+<MudStack Spacing="3" Class="pa-4" Style="max-width:900px;margin:auto">
+    <MudText Typo="Typo.h4">عیب‌یابی اتصال داده</MudText>
 
-<MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudText Typo="Typo.h6" Class="mb-3">۱. منبع رشتهٔ اتصال</MudText>
-    <MudSimpleTable Dense="true" Striped="true">
-        <tbody>
-            <tr>
-                <td style="width:220px">منبع</td>
-                <td>
-                    <MudChip T="string" Size="Size.Small"
-                             Color="@(_found ? Color.Success : Color.Error)">@_source</MudChip>
-                </td>
-            </tr>
-            <tr>
-                <td>مقدار (ماسک‌شده)</td>
-                <td style="direction:ltr; font-family:monospace; font-size:.8rem">@_masked</td>
-            </tr>
-            <tr>
-                <td>متغیر محیطی TARAZIN_SQL_CONNECTION</td>
-                <td>@(_hasEnv ? "تنظیم شده (اولویت دارد)" : "تنظیم نشده")</td>
-            </tr>
-        </tbody>
-    </MudSimpleTable>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        این صفحه فقط وضعیت غیرمحرمانهٔ ارائه‌دهنده و نتیجهٔ آزمون اتصال را نمایش می‌دهد.
+        رشتهٔ اتصال، رمز، توکن، منبع پیکربندی و مسیر فایل‌های پایگاه داده هرگز نمایش داده نمی‌شوند.
+    </MudAlert>
 
-    @if (!_found)
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-3">
-            رشتهٔ اتصال اصلاً خوانده نشده است. یعنی نه <code>ConnectionStrings:DefaultConnection</code>
-            در <code>appsettings.json</code> در دسترس برنامه است و نه متغیر محیطی
-            <code>TARAZIN_SQL_CONNECTION</code> مقدار دارد.
-        </MudAlert>
-    }
-</MudPaper>
-
-<MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudText Typo="Typo.h6" Class="mb-3">۲. تست اتصال زنده</MudText>
-
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || !_found)"
-               StartIcon="@Icons.Material.Filled.NetworkCheck" OnClick="TestAsync">
-        @(_busy ? "در حال تست..." : "تست اتصال")
-    </MudButton>
-
-    @if (!string.IsNullOrEmpty(_fatal))
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mt-4">@_fatal</MudAlert>
-    }
-
-    @if (_result is not null)
-    {
-        <MudAlert Severity="@(_result.Ok ? Severity.Success : Severity.Error)"
-                  Variant="Variant.Filled" Class="mt-4">
-            @_result.Message
-        </MudAlert>
-
-        <MudSimpleTable Dense="true" Striped="true" Class="mt-3">
+    <MudPaper Class="pa-4" Elevation="1">
+        <MudText Typo="Typo.h6" GutterBottom="true">وضعیت ارائه‌دهنده</MudText>
+        <MudSimpleTable Dense="true" Hover="true">
             <tbody>
-                <tr><td style="width:220px">سرور</td><td style="direction:ltr">@(_result.Server ?? "—")</td></tr>
-                <tr><td>دیتابیس</td><td style="direction:ltr">@(_result.Database ?? "—")</td></tr>
-                <tr><td>نسخهٔ SQL Server</td><td style="direction:ltr; font-size:.75rem">@(_result.ServerVersion ?? "—")</td></tr>
-                <tr><td>زمان پاسخ</td><td>@_result.Elapsed.TotalMilliseconds.ToString("0") میلی‌ثانیه</td></tr>
-                @if (_storage is not null)
-                {
-                    <tr><td>نام واقعی Instance</td><td style="direction:ltr">@_storage.ServerName</td></tr>
-                    <tr><td>فایل‌های فیزیکی MDF/LDF</td><td style="direction:ltr; font-size:.75rem; word-break:break-all">@_storage.DataFiles</td></tr>
-                    <tr><td>تعداد BaseDetil / Link</td><td>@_storage.BaseDetilCount / @_storage.BaseDetilLinkCount</td></tr>
-                    <tr><td>تعداد PriceRates / History</td><td>@_storage.PriceRateCount / @_storage.RateHistoryCount</td></tr>
-                }
+                <tr>
+                    <td>نوع اتصال</td>
+                    <td>@(Db.UsesTemporaryCredential ? "اعتبار موقت دریافت‌شده از سرویس امن" : "اتصال مدیریت‌شدهٔ سمت سرور")</td>
+                </tr>
+                <tr>
+                    <td>آماده برای استفاده</td>
+                    <td>@(Db.IsConnectionAvailable ? "بله" : "خیر")</td>
+                </tr>
+                <tr>
+                    <td>شرح ایمن</td>
+                    <td>@Db.ConnectionDescription</td>
+                </tr>
             </tbody>
         </MudSimpleTable>
+    </MudPaper>
 
-        @if (_storage is not null)
+    <MudPaper Class="pa-4" Elevation="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@_testing"
+                       OnClick="TestAsync"
+                       StartIcon="@Icons.Material.Filled.WifiTethering">
+                @(_testing ? "در حال آزمون…" : "آزمون اتصال")
+            </MudButton>
+            @if (_testing)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+            }
+        </MudStack>
+
+        @if (_result is not null)
         {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
-                این اطلاعات مستقیماً از همان connection برنامه خوانده شده است. برای مشاهده در SSMS باید به
-                Instance «<code>@_storage.ServerName</code>» و دیتابیس «<code>@_storage.DatabaseName</code>» متصل شوید؛
-                جداول برنامه زیر schemaهای <code>accounting</code> و <code>currency</code> هستند، نه <code>dbo</code>.
+            <MudAlert Class="mt-3"
+                      Severity="@(_result.Ok ? Severity.Success : Severity.Error)"
+                      Variant="Variant.Outlined">
+                <MudText Typo="Typo.subtitle1"><b>@_result.Message</b></MudText>
+                <MudText Typo="Typo.body2">زمان آزمون: @(_result.Elapsed.TotalMilliseconds.ToString("N0")) میلی‌ثانیه</MudText>
             </MudAlert>
         }
-
-        @if (!_result.Ok)
+        else if (!string.IsNullOrWhiteSpace(_safeFailure))
         {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
-                <MudText Typo="Typo.subtitle2" Class="mb-2">راهنمای رفع:</MudText>
-                <ul style="padding-inline-start:1.2rem">
-                    <li>کانتینر SQL بالا باشد: <code>docker compose up -d</code></li>
-                    <li>پورت باز باشد: <code>1433</code> روی <code>localhost</code></li>
-                    <li>رمز <code>sa</code> با <code>MSSQL_SA_PASSWORD</code> در <code>docker-compose.yml</code> یکی باشد</li>
-                    <li>اگر رمز شامل <code>;</code> یا <code>=</code> است، داخل <code>{}</code> بگذارید</li>
-                    <li>برای اتصال بدون TLS معتبر: <code>TrustServerCertificate=True;Encrypt=False</code></li>
-                </ul>
+            <MudAlert Class="mt-3" Severity="Severity.Error" Variant="Variant.Outlined">
+                @_safeFailure
             </MudAlert>
         }
-    }
-</MudPaper>
+    </MudPaper>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudText Typo="Typo.h6" Class="mb-3">۳. کاتالوگ اسکریپت‌ها</MudText>
-    <MudText Typo="Typo.body2">
-        @Catalog.Count اسکریپت نامدار در @Catalog.Schemas.Count اسکیمه بارگذاری شده است:
-        <span style="direction:ltr">@string.Join(", ", Catalog.Schemas)</span>
-    </MudText>
-    @if (Catalog.Count == 0)
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-3">
-            هیچ اسکریپتی بارگذاری نشده — یعنی EmbeddedResource های
-            <code>Tarazin.Data/Scripts/**/*.sql</code> در اسمبلی نیستند.
-        </MudAlert>
-    }
-</MudPaper>
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+        در MAUI ابتدا از صفحهٔ ورود، شناسهٔ مشتری و اطلاعات ورود را برای سرویس HTTPS ارسال کنید تا
+        اعتبار کوتاه‌عمر فقط در حافظه آماده شود. در هاست وب، تنظیم اتصال باید از secret store یا
+        متغیر محیطیِ زمان استقرار تأمین شود. در محیط تولید، HTTPS، رمزنگاری SQL و اعتبارسنجی عادی
+        گواهی الزامی است و نباید غیرفعال شود.
+    </MudAlert>
+</MudStack>
 
 @code {
-    private bool _busy;
-    private bool _found;
-    private bool _hasEnv;
-    private string _source = "";
-    private string _masked = "";
-    private string _fatal = "";
+    private bool _testing;
     private ConnectionCheckResult? _result;
-    private DatabaseStorageInfo? _storage;
-
-    protected override void OnInitialized()
-    {
-        var (value, source) = TarazinConnection.ResolveRaw(Config);
-        _found = !string.IsNullOrWhiteSpace(value);
-        _source = source;
-        _masked = TarazinConnection.Mask(value);
-        _hasEnv = !string.IsNullOrWhiteSpace(
-            Environment.GetEnvironmentVariable(TarazinConnection.EnvVariable));
-    }
+    private string? _safeFailure;
 
     private async Task TestAsync()
     {
-        if (_busy) return;
-        _busy = true;
-        _fatal = "";
+        _testing = true;
+        _result = null;
+        _safeFailure = null;
         try
         {
-            var db = (DbService?)Services.GetService(typeof(DbService));
-            if (db is null)
-            {
-                _fatal = "سرویس DbService در DI ثبت نشده است.";
-                return;
-            }
-
-            _result = await db.TestConnectionAsync();
-            _storage = null;
-            if (_result.Ok)
-            {
-                try
-                {
-                    _storage = await db.QueryFirstOrDefaultAsync<DatabaseStorageInfo>(
-                        "central", "DatabaseStorageInfo");
-                }
-                catch (Exception storageEx)
-                {
-                    _fatal = "اتصال برقرار است، اما خواندن جزئیات محل ذخیره ناموفق بود: " + storageEx.Message;
-                }
-            }
+            _result = await Db.TestConnectionAsync();
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            // مثلاً خطای سازندهٔ DbService وقتی رشتهٔ اتصال نامعتبر است.
-            _fatal = ex.Message;
+            _safeFailure = "آزمون اتصال لغو شد.";
+        }
+        catch
+        {
+            _safeFailure = "آزمون اتصال در حال حاضر قابل انجام نیست.";
         }
         finally
         {
-            _busy = false;
+            _testing = false;
         }
     }
 }

@@ -1,89 +1,107 @@
-# بررسی انطباق با PRD — گزارش حسابرسی (۲۰۲۶/۰۸/۱۲)
+# بررسی انطباق با PRD — گزارش حسابرسی
 
-> **نتیجهٔ کلی**: PRD نسخهٔ ۲.۱ (Blazor Hybrid) **از نظر ساختاری و ایستا کاملاً
-> پیاده‌سازی شده است** — هستهٔ مشترک `Tarazin.Ui` + هاست وب `Tarazin.Web` +
-> هاست MAUI `Tarazin.Maui` (ADR-004)؛ موارد اجرایی (build و تست با دیتابیس واقعی)
-> به‌دلیل نبود `dotnet`/`docker` در این sandbox قابل اجرا نبودند و باید در
-> CI/محیط محلی سبز شوند.
+> **به‌روزرسانی امنیتی: ۲۰۲۶/۰۸/۱۸**
 >
-> **محدودیت محیط**: SDK نصب نیست و دانلود از اینترنت در bash مسدود است
-> (`SSL_ERROR_SYSCALL`)؛ بنابراین تمام بررسی‌ها ایستا انجام شد.
+> این سند دیگر ادعای «انطباق کامل» یا اجرای موفق برنامه را مطرح نمی‌کند. راهکار
+> فعلی یک Solution پنج‌پروژه‌ای (`Share`، `Data`، `Ui`، `Web` و `Maui`) است.
+> تغییرات امنیت credential از نظر منبع و کنترل‌جریان بازبینی ایستا شده‌اند، اما
+> به‌دلیل نبود .NET SDK، SQL Server، `sqlcmd`، Docker/Podman و artifact انتشار،
+> build، migration و تست E2E در این محیط اجرا نشده‌اند. نتیجه تا سبزشدن gateهای
+> بخش ۷ برای release آماده نیست.
 
 ---
 
-## ۱) معیارهای پذیرش PRD.md
+## ۱) وضعیت معیارهای اصلی
 
-| # | معیار | وضعیت | شواهد |
-|---|-------|--------|-------|
-| 1 | `dotnet build Tarazin.slnx` فقط با یک پروژه | ⚠️ اجرا نشد — ساختاری پاس | `Tarazin.slnx` فقط `Tarazin.Web/Tarazin.Web.csproj` (XML معتبر). هیچ ارجاعی به پروژه‌های حذف‌شده در کد نیست. DI کامل (همهٔ `@inject`ها ثبت شده‌اند). |
-| 2 | همهٔ ۷ ماژول از یک آدرس | ⚠️ اجرا نشد — مسیرها سالم | ۴۱ مسیر یکتا؛ `NavMenu` و صفحهٔ خانه هر ۷ ماژول را دارند؛ `Program.cs` ترتیب startup کامل است. |
-| 3 | بدون SQL خام و بدون HttpClient برای داده در صفحات | ✅ پاس | grep روی `Tarazin.Ui/Modules`: هیچ `HttpClient` و هیچ `SELECT/INSERT/UPDATE/DELETE` در `.razor` (موارد ظاهری فقط `MudSelect` هستند). |
-| 4 | اسکن مرز اسکیمه | ✅ پاس | `tools/cross-schema-scan.sh` → ۱۰۰ اسکریپت، بدون ارجاع بین‌اسکیمه‌ای غیرمجاز. |
-| 5 | ورود bootstrap (admin/admin) و مدیریت کاربران + ممیزی | ⚠️ اجرا نشد — کد کامل | `AuthService` (PBKDF2) + `UserAuthenticate`/`UserUpsert` + ساخت bootstrap فقط وقتی Users خالی است + **ممیزی خودکار** هر Execute (اصلاح در همین حسابرسی). |
+| معیار | وضعیت فعلی | شواهد/محدودیت |
+|---|---|---|
+| build پنج پروژه | ⚠️ اجرا نشد | `Tarazin.slnx` پنج پروژه دارد؛ Web و MAUI باید در CI build شوند. |
+| هفت ماژول اصلی و مسیرهای UI | ⚠️ خارج از دامنهٔ این اصلاح | ساختار حفظ شده است؛ رفتار runtime دوباره تأیید نشده است. |
+| SQL نامدار و نبود SQL خام در صفحات | ✅ بررسی ایستا | عملیات کسب‌وکار همچنان از `DbService` و اسکریپت‌های Embedded استفاده می‌کند. |
+| مرز schema | ✅ بررسی ایستا | `tools/cross-schema-scan.sh`: ۲۷۱ اسکریپت و بدون reference اعلام‌نشده در آخرین اجرای محلی. |
+| قرارداد فراخوان C# و TSQL | ✅ بررسی ایستا | `tools/sql-contract-scan.py`: ۲۷۱ اسکریپت و صفر warning در آخرین اجرا. |
+| ورود Web | ⚠️ اجرا نشد | PBKDF2 و bootstrap مبتنی بر secret استقرار حفظ شده‌اند؛ مقدار پیش‌فرض bootstrap حذف شده است. |
+| ورود MAUI و آماده‌سازی اتصال | ⚠️ فقط بازبینی ایستا | `Login → broker → credential موقت در حافظه → عملیات مستقیم فعلی DbService`. |
+| ممیزی | ❌ gate باز | مالکیت tenant اضافه شده، ولی `RowHash` هنوز `PrevHash` را پوشش نمی‌دهد و lookup/insert سریال نیست. |
 
-## ۲) معیارهای پذیرش PRD_All_Projects.md §7
+## ۲) معماری داده و استثنای امنیتی MAUI
 
-| # | معیار | وضعیت | توضیح |
-|---|-------|--------|-------|
-| 1 | build تک‌پروژه | ⚠️ | مثل بالا — ساختار پاس، اجرا در CI |
-| 2 | ۷ ماژول با دادهٔ واقعی | ⚠️ | نیاز به SQL Server (docker compose) |
-| 3 | بدون HttpClient/SQL خام | ✅ | grep پاس |
-| 4 | اسکن cross-schema | ✅ | پاس |
-| 5 | ورود + کاربران + ردیف ممیزی | ⚠️/✅ | کد کامل و خودکار؛ اجرا نیاز به DB |
+- Web اتصال مدیریتی SQL را فقط از secretهای server-side استقرار می‌گیرد.
+- `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS دارد؛ هیچ
+  connection string، SQL password، token، یا کلید دائمی در تنظیمات MAUI نیست.
+- API عمومی CRUD اضافه نشده است. API محدود broker فقط login/refresh/revoke
+  credential موقت MAUI را انجام می‌دهد.
+- broker قبل از صدور credential، customer، فعال‌بودن customer/user/company،
+  مجوز کاربر، binding نشست و nonce/timestamp را بررسی می‌کند.
+- credential SQL کوتاه‌عمر، customer/company-bound، revocable و permission-derived
+  است؛ MAUI آن را فقط در حافظه نگه می‌دارد. انتقال HTTPS و validation عادی
+  certificate اجباری است.
+- داشتن credential قابل‌استفاده در process کلاینت به این معنی است که روی دستگاه
+  compromise‌شده قابل استخراج است؛ encryption با کلید دائمی داخل client این
+  محدودیت را حل نمی‌کند و به‌عنوان راهکار استفاده نشده است.
 
-## ۳) قوانین کلیدی PRD (Key Rules)
+## ۳) مسیرهای خطا و نشت
 
-| قانون | وضعیت | شواهد |
-|-------|--------|-------|
-| فقط یک پروژه | ✅ | `Tarazin.slnx` تک‌پروژه؛ پوشه‌های قدیمی حذف‌شده |
-| فقط Blazor Server (بدون وب‌سرویس) | ✅ | `Program.cs`: `AddServerSideBlazor`؛ داده فقط `DbService` (Dapper in-process) |
-| MudBlazor تنها UI | ✅ | csproj فقط MudBlazor/Dapper/SqlClient؛ بدون Bootstrap/کامپوننت سفارشی (grep پاس) |
-| اسکریپت نامدار، بدون SQL در صفحات | ✅ | ۱۰۰ اسکریپت در `Data/Scripts/{schema}`؛ `ScriptCatalog` + `DbService` |
-| مرز اسکیمه | ✅ | پارامتر schema در DbService + اسکن |
-| Report-first | ✅ | اسکریپت‌های گزارش‌محور حفظ شدند |
-| چهار بخش استاندارد هر ماژول | ✅ | ۶ ماژول محصول: home/dashboard/entry/reports/special/settings |
-| ورود و نشست | ✅ | `AuthService` + `UserSession` (per circuit) |
-| ممیزی با زنجیرهٔ هش | ✅ | `AuditService` → `[central].[AuditLog]` — حالا خودکار |
+- خطاهای broker به کدها و پیام‌های عمومی تبدیل می‌شوند و responseها `no-store` هستند.
+- exception خام SQL از مرز `DbService` عبور نمی‌کند؛ logها نوع خطا را ثبت می‌کنند،
+  نه message/connection string/password/token را.
+- Android backup و cleartext traffic غیرفعال شده‌اند.
+- اسکن منبع/تنظیمات با `tools/security-regression-scan.py --self-test` در آخرین
+  اجرای محلی پاس شده است. اسکن artifact واقعی MAUI فقط پس از build در CI ممکن است.
 
-## ۴) تطبیق ستون‌های اسکریپت با مدل‌ها (ADR-003)
+## ۴) تغییرات امنیتی مرتبط با PRD
 
-بازبینی شد برای همهٔ کوئری‌های استفاده‌شده در صفحات (List/Search/Dashboard/
-Reportهای هر ۷ ماژول) → **همه مطابق** propertyهای مدل‌ها (Dapper mapping).
-مثال: `ItemList` → `ItemRow`، `DailySales` → `DailySaleRow` (با `AS ItemTitle`)،
-`DashboardSummary` هر ۶ ماژول → مدل‌های مربوطه (با aliasهای صحیح).
+1. پیکربندی SQL از MAUI حذف و با `ISqlConnectionProvider` جایگزین شد.
+2. قراردادهای broker و endpointهای `/api/mobile/connection/login`، `refresh` و
+   `revoke` اضافه شدند.
+3. token و nonce فقط به‌شکل hash در SQL نگهداری می‌شوند؛ SQL password در broker
+   persistence ذخیره نمی‌شود.
+4. principalهای موقت ابتدا pending هستند، با family lock و تراکنش اتمیک rotate،
+   به‌صورت whole-family revoke و سپس cleanup می‌شوند؛ endpoint عمومی SQL اجازهٔ
+   تزریق property اضافی connection string را ندارد.
+5. migration امنیت موبایل customer/company authorization، RLS، مالکیت ممیزی
+   database-resolved و triggerهای ضد self-escalation برای RBAC را اضافه می‌کند؛
+   این migration هنوز روی SQL Server واقعی compile/اجرا نشده است.
+6. secretهای tracked Web/Compose/tool، license keyها و DLLهای patch‌شده از درخت
+   فعال حذف شدند. secretهای قبلی باید compromised فرض و خارج از این PR rotate شوند.
+7. CI اسکن source/config و artifact MAUI را اجرا می‌کند؛ نتیجهٔ runner هنوز در
+   این محیط موجود نیست.
 
-## ۵) باگ‌هایی که در این حسابرسی پیدا و اصلاح شد
+## ۵) کنترل‌های ایستای اجراشده
 
-| # | مشکل | اصلاح |
-|---|-------|-------|
-| 1 | `AuditService` ساخته شده بود ولی **هیچ‌جا صدا زده نمی‌شد** → ممیزی عملاً ثبت نمی‌شد (نقض AC#5) | `DbService.ExecuteAsync` حالا **خودکار** ردیف ممیزی می‌نویسد (Success/Error). برای جلوگیری از وابستگی دور/بازگشت، `AuditService` مستقل شد (اتصال اختصاصی). |
-| 2 | `central/AuditSearch.sql` ستون `RowHash` را برنمی‌گرداند ولی صفحهٔ `/central/audit` آن را نمایش می‌دهد → خطای زمان اجرا | `a.RowHash` به SELECT اضافه شد |
-| 3 | کامنت قدیمی `webapi/Data/Scripts` در `tools/cross-schema-scan.sh` | اصلاح به `Tarazin.Data/Scripts` |
-| 4 | کلاس اضافی `h-table` روی یک MudTable | حذف شد (CSS آن هم حذف شده بود) |
+- `python3 tools/security-regression-scan.py --self-test`
+- `bash tools/cross-schema-scan.sh` — ۲۷۱ اسکریپت
+- `python3 tools/sql-contract-scan.py` — صفر warning
+- parse فایل‌های JSON و compile ابزارهای Python
+- `bash -n tools/test-connection.sh tools/cross-schema-scan.sh`
+- جست‌وجوی متمرکز secret، TLS bypass، storage و log
+- `git diff --check`
 
-## ۶) چک‌های ساختاری انجام‌شده (همه پاس)
+این کنترل‌ها compile یا اجرای .NET/TSQL و اثبات امنیت runtime نیستند.
 
-- XML: `Tarazin.slnx`، `Tarazin.Web.csproj` معتبرند
-- JSON: `appsettings.json`، `launchSettings.json` معتبرند
-- ۱۰۰ اسکریپت SQL؛ هر ۷ اسکیمه `_Ensure.sql` + `_Seed.sql` دارند
-- تگ‌های باز/بستهٔ تمام کامپوننت‌های Mud در همهٔ `.razor`ها متعادل‌اند
-- هر فایل دقیقاً یک `@code`
-- ۴۱ مسیر یکتا بدون تداخل
-- همهٔ ارجاع‌های `Db.QueryAsync/Execute/Scalar` به اسکریپت‌های موجود می‌رسند
-- بدون ارجاع به `webapi/IRequestService/BlazorDeployService/share/central-client` در کد
-- بدون Bootstrap/کلاس‌های سفارشی قدیمی در صفحات
+## ۶) مواردی که اجرا نشده‌اند
 
-## ۷) ریسک‌های باقی‌مانده (باید در محیط واقعی بسته شوند)
+- restore/build/test پروژه‌های Web، Data، Ui، Share و targetهای MAUI
+- اجرای `_MobileSecurity.sql` و همهٔ migrationها روی SQL Server واقعی
+- تست واقعی login/refresh/revoke، pending activation، expiry، replay و cleanup
+- customer جعلی/غیرفعال، cross-customer، user/company غیرفعال و مجوز ناکافی
+- triggerهای Users/Roles/RolePermissions شامل self-promotion و statement چندردیفی
+- قطع API/SQL، credential نامعتبر/منقضی و raceهای refresh/revoke/cancellation
+- publish برای Android/Windows و اسکن/decompile APK/EXE/assemblies
+- بررسی storage/log/crash dump روی device واقعی
 
-1. **build اجرا نشد** — اولین قدم: `dotnet restore && dotnet build Tarazin.Web/Tarazin.Web.csproj`
-   سپس `dotnet workload install maui` و build MAUI (ویندوز).
-2. **تست E2E با SQL واقعی** — `docker compose up -d` + ورود admin/admin + ثبت
-   داده در هر ماژول + مشاهدهٔ گزارش‌ها و ردیف ممیزی (در هر دو هاست).
-3. **MAUI روی اندروید/iOS** — `Microsoft.Data.SqlClient` فقط ویندوز/مک؛ لایهٔ
-   دادهٔ موبایل بک‌لاگ است (UI آماده است).
-4. اعتبارنامهٔ SQL در `appsettings.json` — در تولید به secret store منتقل شود.
-5. رمز bootstrap را در اولین ورود تغییر دهید.
-6. جدول‌های `Outbox` خواب‌اند (طراحی ADR-002) — پاک‌سازی اختیاری.
+## ۷) gateهای اجباری پیش از release
 
----
-*تاریخ: ۱۴۰۵/۰۵/۲۱ — تهیه‌شده توسط حسابرسی خودکار عامل*
+1. build و تست Web و همهٔ targetهای MAUI در CI سبز شود.
+2. migration روی clone سازگار تولید اجرا و rollback/مالکیت داده تأیید شود.
+3. ماتریس E2E و امنیت بخش ۶، شامل replay/expiry/cross-customer، پاس شود.
+4. artifactهای واقعی publish اسکن و decompile شوند و هیچ secret دائمی نداشته باشند.
+5. chain ممیزی اصلاح شود: `RowHash` باید predecessor را commit کند و انتخاب
+   predecessor/insert برای هر tenant سریال و اتمیک باشد.
+6. SQL principal ایجادشده با permissionهای واقعی هر نقش آزمایش و issuer با
+   کمترین اختیار ممکن provision شود.
+7. تمام credentialهای تاریخی rotate و پاک‌سازی history به‌صورت جداگانه بررسی شود؛
+   checkout فعلی grafted است و نبود secret در history را اثبات نمی‌کند.
+
+گزارش تفصیلی مسیر ورود secret، طراحی broker، فایل‌های تغییرکرده و محدودیت‌های
+release در `docs/SECURITY_REMEDIATION_REPORT.md` ثبت شده است.

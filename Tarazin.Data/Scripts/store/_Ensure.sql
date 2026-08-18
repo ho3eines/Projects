@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/store/_Ensure.sql
 -- Schema: store (فروشگاه اینترنتی)
 -- Endpoint: execute (startup)
