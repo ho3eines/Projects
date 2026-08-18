@@ -155,17 +155,27 @@ def scan_configuration(errors: list[str]) -> None:
     elif not isinstance(maui["ServerEndpoint"], str) or not maui["ServerEndpoint"].startswith("https://"):
         fail(errors, "MAUI ServerEndpoint must be a non-secret HTTPS URL")
 
+    # Web appsettings is a trusted server process. Per the product decision a
+    # server-side ConnectionStrings section is permitted there; the MAUI client
+    # configuration must stay free of any connection material and contain only
+    # its public HTTPS ServerEndpoint.
     for relative in ("Tarazin.Maui/appsettings.json", "Tarazin.Web/appsettings.json"):
         path = ROOT / relative
         config = load_json(path, errors)
         if config is None:
             continue
+        is_maui = relative == "Tarazin.Maui/appsettings.json"
         for key, value in walk_json(config):
             leaf = key.rsplit(":", 1)[-1].lower()
-            sensitive_key = (
-                leaf in {"password", "pwd", "secret", "token", "apikey", "api_key", "privatekey"}
-                or "connectionstring" in leaf
-            )
+            if is_maui:
+                sensitive_key = (
+                    leaf in {"password", "pwd", "secret", "token", "apikey", "api_key", "privatekey"}
+                    or "connectionstring" in leaf
+                )
+            else:
+                # Web may configure a server-side connection string (product
+                # decision); other secret leaves must still be absent/empty.
+                sensitive_key = leaf in {"password", "pwd", "secret", "token", "apikey", "api_key", "privatekey"}
             if sensitive_key and value not in (None, "", [], {}):
                 fail(errors, f"{relative}: tracked sensitive setting {key} must be absent/empty")
 
