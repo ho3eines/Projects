@@ -119,3 +119,45 @@ IF COL_LENGTH(N'payroll.PayrollRunItems', N'CreatedAt') IS NULL
     ALTER TABLE [payroll].[PayrollRunItems] ADD CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_PayrollRunItems_CreatedAt DEFAULT SYSUTCDATETIME();
 IF COL_LENGTH(N'payroll.PayrollRunItems', N'UpdatedAt') IS NULL
     ALTER TABLE [payroll].[PayrollRunItems] ADD UpdatedAt DATETIME2 NULL;
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Employees per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'payroll.Employees', N'CompanyId') IS NULL
+    ALTER TABLE [payroll].[Employees] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Employees_Company')
+    ALTER TABLE [payroll].[Employees] WITH CHECK ADD CONSTRAINT FK_Employees_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [payroll].[Employees] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Employees INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Employees IS NOT NULL
+        UPDATE [payroll].[Employees] SET CompanyId = @DefaultCompanyId_Employees WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Employees_Company' AND object_id = OBJECT_ID(N'[payroll].[Employees]'))
+    CREATE INDEX IX_Employees_Company ON [payroll].[Employees](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: PayrollRuns per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'payroll.PayrollRuns', N'CompanyId') IS NULL
+    ALTER TABLE [payroll].[PayrollRuns] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_PayrollRuns_Company')
+    ALTER TABLE [payroll].[PayrollRuns] WITH CHECK ADD CONSTRAINT FK_PayrollRuns_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [payroll].[PayrollRuns] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_PayrollRuns INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_PayrollRuns IS NOT NULL
+        UPDATE [payroll].[PayrollRuns] SET CompanyId = @DefaultCompanyId_PayrollRuns WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_PayrollRuns_Company' AND object_id = OBJECT_ID(N'[payroll].[PayrollRuns]'))
+    CREATE INDEX IX_PayrollRuns_Company ON [payroll].[PayrollRuns](CompanyId) WHERE CompanyId IS NOT NULL;
+GO

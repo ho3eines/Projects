@@ -178,4 +178,24 @@ public sealed class UserSession : ICurrentUser
     /// <summary>آیا کاربر می‌تواند یک ماژول را مشاهده کند؟</summary>
     public bool CanView(string moduleKey)
         => HasPermission(TarazinPermissions.ViewKey(moduleKey));
+
+    /// <summary>به‌روزرسانی دسترسی‌های نشست بدون خروج/ورود مجدد (برای اعمال تغییرات نقش).</summary>
+    public async Task UpdatePermissionsAsync(IEnumerable<string> newPermissions)
+    {
+        _permissions.Clear();
+        foreach (var p in newPermissions)
+            if (!string.IsNullOrWhiteSpace(p))
+                _permissions.Add(p.Trim());
+
+        if (_store is not null && IsAuthenticated)
+        {
+            var data = await _store.LoadAsync();
+            if (data is not null)
+            {
+                data.Permissions = _permissions.ToList();
+                await _store.SaveAsync(data);
+            }
+        }
+        Changed?.Invoke();
+    }
 }

@@ -65,6 +65,7 @@
         try
         {
             _roles = (await Users.GetRolesAsync()).ToList();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -73,6 +74,7 @@
         finally
         {
             _loading = false;
+            StateHasChanged();
         }
     }
 

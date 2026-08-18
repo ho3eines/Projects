@@ -117,42 +117,90 @@
 
 @* ───────────────────────────────────────────────────────────
    قفل محیط کاری:
-   - اگر کاربر هیچ شرکتی ندارد → فرم ایجاد شرکت (اجباری، غیرقابل بستن).
-   - اگر شرکت دارد ولی سال فعال ندارد/سال جاری تضمین نشده →
-     خودِ AccountingContextService به‌صورت سیستمی آن را می‌سازد.
-   - انتخاب سال برای جابه‌جایی بین سال‌های موجود از «عملیات ویژه» انجام می‌شود.
+   - اگر هیچ شرکتی در سیستم نیست → فرم ایجاد شرکت (اجباری).
+   - اگر شرکت(ها) وجود دارند ولی کاربر محیط فعال ندارد →
+     دیالوگ انتخاب شرکت (نه ایجاد).
+   - انتخاب/تغییر سال برای جابه‌جایی بین سال‌های موجود از «عملیات ویژه» انجام می‌شود.
    ─────────────────────────────────────────────────────────── *@
-@if (Session.IsAuthenticated && _showCompanyLock)
+@if (Session.IsAuthenticated && (_showCompanyLock || _showCompanySelection))
 {
     <div class="tz-context-lock" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;">
-        <MudPaper Elevation="5" Class="pa-6 mx-auto" Style="width: 100%; max-width: 450px; direction: rtl;">
-            <div class="text-center mb-4 d-flex flex-column align-center">
-                <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="64" height="64" />
-                <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">ایجاد شرکت مالی</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
-                    برای شروع باید یک شرکت مالی ایجاد کنید. سال مالی به‌صورت خودکار توسط سیستم ساخته می‌شود.
-                </MudText>
-            </div>
+        @if (_showCompanySelection)
+        {
+            <MudPaper Elevation="5" Class="pa-6 mx-auto" Style="width: 100%; max-width: 500px; direction: rtl;">
+                <div class="text-center mb-4 d-flex flex-column align-center">
+                    <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="64" height="64" />
+                    <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">انتخاب شرکت مالی</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                        یک شرکت مالی را برای ورود انتخاب کنید. سال مالی به‌صورت خودکار فعال می‌شود.
+                    </MudText>
+                </div>
 
-            <MudForm @ref="_companyForm" @bind-IsValid="_companyValid">
-                <MudTextField Label="نام شرکت مالی" @bind-Value="_newCompanyName"
-                              Required="true" RequiredError="نام شرکت الزامی است."
-                              Variant="Variant.Outlined" Class="mb-4" Immediate="true" />
+                <MudSelect T="int" Label="شرکت مالی" @bind-Value="_selectedCompanyId" Variant="Variant.Outlined" Class="mb-4" Required="true">
+                    @foreach (var c in _selectionCompanies)
+                    {
+                        <MudSelectItem Value="@c.CompanyId">@c.CompanyName</MudSelectItem>
+                    }
+                </MudSelect>
+
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
-                           OnClick="CreateCompanyAsync" StartIcon="@Icons.Material.Filled.AddBusiness"
-                           Disabled="@(!_companyValid || _busy)">
+                           OnClick="SelectCompanyAsync" StartIcon="@Icons.Material.Filled.Business"
+                           Disabled="@(_selectedCompanyId == 0 || _busy)">
                     @if (_busy)
                     {
                         <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
-                        <span>در حال ایجاد...</span>
+                        <span>در حال ورود...</span>
                     }
                     else
                     {
-                        <span>ایجاد شرکت مالی و ورود</span>
+                        <span>ورود به شرکت انتخاب‌شده</span>
                     }
                 </MudButton>
-            </MudForm>
-        </MudPaper>
+
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">یا یک شرکت جدید بسازید:</MudText>
+                <MudForm @ref="_companyForm" @bind-IsValid="_companyValid">
+                    <MudTextField Label="نام شرکت جدید" @bind-Value="_newCompanyName"
+                                  Variant="Variant.Outlined" Class="mb-3" Immediate="true" />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
+                               OnClick="CreateCompanyAsync" StartIcon="@Icons.Material.Filled.AddBusiness"
+                               Disabled="@(string.IsNullOrWhiteSpace(_newCompanyName) || _busy)">
+                        ایجاد شرکت جدید
+                    </MudButton>
+                </MudForm>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Elevation="5" Class="pa-6 mx-auto" Style="width: 100%; max-width: 450px; direction: rtl;">
+                <div class="text-center mb-4 d-flex flex-column align-center">
+                    <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="64" height="64" />
+                    <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">ایجاد شرکت مالی</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                        برای شروع باید یک شرکت مالی ایجاد کنید. سال مالی به‌صورت خودکار توسط سیستم ساخته می‌شود.
+                    </MudText>
+                </div>
+
+                <MudForm @ref="_companyForm" @bind-IsValid="_companyValid">
+                    <MudTextField Label="نام شرکت مالی" @bind-Value="_newCompanyName"
+                                  Required="true" RequiredError="نام شرکت الزامی است."
+                                  Variant="Variant.Outlined" Class="mb-4" Immediate="true" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
+                               OnClick="CreateCompanyAsync" StartIcon="@Icons.Material.Filled.AddBusiness"
+                               Disabled="@(!_companyValid || _busy)">
+                        @if (_busy)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
+                            <span>در حال ایجاد...</span>
+                        }
+                        else
+                        {
+                            <span>ایجاد شرکت مالی و ورود</span>
+                        }
+                    </MudButton>
+                </MudForm>
+            </MudPaper>
+        }
     </div>
 }
 
@@ -166,6 +214,9 @@
     // Multi-company state
     private bool _loadingContext;
     private bool _showCompanyLock;
+    private bool _showCompanySelection;
+    private List<CompanyRow> _selectionCompanies = new();
+    private int _selectedCompanyId;
     private string _newCompanyName = "";
     private bool _companyValid;
     private MudForm? _companyForm;
@@ -211,15 +262,51 @@
         {
             var state = await Context.ResolveAsync();
             _showCompanyLock = state.RequiresCompany;
+            _showCompanySelection = state.RequiresSelection;
+            if (state.RequiresSelection)
+            {
+                _selectionCompanies = state.Companies.ToList();
+                if (_selectionCompanies.Count > 0 && _selectedCompanyId == 0)
+                    _selectedCompanyId = _selectionCompanies[0].CompanyId;
+                _showCompanyLock = false;
+            }
+            else
+            {
+                _selectionCompanies.Clear();
+                _selectedCompanyId = 0;
+            }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"خطا در آماده‌سازی محیط کاری: {ex.Message}", Severity.Error);
             _showCompanyLock = true;
+            _showCompanySelection = false;
         }
         finally
         {
             _loadingContext = false;
+        }
+    }
+
+    private async Task SelectCompanyAsync()
+    {
+        if (_busy || _selectedCompanyId == 0) return;
+        _busy = true;
+        try
+        {
+            await Context.SelectCompanyAsync(_selectedCompanyId);
+            Snackbar.Add("شرکت با موفقیت انتخاب شد.", Severity.Success);
+            _showCompanySelection = false;
+            _showCompanyLock = false;
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 
@@ -235,6 +322,7 @@
             await Context.CreateCompanyAsync(_newCompanyName.Trim());
             Snackbar.Add($"شرکت «{_newCompanyName.Trim()}» با سال مالی جاری ایجاد شد.", Severity.Success);
             _showCompanyLock = false;
+            _showCompanySelection = false;
             _newCompanyName = "";
             Nav.NavigateTo(Nav.Uri, forceLoad: true);
         }

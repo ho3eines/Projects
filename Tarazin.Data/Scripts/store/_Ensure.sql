@@ -205,3 +205,108 @@ IF COL_LENGTH(N'store.OrderReservations', N'UpdatedAt') IS NULL
 
 IF COL_LENGTH(N'store.InventorySnapshot', N'UpdatedAt') IS NULL
     ALTER TABLE [store].[InventorySnapshot] ADD UpdatedAt DATETIME2 NULL;
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Customers per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'store.Customers', N'CompanyId') IS NULL
+    ALTER TABLE [store].[Customers] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Customers_Company')
+    ALTER TABLE [store].[Customers] WITH CHECK ADD CONSTRAINT FK_Customers_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [store].[Customers] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Customers INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Customers IS NOT NULL
+        UPDATE [store].[Customers] SET CompanyId = @DefaultCompanyId_Customers WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Customers_Company' AND object_id = OBJECT_ID(N'[store].[Customers]'))
+    CREATE INDEX IX_Customers_Company ON [store].[Customers](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Products per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'store.Products', N'CompanyId') IS NULL
+    ALTER TABLE [store].[Products] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Products_Company')
+    ALTER TABLE [store].[Products] WITH CHECK ADD CONSTRAINT FK_Products_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [store].[Products] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Products INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Products IS NOT NULL
+        UPDATE [store].[Products] SET CompanyId = @DefaultCompanyId_Products WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Products_Company' AND object_id = OBJECT_ID(N'[store].[Products]'))
+    CREATE INDEX IX_Products_Company ON [store].[Products](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Orders per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'store.Orders', N'CompanyId') IS NULL
+    ALTER TABLE [store].[Orders] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Orders_Company')
+    ALTER TABLE [store].[Orders] WITH CHECK ADD CONSTRAINT FK_Orders_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [store].[Orders] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Orders INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Orders IS NOT NULL
+        UPDATE [store].[Orders] SET CompanyId = @DefaultCompanyId_Orders WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Orders_Company' AND object_id = OBJECT_ID(N'[store].[Orders]'))
+    CREATE INDEX IX_Orders_Company ON [store].[Orders](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: OrderItems per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'store.OrderItems', N'CompanyId') IS NULL
+    ALTER TABLE [store].[OrderItems] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_OrderItems_Company')
+    ALTER TABLE [store].[OrderItems] WITH CHECK ADD CONSTRAINT FK_OrderItems_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [store].[OrderItems] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_OrderItems INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_OrderItems IS NOT NULL
+        UPDATE [store].[OrderItems] SET CompanyId = @DefaultCompanyId_OrderItems WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OrderItems_Company' AND object_id = OBJECT_ID(N'[store].[OrderItems]'))
+    CREATE INDEX IX_OrderItems_Company ON [store].[OrderItems](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: CartItems per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'store.CartItems', N'CompanyId') IS NULL
+    ALTER TABLE [store].[CartItems] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CartItems_Company')
+    ALTER TABLE [store].[CartItems] WITH CHECK ADD CONSTRAINT FK_CartItems_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [store].[CartItems] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_CartItems INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_CartItems IS NOT NULL
+        UPDATE [store].[CartItems] SET CompanyId = @DefaultCompanyId_CartItems WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CartItems_Company' AND object_id = OBJECT_ID(N'[store].[CartItems]'))
+    CREATE INDEX IX_CartItems_Company ON [store].[CartItems](CompanyId) WHERE CompanyId IS NOT NULL;
+GO

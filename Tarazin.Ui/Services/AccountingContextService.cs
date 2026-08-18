@@ -147,15 +147,28 @@ public sealed class AccountingContextService
             year.FiscalYearId, year.YearName);
     }
 
+    /// <summary>همهٔ شرکت‌های فعال سیستم (برای انتخاب توسط کاربران جدید).</summary>
+    public Task<IReadOnlyList<CompanyRow>> GetAllCompaniesAsync(CancellationToken ct = default)
+        => _db.QueryAsync<CompanyRow>("central", "CompanyList", null, ct);
+
     /// <summary>
     /// اطمینان از محیط فعال کاربر پس از ورود/بازیابی نشست.
-    /// خروجی نشان می‌دهد آیا محیط آماده است یا کاربر باید شرکت بسازد.
+    /// خروجی نشان می‌دهد آیا محیط آماده است، نیاز به انتخاب دارد یا باید شرکت بسازد.
     /// </summary>
     public async Task<ContextState> ResolveAsync(CancellationToken ct = default)
     {
         var companies = (await GetAuthorizedCompaniesAsync(ct)).ToList();
+
+        // اگر دسترسی مستقیم ندارد ولی شرکت‌هایی در سیستم وجود دارند،
+        // به کاربر اجازهٔ انتخاب از کل شرکت‌ها بده (نه اجبار به ایجاد).
+        // این مشکل «کاربر دوم اشتباهی به ایجاد شرکت می‌رود» را حل می‌کند.
         if (companies.Count == 0)
+        {
+            var all = (await GetAllCompaniesAsync(ct)).ToList();
+            if (all.Count > 0)
+                return ContextState.NeedsSelection(all);
             return ContextState.MissingCompany();
+        }
 
         // اگر محیط فعال معتبر است همان را نگه دار.
         if (_session.ActiveCompanyId is int cid && _session.ActiveFiscalYearId is int fid)
@@ -170,11 +183,35 @@ public sealed class AccountingContextService
             }
         }
 
-        // در غیر این صورت اولین شرکت را انتخاب و سال جاری را تضمین کن.
-        var selected = companies[0];
-        var fy = await EnsureCurrentFiscalYearAsync(selected.CompanyId, ct);
-        await SetActiveContextAsync(selected, fy, ct);
-        return ContextState.Ready(selected, fy, companies);
+        // اگر فقط یک شرکت وجود دارد، به‌صورت خودکار آن را فعال کن.
+        if (companies.Count == 1)
+        {
+            var single = companies[0];
+            var fy = await EnsureCurrentFiscalYearAsync(single.CompanyId, ct);
+            await SetActiveContextAsync(single, fy, ct);
+            return ContextState.Ready(single, fy, companies);
+        }
+
+        // چند شرکت وجود دارد ولی محیط فعال معتبر نیست → نیاز به انتخاب کاربر
+        return ContextState.NeedsSelection(companies);
+    }
+
+    /// <summary>
+    /// انتخاب یک شرکت موجود توسط کاربر (بدون ایجاد شرکت جدید).
+    /// شرکت به کاربر تخصیص داده می‌شود، سال جاری تضمین و محیط فعال می‌شود.
+    /// </summary>
+    public async Task SelectCompanyAsync(int companyId, CancellationToken ct = default)
+    {
+        var companies = (await GetAllCompaniesAsync(ct)).ToList();
+        var company = companies.FirstOrDefault(c => c.CompanyId == companyId)
+                      ?? throw new InvalidOperationException("شرکت انتخاب‌شده یافت نشد.");
+
+        // اختصاص به کاربر اگر قبلاً نداشته
+        await _db.ExecuteAsync("central", "CompanyAssignToUser",
+            new { UserId = _session.UserId, CompanyId = companyId, CreatedBy = _session.UserName }, ct);
+
+        var fy = await EnsureCurrentFiscalYearAsync(companyId, ct);
+        await SetActiveContextAsync(company, fy, ct);
     }
 
     /// <summary>بستن سال مالی فعال (ایجاد/به‌روزرسانی سند اختتامیه + بستن سال).</summary>
@@ -195,13 +232,15 @@ public sealed class AccountingContextService
     public sealed record ContextState(
         bool IsReady,
         bool RequiresCompany,
+        bool RequiresSelection,
         CompanyRow? Company,
         FiscalYearRow? FiscalYear,
         IReadOnlyList<CompanyRow> Companies)
     {
-        public static ContextState MissingCompany() => new(false, true, null, null, Array.Empty<CompanyRow>());
+        public static ContextState MissingCompany() => new(false, true, false, null, null, Array.Empty<CompanyRow>());
+        public static ContextState NeedsSelection(IReadOnlyList<CompanyRow> all) => new(false, false, true, null, null, all);
         public static ContextState Ready(CompanyRow c, FiscalYearRow fy, IReadOnlyList<CompanyRow> all) =>
-            new(true, false, c, fy, all);
+            new(true, false, false, c, fy, all);
     }
 
     /// <summary>ردیف خروجی اسکریپت‌های Upsert (NewId).</summary>

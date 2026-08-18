@@ -129,7 +129,21 @@ DECLARE @TabloIrMappings NVARCHAR(MAX) = N'[
  {"ItemKey":"SIKKEH-ROB","Path":"data[type=IRC4].price","Factor":10},
  {"ItemKey":"XAU-740","Path":"data[type=IRG740].price","Factor":10},
  {"ItemKey":"XAU-WORLD-17","Path":"data[type=WORLDG17].price","Factor":10},
- {"ItemKey":"SIKKEH-GRAMI","Path":"data[type=IRCGRAM].price","Factor":10}
+ {"ItemKey":"SIKKEH-GRAMI","Path":"data[type=IRCGRAM].price","Factor":10},
+ {"ItemKey":"USD","Path":"data[type=USD].price","Factor":10},
+ {"ItemKey":"EUR","Path":"data[type=EUR].price","Factor":10},
+ {"ItemKey":"AED","Path":"data[type=AED].price","Factor":10},
+ {"ItemKey":"GBP","Path":"data[type=GBP].price","Factor":10},
+ {"ItemKey":"TRY","Path":"data[type=TRY].price","Factor":10},
+ {"ItemKey":"SAR","Path":"data[type=SAR].price","Factor":10},
+ {"ItemKey":"CHF","Path":"data[type=CHF].price","Factor":10},
+ {"ItemKey":"CAD","Path":"data[type=CAD].price","Factor":10},
+ {"ItemKey":"AUD","Path":"data[type=AUD].price","Factor":10},
+ {"ItemKey":"JPY","Path":"data[type=JPY].price","Factor":10},
+ {"ItemKey":"CNY","Path":"data[type=CNY].price","Factor":10},
+ {"ItemKey":"KWD","Path":"data[type=KWD].price","Factor":10},
+ {"ItemKey":"IQD","Path":"data[type=IQD].price","Factor":10},
+ {"ItemKey":"RUB","Path":"data[type=RUB].price","Factor":10}
 ]';
 
 DECLARE @TabloFrMappings NVARCHAR(MAX) = N'[
@@ -210,6 +224,17 @@ WHERE SourceKey = N'MATISA'
   AND Endpoint = N'https://matisagoldgallery.com/tablo'
   AND (IsActive = 1 OR Status <> N'Disabled');
 
+
+-- Migration: currency online mappings for existing DBs
+IF EXISTS (SELECT 1 FROM [currency].[PriceSources] WHERE SourceKey = N'TABLOTALA')
+BEGIN
+    UPDATE [currency].[PriceSources]
+    SET MappingsJson = @TabloIrMappings,
+        UpdatedAt = SYSUTCDATETIME(),
+        UpdatedBy = N'seed-migration-currency'
+    WHERE SourceKey = N'TABLOTALA'
+      AND (MappingsJson IS NULL OR CHARINDEX(N'"ItemKey":"USD"', MappingsJson) = 0);
+END
 IF NOT EXISTS (SELECT 1 FROM [currency].[PriceSources] WHERE SourceKey = N'MANUAL')
 BEGIN
     INSERT INTO [currency].[PriceSources]

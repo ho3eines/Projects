@@ -25,3 +25,24 @@ BEGIN
         UpdatedBy  NVARCHAR(100) NULL
     );
 END
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Branches per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'branch.Branches', N'CompanyId') IS NULL
+    ALTER TABLE [branch].[Branches] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Branches_Company')
+    ALTER TABLE [branch].[Branches] WITH CHECK ADD CONSTRAINT FK_Branches_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [branch].[Branches] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Branches INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Branches IS NOT NULL
+        UPDATE [branch].[Branches] SET CompanyId = @DefaultCompanyId_Branches WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Branches_Company' AND object_id = OBJECT_ID(N'[branch].[Branches]'))
+    CREATE INDEX IX_Branches_Company ON [branch].[Branches](CompanyId) WHERE CompanyId IS NOT NULL;
+GO

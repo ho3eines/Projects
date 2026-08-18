@@ -35,11 +35,13 @@
                     <div class="d-flex flex-wrap" style="gap: 0 1.25rem;">
                         @foreach (var item in group.Items)
                         {
-                            <MudCheckBox T="bool" @bind-Checked="item.IsChecked" Color="Color.Primary">
-                                @item.Permission.Title
-                            </MudCheckBox>
+                            var localItem = item;
+                            <MudCheckBox T="bool" Value="localItem.IsChecked" ValueChanged="@(v => { localItem.IsChecked = v; StateHasChanged(); })" Color="Color.Primary" Dense="true" Label="@localItem.Permission.Title" />
                         }
                     </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        @group.Items.Count(i => i.IsChecked) از @group.Items.Count انتخاب شده
+                    </MudText>
                 </MudPaper>
             }
         </MudForm>
@@ -82,11 +84,16 @@
 
     private bool IsNew => Role.RoleId == 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         _title = Role.Title;
         _key = Role.RoleKey;
         _description = Role.Description ?? "";
+
+        // HashSet برای جستجوی سریع و بی‌اثر بودن از حروف بزرگ/کوچک و فاصله
+        var keySet = new HashSet<string>(
+            (PermissionKeys ?? new List<string>()).Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim()),
+            StringComparer.OrdinalIgnoreCase);
 
         try
         {
@@ -100,7 +107,7 @@
                     Items = g.Select(p => new PermissionToggle
                     {
                         Permission = p,
-                        IsChecked = PermissionKeys.Contains(p.PermissionKey, StringComparer.OrdinalIgnoreCase)
+                        IsChecked = keySet.Contains(p.PermissionKey)
                     }).ToList()
                 })
                 .ToList();
@@ -138,7 +145,20 @@
                 .Where(i => i.IsChecked)
                 .Select(i => i.Permission.PermissionKey);
 
-            await Users.SaveRoleAsync(Role.RoleId, _key.Trim(), _title.Trim(), _description, keys, Session.UserName);
+            var keyList = keys.ToList();
+            await Users.SaveRoleAsync(Role.RoleId, _key.Trim(), _title.Trim(), _description, keyList, Session.UserName);
+
+            // اگر کاربر در حال ویرایش نقش خودش است، دسترسی‌های نشست را بی‌درنگ به‌روز کن
+            if (Role.RoleId != 0 && Role.RoleId == Session.RoleId)
+            {
+                try
+                {
+                    var fresh = await Users.GetUserPermissionKeysAsync(Session.UserId);
+                    await Session.UpdatePermissionsAsync(fresh);
+                }
+                catch { /* نشست قدیمی باقی می‌ماند؛ رفرش بعدی درست می‌کند */ }
+            }
+
             Snackbar.Add("نقش با موفقیت ذخیره شد.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }

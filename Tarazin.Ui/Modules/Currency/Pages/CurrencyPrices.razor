@@ -1,6 +1,7 @@
 @page "/currency/prices"
 @inject DbService Db
 @inject UserSession Session
+@inject PriceFeedService Feed
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -8,11 +9,36 @@
 
 <PageHeader Title="مرکز نرخ‌ها و قیمت‌ها" Subtitle="مرکز کنترل تمام قیمت‌های سیستم — طلا، سکه، ارز و فلزات؛ همهٔ معاملات از همین مرکز تغذیه می‌شوند (§43/§60)."
             Eyebrow="ارز و معاملات ارزی">
-    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync" Disabled="_loading"
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync" Disabled="@(_loading || _fetching)"
                StartIcon="@Icons.Material.Filled.Refresh">
-        بروزرسانی
+        بروزرسانی جدول
+    </MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="FetchOnlineAsync" Disabled="@(_fetching || _loading)"
+               StartIcon="@Icons.Material.Filled.CloudDownload">
+        @if (_fetching)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+            <span>در حال دریافت...</span>
+        }
+        else
+        {
+            <span>بروزرسانی آنلاین ارز و طلا</span>
+        }
     </MudButton>
 </PageHeader>
+
+@if (_fetchResult is not null)
+{
+    <MudPaper Elevation="0" Class="pa-3 mb-3" Style="background:rgba(0,0,0,.04);border-radius:8px">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">نتیجهٔ آخرین بروزرسانی آنلاین (§44/§56)</MudText>
+        @foreach (var r in _fetchResult.Results)
+        {
+            <MudAlert Severity="@(r.Success ? Severity.Success : Severity.Error)" Variant="Variant.Outlined" Dense="true" Class="mb-1">
+                <b>@r.Title</b> — @(r.Success ? $"{r.ItemCount} نرخ آنلاین بروز شد (فقط ستون آنلاین تغییر کرده — برای ورود به سیستم Override کنید §46)." : $"ناموفق: {r.Error} — آخرین نرخ معتبر حفظ شد §57")
+            </MudAlert>
+        }
+    </MudPaper>
+}
 
 <MudTabs>
     <MudTabPanel Text="ارز">
@@ -72,7 +98,9 @@
 
     private List<PriceRateRow> _rows = new();
     private List<RateComparisonRow> _comparison = new();
+    private PriceFeedResult? _fetchResult;
     private bool _loading = true;
+    private bool _fetching;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -177,6 +205,38 @@
         var result = await dialog.Result;
         if (result is { Canceled: false })
             await LoadAsync();
+    }
+
+    private async Task FetchOnlineAsync()
+    {
+        if (_fetching) return;
+        if (!Session.HasPermission(TarazinPermissions.RateFetch))
+        {
+            Snackbar.Add("شما دسترسی دریافت آنلاین نرخ را ندارید.", Severity.Warning);
+            return;
+        }
+        _fetching = true;
+        try
+        {
+            _fetchResult = await Feed.FetchAllAsync();
+            var ok = _fetchResult.SuccessCount;
+            var total = _fetchResult.TotalCount;
+            if (total == 0)
+                Snackbar.Add("هیچ منبع فعالی برای دریافت یافت نشد — از عملیات ویژه منبع اضافه کنید.", Severity.Warning);
+            else if (ok == 0)
+                Snackbar.Add("دریافت آنلاین ناموفق بود — جزئیات در بالا و در عملیات ویژه.", Severity.Error);
+            else
+                Snackbar.Add($"{ok}/{total} منبع با موفقیت بروز شد — ستون «آنلاین» را ببینید، سپس در صورت نیاز Override کنید.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _fetching = false;
+        }
     }
 
     private async Task OverrideAsync(PriceRateRow rate)
