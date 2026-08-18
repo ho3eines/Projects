@@ -26,7 +26,7 @@ bash tools/test-connection.sh
 
 ## پیکربندی Web/API
 
-اتصال Web از `ConnectionStrings:DefaultConnection` در `Tarazin.Web/appsettings.json` یا (ترجیحاً) environment secret با نام `TARAZIN_SQL_CONNECTION` خوانده می‌شود؛ `TARAZIN_SQL_CONNECTION` اولویت دارد. مقدار واقعی را در `appsettings.json` source-controlled ننویسید؛ آنجا فقط یک placeholder توسعهٔ محلی (`changeme`) است که در production override می‌شود.
+اتصال Web را با secret injection سکوی استقرار فراهم کنید؛ برای نمونه از environment secret با نام `TARAZIN_SQL_CONNECTION` یا provider امن پیکربندی ASP.NET استفاده کنید. مقدار واقعی را در repository، `appsettings*.json`، Compose، CI YAML یا مستندات ننویسید.
 
 Web اتصال را به MAUI از طریق کنترلر `api/{guid}` می‌دهد (تصمیم محصول: رشتهٔ اتصال کامل). این endpoint فقط HTTPS می‌پذیرد، پاسخ `no-store` دارد و هرگز رشتهٔ اتصال را log نمی‌کند. برای production توصیهٔ قوی: آن را با bearer secret یا IP allow-list گیت کنید.
 

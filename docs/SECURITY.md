@@ -86,9 +86,7 @@ secret قابل‌استفاده را در برابر compromise همان پرد
 
 Web نیز secret واقعی را در فایل source-controlled ندارد:
 
-- اتصال مدیریتی: secret استقرار (`TARAZIN_SQL_CONNECTION`) — در توسعهٔ محلی
-  می‌تواند از `ConnectionStrings:DefaultConnection` در `appsettings.json` با
-  مقدار placeholder (`changeme`) خوانده شود که در production override می‌شود.
+- اتصال مدیریتی: secret استقرار (`TARAZIN_SQL_CONNECTION`)
 - رمز مدیر اولیه: secret استقرار (`Tarazin__BootstrapAdminPassword`)
 - license اختیاری گزارش‌ساز: فایل خارج از repository/web root که مسیرش با
   `TARAZIN_STIMULSOFT_LICENSE_PATH` داده می‌شود
@@ -105,8 +103,8 @@ Web نیز secret واقعی را در فایل source-controlled ندارد:
   گیت شود تا یک GUID به‌تنهایی دسترسی SQL ندهد.
 - MAUI رشتهٔ دریافتی را فقط در حافظه نگه می‌دارد و آن را بازتولید امن می‌کند
   (`Encrypt=true`، `TrustServerCertificate=false`، `PersistSecurityInfo=false`).
-- مقدار واقعی در source کنترل نمی‌شود؛ در production از `TARAZIN_SQL_CONNECTION`
-  گرفته می‌شود و `appsettings.json` فقط placeholder توسعهٔ محلی دارد.
+- مقدار واقعی در source کنترل نمی‌شود؛ اتصال از secret استقرار
+  `TARAZIN_SQL_CONNECTION` گرفته می‌شود و `appsettings.json` مقدار اتصال ندارد.
 
 هیچ bootstrap password پیش‌فرضی وجود ندارد. در دیتابیس خالی، نبودن secret رمز
 باعث توقف امن initialization می‌شود.
