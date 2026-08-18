@@ -30,12 +30,35 @@ public sealed class CredentialBrokerService
     private readonly TimeSpan _requestSkew;
     private readonly TimeSpan _cleanupTimeout;
     private readonly string _dummyPasswordHash;
+    private readonly bool _isAvailable;
 
     public CredentialBrokerService(IConfiguration configuration, ILogger<CredentialBrokerService> logger)
     {
         _logger = logger;
-        _issuerConnectionString = TarazinConnection.Resolve(configuration);
 
+        string issuerConnectionString;
+        try
+        {
+            issuerConnectionString = TarazinConnection.Resolve(configuration);
+        }
+        catch (InvalidOperationException)
+        {
+            // Missing deployment secrets must not break DI or turn every request
+            // into an unhandled exception. Endpoints return a controlled 503
+            // until the server secret is supplied.
+            _issuerConnectionString = "";
+            _database = "";
+            _publicServer = "";
+            _credentialLifetime = TimeSpan.Zero;
+            _sessionLifetime = TimeSpan.Zero;
+            _requestSkew = TimeSpan.Zero;
+            _cleanupTimeout = TimeSpan.Zero;
+            _dummyPasswordHash = "";
+            _isAvailable = false;
+            return;
+        }
+
+        _issuerConnectionString = issuerConnectionString;
         var builder = new SqlConnectionStringBuilder(_issuerConnectionString);
         _database = builder.InitialCatalog;
         var configuredPublicServer = configuration["CredentialBroker:PublicSqlServer"]?.Trim();
@@ -47,10 +70,14 @@ public sealed class CredentialBrokerService
         _requestSkew = TimeSpan.FromSeconds(Clamp(configuration, "CredentialBroker:RequestTimestampWindowSeconds", 90, 30, 300));
         _cleanupTimeout = TimeSpan.FromSeconds(Clamp(configuration, "CredentialBroker:CleanupTimeoutSeconds", 20, 5, 60));
         _dummyPasswordHash = PasswordHasher.Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
+        _isAvailable = true;
     }
 
     public async Task<BrokerResult> LoginAsync(MobileConnectionRequest request, CancellationToken ct)
     {
+        if (!_isAvailable)
+            return BrokerResult.Unavailable();
+
         try
         {
             return await LoginCoreAsync(request, ct);
@@ -183,6 +210,9 @@ public sealed class CredentialBrokerService
         string bearerToken,
         CancellationToken ct)
     {
+        if (!_isAvailable)
+            return BrokerResult.Unavailable();
+
         if (string.IsNullOrWhiteSpace(bearerToken) ||
             !IsValidRequest(request.CustomerGuid, request.Nonce, request.TimestampUtc))
             return BrokerResult.Rejected("invalid_token", "نشست اتصال معتبر نیست.");
@@ -324,7 +354,7 @@ public sealed class CredentialBrokerService
 
     public async Task RevokeAsync(string bearerToken, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(bearerToken))
+        if (!_isAvailable || string.IsNullOrWhiteSpace(bearerToken))
             return;
 
         // Once accepted, revocation gets a short server-owned completion window
@@ -349,6 +379,9 @@ public sealed class CredentialBrokerService
 
     public async Task CleanupExpiredAsync(CancellationToken ct)
     {
+        if (!_isAvailable)
+            return;
+
         await using var connection = await OpenIssuerConnectionAsync(ct);
         var expired = (await connection.QueryAsync<(Guid SessionId, string SqlLoginName)>(
             new CommandDefinition("""
