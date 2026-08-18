@@ -48,16 +48,16 @@ Blazor Server   MAUI Blazor Hybrid (BlazorWebView)
 ## 🚀 اجرای سریع
 
 ```bash
-# 1. secretهای توسعه را در shell/secret manager تنظیم کنید (در repo ننویسید)
-export MSSQL_SA_PASSWORD="$(openssl rand -base64 36)"
-# TARAZIN_SQL_CONNECTION و Tarazin__BootstrapAdminPassword نیز باید از
-# secret store محیط تأمین شوند.
+# 1. تنظیم اتصال SQL Server در Tarazin.Web/appsettings.json
+# مقدارهای YOUR_SQL_SERVER، YOUR_SQL_USER و YOUR_SQL_PASSWORD را با
+# مشخصات SQL Server نصب‌شدهٔ خودتان جایگزین کنید.
 
-# 2. دیتابیس (فقط SQL Server)
-docker compose up -d
-
-# 3. وب (http://localhost:65220)
+# 2. اجرای وب در محیط توسعه
 dotnet run --project Tarazin.Web
+
+# 3. انتشار برای IIS
+dotnet publish Tarazin.Web/Tarazin.Web.csproj -c Release -o ./publish
+# پوشهٔ publish را در IIS به‌عنوان سایت ASP.NET Core ثبت کنید.
 
 # 4. اپ بومی (ویندوز — نیاز به workload)
 dotnet workload install maui
@@ -100,7 +100,7 @@ Tarazin.slnx
 ├── Tarazin.Maui/       → MauiProgram.cs, MainPage.xaml, Platforms, Resources
 ├── docs/               → PROJECT.md, CURRENCY_MODULE.md, BI_MODULE.md, HANDWRITING.md, WORKLOG_2026-08-18.md, SECURITY.md, ...
 ├── PRD.md / PRD_All_Projects.md
-└── docker-compose.yml (mssql:2022) + ci/ci.yml + tools/cross-schema-scan.sh
+└── ci/ci.yml + tools/cross-schema-scan.sh
 ```
 
 ---
@@ -118,7 +118,7 @@ Tarazin.slnx
 
 ## ✅ پیش‌نیاز و تست
 
-* .NET SDK 8.0.100 + SQL Server 2022 (docker)
+* .NET SDK 8.0.100 + SQL Server نصب‌شده روی سرور یا شبکه + IIS برای استقرار وب
 * `dotnet build Tarazin.Web/Tarazin.Web.csproj` — بدون خطا
 * `tools/cross-schema-scan.sh` — بدون ارجاع بین‌اسکیمه‌ای غیرمجاز
 * ورود: نام کاربری bootstrap و password تزریق‌شده از secret store → `/diag` برای عیب‌یابی امن اتصال
