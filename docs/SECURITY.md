@@ -91,6 +91,21 @@ Web نیز secret واقعی را در فایل source-controlled ندارد:
 - license اختیاری گزارش‌ساز: فایل خارج از repository/web root که مسیرش با
   `TARAZIN_STIMULSOFT_LICENSE_PATH` داده می‌شود
 
+## تصمیم محصول: تحویل رشتهٔ اتصال به MAUI از `api/{guid}`
+
+به‌درخواست مالک پروژه، Web رشتهٔ اتصال کامل SQL را از طریق کنترلر
+`api/{guid}` به MAUI می‌دهد (برخلاف الگوی credential کوتاه‌عمر قبلی). این یعنی
+کسی که GUID معتبر بداند می‌تواند رمز دیتابیس را بگیرد؛ پس الزام‌های عملیاتی:
+
+- این endpoint فقط باید روی HTTPS سرو شود؛ روی HTTP خارج از توسعهٔ محلی رد می‌شود.
+- پاسخ `no-store` است و رشتهٔ اتصال هرگز log یا در diagnostics/UI نمایش داده نمی‌شود.
+- برای production توصیهٔ قوی: این endpoint با یک bearer secret یا IP allow-list
+  گیت شود تا یک GUID به‌تنهایی دسترسی SQL ندهد.
+- MAUI رشتهٔ دریافتی را فقط در حافظه نگه می‌دارد و آن را بازتولید امن می‌کند
+  (`Encrypt=true`، `TrustServerCertificate=false`، `PersistSecurityInfo=false`).
+- مقدار واقعی در source کنترل نمی‌شود؛ اتصال از secret استقرار
+  `TARAZIN_SQL_CONNECTION` گرفته می‌شود و `appsettings.json` مقدار اتصال ندارد.
+
 هیچ bootstrap password پیش‌فرضی وجود ندارد. در دیتابیس خالی، نبودن secret رمز
 باعث توقف امن initialization می‌شود.
 

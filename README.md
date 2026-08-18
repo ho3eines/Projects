@@ -64,8 +64,9 @@ dotnet workload install maui
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
 ```
 
-* Web اتصال مدیریتی و bootstrap password را فقط از secretهای استقرار می‌گیرد؛ `appsettings.json` منبع credential تولید نیست.
-* `Tarazin.Maui/appsettings.json` فقط endpoint عمومی HTTPS را دارد. MAUI هنگام ورود، `CustomerGuid` و احراز هویت را به broker امن Web می‌فرستد و credential کوتاه‌عمر، customer-bound و revocable را فقط در حافظه مصرف می‌کند.
+* مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
+* Web اتصال را به MAUI از طریق کنترلر `api/{guid}` می‌دهد (تصمیم محصول: رشتهٔ اتصال کامل). `Tarazin.Maui/appsettings.json` فقط endpoint عمومی HTTPS را دارد و هیچ رشتهٔ اتصال/credential در آن نیست؛ MAUI هنگام ورود، `CustomerGuid` را به broker امن Web (`/api/mobile/connection/login`) می‌دهد، سپس اتصال SQL را از `api/{guid}` می‌گیرد و فقط در حافظه نگه می‌دارد.
+* ⚠️ چون `api/{guid}` رشتهٔ اتصال کامل (با رمز) را می‌دهد، باید فقط روی HTTPS سرو شود و توصیه می‌شود در production با یک bearer secret یا IP allow-list گیت شود تا دانستن یک GUID به‌تنهایی دسترسی SQL ندهد.
 * اولین initialization فقط در Web اجرا می‌شود: `_Ensure.sql` → `_Seed.sql` → نقش‌ها/دسترسی‌ها → ساخت مدیر اولیه با password تزریق‌شده. هیچ رمز پیش‌فرضی وجود ندارد.
 * اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از آماده‌سازی credential همان عملیات مستقیم `DbService` را حفظ می‌کند.
 

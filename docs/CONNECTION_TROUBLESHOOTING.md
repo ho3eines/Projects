@@ -7,7 +7,7 @@
 - **Web/API** تنها در سمت سرور، تنظیم اتصال SQL را از پیکربندی استقرار یا secret store دریافت می‌کند.
 - **MAUI** هیچ تنظیم، رمز یا کلید SQL ندارد. `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint`، یعنی نشانی غیرمحرمانهٔ HTTPS وب/API، را نگه می‌دارد.
 
-در ورود MAUI، برنامه نام کاربری، رمز ورود و GUID مشتری را از طریق HTTPS به broker می‌فرستد. broker اعتبار کاربر، مشتری، شرکت و مجوز را بررسی می‌کند و فقط یک credential کوتاه‌عمر و محدود برمی‌گرداند. credential و session token فقط در حافظهٔ فرایند MAUI استفاده می‌شوند و با خروج، تمدید یا انقضا پاک/لغو می‌شوند.
+در ورود MAUI، برنامه نام کاربری، رمز ورود و GUID مشتری را از طریق HTTPS به broker (`/api/mobile/connection/login`) می‌فرستد. broker اعتبار کاربر، مشتری، شرکت و مجوز را بررسی می‌کند و پس از موفقیت، MAUI رشتهٔ اتصال SQL را از کنترلر `api/{guid}` دریافت می‌کند (تصمیم محصول: رشتهٔ اتصال کامل). رشتهٔ اتصال و session فقط در حافظهٔ فرایند MAUI نگه‌داری می‌شوند و با خروج پاک/لغو می‌شوند.
 
 > مقدار اتصال SQL، رمز، bearer token یا پاسخ broker را در issue، screenshot، log، command history یا فایل پیکربندی MAUI قرار ندهید.
 
@@ -27,6 +27,8 @@ bash tools/test-connection.sh
 ## پیکربندی Web/API
 
 اتصال Web را با secret injection سکوی استقرار فراهم کنید؛ برای نمونه از environment secret با نام `TARAZIN_SQL_CONNECTION` یا provider امن پیکربندی ASP.NET استفاده کنید. مقدار واقعی را در repository، `appsettings*.json`، Compose، CI YAML یا مستندات ننویسید.
+
+Web اتصال را به MAUI از طریق کنترلر `api/{guid}` می‌دهد (تصمیم محصول: رشتهٔ اتصال کامل). این endpoint فقط HTTPS می‌پذیرد، پاسخ `no-store` دارد و هرگز رشتهٔ اتصال را log نمی‌کند. برای production توصیهٔ قوی: آن را با bearer secret یا IP allow-list گیت کنید.
 
 حساب issuer سمت سرور باید فقط مجوزهای لازم برای bootstrap پایگاه داده و ایجاد/لغو principalهای موقت broker را داشته باشد. MAUI نباید credential این حساب را دریافت کند.
 
