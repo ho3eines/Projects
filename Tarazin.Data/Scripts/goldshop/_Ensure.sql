@@ -133,3 +133,66 @@ IF COL_LENGTH(N'goldshop.SaleInvoices', N'BranchId') IS NULL
 
 IF COL_LENGTH(N'goldshop.InventorySnapshot', N'UpdatedAt') IS NULL
     ALTER TABLE [goldshop].[InventorySnapshot] ADD UpdatedAt DATETIME2 NULL;
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: GoldItems per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'goldshop.GoldItems', N'CompanyId') IS NULL
+    ALTER TABLE [goldshop].[GoldItems] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_GoldItems_Company')
+    ALTER TABLE [goldshop].[GoldItems] WITH CHECK ADD CONSTRAINT FK_GoldItems_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [goldshop].[GoldItems] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_GoldItems INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_GoldItems IS NOT NULL
+        UPDATE [goldshop].[GoldItems] SET CompanyId = @DefaultCompanyId_GoldItems WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_GoldItems_Company' AND object_id = OBJECT_ID(N'[goldshop].[GoldItems]'))
+    CREATE INDEX IX_GoldItems_Company ON [goldshop].[GoldItems](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: GoldPrices per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'goldshop.GoldPrices', N'CompanyId') IS NULL
+    ALTER TABLE [goldshop].[GoldPrices] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_GoldPrices_Company')
+    ALTER TABLE [goldshop].[GoldPrices] WITH CHECK ADD CONSTRAINT FK_GoldPrices_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [goldshop].[GoldPrices] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_GoldPrices INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_GoldPrices IS NOT NULL
+        UPDATE [goldshop].[GoldPrices] SET CompanyId = @DefaultCompanyId_GoldPrices WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_GoldPrices_Company' AND object_id = OBJECT_ID(N'[goldshop].[GoldPrices]'))
+    CREATE INDEX IX_GoldPrices_Company ON [goldshop].[GoldPrices](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: SaleInvoices per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'goldshop.SaleInvoices', N'CompanyId') IS NULL
+    ALTER TABLE [goldshop].[SaleInvoices] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_SaleInvoices_Company')
+    ALTER TABLE [goldshop].[SaleInvoices] WITH CHECK ADD CONSTRAINT FK_SaleInvoices_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [goldshop].[SaleInvoices] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_SaleInvoices INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_SaleInvoices IS NOT NULL
+        UPDATE [goldshop].[SaleInvoices] SET CompanyId = @DefaultCompanyId_SaleInvoices WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_SaleInvoices_Company' AND object_id = OBJECT_ID(N'[goldshop].[SaleInvoices]'))
+    CREATE INDEX IX_SaleInvoices_Company ON [goldshop].[SaleInvoices](CompanyId) WHERE CompanyId IS NOT NULL;
+GO

@@ -126,3 +126,66 @@ IF COL_LENGTH(N'inventory.Movements', N'UpdatedBy') IS NULL
 
 IF COL_LENGTH(N'inventory.Reservations', N'UpdatedAt') IS NULL
     ALTER TABLE [inventory].[Reservations] ADD UpdatedAt DATETIME2 NULL;
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Warehouses per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'inventory.Warehouses', N'CompanyId') IS NULL
+    ALTER TABLE [inventory].[Warehouses] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Warehouses_Company')
+    ALTER TABLE [inventory].[Warehouses] WITH CHECK ADD CONSTRAINT FK_Warehouses_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [inventory].[Warehouses] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Warehouses INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Warehouses IS NOT NULL
+        UPDATE [inventory].[Warehouses] SET CompanyId = @DefaultCompanyId_Warehouses WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Warehouses_Company' AND object_id = OBJECT_ID(N'[inventory].[Warehouses]'))
+    CREATE INDEX IX_Warehouses_Company ON [inventory].[Warehouses](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Items per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'inventory.Items', N'CompanyId') IS NULL
+    ALTER TABLE [inventory].[Items] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Items_Company')
+    ALTER TABLE [inventory].[Items] WITH CHECK ADD CONSTRAINT FK_Items_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [inventory].[Items] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Items INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Items IS NOT NULL
+        UPDATE [inventory].[Items] SET CompanyId = @DefaultCompanyId_Items WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Items_Company' AND object_id = OBJECT_ID(N'[inventory].[Items]'))
+    CREATE INDEX IX_Items_Company ON [inventory].[Items](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Movements per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'inventory.Movements', N'CompanyId') IS NULL
+    ALTER TABLE [inventory].[Movements] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Movements_Company')
+    ALTER TABLE [inventory].[Movements] WITH CHECK ADD CONSTRAINT FK_Movements_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [inventory].[Movements] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Movements INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Movements IS NOT NULL
+        UPDATE [inventory].[Movements] SET CompanyId = @DefaultCompanyId_Movements WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Movements_Company' AND object_id = OBJECT_ID(N'[inventory].[Movements]'))
+    CREATE INDEX IX_Movements_Company ON [inventory].[Movements](CompanyId) WHERE CompanyId IS NOT NULL;
+GO

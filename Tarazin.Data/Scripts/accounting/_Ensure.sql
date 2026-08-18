@@ -758,3 +758,82 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Documents_Number' AND
         ON [accounting].[Documents](CompanyId, FiscalYearId, DocumentNumber)
         WHERE IsDeleted = 0;
 GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: ChartOfAccounts per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'accounting.ChartOfAccounts', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[ChartOfAccounts] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ChartOfAccounts_Company')
+    ALTER TABLE [accounting].[ChartOfAccounts] WITH CHECK ADD CONSTRAINT FK_ChartOfAccounts_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_ChartOfAccounts INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_ChartOfAccounts IS NOT NULL
+        UPDATE [accounting].[ChartOfAccounts] SET CompanyId = @DefaultCompanyId_ChartOfAccounts WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ChartOfAccounts_Company' AND object_id = OBJECT_ID(N'[accounting].[ChartOfAccounts]'))
+    CREATE INDEX IX_ChartOfAccounts_Company ON [accounting].[ChartOfAccounts](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: TaxRules per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'accounting.TaxRules', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[TaxRules] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_TaxRules_Company')
+    ALTER TABLE [accounting].[TaxRules] WITH CHECK ADD CONSTRAINT FK_TaxRules_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [accounting].[TaxRules] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_TaxRules INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_TaxRules IS NOT NULL
+        UPDATE [accounting].[TaxRules] SET CompanyId = @DefaultCompanyId_TaxRules WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TaxRules_Company' AND object_id = OBJECT_ID(N'[accounting].[TaxRules]'))
+    CREATE INDEX IX_TaxRules_Company ON [accounting].[TaxRules](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ChartOfAccounts: AccountCode باید در هر شرکت یکتا باشد نه سراسری
+DECLARE @ChartUq NVARCHAR(128) = NULL;
+SELECT @ChartUq = kc.name
+FROM sys.key_constraints kc
+CROSS APPLY (
+    SELECT COUNT(*) AS ColCount, MAX(col.name) AS LastCol
+    FROM sys.index_columns ic
+    JOIN sys.columns col ON col.object_id = ic.object_id AND col.column_id = ic.column_id
+    WHERE ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+) cols
+WHERE kc.parent_object_id = OBJECT_ID(N'[accounting].[ChartOfAccounts]')
+  AND kc.type = N'UQ'
+  AND cols.ColCount = 1 AND cols.LastCol = N'AccountCode';
+IF @ChartUq IS NOT NULL
+BEGIN
+    DECLARE @dropChartUqSql NVARCHAR(400) = N'ALTER TABLE [accounting].[ChartOfAccounts] DROP CONSTRAINT ' + QUOTENAME(@ChartUq) + N';';
+    EXEC sp_executesql @dropChartUqSql;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_ChartOfAccounts_Company_Code' AND object_id = OBJECT_ID(N'[accounting].[ChartOfAccounts]'))
+    CREATE UNIQUE INDEX UX_ChartOfAccounts_Company_Code ON [accounting].[ChartOfAccounts](CompanyId, AccountCode) WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+-- TaxRules: RuleCode per company
+DECLARE @TaxUq NVARCHAR(128) = NULL;
+SELECT @TaxUq = kc.name FROM sys.key_constraints kc
+WHERE kc.parent_object_id = OBJECT_ID(N'[accounting].[TaxRules]') AND kc.type = N'UQ';
+-- TaxRules has UNIQUE on RuleCode globally, drop and recreate per company if needed
+IF @TaxUq IS NOT NULL
+BEGIN
+    DECLARE @dropTaxUqSql NVARCHAR(400) = N'ALTER TABLE [accounting].[TaxRules] DROP CONSTRAINT ' + QUOTENAME(@TaxUq) + N';';
+    EXEC sp_executesql @dropTaxUqSql;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_TaxRules_Company_Code' AND object_id = OBJECT_ID(N'[accounting].[TaxRules]'))
+    CREATE UNIQUE INDEX UX_TaxRules_Company_Code ON [accounting].[TaxRules](CompanyId, RuleCode) WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO

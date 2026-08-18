@@ -237,3 +237,150 @@ IF COL_LENGTH(N'treasury.Cheques', N'UpdatedBy') IS NULL
 
 IF COL_LENGTH(N'treasury.DayCloses', N'UpdatedAt') IS NULL
     ALTER TABLE [treasury].[DayCloses] ADD UpdatedAt DATETIME2 NULL;
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Banks per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'treasury.Banks', N'CompanyId') IS NULL
+    ALTER TABLE [treasury].[Banks] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Banks_Company')
+    ALTER TABLE [treasury].[Banks] WITH CHECK ADD CONSTRAINT FK_Banks_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [treasury].[Banks] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Banks INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Banks IS NOT NULL
+        UPDATE [treasury].[Banks] SET CompanyId = @DefaultCompanyId_Banks WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Banks_Company' AND object_id = OBJECT_ID(N'[treasury].[Banks]'))
+    CREATE INDEX IX_Banks_Company ON [treasury].[Banks](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: BankAccounts per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'treasury.BankAccounts', N'CompanyId') IS NULL
+    ALTER TABLE [treasury].[BankAccounts] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BankAccounts_Company')
+    ALTER TABLE [treasury].[BankAccounts] WITH CHECK ADD CONSTRAINT FK_BankAccounts_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [treasury].[BankAccounts] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_BankAccounts INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_BankAccounts IS NOT NULL
+        UPDATE [treasury].[BankAccounts] SET CompanyId = @DefaultCompanyId_BankAccounts WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BankAccounts_Company' AND object_id = OBJECT_ID(N'[treasury].[BankAccounts]'))
+    CREATE INDEX IX_BankAccounts_Company ON [treasury].[BankAccounts](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: CashBoxes per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'treasury.CashBoxes', N'CompanyId') IS NULL
+    ALTER TABLE [treasury].[CashBoxes] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CashBoxes_Company')
+    ALTER TABLE [treasury].[CashBoxes] WITH CHECK ADD CONSTRAINT FK_CashBoxes_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [treasury].[CashBoxes] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_CashBoxes INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_CashBoxes IS NOT NULL
+        UPDATE [treasury].[CashBoxes] SET CompanyId = @DefaultCompanyId_CashBoxes WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CashBoxes_Company' AND object_id = OBJECT_ID(N'[treasury].[CashBoxes]'))
+    CREATE INDEX IX_CashBoxes_Company ON [treasury].[CashBoxes](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: CurrencyRates per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'treasury.CurrencyRates', N'CompanyId') IS NULL
+    ALTER TABLE [treasury].[CurrencyRates] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CurrencyRates_Company')
+    ALTER TABLE [treasury].[CurrencyRates] WITH CHECK ADD CONSTRAINT FK_CurrencyRates_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [treasury].[CurrencyRates] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_CurrencyRates INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_CurrencyRates IS NOT NULL
+        UPDATE [treasury].[CurrencyRates] SET CompanyId = @DefaultCompanyId_CurrencyRates WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CurrencyRates_Company' AND object_id = OBJECT_ID(N'[treasury].[CurrencyRates]'))
+    CREATE INDEX IX_CurrencyRates_Company ON [treasury].[CurrencyRates](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: CashMovements per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'treasury.CashMovements', N'CompanyId') IS NULL
+    ALTER TABLE [treasury].[CashMovements] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_CashMovements_Company')
+    ALTER TABLE [treasury].[CashMovements] WITH CHECK ADD CONSTRAINT FK_CashMovements_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [treasury].[CashMovements] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_CashMovements INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_CashMovements IS NOT NULL
+        UPDATE [treasury].[CashMovements] SET CompanyId = @DefaultCompanyId_CashMovements WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CashMovements_Company' AND object_id = OBJECT_ID(N'[treasury].[CashMovements]'))
+    CREATE INDEX IX_CashMovements_Company ON [treasury].[CashMovements](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: Cheques per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'treasury.Cheques', N'CompanyId') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Cheques_Company')
+    ALTER TABLE [treasury].[Cheques] WITH CHECK ADD CONSTRAINT FK_Cheques_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [treasury].[Cheques] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Cheques INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Cheques IS NOT NULL
+        UPDATE [treasury].[Cheques] SET CompanyId = @DefaultCompanyId_Cheques WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Cheques_Company' AND object_id = OBJECT_ID(N'[treasury].[Cheques]'))
+    CREATE INDEX IX_Cheques_Company ON [treasury].[Cheques](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: DayCloses per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'treasury.DayCloses', N'CompanyId') IS NULL
+    ALTER TABLE [treasury].[DayCloses] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_DayCloses_Company')
+    ALTER TABLE [treasury].[DayCloses] WITH CHECK ADD CONSTRAINT FK_DayCloses_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [treasury].[DayCloses] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_DayCloses INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_DayCloses IS NOT NULL
+        UPDATE [treasury].[DayCloses] SET CompanyId = @DefaultCompanyId_DayCloses WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_DayCloses_Company' AND object_id = OBJECT_ID(N'[treasury].[DayCloses]'))
+    CREATE INDEX IX_DayCloses_Company ON [treasury].[DayCloses](CompanyId) WHERE CompanyId IS NOT NULL;
+GO

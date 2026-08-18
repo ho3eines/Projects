@@ -17,17 +17,17 @@ DECLARE @SeedFiscalYearId INT = (
 -- آن CROSS JOIN صفر ردیف برمی‌گرداند و سند نمونه «بدون ردیف» می‌ماند
 -- (دفتر روزنامه/کل و تراز آزمایشی خالی می‌شدند). پس اول حساب‌ها، بعد سند.
 
-IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts])
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE CompanyId = @SeedCompanyId)
 BEGIN
-    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
     VALUES
-        (N'1000', N'صندوق',              N'Asset',    1, SYSUTCDATETIME()),
-        (N'1010', N'بانک‌ها',             N'Asset',    1, SYSUTCDATETIME()),
-        (N'1020', N'موجودی کالا',         N'Asset',    1, SYSUTCDATETIME()),
-        (N'2000', N'حساب‌های پرداختنی',  N'Liability',1, SYSUTCDATETIME()),
-        (N'3000', N'سرمایه',             N'Equity',   1, SYSUTCDATETIME()),
-        (N'4000', N'فروش',               N'Income',   1, SYSUTCDATETIME()),
-        (N'5000', N'هزینه حقوق',         N'Expense',  1, SYSUTCDATETIME());
+        (N'1000', N'صندوق',              N'Asset',    1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'1010', N'بانک‌ها',             N'Asset',    1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'1020', N'موجودی کالا',         N'Asset',    1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'2000', N'حساب‌های پرداختنی',  N'Liability',1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'3000', N'سرمایه',             N'Equity',   1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'4000', N'فروش',               N'Income',   1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'5000', N'هزینه حقوق',         N'Expense',  1, SYSUTCDATETIME(), @SeedCompanyId);
 END
 
 IF NOT EXISTS (SELECT 1 FROM [accounting].[Documents])
@@ -55,30 +55,30 @@ END
 
 -- حساب‌های ویژهٔ ماژول ارز و معاملات ارزی (PRD §34–§63) — افزودنی امن
 -- برای دیتابیس‌های موجود (هر کد جداگانه بررسی می‌شود تا seed قدیمی را نشکند).
-IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1030' AND IsDeleted = 0)
-    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-    VALUES (N'1030', N'موجودی ارز', N'Asset', 1, SYSUTCDATETIME());
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1030' AND IsDeleted = 0 AND CompanyId = @SeedCompanyId)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+    VALUES (N'1030', N'موجودی ارز', N'Asset', 1, SYSUTCDATETIME(), @SeedCompanyId);
 
-IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1040' AND IsDeleted = 0)
-    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-    VALUES (N'1040', N'موجودی طلا و سکه', N'Asset', 1, SYSUTCDATETIME());
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1040' AND IsDeleted = 0 AND CompanyId = @SeedCompanyId)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+    VALUES (N'1040', N'موجودی طلا و سکه', N'Asset', 1, SYSUTCDATETIME(), @SeedCompanyId);
 
-IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6000' AND IsDeleted = 0)
-    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-    VALUES (N'6000', N'سود و زیان تسعیر ارز', N'Income', 1, SYSUTCDATETIME());
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6000' AND IsDeleted = 0 AND CompanyId = @SeedCompanyId)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+    VALUES (N'6000', N'سود و زیان تسعیر ارز', N'Income', 1, SYSUTCDATETIME(), @SeedCompanyId);
 
-IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6100' AND IsDeleted = 0)
-    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-    VALUES (N'6100', N'کارمزد و سایر هزینه‌ها', N'Expense', 1, SYSUTCDATETIME());
+IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6100' AND IsDeleted = 0 AND CompanyId = @SeedCompanyId)
+    INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+    VALUES (N'6100', N'کارمزد و سایر هزینه‌ها', N'Expense', 1, SYSUTCDATETIME(), @SeedCompanyId);
 
-IF NOT EXISTS (SELECT 1 FROM [accounting].[TaxRules])
+IF NOT EXISTS (SELECT 1 FROM [accounting].[TaxRules] WHERE CompanyId = @SeedCompanyId)
 BEGIN
-    INSERT INTO [accounting].[TaxRules] (RuleCode, Title, Category, RatePercent, EffectiveFrom, IsActive, CreatedAt)
+    INSERT INTO [accounting].[TaxRules] (RuleCode, Title, Category, RatePercent, EffectiveFrom, IsActive, CreatedAt, CompanyId)
     VALUES
-        (N'VAT-01',   N'مالیات بر ارزش افزوده',     N'Vat',     10.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME()),
-        (N'PAY-01',   N'مالیات بر حقوق',            N'Payroll', 10.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME()),
-        (N'GOLD-01',  N'مالیات طلا (اجرت و سود)',   N'Gold',     9.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME()),
-        (N'COM-01',   N'حق الثبت و عوارض فروش',     N'Commerce', 1.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME());
+        (N'VAT-01',   N'مالیات بر ارزش افزوده',     N'Vat',     10.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'PAY-01',   N'مالیات بر حقوق',            N'Payroll', 10.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'GOLD-01',  N'مالیات طلا (اجرت و سود)',   N'Gold',     9.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME(), @SeedCompanyId),
+        (N'COM-01',   N'حق الثبت و عوارض فروش',     N'Commerce', 1.0000, CAST('2026-01-01' AS DATE), 1, SYSUTCDATETIME(), @SeedCompanyId);
 END
 
 -- =============================================

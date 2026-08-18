@@ -29,3 +29,24 @@ BEGIN
         UpdatedBy        NVARCHAR(100) NULL
     );
 END
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: FixedAssets per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'assets.FixedAssets', N'CompanyId') IS NULL
+    ALTER TABLE [assets].[FixedAssets] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_FixedAssets_Company')
+    ALTER TABLE [assets].[FixedAssets] WITH CHECK ADD CONSTRAINT FK_FixedAssets_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+-- Backfill existing rows to first company
+IF EXISTS (SELECT 1 FROM [assets].[FixedAssets] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_FixedAssets INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_FixedAssets IS NOT NULL
+        UPDATE [assets].[FixedAssets] SET CompanyId = @DefaultCompanyId_FixedAssets WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_FixedAssets_Company' AND object_id = OBJECT_ID(N'[assets].[FixedAssets]'))
+    CREATE INDEX IX_FixedAssets_Company ON [assets].[FixedAssets](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
