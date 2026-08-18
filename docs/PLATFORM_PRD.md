@@ -16,9 +16,10 @@ Library) ← two thin hosts: the web app (`Tarazin.Web`, Blazor Server) and the
 MAUI app (`Tarazin.Maui`, MAUI Blazor Hybrid in a BlazorWebView). Each product
 is a *bounded context*: a module (`Modules/{Name}/` in `Tarazin.Ui`) and one
 private SQL schema (`Data/Scripts/{schema}/` in `Tarazin.Data`, embedded
-resources). There is no web service, no WASM client, no HTTP data layer: UI
-and data access run in the same process. The UI is built exclusively with
-MudBlazor.
+resources). There is no public CRUD web service or WASM client: business data
+access remains in-process. A narrowly scoped broker API validates MAUI sessions
+and issues short-lived, customer-bound SQL credentials; it is not a business-data
+HTTP layer. The UI is built exclusively with MudBlazor.
 
 **FA** – پنج پروژه با وابستگی یک‌طرفه همهٔ هفت محصول تجاری را میزبانی می‌کنند:
 `Tarazin.Share` (مدل‌ها/قراردادها) ← `Tarazin.Data` (لایهٔ داده: Dapper +
@@ -26,9 +27,11 @@ MudBlazor.
 دو هاست نازک: وب (`Tarazin.Web` — Blazor Server) و اپ MAUI (`Tarazin.Maui` —
 MAUI Blazor Hybrid داخل BlazorWebView). هر محصول یک *bounded context* است: یک
 ماژول (`Modules/{Name}/` در `Tarazin.Ui`) و یک اسکیمهٔ SQL خصوصی
-(`Data/Scripts/{schema}/` در `Tarazin.Data` — Embedded). هیچ وب‌سرویس، هیچ
-کلاینت WASM و هیچ لایهٔ HTTP برای داده وجود ندارد: UI و لایهٔ داده در یک
-پروسه‌اند. رابط کاربری فقط با MudBlazor ساخته می‌شود.
+(`Data/Scripts/{schema}/` در `Tarazin.Data` — Embedded). هیچ وب‌سرویس عمومی
+CRUD و هیچ کلاینت WASM وجود ندارد: عملیات کسب‌وکار UI با لایهٔ داده در یک
+پروسه انجام می‌شود. API محدود broker فقط احراز هویت و credential موقت MAUI را
+مدیریت می‌کند و مسیر دادهٔ کسب‌وکار نیست. رابط کاربری فقط با MudBlazor ساخته
+می‌شود.
 
 ---
 
@@ -67,7 +70,7 @@ async event backbone, no message queue.
 | Host — MAUI | Serve the shared UI in a native app | `Tarazin.Maui` — MAUI Blazor Hybrid (BlazorWebView) |
 | Application | Orchestration inside pages | `Modules/*/Pages/*.razor` + `Services/` |
 | Data | One DB `TarazinMaster`, one schema per product | SQL Server (docker compose) |
-| Auth & Audit | Login, session, hash-chained audit | `AuthService`, `UserSession`, `AuditService` |
+| Auth & Audit | Login/session; tenant audit records (chain correctness is an open release gate) | `AuthService`, `UserSession`, `AuditService` |
 | DevOps | Build web + build MAUI + static analysis | `ci/ci.yml`, `tools/cross-schema-scan.sh` |
 
 > **Rule** – No module ever embeds raw SQL or calls another module's schema
@@ -98,17 +101,18 @@ match (ADR-003):
 | Stock reservation | Saga events | `ReserveStockForOrder.sql` executed server-side |
 | Payroll posting | `PayrollFinalized` event → dual-write | Server-side call chain |
 | Gold price sync | Pub/Sub topic | `RefreshGoldPrice.sql` called directly |
-| Audit trail | Outbox + sidecar | `AuditService` → `[central].[AuditLog]` (hash chain) |
+| Audit trail | Outbox + sidecar | `AuditService` → tenant-aware `[central].[AuditLog]` (hash-chain correctness/serialization is an open release gate) |
 
 ADR-002 explains why the event backbone was retired.
 
 ## 5. Security & Compliance / امنیت
 
 * **AuthN** – username/password → `AuthService` (PBKDF2) against `[central].[Users]`.
-* **Session** – per SignalR circuit (`UserSession`); nothing secret is shipped to the browser.
-* **Audit** – every mutating script recorded to `[central].[AuditLog]` with SHA-256 hash chain.
-* **Schema isolation** – `DbService` takes the schema; scripts are fully qualified.
-* **Server-side only** – WASM secret-leak class of problems is gone by construction.
+* **Session** – Web uses the SignalR circuit; MAUI presents authenticated, customer-bound broker requests with replay controls.
+* **MAUI credential** – least-privilege temporary SQL credential is transported only over validated HTTPS, retained in memory, rotated and revoked; no permanent SQL secret/key/token is packaged or persisted.
+* **Audit** – mutating scripts are recorded in `[central].[AuditLog]`; hash-chain correctness and serialization still require dynamic remediation/validation before release.
+* **Schema/tenant isolation** – named scripts remain fully qualified; mobile access additionally uses customer/company ownership and RLS.
+* **Limit** – a live credential can be extracted from a compromised client process; expiry, minimal grants, RLS and revocation bound the exposure.
 
 ## 6. Observability / نظارت
 * Structured logs via `ILogger` per service; audit log is the business observability surface.
@@ -131,7 +135,9 @@ ADR-002 explains why the event backbone was retired.
 2. All 9 modules open from one address and show real data.
 3. No `HttpClient`-for-data and no raw SQL in `.razor` files (static check).
 4. `tools/cross-schema-scan.sh` passes.
-5. Bootstrap login works; audit rows are recorded and viewable.
+5. Bootstrap login with an injected deployment secret works; no default password exists.
+6. Broker fake/inactive/cross-customer, unauthorized, replay, expiry, refresh and revoke tests pass.
+7. Published MAUI artifacts and decompiled/string scans contain no permanent SQL credential, key or token; audit rows are tenant-owned and hash-chain tests pass.
 
 ## 10. Glossary / واژه‌نامه
 | EN | FA |

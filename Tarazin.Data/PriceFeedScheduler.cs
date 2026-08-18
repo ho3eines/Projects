@@ -6,8 +6,8 @@ namespace Tarazin.Data;
 
 /// <summary>
 /// زمان‌بند بروزرسانی خودکار نرخ‌ها (PRD §56).
-/// به‌صورت singleton ثبت می‌شود و در هر دو هاست (وب و MAUI) از
-/// <c>App.razor</c> پس از راه‌اندازی دیتابیس استارت می‌خورد.
+/// به‌صورت singleton ثبت می‌شود و فقط Web پس از راه‌اندازی دیتابیس آن را
+/// در <c>Program.cs</c> استارت می‌کند؛ MAUI اجازهٔ initialization ندارد.
 ///
 /// فاصلهٔ پیش‌فرض از تنظیم <c>currency.Settings/DefaultUpdateIntervalSeconds</c>
 /// خوانده می‌شود (مدیر می‌تواند آن را از صفحهٔ «عملیات ویژه» تغییر دهد)؛
@@ -19,7 +19,7 @@ namespace Tarazin.Data;
 /// </summary>
 public sealed class PriceFeedScheduler : IDisposable
 {
-    private static int _started;                    // Interlocked guard (مشترک بین هر دو هاست)
+    private static int _started;                    // Interlocked guard per host process
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PriceFeedScheduler> _logger;
     private Timer? _timer;
@@ -70,7 +70,8 @@ public sealed class PriceFeedScheduler : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "خواندن فاصلهٔ بروزرسانی ممکن نشد؛ پیش‌فرض ۳۰۰ ثانیه");
+                _logger.LogDebug("خواندن فاصلهٔ بروزرسانی ممکن نشد ({ErrorType})؛ پیش‌فرض ۳۰۰ ثانیه",
+                    ex.GetType().Name);
             }
 
             if (interval >= 10)
@@ -78,7 +79,7 @@ public sealed class PriceFeedScheduler : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطا در چرخهٔ بروزرسانی خودکار نرخ‌ها");
+            _logger.LogError("خطا در چرخهٔ بروزرسانی خودکار نرخ‌ها ({ErrorType})", ex.GetType().Name);
         }
         finally
         {

@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/treasury/_Seed.sql
 -- Schema: treasury
 -- Endpoint: execute (startup)

@@ -81,7 +81,7 @@ public sealed class PriceFeedService
 
         try
         {
-            _logger.LogInformation("دریافت نرخ از {Source} ← {Endpoint}", source.SourceKey, source.Endpoint);
+            _logger.LogInformation("دریافت نرخ از منبع {Source}", source.SourceKey);
             using var response = await Http.GetAsync(source.Endpoint, ct);
             response.EnsureSuccessStatusCode();
 
@@ -104,8 +104,9 @@ public sealed class PriceFeedService
         }
         catch (Exception ex)
         {
-            outcome.Error = Truncate(ex.Message, 400);
-            _logger.LogWarning(ex, "دریافت نرخ از {Source} ناموفق بود — وضعیت منبع Offline می‌شود و آخرین نرخ معتبر حفظ می‌شود (§57)", source.SourceKey);
+            outcome.Error = "دریافت داده از منبع نرخ ناموفق بود.";
+            _logger.LogWarning("دریافت نرخ از {Source} ناموفق بود ({ErrorType})؛ آخرین نرخ معتبر حفظ می‌شود",
+                source.SourceKey, ex.GetType().Name);
             await MarkOfflineAsync(source.SourceKey, outcome.Error, ct);
         }
 
@@ -127,7 +128,8 @@ public sealed class PriceFeedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "به‌روزرسانی وضعیت منبع {Source} ناموفق بود", sourceKey);
+            _logger.LogError("به‌روزرسانی وضعیت منبع {Source} ناموفق بود ({ErrorType})",
+                sourceKey, ex.GetType().Name);
         }
     }
 

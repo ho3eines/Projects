@@ -6,15 +6,16 @@ using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
 using MudBlazor;
 using MudBlazor.Services;
+using Tarazin.Data;
 using Tarazin.Services;
 
 namespace Tarazin.Maui;
 
 /// <summary>
 /// MAUI Blazor Hybrid host — the shared UI (Tarazin.Ui) runs inside a
-/// BlazorWebView with full access to the local .NET runtime. No web server
-/// is involved: components render in-process and talk to SQL Server directly
-/// through the shared DbService (Windows desktop target; see skill notes).
+/// BlazorWebView with full access to the local .NET runtime. Authentication
+/// and short-lived SQL connection preparation go through the HTTPS broker;
+/// existing business operations continue through the shared DbService.
 /// </summary>
 public static class MauiProgram
 {
@@ -22,28 +23,8 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
 
-        // === Stimulsoft License ===
-        string licensePath = Path.Combine(
-            AppContext.BaseDirectory,
-            "wwwroot",
-            "License",
-            "Stimul20240302.key");
-
-        if (File.Exists(licensePath))
-        {
-            Stimulsoft.Base.StiLicense.LoadFromFile(licensePath);
-        }
-        else
-        {
-            // برای دیباگ
-            System.Diagnostics.Debug.WriteLine($"License file not found: {licensePath}");
-        }
-
-        // Load the embedded appsettings.json so the shared layer can read
-        // ConnectionStrings:DefaultConnection and Tarazin:* settings.
-        //
-        // اگر این منبع پیدا نشود، برنامه بی‌سروصدا بدون رشتهٔ اتصال بالا می‌آمد
-        // و بعداً خطای گنگ می‌داد؛ حالا همان‌جا با پیام روشن شکست می‌خورد.
+        // The embedded MAUI configuration contains only the public HTTPS API
+        // endpoint. SQL credentials and tokens are never packaged here.
         using (var stream = typeof(MauiProgram).Assembly.GetManifestResourceStream("Tarazin.Maui.appsettings.json"))
         {
             if (stream is null)
@@ -54,8 +35,10 @@ public static class MauiProgram
             builder.Configuration.AddJsonStream(stream);
         }
 
-        // متغیرهای محیطی (از جمله TARAZIN_SQL_CONNECTION) بر مقدار فایل اولویت دارند.
-        builder.Configuration.AddEnvironmentVariables();
+        // A deployment may override only this non-secret endpoint.
+        var endpointOverride = Environment.GetEnvironmentVariable("TARAZIN_SERVER_ENDPOINT");
+        if (!string.IsNullOrWhiteSpace(endpointOverride))
+            builder.Configuration["ServerEndpoint"] = endpointOverride.Trim();
 
         builder.UseMauiApp<App>();
 
@@ -78,7 +61,15 @@ public static class MauiProgram
             config.SnackbarConfiguration.PreventDuplicates = false;
         });
 
-        // Shared Tarazin services (DbService, ScriptCatalog, Auth, Audit, ...)
+        // One memory-only object is both the remote authenticator and the SQL
+        // provider. Register it before shared services so the configuration-
+        // backed provider is never constructed in MAUI.
+        builder.Services.AddSingleton<RemoteCredentialSession>();
+        builder.Services.AddSingleton<ISqlConnectionProvider>(sp => sp.GetRequiredService<RemoteCredentialSession>());
+        builder.Services.AddSingleton<IRemoteAuthenticationService>(sp => sp.GetRequiredService<RemoteCredentialSession>());
+        builder.Services.AddSingleton<ICredentialSessionRevoker>(sp => sp.GetRequiredService<RemoteCredentialSession>());
+
+        // Shared business services and existing direct-SQL operations.
         builder.Services.AddTarazinUiServices();
 
         

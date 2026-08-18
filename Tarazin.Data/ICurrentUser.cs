@@ -11,4 +11,5 @@ namespace Tarazin.Data;
 public interface ICurrentUser
 {
     string UserName { get; }
+    int? ActiveCompanyId { get; }
 }

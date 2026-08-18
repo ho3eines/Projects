@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/treasury/_Ensure.sql
 -- Schema: treasury (خزانه‌داری)
 -- Endpoint: execute (startup)

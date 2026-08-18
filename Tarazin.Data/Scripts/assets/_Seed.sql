@@ -1,3 +1,4 @@
+-- Cross-schema: central
 -- Multi-Company seed: use first company for default data
 DECLARE @SeedCompanyId INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
 IF @SeedCompanyId IS NULL

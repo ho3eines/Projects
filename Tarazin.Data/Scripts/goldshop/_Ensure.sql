@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/goldshop/_Ensure.sql
 -- Schema: goldshop (مدیریت طلافروشی)
 -- Endpoint: execute (startup)

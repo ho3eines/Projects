@@ -17,6 +17,16 @@ BEGIN
 
     INSERT INTO [central].[Users] (Username, PasswordHash, DisplayName, Role, RoleId, IsActive, CreatedAt, CreatedBy)
     VALUES (@Username, @PasswordHash, @DisplayName, @Role, @NewRoleId, @IsActive, SYSUTCDATETIME(), @CreatedBy);
+
+    -- A generated mobile administrator is bound to exactly one broker company.
+    -- The explicit principal check is intentional: fn_MobileCompanyId also
+    -- serves trusted Web/bootstrap table defaults and may return Web context or
+    -- the legacy fallback company. Those callers retain their existing explicit
+    -- UserCompanies assignment workflow.
+    DECLARE @MobileCompanyId INT = [central].[fn_MobileCompanyId]();
+    IF LEFT(USER_NAME(), 5) = N'tz_m_' AND @MobileCompanyId IS NOT NULL
+        INSERT INTO [central].[UserCompanies] (UserId, CompanyId)
+        VALUES (CONVERT(INT, SCOPE_IDENTITY()), @MobileCompanyId);
 END
 ELSE
 BEGIN

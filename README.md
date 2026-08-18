@@ -41,26 +41,33 @@ Tarazin.Web    Tarazin.Maui
 Blazor Server   MAUI Blazor Hybrid (BlazorWebView)
 ```
 
-* قوانین: UI فقط در `Tarazin.Ui/Modules/...`، مدل فقط در `Tarazin.Share`، داده فقط در `Tarazin.Data/Scripts/{schema}/`، هیچ SQL خام در Razor، هیچ HttpClient برای داده (فقط `PriceFeedService` برای بازار خارجی). مرز اسکیمه با `tools/cross-schema-scan.sh` چک می‌شود. — جزئیات در `docs/PROJECT.md` و `docs/adr/`.*
+* قوانین: UI فقط در `Tarazin.Ui/Modules/...`، مدل فقط در `Tarazin.Share`، داده فقط در `Tarazin.Data/Scripts/{schema}/`، هیچ SQL خام در Razor و هیچ HTTP برای انتقال عملیات کسب‌وکار (فقط broker امنیتی MAUI و `PriceFeedService` بازار خارجی). مرز اسکیمه با `tools/cross-schema-scan.sh` چک می‌شود. — جزئیات در `docs/PROJECT.md` و `docs/adr/`.*
 
 ---
 
 ## 🚀 اجرای سریع
 
 ```bash
-# 1. دیتابیس (فقط SQL Server)
+# 1. secretهای توسعه را در shell/secret manager تنظیم کنید (در repo ننویسید)
+export MSSQL_SA_PASSWORD="$(openssl rand -base64 36)"
+# TARAZIN_SQL_CONNECTION و Tarazin__BootstrapAdminPassword نیز باید از
+# secret store محیط تأمین شوند.
+
+# 2. دیتابیس (فقط SQL Server)
 docker compose up -d
-# healthcheck تا 30 ثانیه صبر می‌کند — سپس:
-# 2. وب (http://localhost:65220)
+
+# 3. وب (http://localhost:65220)
 dotnet run --project Tarazin.Web
-# 3. اپ بومی (ویندوز/مک — نیاز به workload)
+
+# 4. اپ بومی (ویندوز — نیاز به workload)
 dotnet workload install maui
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
 ```
 
-* کانکشن: `ConnectionStrings:DefaultConnection` → `TarazinMaster` — در `Tarazin.Web/appsettings.json` و `Tarazin.Maui/appsettings.json` (Embedded). متغیر محیطی `TARAZIN_SQL_CONNECTION` اولویت دارد.
-* اولین اجرا: `_Ensure.sql` → `_Seed.sql` → کاربر `admin / admin` + نقش‌ها/دسترسی‌ها + ارزها/قیمت‌ها — لاگ و صفحهٔ `/diag` مسیر MDF و تعداد رکوردها را نشان می‌دهد.
-* اسکریپت‌ها Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`) — هاست MAUI بدون نیاز به دیسک کار می‌کند.
+* Web اتصال مدیریتی و bootstrap password را فقط از secretهای استقرار می‌گیرد؛ `appsettings.json` منبع credential تولید نیست.
+* `Tarazin.Maui/appsettings.json` فقط endpoint عمومی HTTPS را دارد. MAUI هنگام ورود، `CustomerGuid` و احراز هویت را به broker امن Web می‌فرستد و credential کوتاه‌عمر، customer-bound و revocable را فقط در حافظه مصرف می‌کند.
+* اولین initialization فقط در Web اجرا می‌شود: `_Ensure.sql` → `_Seed.sql` → نقش‌ها/دسترسی‌ها → ساخت مدیر اولیه با password تزریق‌شده. هیچ رمز پیش‌فرضی وجود ندارد.
+* اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از آماده‌سازی credential همان عملیات مستقیم `DbService` را حفظ می‌کند.
 
 ---
 
@@ -113,7 +120,7 @@ Tarazin.slnx
 * .NET SDK 8.0.100 + SQL Server 2022 (docker)
 * `dotnet build Tarazin.Web/Tarazin.Web.csproj` — بدون خطا
 * `tools/cross-schema-scan.sh` — بدون ارجاع بین‌اسکیمه‌ای غیرمجاز
-* ورود: `admin / admin` → `/diag` برای عیب‌یابی اتصال
+* ورود: نام کاربری bootstrap و password تزریق‌شده از secret store → `/diag` برای عیب‌یابی امن اتصال
 
 ---
 

@@ -1,19 +1,19 @@
 using System.Data;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Tarazin.Data;
 
 /// <summary>
 /// Executes named TSQL scripts against the single <c>TarazinMaster</c>
-/// database using Dapper — directly from the Blazor Server process.
+/// database using Dapper in the current host process. The Web host obtains its
+/// connection from server-only configuration; MAUI obtains a short-lived,
+/// customer-bound credential from the HTTPS broker and keeps it in memory.
 ///
-/// This replaces the old <c>webapi</c> + <c>IRequestService</c> transport:
-/// no HTTP, no handshake, no AES envelopes, no tokens passed via URL.
-/// The schema is the scope guard: each product module only calls scripts of
-/// its own schema, and every script is fully qualified to its own schema.
+/// There is no business-data HTTP transport. The schema is the scope guard:
+/// each product module only calls scripts of its own schema, and every script
+/// is fully qualified to its own schema.
 /// </summary>
 public sealed class DbService
 {
@@ -21,115 +21,137 @@ public sealed class DbService
     private readonly AuditService _audit;
     private readonly ICurrentUser _currentUser;
     private readonly ILogger<DbService> _logger;
-    private readonly string _connectionString;
+    private readonly ISqlConnectionProvider _connectionProvider;
 
-    public DbService(IConfiguration config, ScriptCatalog catalog, AuditService audit,
+    public DbService(ISqlConnectionProvider connectionProvider, ScriptCatalog catalog, AuditService audit,
         ICurrentUser currentUser, ILogger<DbService> logger)
     {
+        _connectionProvider = connectionProvider;
         _catalog = catalog;
         _audit = audit;
         _currentUser = currentUser;
         _logger = logger;
-        // خواندن/اعتبارسنجی متمرکز (env → appsettings) با پیام خطای گویا.
-        _connectionString = TarazinConnection.Resolve(config);
-        // Debug و نه Information: این سرویس scoped است و در وب به‌ازای هر
-        // circuit ساخته می‌شود؛ لاگ راه‌اندازی یک‌بار در Program.cs نوشته می‌شود.
-        _logger.LogDebug("رشتهٔ اتصال بارگذاری شد: {ConnectionString}",
-            TarazinConnection.Mask(_connectionString));
     }
 
-    /// <summary>رشتهٔ اتصال فعال، با رمز ماسک‌شده (برای صفحهٔ عیب‌یابی).</summary>
-    public string MaskedConnectionString => TarazinConnection.Mask(_connectionString);
+    /// <summary>Non-secret connection destination for diagnostics.</summary>
+    public string ConnectionDescription => _connectionProvider.Description;
+    public bool IsConnectionAvailable => _connectionProvider.IsAvailable;
+    public bool UsesTemporaryCredential => !_connectionProvider.SupportsInitialization;
 
     /// <summary>
     /// تست اتصال: باز کردن یک کانکشن و اجرای <c>SELECT 1</c>.
-    /// هرگز استثنا پرتاب نمی‌کند؛ نتیجه را برمی‌گرداند تا UI بتواند نمایش دهد.
+    /// خطاهای اتصال را به نتیجهٔ کنترل‌شده تبدیل می‌کند؛ لغو درخواستی caller حفظ می‌شود.
     /// </summary>
     public async Task<ConnectionCheckResult> TestConnectionAsync(CancellationToken ct = default)
     {
         var started = DateTime.UtcNow;
         try
         {
-            await using var conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync(ct);
+            await using var conn = await OpenConnectionAsync(ct);
             var one = await conn.ExecuteScalarAsync<int>(
                 new CommandDefinition("SELECT 1;", cancellationToken: ct));
-            var version = await conn.ExecuteScalarAsync<string>(
-                new CommandDefinition("SELECT @@VERSION;", cancellationToken: ct));
-
             return new ConnectionCheckResult(
                 Ok: one == 1,
                 Message: "اتصال برقرار است.",
-                Server: conn.DataSource,
-                Database: conn.Database,
-                ServerVersion: version?.Split('\n')[0].Trim(),
                 Elapsed: DateTime.UtcNow - started,
-                MaskedConnectionString: MaskedConnectionString);
+                ProviderDescription: ConnectionDescription);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "تست اتصال SQL ناموفق بود");
+            _logger.LogError("SQL connection test failed ({ErrorType})", ex.GetType().Name);
             return new ConnectionCheckResult(
                 Ok: false,
                 Message: Describe(ex),
-                Server: null,
-                Database: null,
-                ServerVersion: null,
                 Elapsed: DateTime.UtcNow - started,
-                MaskedConnectionString: MaskedConnectionString);
+                ProviderDescription: ConnectionDescription);
         }
     }
 
-    /// <summary>ترجمهٔ خطاهای رایج SQL به پیام فارسی قابل‌فهم.</summary>
+    /// <summary>Maps failures to safe messages without returning exception text.</summary>
     public static string Describe(Exception ex) => ex switch
     {
-        SqlException { Number: 18456 } => "احراز هویت SQL ناموفق: نام کاربری یا رمز عبور اشتباه است (Login failed).",
-        SqlException { Number: 4060 } => "دسترسی به دیتابیس مقصد ممکن نیست یا دیتابیس وجود ندارد.",
-        SqlException { Number: 40615 or 40532 } => "فایروال SQL اجازهٔ اتصال از این IP را نمی‌دهد.",
-        SqlException { Number: 53 or -1 or 2 or 258 } =>
-            "سرور SQL در دسترس نیست: آدرس/پورت را بررسی کنید (docker compose up -d) و اینکه پورت 1433 باز باشد.",
-        SqlException { Number: 4064 } => "دیتابیس پیش‌فرض کاربر قابل باز شدن نیست.",
-        SqlException sqlEx => $"خطای SQL {sqlEx.Number}: {sqlEx.Message}",
-        _ => ex.Message
+        SqlException { Number: 18456 } => "اعتبار اتصال پایگاه داده پذیرفته نشد.",
+        SqlException { Number: 4060 or 4064 } => "دسترسی به پایگاه داده مقصد ممکن نیست.",
+        SqlException { Number: 40615 or 40532 } => "فایروال پایگاه داده اتصال را نپذیرفت.",
+        SqlException { Number: 53 or -1 or 2 or 258 } => "سرویس پایگاه داده در دسترس نیست.",
+        SqlException => "عملیات پایگاه داده انجام نشد.",
+        SafeDataException safe => safe.Message,
+        InvalidOperationException => "اتصال امن پایگاه داده آماده نیست.",
+        OperationCanceledException => "عملیات لغو شد.",
+        _ => "خطای غیرمنتظره‌ای هنگام دسترسی به داده رخ داد."
     };
 
     public async Task<IReadOnlyList<T>> QueryAsync<T>(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
     {
-        var sql = Resolve(schema, scriptName);
-        await using var conn = Open();
-        var rows = await conn.QueryAsync<T>(new CommandDefinition(sql, parameters, cancellationToken: ct));
-        return rows.AsList();
+        try
+        {
+            var sql = Resolve(schema, scriptName);
+            await using var conn = await OpenConnectionAsync(ct);
+            var rows = await conn.QueryAsync<T>(new CommandDefinition(sql, parameters, cancellationToken: ct));
+            return rows.AsList();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw SafeFailure(schema, scriptName, ex);
+        }
     }
 
     public async Task<T?> QueryFirstOrDefaultAsync<T>(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
     {
-        var sql = Resolve(schema, scriptName);
-        await using var conn = Open();
-        return await conn.QueryFirstOrDefaultAsync<T>(new CommandDefinition(sql, parameters, cancellationToken: ct));
+        try
+        {
+            var sql = Resolve(schema, scriptName);
+            await using var conn = await OpenConnectionAsync(ct);
+            return await conn.QueryFirstOrDefaultAsync<T>(new CommandDefinition(sql, parameters, cancellationToken: ct));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw SafeFailure(schema, scriptName, ex);
+        }
     }
 
     /// <summary>
     /// Executes a mutating script and **auto-records an audit row** for it
-    /// (PRD §5 / ADR-002: every mutating operation is hash-chained in
-    /// [central].[AuditLog]). Audit failures never break the business call.
+    /// in [central].[AuditLog]. The current predecessor metadata is retained,
+    /// but cryptographic chain correctness is an open release gate because
+    /// RowHash does not yet commit PrevHash and writes are not serialized.
+    /// Audit failures never break the business call.
     /// </summary>
     public async Task<int> ExecuteAsync(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
     {
-        var sql = Resolve(schema, scriptName);
-        await using var conn = Open();
         try
         {
+            var sql = Resolve(schema, scriptName);
+            await using var conn = await OpenConnectionAsync(ct);
             var affected = await conn.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: ct));
-            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName, "Success", null, ct);
+            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName,
+                ResolveAuditCompanyId(schema, scriptName, parameters), "Success", null, ct);
             return affected;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName, "Error", ex.Message, ct);
-            throw;
+            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName,
+                ResolveAuditCompanyId(schema, scriptName, parameters), "Error", Describe(ex), ct);
+            throw SafeFailure(schema, scriptName, ex);
         }
     }
 
@@ -141,28 +163,45 @@ public sealed class DbService
     public async Task<T?> ExecuteReturningAsync<T>(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
     {
-        var sql = Resolve(schema, scriptName);
-        await using var conn = Open();
         try
         {
+            var sql = Resolve(schema, scriptName);
+            await using var conn = await OpenConnectionAsync(ct);
             var result = await conn.QueryFirstOrDefaultAsync<T>(
                 new CommandDefinition(sql, parameters, cancellationToken: ct));
-            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName, "Success", null, ct);
+            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName,
+                ResolveAuditCompanyId(schema, scriptName, parameters, result), "Success", null, ct);
             return result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName, "Error", ex.Message, ct);
-            throw;
+            await _audit.RecordAsync(schema, scriptName, _currentUser.UserName,
+                ResolveAuditCompanyId(schema, scriptName, parameters), "Error", Describe(ex), ct);
+            throw SafeFailure(schema, scriptName, ex);
         }
     }
 
     public async Task<object?> ScalarAsync(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
     {
-        var sql = Resolve(schema, scriptName);
-        await using var conn = Open();
-        return await conn.ExecuteScalarAsync(new CommandDefinition(sql, parameters, cancellationToken: ct));
+        try
+        {
+            var sql = Resolve(schema, scriptName);
+            await using var conn = await OpenConnectionAsync(ct);
+            return await conn.ExecuteScalarAsync(new CommandDefinition(sql, parameters, cancellationToken: ct));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw SafeFailure(schema, scriptName, ex);
+        }
     }
 
     /// <summary>
@@ -174,12 +213,14 @@ public sealed class DbService
     /// </summary>
     public async Task EnsureDatabaseAsync(CancellationToken ct = default)
     {
-        var database = TarazinConnection.DatabaseName(_connectionString);
+        if (!_connectionProvider.SupportsInitialization)
+            throw new InvalidOperationException("This connection cannot initialize a database.");
+
+        var database = _connectionProvider.DatabaseName;
         if (string.IsNullOrWhiteSpace(database))
             return;
 
-        await using var conn = new SqlConnection(TarazinConnection.ToMaster(_connectionString));
-        await conn.OpenAsync(ct);
+        await using var conn = await _connectionProvider.OpenMasterConnectionAsync(ct);
 
         var exists = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT COUNT(*) FROM sys.databases WHERE name = @database;",
@@ -213,7 +254,7 @@ public sealed class DbService
         {
             if (_catalog.TryGet(schema, "_Ensure", out var ensure))
             {
-                await using var conn = Open();
+                await using var conn = await OpenConnectionAsync(ct);
                 await ExecuteBatchesAsync(conn, ensure, ct);
             }
         }
@@ -233,7 +274,7 @@ public sealed class DbService
         {
             if (_catalog.TryGet(schema, "_Seed", out var seed))
             {
-                await using var conn = Open();
+                await using var conn = await OpenConnectionAsync(ct);
                 await ExecuteBatchesAsync(conn, seed, ct);
             }
         }
@@ -252,11 +293,104 @@ public sealed class DbService
         }
     }
 
-    private SqlConnection Open()
+    private int? ResolveAuditCompanyId(
+        string schema,
+        string scriptName,
+        object? parameters,
+        object? result = null)
     {
-        var conn = new SqlConnection(_connectionString);
-        conn.Open();
-        return conn;
+        // Explicit operation context wins over ambient UI state (notably while
+        // switching active company). A generic returned NewId is not a company
+        // identifier: only the explicit company-creation script may use it for
+        // audit ownership. Other create scripts return unrelated entity IDs.
+        var createdCompanyId =
+            string.Equals(schema, "central", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(scriptName, "CompanyUpsert", StringComparison.OrdinalIgnoreCase)
+                ? ReadPositiveInt(result, "NewId")
+                : null;
+
+        return ReadPositiveInt(parameters, "ActiveCompanyId")
+            ?? ReadPositiveInt(parameters, "CompanyId")
+            ?? ReadPositiveInt(result, "CompanyId")
+            ?? createdCompanyId
+            ?? _currentUser.ActiveCompanyId;
+    }
+
+    private static int? ReadPositiveInt(object? source, string name)
+    {
+        if (source is null)
+            return null;
+
+        object? value = null;
+        if (source is DynamicParameters dynamicParameters)
+        {
+            var parameterName = dynamicParameters.ParameterNames.FirstOrDefault(candidate =>
+                string.Equals(candidate.TrimStart('@'), name, StringComparison.OrdinalIgnoreCase));
+            if (parameterName is not null)
+            {
+                try { value = dynamicParameters.Get<object?>(parameterName); }
+                catch { return null; }
+            }
+        }
+        else if (source is IReadOnlyDictionary<string, object?> readOnlyDictionary)
+        {
+            var pair = readOnlyDictionary.FirstOrDefault(candidate =>
+                string.Equals(candidate.Key.TrimStart('@'), name, StringComparison.OrdinalIgnoreCase));
+            value = pair.Value;
+        }
+        else if (source is IDictionary<string, object?> dictionary)
+        {
+            var pair = dictionary.FirstOrDefault(candidate =>
+                string.Equals(candidate.Key.TrimStart('@'), name, StringComparison.OrdinalIgnoreCase));
+            value = pair.Value;
+        }
+        else
+        {
+            value = source.GetType().GetProperties()
+                .FirstOrDefault(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))?
+                .GetValue(source);
+        }
+
+        if (value is null)
+            return null;
+        try
+        {
+            var converted = Convert.ToInt32(value);
+            return converted > 0 ? converted : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async ValueTask<SqlConnection> OpenConnectionAsync(CancellationToken ct)
+    {
+        var connection = await _connectionProvider.OpenConnectionAsync(ct);
+        try
+        {
+            // Reset on every pooled checkout. Mobile RLS derives its immutable
+            // company from the generated login; the Web host uses active context
+            // so defaults on newly tenant-owned child tables preserve behavior.
+            await connection.ExecuteAsync(new CommandDefinition(
+                "EXEC sys.sp_set_session_context @key=N'TarazinCompanyId', @value=@CompanyId;",
+                new { CompanyId = _currentUser.ActiveCompanyId }, cancellationToken: ct));
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
+    private SafeDataException SafeFailure(string schema, string scriptName, Exception ex)
+    {
+        if (ex is SafeDataException safe)
+            return safe;
+        _logger.LogWarning("Data operation {Schema}/{Script} failed ({ErrorType})",
+            schema, scriptName, ex.GetType().Name);
+        return new SafeDataException(Describe(ex));
     }
 
     private string Resolve(string schema, string scriptName)
@@ -267,4 +401,10 @@ public sealed class DbService
 
         return sql;
     }
+}
+
+/// <summary>Client-displayable database failure with no raw SQL exception details.</summary>
+public sealed class SafeDataException : Exception
+{
+    public SafeDataException(string safeMessage) : base(safeMessage) { }
 }

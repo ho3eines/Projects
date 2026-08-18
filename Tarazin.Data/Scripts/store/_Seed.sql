@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/store/_Seed.sql
 -- Schema: store
 -- Endpoint: execute (startup)

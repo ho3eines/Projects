@@ -22,8 +22,10 @@ while IFS= read -r -d '' f; do
     count=$((count + 1))
     schema="$(basename "$(dirname "$f")")"
 
-    # Referenced schemas: [name].
-    refs="$(grep -oE '\[[a-zA-Z_][a-zA-Z0-9_]*\]\.' "$f" \
+    # Referenced schemas: [name]. Ignore line comments so examples such as
+    # [schema].[table] in prose do not create phantom dependencies.
+    refs="$(sed -E 's/--.*$//' "$f" \
+        | grep -oE '\[[a-zA-Z_][a-zA-Z0-9_]*\]\.' \
         | sed -E 's/^\[([^]]+)\]\.$/\1/' \
         | sort -u || true)"
 

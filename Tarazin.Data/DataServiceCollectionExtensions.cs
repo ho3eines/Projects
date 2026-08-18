@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Tarazin.Data;
 
@@ -12,6 +13,7 @@ public static class DataServiceCollectionExtensions
     public static IServiceCollection AddTarazinDataServices(this IServiceCollection services)
     {
         services.AddSingleton<ScriptCatalog>();   // self-loads embedded scripts
+        services.TryAddScoped<ISqlConnectionProvider, ConfigurationSqlConnectionProvider>();
         services.AddScoped<DbService>();
         services.AddScoped<AuditService>();
 

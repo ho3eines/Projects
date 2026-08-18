@@ -2,7 +2,7 @@
 
 | # | Decision | Status | Date |
 |---|----------|--------|------|
-| [ADR-001](ADR-001-single-blazor-server-architecture.md) | Shared core + two thin hosts — web (Blazor Server) + MAUI (Blazor Hybrid); no webapi, no WASM clients | Accepted | 2026-08-12 |
+| [ADR-001](ADR-001-single-blazor-server-architecture.md) | Shared core + two thin hosts; no public CRUD web API or WASM client (ADR-004 adds a limited MAUI credential broker) | Accepted | 2026-08-12 |
 | [ADR-002](ADR-002-no-event-backbone-direct-sql.md) | No event backbone — cross-module work is direct server-side SQL in the same process | Accepted | 2026-08-12 |
 | [ADR-003](ADR-003-contracts-shared-models-and-scripts.md) | Shared domain contracts = C# models + named scripts; compiler + cross-schema scan enforce them | Accepted | 2026-08-12 |
 | [ADR-004](ADR-004-maui-blazor-hybrid.md) | MAUI Blazor Hybrid host — one shared UI (Tarazin.Ui), two hosts (Tarazin.Web + Tarazin.Maui) | Accepted | 2026-08-12 |

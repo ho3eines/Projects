@@ -7,8 +7,10 @@
 1. **هاست وب** (`Tarazin.Web`) — Blazor Server در مرورگر.
 2. **هاست MAUI** (`Tarazin.Maui`) — MAUI Blazor Hybrid (دسکتاپ ویندوز/مک و موبایل).
 
-هیچ وب‌سرویس، هیچ کلاینت WASM جدا و هیچ لایهٔ HTTP برای داده وجود ندارد. رابط
-کاربری با **MudBlazor** ساخته می‌شود تا تیم درگیر طراحی دستی نشود.
+هیچ وب‌سرویس عمومی CRUD و هیچ کلاینت WASM جدا وجود ندارد. عملیات کسب‌وکار با
+اسکریپت نامدار مستقیم انجام می‌شود؛ تنها API داخلی جدید broker محدود credential
+برای MAUI است. رابط کاربری با **MudBlazor** ساخته می‌شود تا تیم درگیر طراحی دستی
+نشود.
 
 ## Scope
 - **محصولات (7)** — حسابداری، انبار آمل، خزانه‌داری، حقوق و دستمزد، طلافروشی،
@@ -16,8 +18,10 @@
 - هر محصول = یک **ماژول** (`Tarazin.Ui/Modules/{Name}/`) با صفحات و یک **اسکیمهٔ
   SQL مستقل** (`Tarazin.Data/Scripts/{schema}/`).
 - **مدل‌ها فقط در `Tarazin.Share`** (namespace: `Tarazin.Models`) — قرارداد دامنه.
-- داده فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded Resource در `Tarazin.Data`)
-  که در همان پروسه با Dapper اجرا می‌شوند — بدون HTTP، بدون توکن، بدون لایهٔ API.
+- عملیات کسب‌وکار فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded Resource در
+  `Tarazin.Data`) و Dapper اجرا می‌شوند. Web provider سمت سرور دارد؛ MAUI فقط
+  برای آماده‌سازی credential کوتاه‌عمر از broker امنیتی HTTPS استفاده می‌کند و
+  سپس همان عملیات مستقیم SQL را حفظ می‌کند. broker لایهٔ CRUD داده نیست.
 
 ## Architecture (High Level)
 | لایه | مسئولیت | سازوکار |
@@ -29,7 +33,7 @@
 | Host MAUI | میزبانی UI در اپ بومی | `Tarazin.Maui` — BlazorWebView (Blazor Hybrid) |
 | Scripts | منطق دامنه و گزارش‌ها (report-first) | `Tarazin.Data/Scripts/{schema}/{Name}.sql` (Embedded) |
 | DB | یک دیتابیس `TarazinMaster` با اسکیمهٔ جدا برای هر محصول | SQL Server (docker compose) |
-| Auth | ورود با نام کاربری/رمز از جدول `[central].[Users]` | `AuthService` + PBKDF2 |
+| Auth | Web: PBKDF2 سمت سرور؛ MAUI: broker HTTPS با CustomerGuid و همان PBKDF2 | `AuthService` + `CredentialBrokerService` |
 | Audit | ثبت تمام عملیات با زنجیرهٔ هش | `AuditService` → `[central].[AuditLog]` |
 
 ## Key Rules (قوانین کلیدی)
@@ -49,28 +53,28 @@
 
 ## What was removed (delete-list)
 - همهٔ پروژه‌های قدیمی: `webapi`، ۷ کلاینت WASM، `share`، `blazordeployservice`، `tests`.
-- وب‌سرویس/توکن/هندشیک/رمزنگاری AES بین کلاینت و سرور.
+- وب‌سرویس عمومی CRUD، token در URL و رمزنگاری اختصاصی AES با کلید client-side. تنها API جدید، broker محدود login/refresh/revoke روی HTTPS با token تصادفی و replay control است.
 - بک‌بون رویدادها (Outbox) — cross-module عملیات مستقیماً و تراکنشی انجام می‌شود.
 - Bootstrap سفارشی و کامپوننت‌های دست‌ساز (DataGrid و...) — همه با MudBlazor جایگزین شدند.
 
 ## MAUI Blazor Hybrid (خلاصه)
 - `Tarazin.Maui/MainPage.xaml` → `BlazorWebView` با `RootComponent` = `Tarazin.App` (مشترک).
 - `wwwroot/index.html` → رانتایم `_framework/blazor.webview.js` + استاتیک‌های MudBlazor و RCL.
-- پیکربندی: `appsettings.json` به‌صورت Embedded خوانده می‌شود.
-- **محدودیت پلتفرم**: `Microsoft.Data.SqlClient` روی ویندوز/مک پشتیبانی می‌شود؛ برای
-  اندروید/iOS لایهٔ داده باید به وب‌سرویس/Provider دیگر برود (بک‌لاگ). جزییات:
-  `skills/blazor/blazor-maui-hybrid/SKILL.md`.
+- پیکربندی Embedded فقط `ServerEndpoint` عمومی HTTPS است؛ SQL connection/password، bootstrap secret، token و decryption key دائمی در MAUI ممنوع‌اند.
+- جریان: `Login + CustomerGuid → broker HTTPS → validation → credential موقت customer-bound → DbService مستقیم`. credential فقط در حافظه است، پیش از انقضا rotate و در logout revoke می‌شود.
+- TLS و certificate validation عادی الزامی‌اند. امکان استخراج secret فعال از حافظهٔ client compromise‌شده با رمزنگاری client-held حل نمی‌شود؛ عمر کوتاه، least privilege، RLS و revoke کنترل اصلی‌اند.
+- build و رفتار SqlClient باید برای هر target MAUI در CI/E2E همان پلتفرم تأیید شود.
 
 ## Acceptance Criteria
 1. `dotnet build Tarazin.Web/Tarazin.Web.csproj` — بدون خطا (شامل Share/Data/Ui).
 2. `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0`
    روی ویندوز با `dotnet workload install maui` — بدون خطا.
 3. با `docker compose up -d` + `dotnet run` همهٔ ۹ ماژول از یک آدرس باز می‌شوند.
-4. در صفحات، هیچ رشتهٔ SQL و هیچ `HttpClient` برای داده وجود ندارد.
+4. در صفحات هیچ SQL خام یا HTTP برای CRUD/business data وجود ندارد؛ broker credential و feed رسمی بازار تنها استثناهای محدودند.
 5. اسکریپت‌های هر اسکیمه از اسکیمهٔ دیگر بدون اعلام قبلی استفاده نمی‌کنند
    (`tools/cross-schema-scan.sh` پاس شود).
-6. ورود با کاربر bootstrap (admin/admin در اولین اجرا) و مدیریت کاربران کار می‌کند
-   (در هر دو هاست).
+6. ورود با کاربر bootstrap و password تزریق‌شده از secret store و مدیریت کاربران در هر دو هاست کار می‌کند؛ password پیش‌فرض وجود ندارد.
+7. artifact نهایی MAUI فاقد connection string/password/token/key دائمی است و تست‌های fake GUID، inactive customer، replay، expiry، revoke، unauthorized و cross-customer پاس می‌شوند.
 
 ---
 *نسخه ۲.۲ — ۲۰۲۶/۰۸/۱۲ — لایه‌بندی Share/Data/Ui + هاست وب (Blazor Server) + هاست MAUI.*

@@ -1,4 +1,5 @@
 -- =============================================
+-- Cross-schema: central
 -- Tarazin.Data/Scripts/goldshop/_Seed.sql
 -- Schema: goldshop
 -- Endpoint: execute (startup)

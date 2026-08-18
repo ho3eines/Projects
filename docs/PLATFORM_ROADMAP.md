@@ -10,14 +10,15 @@
 
 ```
 Tarazin.Share (models) ← Tarazin.Data (data layer, embedded scripts) ← Tarazin.Ui (UI RCL)
-├── Tarazin.Web   → Blazor Server    https://localhost:65220 (مرورگر)
-└── Tarazin.Maui  → MAUI Blazor Hybrid (BlazorWebView — ویندوز/مک/اندروید/iOS)
-        └── SQL Server (docker) — TarazinMaster
+├── Tarazin.Web   → Blazor Server + limited credential broker (HTTPS)
+└── Tarazin.Maui  → login/refresh/revoke broker → temporary in-memory SQL credential
+        └── existing direct DbService operations → SQL Server / TarazinMaster
                 [central] [accounting] [inventory] [treasury]
                 [payroll] [goldshop] [store]
 ```
 
-No separate ports per product, no webapi, no WASM clients, no HTTP data layer.
+No separate ports per product, no public CRUD web API, no WASM clients, and no
+HTTP business-data layer. The broker is the narrow control-plane exception.
 
 ## 1. Implementation status (2026-08-12)
 
@@ -29,19 +30,20 @@ No separate ports per product, no webapi, no WASM clients, no HTTP data layer.
 | Create `Tarazin.Maui` (MAUI Blazor Hybrid host) | ✅ | BlazorWebView → `Tarazin.App`؛ Platforms/Resources کامل |
 | Scripts as embedded resources (in `Tarazin.Data`) | ✅ | `ScriptCatalog` خودکار در ctor؛ `TarazinDbInitializer` مشترک |
 | Data layer (`ScriptCatalog`, `DbService`, `ICurrentUser`) | ✅ | named TSQL + Dapper, in-process؛ بدون وابستگی به Ui |
-| Auth (login, bootstrap admin, users page) | ✅ | PBKDF2؛ وب per-circuit / MAUI per-app |
-| Audit page + auto-audit on every Execute | ✅ | hash chain in `[central].[AuditLog]` |
-| CI: build وب (ubuntu) + build MAUI (windows + workload maui) | ✅ | `ci/ci.yml`؛ مسیر اسکن به‌روز |
-| **Full manual test with live SQL Server (وب + MAUI)** | 🔲 | نیاز به محیط با dotnet/SQL |
-| Android/iOS data layer (SqlClient محدود به ویندوز/مک) | 🔲 | بک‌لاگ — UI آماده است |
+| Auth (login, bootstrap admin, users page) | ✅ ایستا | PBKDF2؛ Web per-circuit؛ MAUI broker با customer/session/nonce |
+| Credential hardening + mobile RLS | ✅ ایستا / 🔲 پویا | endpoint-only config، credential موقت، revoke/cleanup، tenant ownership؛ SQL واقعی لازم است |
+| Audit page + auto-audit on every Execute | ⚠️ | tenant ownership اضافه شده؛ hash-chain correctness/serialization هنوز باز است |
+| CI: build Web + MAUI + source/artifact security scan | ✅ تعریف شد | `.github/workflows/ci.yml`؛ نتیجهٔ runner هنوز دریافت نشده است |
+| **Full adversarial/E2E test with live SQL Server (Web + MAUI)** | 🔲 | نیازمند dotnet، SQL Server و device lab |
+| Android/iOS direct SqlClient runtime | 🔲 | باید روی هر target build و اجرا شود؛ fallback ناامن ممنوع است |
 
 ## 2. Backlog (next phases)
 
 | Phase | Work |
 |---|---|
-| 8 | CI را به `.github/workflows/ci.yml` منتقل و سبز کنید (build وب + build MAUI) |
-| 9 | تست دستی همهٔ فرم‌ها و گزارش‌ها با دیتای واقعی در وب و اپ MAUI (ویندوز) |
-| 10 | لایهٔ داده برای اندروید/iOS در MAUI (SQLite/EF Core یا سرویس جدید) |
+| 8 | `ci/ci.yml` را با دسترسی workflows به `.github/workflows/ci.yml` منتقل، روی runner سبز و artifact scan را بازبینی کنید |
+| 9 | تست E2E/adversarial broker، RLS، فرم‌ها، گزارش‌ها و audit با SQL واقعی و Web/MAUI |
+| 10 | مسیر مستقیم SqlClient را روی Android/iOS تأیید کنید؛ فقط در صورت عدم پشتیبانی، fallback بدون secret دائمی/TLS bypass طراحی شود |
 | 11 | بکاپ خودکار دیتابیس (یا پلن نگهداری) |
 | 12 | مستندسازی کاربر نهایی (راهنمای هر ماژول + راهنمای نصب اپ) |
 

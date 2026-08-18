@@ -5,6 +5,7 @@
 -- =============================================
 SELECT
     a.AuditId,
+    a.CompanyId,
     a.SchemaName,
     a.ScriptName,
     a.UserTokenId,

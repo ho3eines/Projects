@@ -23,6 +23,12 @@ jobs:
       - name: Build
         run: dotnet build Tarazin.Web/Tarazin.Web.csproj -c Release --no-restore
 
+      - name: Credential security regression scan
+        run: python3 tools/security-regression-scan.py --self-test
+
+      - name: Validate operational shell scripts
+        run: bash -n tools/test-connection.sh tools/cross-schema-scan.sh
+
       - name: Cross-schema static analysis
         run: bash tools/cross-schema-scan.sh
 
@@ -51,14 +57,32 @@ jobs:
       - name: Build MAUI (Windows target)
         run: dotnet build Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-windows10.0.19041.0
 
+      - name: Scan MAUI assemblies and packaged settings
+        run: python tools/security-regression-scan.py --artifact Tarazin.Maui/bin/Release
+
   codeql:
     name: SAST
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
         with:
           languages: csharp
+
+      # Analyze the Web/shared graph explicitly. Autobuild can choose MAUI on
+      # Ubuntu even though the platform workloads are intentionally absent.
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore analyzed project
+        run: dotnet restore Tarazin.Web/Tarazin.Web.csproj
+
+      - name: Build analyzed project
+        run: dotnet build Tarazin.Web/Tarazin.Web.csproj -c Release --no-restore
+
       - uses: github/codeql-action/analyze@v3

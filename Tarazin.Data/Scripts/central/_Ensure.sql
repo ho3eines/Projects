@@ -54,6 +54,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [central].[AuditLog] (
         AuditId     BIGINT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId   INT NULL,
         PrevHash    CHAR(64) NOT NULL,
         RowHash     CHAR(64) NOT NULL,
         SchemaName  NVARCHAR(100) NOT NULL,
@@ -68,6 +69,8 @@ BEGIN
     CREATE INDEX IX_AuditLog_CreatedAt ON [central].[AuditLog](CreatedAt);
     CREATE INDEX IX_AuditLog_Schema ON [central].[AuditLog](SchemaName, CreatedAt);
 END
+IF COL_LENGTH(N'central.AuditLog', N'CompanyId') IS NULL
+    ALTER TABLE [central].[AuditLog] ADD CompanyId INT NULL;
 
 -- Contract: Party (Core owner) — v2 adds NationalId.
 IF NOT EXISTS (
@@ -77,7 +80,8 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [central].[Parties] (
         PartyId     INT IDENTITY(1,1) PRIMARY KEY,
-        PartyCode   NVARCHAR(50) NOT NULL UNIQUE,
+        CompanyId   INT NULL,
+        PartyCode   NVARCHAR(50) NOT NULL,
         PartyType   NVARCHAR(30) NOT NULL DEFAULT N'Customer',   -- Customer | Vendor | Employee
         FullName    NVARCHAR(200) NOT NULL,
         NationalId  NVARCHAR(20) NULL,                            -- v2 field
@@ -88,10 +92,13 @@ BEGIN
         CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         UpdatedAt   DATETIME2 NULL,
         CreatedBy   NVARCHAR(100) NULL,
-        UpdatedBy   NVARCHAR(100) NULL
+        UpdatedBy   NVARCHAR(100) NULL,
+        CONSTRAINT UQ_Parties_Company_Code UNIQUE (CompanyId, PartyCode)
     );
     CREATE INDEX IX_Parties_Type ON [central].[Parties](PartyType, IsDeleted);
 END
+IF COL_LENGTH(N'central.Parties', N'CompanyId') IS NULL
+    ALTER TABLE [central].[Parties] ADD CompanyId INT NULL;
 
 -- محتویات وبسایت مرکزی (پلتفرم مشترک): اخبار، بلاگ، گالری.
 IF NOT EXISTS (
@@ -371,4 +378,190 @@ GO
 UPDATE [central].[FiscalYears]
 SET [Status] = N'Open'
 WHERE [Status] IS NULL OR LTRIM(RTRIM([Status])) = N'';
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- MAUI credential broker control plane (server-side only)
+-- ─────────────────────────────────────────────────────────────
+-- This dedicated registry is an explicit deployment/customer boundary. It
+-- deliberately does not reuse commerce customers from [store].[Customers].
+-- Rows are provisioned server-side; no random/default customer is enabled.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'CredentialCustomers')
+BEGIN
+    CREATE TABLE [central].[CredentialCustomers] (
+        CredentialCustomerId    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        CustomerGuid            UNIQUEIDENTIFIER NOT NULL,
+        CompanyId               INT NOT NULL,
+        DisplayName             NVARCHAR(200) NOT NULL,
+        IsActive                BIT NOT NULL DEFAULT 1,
+        CredentialAccessEnabled BIT NOT NULL DEFAULT 0,
+        CreatedAt               DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt               DATETIME2 NULL,
+        CONSTRAINT UQ_CredentialCustomers_CustomerGuid UNIQUE (CustomerGuid),
+        CONSTRAINT UQ_CredentialCustomers_Company UNIQUE (CompanyId),
+        CONSTRAINT FK_CredentialCustomers_Company FOREIGN KEY (CompanyId)
+            REFERENCES [central].[Companies](CompanyId)
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'MobileCredentialSessions')
+BEGIN
+    CREATE TABLE [central].[MobileCredentialSessions] (
+        SessionId              UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionFamilyId        UNIQUEIDENTIFIER NOT NULL,
+        TokenHash              CHAR(64) NOT NULL,
+        CustomerGuid           UNIQUEIDENTIFIER NOT NULL,
+        CustomerId             INT NOT NULL,
+        CompanyId              INT NOT NULL,
+        UserId                 INT NOT NULL,
+        SqlLoginName            SYSNAME NOT NULL,
+        CredentialExpiresAt    DATETIME2 NOT NULL,
+        SessionExpiresAt       DATETIME2 NOT NULL,
+        CreatedAt              DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        ActivatedAt            DATETIME2 NULL,
+        LastRefreshedAt        DATETIME2 NULL,
+        RevokedAt              DATETIME2 NULL,
+        CONSTRAINT UQ_MobileCredentialSessions_TokenHash UNIQUE (TokenHash),
+        CONSTRAINT UQ_MobileCredentialSessions_Login UNIQUE (SqlLoginName),
+        CONSTRAINT FK_MobileCredentialSessions_Customer FOREIGN KEY (CustomerId)
+            REFERENCES [central].[CredentialCustomers](CredentialCustomerId),
+        CONSTRAINT FK_MobileCredentialSessions_User FOREIGN KEY (UserId) REFERENCES [central].[Users](UserId),
+        CONSTRAINT FK_MobileCredentialSessions_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+    CREATE INDEX IX_MobileCredentialSessions_Expiry
+        ON [central].[MobileCredentialSessions](CredentialExpiresAt, SessionExpiresAt, RevokedAt);
+    CREATE INDEX IX_MobileCredentialSessions_Family
+        ON [central].[MobileCredentialSessions](SessionFamilyId, RevokedAt);
+END
+GO
+
+-- Upgrade pre-family broker rows without invalidating a live deployment. A
+-- pre-existing row was already active if it survived issuance, so CreatedAt is
+-- the safest activation backfill. New issuance is inserted pending and is
+-- activated only after its SQL principal exists.
+IF COL_LENGTH(N'central.MobileCredentialSessions', N'SessionFamilyId') IS NULL
+    ALTER TABLE [central].[MobileCredentialSessions]
+        ADD SessionFamilyId UNIQUEIDENTIFIER NULL;
+GO
+UPDATE [central].[MobileCredentialSessions]
+SET SessionFamilyId = SessionId
+WHERE SessionFamilyId IS NULL;
+GO
+ALTER TABLE [central].[MobileCredentialSessions]
+    ALTER COLUMN SessionFamilyId UNIQUEIDENTIFIER NOT NULL;
+GO
+IF COL_LENGTH(N'central.MobileCredentialSessions', N'ActivatedAt') IS NULL
+BEGIN
+    -- This backfill belongs only to the column-add migration. Rows written by
+    -- pre-activation broker versions were live once persisted; after the column
+    -- exists, a NULL value means deliberately pending and must never be revived
+    -- by a later idempotent startup.
+    EXEC(N'ALTER TABLE [central].[MobileCredentialSessions]
+              ADD ActivatedAt DATETIME2 NULL;');
+    EXEC(N'UPDATE [central].[MobileCredentialSessions]
+           SET ActivatedAt = CreatedAt
+           WHERE ActivatedAt IS NULL AND RevokedAt IS NULL;');
+END
+GO
+IF NOT EXISTS
+   (SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[central].[MobileCredentialSessions]')
+      AND name = N'IX_MobileCredentialSessions_Family')
+    CREATE INDEX IX_MobileCredentialSessions_Family
+        ON [central].[MobileCredentialSessions](SessionFamilyId, RevokedAt);
+GO
+
+-- Authoritative v4 tenant-default function. Generated mobile principals can
+-- resolve only their live broker-bound company. Trusted Web/bootstrap identities
+-- retain the existing active-context/fallback behavior used by business-table
+-- defaults. The object version makes upgrades explicit and avoids ALTERing a
+-- schema-bound function on every startup.
+DECLARE @MobileCompanyFunctionVersion INT =
+(
+    SELECT TRY_CONVERT(INT, ep.[value])
+    FROM sys.extended_properties AS ep
+    WHERE ep.class = 1
+      AND ep.major_id = OBJECT_ID(N'[central].[fn_MobileCompanyId]')
+      AND ep.minor_id = 0
+      AND ep.name = N'Tarazin.SecurityDefinitionVersion'
+);
+
+IF OBJECT_ID(N'[central].[fn_MobileCompanyId]', N'FN') IS NULL
+   OR COALESCE(@MobileCompanyFunctionVersion, 0) < 4
+BEGIN
+    DECLARE @MobileCompanyFunctionSql NVARCHAR(MAX) =
+        CASE WHEN OBJECT_ID(N'[central].[fn_MobileCompanyId]', N'FN') IS NULL
+             THEN N'CREATE' ELSE N'ALTER' END + N'
+        FUNCTION [central].[fn_MobileCompanyId]()
+        RETURNS INT
+        WITH SCHEMABINDING
+        AS
+        BEGIN
+            DECLARE @CompanyId INT;
+            IF LEFT(USER_NAME(), 5) = N''tz_m_''
+                SELECT @CompanyId = s.CompanyId
+                FROM [central].[MobileCredentialSessions] AS s
+                JOIN [central].[CredentialCustomers] AS cc
+                  ON cc.CredentialCustomerId = s.CustomerId
+                 AND cc.CustomerGuid = s.CustomerGuid
+                 AND cc.CompanyId = s.CompanyId
+                JOIN [central].[Companies] AS c ON c.CompanyId = s.CompanyId
+                WHERE s.SqlLoginName = USER_NAME()
+                  AND s.ActivatedAt IS NOT NULL
+                  AND s.RevokedAt IS NULL
+                  AND s.CredentialExpiresAt > SYSUTCDATETIME()
+                  AND s.SessionExpiresAt > SYSUTCDATETIME()
+                  AND cc.IsActive = 1
+                  AND cc.CredentialAccessEnabled = 1
+                  AND c.IsActive = 1
+                  AND c.IsDeleted = 0;
+            ELSE
+            BEGIN
+                SET @CompanyId = TRY_CONVERT(INT, SESSION_CONTEXT(N''TarazinCompanyId''));
+                IF @CompanyId IS NULL
+                    SELECT TOP (1) @CompanyId = c.CompanyId
+                    FROM [central].[Companies] AS c
+                    WHERE c.IsDeleted = 0
+                    ORDER BY c.CompanyId;
+            END;
+            RETURN @CompanyId;
+        END';
+    EXEC sys.sp_executesql @MobileCompanyFunctionSql;
+
+    IF EXISTS
+       (SELECT 1 FROM sys.extended_properties
+        WHERE class = 1 AND major_id = OBJECT_ID(N'[central].[fn_MobileCompanyId]')
+          AND minor_id = 0 AND name = N'Tarazin.SecurityDefinitionVersion')
+        EXEC sys.sp_updateextendedproperty
+            @name = N'Tarazin.SecurityDefinitionVersion', @value = 4,
+            @level0type = N'SCHEMA', @level0name = N'central',
+            @level1type = N'FUNCTION', @level1name = N'fn_MobileCompanyId';
+    ELSE
+        EXEC sys.sp_addextendedproperty
+            @name = N'Tarazin.SecurityDefinitionVersion', @value = 4,
+            @level0type = N'SCHEMA', @level0name = N'central',
+            @level1type = N'FUNCTION', @level1name = N'fn_MobileCompanyId';
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'central' AND t.name = N'CredentialRequestNonces')
+BEGIN
+    CREATE TABLE [central].[CredentialRequestNonces] (
+        NonceHash   CHAR(64) NOT NULL PRIMARY KEY,
+        ExpiresAt   DATETIME2 NOT NULL,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_CredentialRequestNonces_Expiry
+        ON [central].[CredentialRequestNonces](ExpiresAt);
+END
 GO

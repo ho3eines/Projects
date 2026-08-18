@@ -1,10 +1,10 @@
 # TODO — ترازین (مدیریت هوشمند کسب‌وکار) — Blazor Hybrid
 
-> **وضعیت کلی (۱۴۰۵/۰۵/۲۱):** پیاده‌سازی کد **کامل است** (هستهٔ مشترک + هاست وب +
-> هاست MAUI + صفحات گزارشات). آنچه باقی مانده، **تأیید اجرایی** است: build و تست
-> دستی با دیتابیس واقعی (به‌دلیل نبود dotnet/SQL در sandbox ممکن نشد) و فعال‌سازی
-> CI در GitHub Actions. مطابق Legend، وضعیت «۴» یعنی Deploy شده — هنوز چیزی Deploy
-> نشده، بنابراین فازهای کد «۳» (تکمیل) هستند نه «۴».
+> **وضعیت کلی (۱۴۰۵/۰۵/۲۷):** هستهٔ مشترک، Web، MAUI و hardening مسیر credential
+> پیاده‌سازی و static-review شده‌اند، اما release هنوز نیازمند build و تست پویا با
+> SQL Server واقعی است (SDK/SQL tooling در sandbox موجود نبود). CI و staging باید
+> migration، broker، RLS، replay/expiry/revoke و artifact scan را پیش از production
+> سبز کنند. مطابق Legend، هنوز چیزی Deploy نشده است.
 
 | فاز | وضعیت (0 تا 4) | شرح کار | مسئول |
 |-----|-----------------|---------|--------|
@@ -33,10 +33,10 @@
 |---|-----|----------|
 | B1 | `dotnet build Tarazin.Web/Tarazin.Web.csproj` — تأیید build پنج‌پروژه (MudBlazor 9.8.0 روی net8.0) | محیط با SDK |
 | B2 | `dotnet workload install maui` + build MAUI (ویندوز) | محیط با SDK/ویندوز |
-| B3 | `docker compose up -d` + تست E2E در وب و MAUI (admin/admin، ثبت داده، گزارش، ممیزی). عیب‌یابی اتصال: `bash tools/test-connection.sh` و صفحهٔ `/diag` — نگاه کنید به `docs/CONNECTION_TROUBLESHOOTING.md` | SQL Server |
-| B4 | لایهٔ داده برای اندروید/iOS در MAUI (SQLite/EF Core یا سرویس جدید) | تصمیم معماری |
+| B3 | `docker compose up -d` با secretهای خارجی + تست E2E وب/MAUI با bootstrap password تزریق‌شده، broker login/refresh/revoke، replay/expiry/fake GUID/inactive/cross-customer، ثبت داده، گزارش و ممیزی. عیب‌یابی: `bash tools/test-connection.sh` و `/diag` امن | SQL Server + SDK |
+| B4 | تأیید build/runtime مسیر مستقیم SqlClient و broker برای Android/iOS؛ هر fallback باید بدون credential دائمی یا TLS bypass باشد | CI/device lab |
 | B5 | انتقال `ci/ci.yml` به `.github/workflows/ci.yml` و سبز شدن | دسترسی workflows |
-| B6 | تغییر رمز bootstrap و انتقال اعتبارنامهٔ SQL به secret store (زیرساختش آماده است: `TARAZIN_SQL_CONNECTION`) | تولید |
+| B6 | پیکربندی secret store تولید برای اتصال Web و bootstrap password؛ repository و artifact باید بدون مقدار secret باقی بمانند | تولید |
 | B7 | پاک‌سازی جدول‌های Outbox خواب (ADR-002) | اختیاری |
 
 ## فاز ۱۰ — دسترسی (RBAC) + سرویس کاربر + CreatedAt/UpdatedAt (۱۴۰۵/۰۵/۲۲)

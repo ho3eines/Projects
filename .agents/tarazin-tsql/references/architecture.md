@@ -5,22 +5,30 @@
 ```
 Tarazin.Share (models) ← Tarazin.Data (data layer) ← Tarazin.Ui (UI RCL)
 ├── Tarazin.Web   → dotnet run --project Tarazin.Web   https://localhost:65220
-└── Tarazin.Maui  → dotnet build -f net10.0-windows10.0.19041.0 (ویندوز)
-        └── SQL Server (docker compose) — TarazinMaster
+└── Tarazin.Maui  → dotnet build -f net8.0-windows10.0.19041.0 (ویندوز)
+        ├── HTTPS broker login/refresh/revoke (credential preparation only)
+        └── SQL Server — TarazinMaster (temporary customer-bound principal)
                 [central] [accounting] [inventory] [treasury]
                 [payroll] [goldshop] [store]
 ```
 
-One shared core, one connection string
-(`ConnectionStrings:DefaultConnection`), two hosts.
+One shared core, two connection providers:
 
-## Startup sequence (shared)
+- Web reads `ConnectionStrings:DefaultConnection` only from server-side
+  deployment secrets and performs database initialization.
+- MAUI configuration contains only the public HTTPS `ServerEndpoint`.
+  `RemoteCredentialSession` obtains short-lived credentials after customer and
+  user authorization and retains them only in process memory.
 
-1. `ScriptCatalog` ctor (in `Tarazin.Data`) — loads embedded `Tarazin.Scripts.{schema}.{Name}.sql`
-2. `TarazinDbInitializer.EnsureInitializedAsync(services)` — runs every
-   `{schema}/_Ensure.sql`
-3. `…` → runs every `{schema}/_Seed.sql`
-4. `…` → creates `admin` only when `[central].[Users]` is empty
+## Startup sequence (Web only)
+
+1. `ScriptCatalog` ctor (in `Tarazin.Data`) loads embedded `Tarazin.Scripts.{schema}.{Name}.sql`.
+2. `TarazinDbInitializer.EnsureInitializedAsync(services)` runs every
+   `{schema}/_Ensure.sql` and `{schema}/_Seed.sql`.
+3. An initial admin is created only when users are empty and a strong bootstrap
+   password was supplied by deployment; no default password exists.
+
+MAUI does not initialize the database and cannot connect to `master`.
 
 ## Services
 
@@ -30,7 +38,7 @@ One shared core, one connection string
 | `DbService` | scoped | `QueryAsync<T>` / `QueryFirstOrDefaultAsync<T>` / `ExecuteAsync` / `ScalarAsync` |
 | `AuthService` | scoped | `AuthenticateAsync(user, pass)` → `UserRow?` |
 | `UserSession` | scoped | per-circuit (web) / per-app (MAUI) session state |
-| `AuditService` | scoped | `RecordAsync(...)` → `[central].[AuditLog]` (hash chain) |
+| `AuditService` | scoped | tenant-owned audit rows; chain correctness remains a release gate |
 | `PasswordHasher` | static | PBKDF2 hash/verify |
 
 ## Key conventions

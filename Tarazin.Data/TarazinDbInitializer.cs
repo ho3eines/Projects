@@ -7,14 +7,13 @@ using Tarazin.Models;
 namespace Tarazin.Data;
 
 /// <summary>
-/// One-time startup initialization shared by both hosts:
+/// One-time server-side startup initialization:
 ///   1. ensure schemas/tables (every <c>{schema}/_Ensure.sql</c>)
 ///   2. seed idempotently (every <c>{schema}/_Seed.sql</c>)
 ///   3. create the bootstrap admin when <c>[central].[Users]</c> is empty
 ///
-/// Web host: called from Program.cs before <c>app.Run()</c>.
-/// MAUI host: called from the shared <c>App.razor</c> OnInitializedAsync
-/// (the Interlocked guard makes concurrent first-render calls safe).
+/// Only the Web host calls this. MAUI credentials never receive DDL, seed,
+/// database-creation, or bootstrap permissions.
 /// </summary>
 public static class TarazinDbInitializer
 {
@@ -30,36 +29,48 @@ public static class TarazinDbInitializer
             var db = services.GetRequiredService<DbService>();
             var config = services.GetRequiredService<IConfiguration>();
 
-            // ۰. دیتابیس مقصد را در اولین اجرا بساز (SQL Server تازه/کانتینر خالی).
-            //    این کار با اتصال به master انجام می‌شود، پس اگر خودِ سرور در
-            //    دسترس نباشد همین‌جا با پیام فارسی گویا شکست می‌خورد.
+            // ۰. دیتابیس مقصد را در اولین اجرای هاست وب ایجاد کن. هیچ جزئیات
+            //    provider یا رشتهٔ اتصالی وارد استثنای قابل ثبت در startup نمی‌شود.
             try
             {
                 await db.EnsureDatabaseAsync();
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                throw new InvalidOperationException(
-                    $"اتصال به SQL Server برقرار نشد. {DbService.Describe(ex)}{Environment.NewLine}" +
-                    $"رشتهٔ اتصال: {db.MaskedConnectionString}", ex);
+                throw new SafeDataException(DbService.Describe(ex));
             }
 
-            // ۱. تست نهایی روی خودِ دیتابیس مقصد.
+            // ۱. تست نهایی روی خودِ دیتابیس مقصد با خروجی کنترل‌شده.
             var check = await db.TestConnectionAsync();
             if (!check.Ok)
-                throw new InvalidOperationException(
-                    $"اتصال به دیتابیس مقصد برقرار نشد. {check.Message}{Environment.NewLine}" +
-                    $"رشتهٔ اتصال: {check.MaskedConnectionString}");
+                throw new SafeDataException(check.Message);
 
             await db.EnsureSchemaAsync();
             await db.SeedAsync();
             await SyncAccessAsync(db);
             await EnsureBootstrapAdminAsync(db, config);
+            // Apply RLS only after every schema and the control-plane tables
+            // exist. This is idempotent and is never executed by MAUI.
+            await db.ExecuteAsync("central", "_MobileSecurity");
         }
-        catch
+        catch (OperationCanceledException)
         {
             Interlocked.Exchange(ref _initialized, 0); // allow retry on next start
             throw;
+        }
+        catch (SafeDataException)
+        {
+            Interlocked.Exchange(ref _initialized, 0);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Interlocked.Exchange(ref _initialized, 0);
+            throw new SafeDataException(DbService.Describe(ex));
         }
     }
 
@@ -116,7 +127,10 @@ public static class TarazinDbInitializer
         }
 
         var username = config["Tarazin:BootstrapAdminUser"] ?? "admin";
-        var password = config["Tarazin:BootstrapAdminPassword"] ?? "admin";
+        var password = config["Tarazin:BootstrapAdminPassword"];
+        if (string.IsNullOrWhiteSpace(password))
+            throw new SafeDataException(
+                "رمز مدیر اولیه در secret store محیط استقرار تنظیم نشده است.");
 
         await db.ExecuteAsync("central", "UserUpsert", new
         {

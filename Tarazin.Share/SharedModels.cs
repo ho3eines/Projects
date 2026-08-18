@@ -169,10 +169,11 @@ public class UserRow
     public string? UpdatedBy { get; set; }
 }
 
-/// <summary>Audit trail row (central).[AuditLog] — hash-chained.</summary>
+/// <summary>Tenant audit row with predecessor metadata; chain correctness is an open release gate.</summary>
 public class AuditRow
 {
     public long AuditId { get; set; }
+    public int? CompanyId { get; set; }
     public string PrevHash { get; set; } = "";
     public string RowHash { get; set; } = "";
     public string SchemaName { get; set; } = "";
