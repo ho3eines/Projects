@@ -68,7 +68,9 @@ def tracked_files() -> list[Path]:
             stderr=subprocess.DEVNULL,
         )
         names = [entry.decode("utf-8") for entry in output.split(b"\0") if entry]
-        return [ROOT / name for name in names]
+        # A deleted-but-not-yet-staged source file can still be listed by git
+        # while an agent is validating a worktree. It has no payload to scan.
+        return [ROOT / name for name in names if (ROOT / name).is_file()]
     except (subprocess.SubprocessError, OSError, UnicodeDecodeError):
         return [path for path in ROOT.rglob("*") if path.is_file()]
 
@@ -227,10 +229,21 @@ def scan_source() -> list[str]:
     for prohibited in (
         r"\bSecureStorage\s*\.", r"\bPreferences\s*\.", r"\bFile\.(?:Write|Append|Create)",
         r"localStorage", r"sessionStorage", r"SQLiteConnection", r"AddEnvironmentVariables\s*\(",
-        r"ExtractCustomerGuidFromEndpoint",
+        r"ExtractCustomerGuidFromEndpoint", r"ConnectionStringPayload", r"FetchConnectionStringAsync",
+        r"api/\{",
     ):
         if re.search(prohibited, remote, re.MULTILINE):
             fail(errors, f"RemoteCredentialSession uses prohibited secret persistence/config API: {prohibited}")
+
+    for expected in (
+        r"DataSource\s*=\s*credential\.Server",
+        r"InitialCatalog\s*=\s*credential\.Database",
+        r"UserID\s*=\s*credential\.Username",
+        r"Password\s*=\s*credential\.Password",
+        r"await RefreshIfNeededAsync\(ct\)",
+    ):
+        if not re.search(expected, remote, re.MULTILINE):
+            fail(errors, f"RemoteCredentialSession must use the broker credential in memory: {expected}")
 
     require("Tarazin.Data/TarazinConnection.cs", (
         r"builder\.Encrypt\s*=\s*true",
@@ -238,7 +251,7 @@ def scan_source() -> list[str]:
         r"builder\.PersistSecurityInfo\s*=\s*false",
         r"catch \(ArgumentException\).*server-side SQL connection configuration is invalid",
     ), errors)
-    require("Tarazin.Web/Program.cs", (
+    web_program = require("Tarazin.Web/Program.cs", (
         r"MapGroup\(\"/api/mobile/connection\"\)",
         r"RequireRateLimiting\(\"credential-broker\"\)",
         r"!http\.Request\.IsHttps\s*&&\s*!app\.Environment\.IsDevelopment\(\)",
@@ -246,6 +259,10 @@ def scan_source() -> list[str]:
         r"RequestSizeLimitAttribute",
         r"KnownNetworks\.Clear\(\).*KnownProxies\.Clear\(\)",
     ), errors)
+    if re.search(r"\b(?:Add|Map)Controllers\s*\(", web_program):
+        fail(errors, "Tarazin.Web/Program.cs must not expose a controller-based credential endpoint")
+    if (ROOT / "Tarazin.Web/Controllers/ConnectionController.cs").exists():
+        fail(errors, "ConnectionController must not expose a permanent SQL connection to MAUI")
     require("Tarazin.Web/CredentialBrokerService.cs", (
         r"PasswordHasher\.Verify\(request\.Password",
         r"CredentialCustomers",

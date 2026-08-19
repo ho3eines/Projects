@@ -48,9 +48,9 @@ Blazor Server   MAUI Blazor Hybrid (BlazorWebView)
 ## 🚀 اجرای سریع
 
 ```bash
-# 1. تنظیم اتصال SQL Server در Tarazin.Web/appsettings.json
-# مقدارهای YOUR_SQL_SERVER، YOUR_SQL_USER و YOUR_SQL_PASSWORD را با
-# مشخصات SQL Server نصب‌شدهٔ خودتان جایگزین کنید.
+# 1. اتصال issuer وب را فقط از secret store/متغیر محیطی تزریق کنید.
+# TARAZIN_SQL_CONNECTION را در shell یا تنظیمات امن سرویس قرار دهید؛
+# هیچ credentialی را در appsettings.json یا APK/EXE قرار ندهید.
 
 # 2. اجرای وب در محیط توسعه
 dotnet run --project Tarazin.Web
@@ -64,11 +64,11 @@ dotnet workload install maui
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
 ```
 
-* مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
-* Web اتصال را به MAUI از طریق کنترلر `api/{guid}` می‌دهد (تصمیم محصول: رشتهٔ اتصال کامل). `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی را دارد و هیچ رشتهٔ اتصال/credential در آن نیست. شناسه از فرم ورود یا URL گرفته نمی‌شود؛ MAUI همان مقدار بسته‌شده را به broker (`/api/mobile/connection/login`) می‌دهد، سپس اتصال SQL را از `api/{guid}` می‌گیرد و فقط در حافظه نگه می‌دارد.
-* ⚠️ چون `api/{guid}` رشتهٔ اتصال کامل (با رمز) را می‌دهد، باید فقط روی HTTPS سرو شود و توصیه می‌شود در production با یک bearer secret یا IP allow-list گیت شود تا دانستن یک GUID به‌تنهایی دسترسی SQL ندهد.
+* مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال issuer از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
+* `CredentialBroker:PublicSqlServer` یک نشانی غیرمحرمانهٔ SQL است که **خودِ دستگاه MAUI** باید بتواند به آن برسد. مقدار `localhost` فقط پیش‌فرض توسعهٔ محلیِ Windows است؛ برای شبکه/Android/iOS باید نام DNS یا IP قابل‌دسترسیِ دارای گواهی SQL معتبر تنظیم شود.
+* `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی دارد. شناسه از فرم ورود یا URL گرفته نمی‌شود. MAUI نام کاربری/رمز و GUID بسته‌بندی‌شده را به broker (`/api/mobile/connection/login`) می‌فرستد و فقط همان SQL credential کوتاه‌عمر، customer-bound و قابل‌لغوِ پاسخ broker را در حافظه نگه می‌دارد؛ endpoint عمومیِ رشتهٔ اتصال وجود ندارد.
 * اولین initialization فقط در Web اجرا می‌شود: `_Ensure.sql` → `_Seed.sql` → نقش‌ها/دسترسی‌ها → ساخت مدیر اولیه با password تزریق‌شده. هیچ رمز پیش‌فرضی وجود ندارد.
-* اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از آماده‌سازی credential همان عملیات مستقیم `DbService` را حفظ می‌کند.
+* اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از آماده‌سازی credential کوتاه‌عمر همان عملیات مستقیم `DbService` را حفظ می‌کند.
 
 ---
 

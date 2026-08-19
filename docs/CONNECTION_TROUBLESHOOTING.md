@@ -1,42 +1,79 @@
-# عیب‌یابی اتصال امن
+# عیب‌یابی اتصال امن MAUI
 
 ## معماری فعلی
 
-دو مسیر پیکربندی عمداً از هم جدا هستند:
+دو مسیر پیکربندی عمداً جدا هستند:
 
-- **Web/API** تنها در سمت سرور، تنظیم اتصال SQL را از پیکربندی استقرار یا secret store دریافت می‌کند.
-- **MAUI** هیچ تنظیم، رمز یا کلید SQL ندارد. `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` (نشانی غیرمحرمانهٔ HTTPS وب/API) و `CustomerGuid` عمومی همان استقرار را نگه می‌دارد. شناسه از فرم ورود یا URL گرفته نمی‌شود.
+- **Web/API** فقط در سمت سرور، اتصال SQL issuer را از secret store یا متغیر
+  `TARAZIN_SQL_CONNECTION` می‌گیرد.
+- **MAUI** هیچ connection string، رمز، token دائمی یا کلید SQL ندارد.
+  `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` (نشانی عمومی HTTPS وب) و
+  `CustomerGuid` عمومی همان استقرار را نگه می‌دارد. شناسه از فرم ورود، URL یا
+  environment خوانده نمی‌شود.
 
-در ورود MAUI، برنامه نام کاربری، رمز ورود و GUID مشتری را از طریق HTTPS به broker (`/api/mobile/connection/login`) می‌فرستد. broker اعتبار کاربر، مشتری، شرکت و مجوز را بررسی می‌کند و پس از موفقیت، MAUI رشتهٔ اتصال SQL را از کنترلر `api/{guid}` دریافت می‌کند (تصمیم محصول: رشتهٔ اتصال کامل). رشتهٔ اتصال و session فقط در حافظهٔ فرایند MAUI نگه‌داری می‌شوند و با خروج پاک/لغو می‌شوند.
+در ورود MAUI، برنامه نام کاربری، رمز و GUID بسته‌بندی‌شده را با HTTPS به broker
+`/api/mobile/connection/login` می‌فرستد. broker کاربر، customer، شرکت، عضویت و
+nonce را بررسی می‌کند، سپس یک SQL principal کوتاه‌عمر و customer-bound صادر
+می‌کند. MAUI فقط همان credential کوتاه‌عمر را در حافظه نگه می‌دارد، پیش از انقضا
+refresh می‌کند و در logout آن را revoke می‌کند. endpoint عمومی برای تحویل
+connection string کامل وجود ندارد.
 
-> مقدار اتصال SQL، رمز، bearer token یا پاسخ broker را در issue، screenshot، log، command history یا فایل پیکربندی MAUI قرار ندهید.
+> connection string، رمز SQL، bearer token، پاسخ broker یا متن خام exception را در
+> issue، screenshot، log، command history یا فایل پیکربندی MAUI قرار ندهید.
 
-## راه‌اندازی SQL محلی
+## چرا ورود Web موفق است ولی MAUI خطا می‌دهد؟
 
-Compose دیگر رمز پیش‌فرض ندارد. پیش از اجرا یک رمز قوی و صرفاً محلی در محیط shell قرار دهید:
+ورود Web فقط اتصال issuer و query اعتبار کاربر را آزمایش می‌کند. ورود MAUI علاوه
+بر آن باید بتواند nonce و session را در control plane ثبت کند، login کوتاه‌عمر SQL
+بسازد، user/database آن را grant کند و در پایان revoke/cleanup کند. بنابراین
+موفق‌بودن login وب، به‌تنهایی مجوزهای broker برای صدور principal موقت را ثابت
+نمی‌کند.
 
-```bash
-export MSSQL_SA_PASSWORD='<strong local-only value>'
-docker compose up -d
-docker compose ps
-bash tools/test-connection.sh
-```
+اگر MAUI پیام **«سرویس اتصال موقتاً در دسترس نیست»** نشان می‌دهد، درخواست به
+broker رسیده اما broker در مرحلهٔ زیرساخت SQL ناموفق بوده است. لاگ امن Web فقط
+`Operation`، `ErrorType` و `SqlNumber` را ثبت می‌کند؛ همان سه مقدار و زمان رخداد
+را بررسی کنید، نه متن خام exception یا هیچ credentialی را.
 
-اسکریپت تست credential را چاپ نمی‌کند، مقدار پیش‌فرض ندارد و خطای خام driver را نیز بازنشر نمی‌کند. برای login توسعه‌ای غیر از `sa` می‌توان `TARAZIN_SQL_USER` و `TARAZIN_SQL_PASSWORD` را فقط در محیط همان فرایند تنظیم کرد.
+رایج‌ترین علت‌ها:
 
-## پیکربندی Web/API
+1. migrationهای `central._Ensure` و `central._MobileSecurity` کامل اجرا نشده‌اند
+   و جدول‌های `CredentialRequestNonces` / `MobileCredentialSessions` یا registry
+   مشتری آماده نیستند؛
+2. issuer سمت Web فقط حق query عادی دارد و حق ساخت/لغو principal کوتاه‌عمر SQL را
+   ندارد؛
+3. SQL Server یا `master` از Web در دسترس نیست، یا سرویس SQL از دستگاه MAUI قابل
+   دسترس نیست؛
+4. `CredentialBroker:PublicSqlServer` برای دستگاه MAUI تنظیم نشده یا به localhost
+   اشتباه اشاره می‌کند.
 
-اتصال Web را با secret injection سکوی استقرار فراهم کنید؛ برای نمونه از environment secret با نام `TARAZIN_SQL_CONNECTION` یا provider امن پیکربندی ASP.NET استفاده کنید. مقدار واقعی را در repository، `appsettings*.json`، Compose، CI YAML یا مستندات ننویسید.
+## پیکربندی Web و SQL
 
-Web اتصال را به MAUI از طریق کنترلر `api/{guid}` می‌دهد (تصمیم محصول: رشتهٔ اتصال کامل). این endpoint فقط HTTPS می‌پذیرد، پاسخ `no-store` دارد و هرگز رشتهٔ اتصال را log نمی‌کند. برای production توصیهٔ قوی: آن را با bearer secret یا IP allow-list گیت کنید.
+اتصال issuer را فقط با secret injection سکوی استقرار فراهم کنید؛ برای نمونه با
+`TARAZIN_SQL_CONNECTION` یا provider امن پیکربندی ASP.NET. مقدار واقعی را در
+repository، `appsettings*.json`، Compose، CI YAML یا مستندات ننویسید.
 
-حساب issuer سمت سرور باید فقط مجوزهای لازم برای bootstrap پایگاه داده و ایجاد/لغو principalهای موقت broker را داشته باشد. MAUI نباید credential این حساب را دریافت کند.
+`CredentialBroker:PublicSqlServer` credential نیست؛ این مقدار فقط نام DNS/IP و
+port SQL است که **کلاینت MAUI** باید بتواند به آن برسد. مقدار source-controlled
+`localhost` تنها برای توسعهٔ محلی Windows مناسب است. در استقرار واقعی آن را با
+نام DNS/IP قابل‌دسترسی از دستگاه و دارای گواهی SQL معتبر جایگزین کنید. برای
+Android emulator معمولاً loopback دستگاه با loopback Windows یکی نیست؛ از آدرس
+شبکه/adapter مناسب همان emulator استفاده کنید. برای دستگاه واقعی، DNS/IP شبکه و
+گواهی باید با نام مقصد سازگار باشند.
 
-برای production:
+issuer سمت سرور باید با حداقل اختیار لازم، امکان ایجاد، grant، disable و drop
+کردن principalهای `tz_m_*` و پاک‌سازی sessionهای آن‌ها را داشته باشد. با DBA
+هماهنگ کنید؛ بسته به SQL Server معمولاً مجوزهای server-level برای مدیریت login و
+session و مجوزهای database-level برای user/role/grant لازم است. این مجوزها فقط
+برای هویت server-side Web هستند و هرگز به MAUI داده نمی‌شوند.
 
-- SQL encryption و اعتبارسنجی عادی گواهی باید فعال باشند.
-- bypass اعتبارسنجی گواهی فقط در محیط توسعهٔ کاملاً محلی مجاز است و نباید به production منتقل شود.
-- اگر TLS در reverse proxy خاتمه می‌یابد، `ReverseProxy:Enabled` را فعال و IP دقیق proxy بلافصل را در `ReverseProxy:KnownProxies` تنظیم کنید. forwarded header از proxy ناشناخته پذیرفته نمی‌شود.
+برای همهٔ محیط‌ها:
+
+- SQL encryption و اعتبارسنجی عادی گواهی الزامی است؛ bypass گواهی اضافه نکنید.
+- اگر TLS در reverse proxy خاتمه می‌یابد، `ReverseProxy:Enabled` را فعال و IP دقیق
+  proxy بلافصل را در `ReverseProxy:KnownProxies` ثبت کنید. forwarded header از
+  proxy ناشناخته پذیرفته نمی‌شود.
+- پیش از تحویل MAUI، در firewall مسیر SQL از دستگاه هدف به
+  `CredentialBroker:PublicSqlServer` را باز و با گواهی معتبر آزمایش کنید.
 
 ## پیکربندی MAUI
 
@@ -49,38 +86,46 @@ Web اتصال را به MAUI از طریق کنترلر `api/{guid}` می‌د�
 }
 ```
 
-`CustomerGuid` را با GUID ثبت‌شده در `[central].[CredentialCustomers]` عوض کنید. از فرم ورود یا مسیر URL خوانده نمی‌شود.
+`CustomerGuid` را با GUID ثبت‌شده در `[central].[CredentialCustomers]` عوض کنید و
+فقط پس از تأیید customer/company، `CredentialAccessEnabled` را فعال کنید. GUID از
+فرم ورود یا مسیر URL خوانده نمی‌شود.
 
-## چرا /diag در MAUI می‌گوید «اتصال امن پایگاه داده آماده نیست»؟
+## چرا /diag در MAUI می‌گوید «اتصال موقت از سرویس وب آماده نیست»؟
 
-این پیام یعنی فرایند MAUI **هنوز رشتهٔ اتصالی در حافظه ندارد** — نه اینکه SQL قطع یا خراب است.
-زمان آزمون چند میلی‌ثانیه‌ای (مثلاً ۸ms) تأیید می‌کند که هیچ تلاش شبکه‌ای انجام نشده است.
+این پیام یعنی فرایند MAUI هنوز credential کوتاه‌عمر در حافظه ندارد؛ لزوماً به این
+معنی نیست که SQL قطع است. زمان آزمون بسیار کوتاه نشان می‌دهد که هنوز تلاش شبکه‌ای
+برای SQL انجام نشده است.
 
-زنجیرهٔ آماده‌سازی فقط با «ورود موفق از صفحهٔ ورود» اجرا می‌شود:
+زنجیرهٔ آماده‌سازی فقط با ورود موفق کامل می‌شود:
 
-1. MAUI نام کاربری/رمز را به broker می‌فرستد (`/api/mobile/connection/login`) — بروکر کاربر،
-   رکورد `[central].[CredentialCustomers]`، شرکت و مجوز را بررسی می‌کند.
-2. فقط پس از پذیرش، MAUI رشتهٔ اتصال را از `api/{guid}` می‌گیرد و در حافظه نگه می‌دارد.
-3. از این لحظه `/diag` سبز می‌شود.
+1. MAUI نام کاربری/رمز را به broker می‌فرستد؛ broker کاربر، customer، شرکت و مجوز
+   را بررسی می‌کند.
+2. broker SQL credential کوتاه‌عمر را صادر می‌کند و MAUI آن را فقط در حافظه اعمال
+   می‌کند.
+3. از این لحظه `/diag` می‌تواند اتصال را باز و تست کند.
 
-پس وجود رکورد در `CredentialCustomers` **شرط لازم** برای پذیرش ورود است اما به‌تنهایی اتصال را
-آماده نمی‌کند؛ دکمهٔ «آزمون اتصال» هم فقط اتصالِ از پیش دریافت‌شده را تست می‌کند و خودش چیزی
-دریافت نمی‌کند. با خروج یا بستن اپ، اعتبار از حافظه پاک می‌شود و دوباره ورود لازم است.
+پس وجود رکورد در `CredentialCustomers` شرط لازم است اما به‌تنهایی اتصال را آماده
+نمی‌کند. دکمهٔ «آزمون اتصال» credential جدید صادر نمی‌کند. با خروج یا بستن اپ،
+اعتبار حافظه پاک می‌شود و ورود مجدد لازم است.
 
-**اقدام:** Web را روی `ServerEndpoint` (پیش‌فرض `https://localhost:65220`) بالا بیاورید، در MAUI
-وارد شوید (پیام «خوش آمدید») و بعد آزمون بگیرید. اگر ورود خطا داد، جدول پایین همان پیام را توضیح می‌دهد.
-
-در build غیر Debug، endpoint غیر HTTPS رد می‌شود. Android نیز cleartext traffic و application backup را صریحاً غیرفعال می‌کند. هیچ connection string، SQL password، decryption key یا token را به این فایل یا platform resourceها اضافه نکنید.
+**اقدام:** Web را روی `ServerEndpoint` بالا بیاورید، ابتدا login MAUI را کامل کنید
+(پیام «خوش آمدید») و سپس `/diag` را تست کنید. در build غیر-Debug، endpoint غیر
+HTTPS رد می‌شود. Android نیز cleartext traffic و application backup را صریحاً
+غیرفعال می‌کند.
 
 ## خطاهای امن و اقدام مناسب
 
 | وضعیت نمایشی | بررسی سمت اپراتور |
 |---|---|
-| مشتری یافت نشد یا مجاز نیست | ثبت server-side مشتری، فعال بودن شرکت و اتصال کاربر به شرکت را بررسی کنید. |
-| مشتری غیرفعال است | وضعیت مشتری، شرکت و `CredentialAccessEnabled` را در control plane بررسی کنید. |
+| مشتری یافت نشد یا مجاز نیست | GUID را در registry server-side، فعال‌بودن شرکت و عضویت کاربر در همان شرکت بررسی کنید. |
+| مشتری غیرفعال است | وضعیت customer، شرکت و `CredentialAccessEnabled` را بررسی کنید. |
+| سرویس ورود MAUI روی سرور پیکربندی نشده است | `TARAZIN_SQL_CONNECTION` و `CredentialBroker:PublicSqlServer` را فقط در تنظیمات امن server بررسی کنید. |
+| سرویس ورود MAUI روی سرور آماده نشده است | اجرای کامل startup migrationهای Web، از جمله جدول‌های nonce/session و migration امنیت موبایل را بررسی کنید. |
+| سرویس ورود MAUI مجوز صدور اتصال موقت را ندارد | DBA باید مجوز issuer برای ایجاد/grant/revoke principal موقت و cleanup آن را بررسی کند. |
+| سرویس اتصال موقتاً در دسترس نیست | لاگ امن Web را با زمان رخداد بررسی کنید؛ migration control plane، سلامت SQL و مجوز issuer را کنترل کنید. |
+| سرویس ورود در دسترس نیست | HTTPS endpoint، DNS، proxy، گواهی وب و دسترسی شبکهٔ دستگاه MAUI را بررسی کنید. |
 | نشست منقضی/لغو شده است | دوباره وارد شوید؛ token قبلی نباید reuse شود. |
-| سرویس ورود در دسترس نیست | HTTPS endpoint، proxy، DNS و سلامت Web/API را بدون چاپ secret بررسی کنید. |
-| SQL در دسترس نیست | شبکه، گواهی SQL، مجوز issuer و cleanup principalها را سمت سرور بررسی کنید. |
-| authentication/query محلی ناموفق است | credential استقرار را در secret store اصلاح کنید؛ آن را در chat یا log کپی نکنید. |
+| authentication/query محلی ناموفق است | credential استقرار یا گواهی/شبکهٔ SQL را در secret store و زیرساخت اصلاح کنید؛ آن را در chat یا log کپی نکنید. |
 
-برای خطاهای production فقط نوع خطا، request/correlation ID غیرمحرمانه و زمان را ثبت کنید. متن خام exceptionهای SQL/HTTP و headerهای Authorization نباید log شوند.
+برای رخداد production فقط نوع خطا، request/correlation ID غیرمحرمانه و زمان را
+ثبت کنید. متن خام exceptionهای SQL/HTTP و headerهای Authorization نباید log شوند.

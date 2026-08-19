@@ -1,5 +1,6 @@
 -- Explicit backfill for business tables that have existing rows without
 -- CompanyId when multiple companies exist. Run before _MobileSecurity.
+-- Cross-schema: accounting, currency, payroll
 SET NOCOUNT ON;
 
 DECLARE @DefaultCompanyId INT = (

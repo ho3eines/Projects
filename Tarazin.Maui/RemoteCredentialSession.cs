@@ -10,12 +10,10 @@ using Tarazin.Services;
 namespace Tarazin.Maui;
 
 /// <summary>
-/// MAUI-only connection session. Authenticates through the web broker
-/// (<c>api/mobile/connection/login</c>) and then fetches the server-managed SQL
-/// connection string from the web endpoint <c>api/{guid}</c>. CustomerGuid is
-/// read only from packaged <c>appsettings.json</c>. The connection string is
-/// retained only in this process instance and is never written to preferences,
-/// files, SecureStorage, logs, or configuration.
+/// MAUI-only connection session. It authenticates through the Web credential
+/// broker and uses only the short-lived, customer-bound SQL credential returned
+/// by that broker. SQL material is retained only by this process instance and
+/// is never written to preferences, files, SecureStorage, logs, or configuration.
 /// </summary>
 public sealed class RemoteCredentialSession :
     ISqlConnectionProvider,
@@ -31,9 +29,6 @@ public sealed class RemoteCredentialSession :
     private string _sessionToken = "";
     private DateTimeOffset _sessionExpiresAt;
     private CredentialState? _credential;
-    // Server-managed SQL connection string served by the web endpoint api/{guid}.
-    // Held only in this process instance; never persisted or logged.
-    private string _connectionString = "";
     private bool _disposed;
 
     public RemoteCredentialSession(IConfiguration configuration)
@@ -69,29 +64,14 @@ public sealed class RemoteCredentialSession :
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Tarazin-MAUI/1.0");
     }
 
-    public bool IsAvailable => !string.IsNullOrWhiteSpace(_connectionString);
+    public bool IsAvailable => _credential is not null && !string.IsNullOrWhiteSpace(_sessionToken);
     public bool SupportsInitialization => false;
 
-    public string DatabaseName
-    {
-        get
-        {
-            if (string.IsNullOrWhiteSpace(_connectionString))
-                return "";
-            try
-            {
-                return new SqlConnectionStringBuilder(_connectionString).InitialCatalog ?? "";
-            }
-            catch
-            {
-                return "";
-            }
-        }
-    }
+    public string DatabaseName => _credential?.Database ?? "";
 
-    public string Description => string.IsNullOrWhiteSpace(_connectionString)
-        ? "اتصال از سرویس وب آماده نیست"
-        : "اتصال SQL دریافت‌شده از سرویس وب";
+    public string Description => _credential is null
+        ? "اتصال موقت از سرویس وب آماده نیست"
+        : "اتصال SQL کوتاه‌عمر دریافت‌شده از سرویس وب";
 
     public async Task<UserRow?> AuthenticateAsync(
         string username,
@@ -139,19 +119,9 @@ public sealed class RemoteCredentialSession :
                 await RevokeCandidateResponseAsync(result, ct);
                 throw;
             }
+
             ThrowIfDisposed();
             Apply(result);
-            // The SQL connection is served by the web endpoint api/{guid}. If the
-            // connection fetch fails, discard the just-issued broker session too.
-            try
-            {
-                _connectionString = await FetchConnectionStringAsync(_customerGuid, ct);
-            }
-            catch
-            {
-                await RevokeExistingCoreAsync(ct);
-                throw;
-            }
             return result.User;
         }
         catch (SafeAuthenticationException)
@@ -177,11 +147,16 @@ public sealed class RemoteCredentialSession :
     public async ValueTask<SqlConnection> OpenConnectionAsync(CancellationToken ct = default)
     {
         ThrowIfDisposed();
-        var connectionString = _connectionString;
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new InvalidOperationException("Authenticate through the API before using SQL.");
+        // A caller can keep using DbService for a long session. Refresh before
+        // each newly opened connection when the short-lived SQL principal is
+        // near expiry, rather than waiting for an authentication failure.
+        await RefreshIfNeededAsync(ct);
 
-        var connection = new SqlConnection(connectionString);
+        var credential = _credential;
+        if (credential is null)
+            throw new InvalidOperationException("Authenticate through the secure API before using SQL.");
+
+        var connection = new SqlConnection(BuildConnectionString(credential));
         try
         {
             await connection.OpenAsync(ct);
@@ -213,41 +188,23 @@ public sealed class RemoteCredentialSession :
         }
     }
 
-    private async Task<string> FetchConnectionStringAsync(Guid customerGuid, CancellationToken ct)
+    private static string BuildConnectionString(CredentialState credential)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/{customerGuid:N}");
-        using var response = await _http.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-            throw await CreateSafeExceptionAsync(response, ct);
-
-        var payload = await response.Content.ReadFromJsonAsync<ConnectionStringPayload>(cancellationToken: ct);
-        if (payload is null || string.IsNullOrWhiteSpace(payload.ConnectionString))
-            throw new SafeAuthenticationException("invalid_response", "پاسخ اتصال سرویس معتبر نیست.");
-
-        try
+        // These fields were structurally validated before CredentialState was
+        // created. Rebuild a fresh connection string for each connection so no
+        // server-side issuer credential can enter the MAUI process.
+        var builder = new SqlConnectionStringBuilder
         {
-            return NormalizeConnectionString(payload.ConnectionString);
-        }
-        catch (ArgumentException)
-        {
-            throw new SafeAuthenticationException("invalid_response", "پاسخ اتصال سرویس معتبر نیست.");
-        }
-    }
-
-    // Re-emit the server-provided connection string with a hard safety baseline so
-    // a compromised/misconfigured server cannot silently disable transport
-    // encryption or certificate validation.
-    private static string NormalizeConnectionString(string connectionString)
-    {
-        var builder = new SqlConnectionStringBuilder(connectionString)
-        {
+            DataSource = credential.Server,
+            InitialCatalog = credential.Database,
+            UserID = credential.Username,
+            Password = credential.Password,
             Encrypt = true,
             TrustServerCertificate = false,
-            PersistSecurityInfo = false
+            PersistSecurityInfo = false,
+            ConnectTimeout = 25,
+            ApplicationName = "Tarazin-MAUI"
         };
-#if DEBUG
-        builder.TrustServerCertificate = !false;
-#endif
         return builder.ConnectionString;
     }
 
@@ -404,6 +361,7 @@ public sealed class RemoteCredentialSession :
         // Remove duplicate references from the deserialized response as soon as copied.
         incoming.Password = "";
         response.SessionToken = "";
+        response.User.PasswordHash = "";
         // CustomerGuid stays the packaged appsettings value; do not replace it
         // from the response or any other runtime source.
     }
@@ -422,6 +380,7 @@ public sealed class RemoteCredentialSession :
             string.IsNullOrWhiteSpace(response.SessionToken) || response.SessionToken.Length > 256 ||
             response.SessionExpiresAtUtc <= now || response.SessionExpiresAtUtc > now.AddHours(3) ||
             string.IsNullOrWhiteSpace(credential.Server) || credential.Server.Length > 512 ||
+            credential.Server.IndexOfAny([';', '=', '\r', '\n', '\0']) >= 0 ||
             string.IsNullOrWhiteSpace(credential.Database) || credential.Database.Length > 128 ||
             string.IsNullOrWhiteSpace(credential.Username) || credential.Username.Length > 128 ||
             string.IsNullOrWhiteSpace(credential.Password) || credential.Password.Length > 256 ||
@@ -466,7 +425,8 @@ public sealed class RemoteCredentialSession :
     private static bool IsKnownErrorCode(string code) => code is
         "invalid_credentials" or "customer_not_found" or "customer_inactive" or
         "customer_not_authorized" or "invalid_token" or "authorization_expired" or
-        "replayed_request" or "service_unavailable" or "https_required";
+        "replayed_request" or "service_unavailable" or "broker_not_configured" or
+        "broker_not_ready" or "issuer_not_authorized" or "https_required";
 
     private static string SafeMessage(string code) => code switch
     {
@@ -476,6 +436,9 @@ public sealed class RemoteCredentialSession :
         "customer_not_authorized" => "کاربر برای این مشتری مجاز نیست.",
         "invalid_token" or "authorization_expired" => "نشست اتصال منقضی یا لغو شده است؛ دوباره وارد شوید.",
         "replayed_request" => "درخواست تکراری پذیرفته نشد؛ دوباره تلاش کنید.",
+        "broker_not_configured" => "سرویس ورود MAUI روی سرور پیکربندی نشده است؛ با مدیر سامانه تماس بگیرید.",
+        "broker_not_ready" => "سرویس ورود MAUI روی سرور آماده نشده است؛ با مدیر سامانه تماس بگیرید.",
+        "issuer_not_authorized" => "سرویس ورود MAUI مجوز صدور اتصال موقت را ندارد؛ با مدیر سامانه تماس بگیرید.",
         "service_unavailable" => "سرویس اتصال موقتاً در دسترس نیست.",
         "https_required" => "برای ورود، اتصال امن HTTPS لازم است.",
         _ => "درخواست ورود پذیرفته نشد."
@@ -501,7 +464,6 @@ public sealed class RemoteCredentialSession :
         _credential = null;
         _sessionToken = "";
         _sessionExpiresAt = default;
-        _connectionString = "";
         SqlConnection.ClearAllPools();
     }
 
