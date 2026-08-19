@@ -93,29 +93,30 @@ Web نیز secret واقعی را در فایل source-controlled ندارد:
 - license اختیاری گزارش‌ساز: فایل خارج از repository/web root که مسیرش با
   `TARAZIN_STIMULSOFT_LICENSE_PATH` داده می‌شود
 
-## تصمیم محصول: تحویل رشتهٔ اتصال به MAUI از `api/{guid}`
+## تحویل credential کوتاه‌عمر به MAUI
 
-به‌درخواست مالک پروژه، Web رشتهٔ اتصال کامل SQL را از طریق کنترلر
-`api/{guid}` به MAUI می‌دهد (برخلاف الگوی credential کوتاه‌عمر قبلی). این یعنی
-کسی که GUID معتبر بداند می‌تواند رمز دیتابیس را بگیرد؛ پس الزام‌های عملیاتی:
+Web هیچ connection string کامل یا credential دائمی را به MAUI تحویل نمی‌دهد.
+پس از validation کامل broker، پاسخ login/refresh فقط credential SQL تصادفی،
+کوتاه‌عمر، customer-bound و قابل‌لغو همان session را دارد. MAUI آن را فقط در
+حافظه نگه می‌دارد و برای هر اتصال با `Encrypt=true`،
+`TrustServerCertificate=false` و `PersistSecurityInfo=false` بازسازی می‌کند.
 
-- این endpoint فقط باید روی HTTPS سرو شود؛ روی HTTP خارج از توسعهٔ محلی رد می‌شود.
-- پاسخ `no-store` است و رشتهٔ اتصال هرگز log یا در diagnostics/UI نمایش داده نمی‌شود.
-- برای production توصیهٔ قوی: این endpoint با یک bearer secret یا IP allow-list
-  گیت شود تا یک GUID به‌تنهایی دسترسی SQL ندهد.
-- MAUI رشتهٔ دریافتی را فقط در حافظه نگه می‌دارد و آن را بازتولید امن می‌کند
-  (`Encrypt=true`، `TrustServerCertificate=false`، `PersistSecurityInfo=false`).
-- مقدار واقعی در source کنترل نمی‌شود؛ اتصال از secret استقرار
-  `TARAZIN_SQL_CONNECTION` گرفته می‌شود و `appsettings.json` مقدار اتصال ندارد.
-
-هیچ bootstrap password پیش‌فرضی وجود ندارد. در دیتابیس خالی، نبودن secret رمز
-باعث توقف امن initialization می‌شود.
+- endpointهای broker فقط HTTPS و `no-store` هستند؛ GUID به‌تنهایی هیچ credentialی
+  برنمی‌گرداند.
+- `CredentialBroker:PublicSqlServer` تنها یک endpoint غیرمحرمانهٔ SQL است که باید
+  از دستگاه MAUI reachable باشد؛ مقدار issuer connection string یا یک localhost
+  خصوصی Web نباید به‌صورت ضمنی به client منتقل شود.
+- مقدار اتصال issuer فقط از secret استقرار `TARAZIN_SQL_CONNECTION` گرفته می‌شود و
+  `appsettings.json` مقدار connection string ندارد.
+- هیچ bootstrap password پیش‌فرضی وجود ندارد. در دیتابیس خالی، نبودن secret رمز
+  باعث توقف امن initialization می‌شود.
 
 ## TLS و reverse proxy
 
 - MAUI release فقط endpoint با scheme `https` را می‌پذیرد و از certificate
-  validation عادی پلتفرم استفاده می‌کند. callback برای bypass گواهی وجود ندارد.
-- credential SQL با `Encrypt=true` و `TrustServerCertificate=false` مصرف می‌شود.
+  validation عادی پلتفرم استفاده می‌کند. callback یا تنظیم bypass گواهی وجود ندارد.
+- credential SQL با `Encrypt=true` و `TrustServerCertificate=false` در همهٔ محیط‌ها
+  مصرف می‌شود. حتی development باید از گواهی قابل‌اعتماد استفاده کند.
 - Web در production، HTTPS را enforce می‌کند؛ درخواست broker بدون HTTPS رد می‌شود.
 - در TLS termination، forwarded headers فقط وقتی فعال شوند که IP دقیق proxy
   بلافصل در `ReverseProxy:KnownProxies` ثبت شده باشد. trust list را خالی نکنید و

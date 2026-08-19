@@ -42,15 +42,9 @@ public static class TarazinConnection
             builder.TrustServerCertificate = false;
             builder.PersistSecurityInfo = false;
 
-            var isDevelopment = string.Equals(
-                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-                "Development",
-                StringComparison.OrdinalIgnoreCase);
-            if (isDevelopment)
-            {
-                builder.TrustServerCertificate = isDevelopment;
-            }
-
+            // Development uses a certificate trusted by the developer machine
+            // too. Never weaken SQL certificate validation in code shipped by
+            // either host.
             if (builder.ConnectTimeout <= 0 || builder.ConnectTimeout > 60)
                 builder.ConnectTimeout = 30;
             if (!builder.ShouldSerialize("Application Name"))

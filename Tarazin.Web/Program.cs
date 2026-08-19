@@ -67,8 +67,6 @@ if (!string.IsNullOrWhiteSpace(stimulsoftLicensePath))
 // ── Blazor Server (web host) — the UI itself lives in Tarazin.Ui ─────────
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-// ── Minimal API-style controllers (api/{guid} connection endpoint for MAUI) ─
-builder.Services.AddControllers();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -228,7 +226,6 @@ broker.MapPost("/revoke", async (HttpContext http, CredentialBrokerService servi
 // مدل Blazor Server کلاسیک (net8): blazor.server.js و دارایی‌های استاتیک
 // MudBlazor/Tarazin.Ui از طریق static web assets و UseStaticFiles سرو می‌شوند.
 // (MapStaticAssets که در net9+ اضافه شد، در net8 وجود ندارد و لازم هم نیست.)
-app.MapControllers();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 

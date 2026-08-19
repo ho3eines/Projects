@@ -31,56 +31,81 @@ public sealed class CredentialBrokerService
     private readonly TimeSpan _cleanupTimeout;
     private readonly string _dummyPasswordHash;
     private readonly bool _isAvailable;
+    private readonly string _unavailabilityCode;
 
     public CredentialBrokerService(IConfiguration configuration, ILogger<CredentialBrokerService> logger)
     {
         _logger = logger;
 
-        string issuerConnectionString;
+        var issuerConnectionString = "";
+        var database = "";
+        var publicServer = "";
+        var credentialLifetime = TimeSpan.Zero;
+        var sessionLifetime = TimeSpan.Zero;
+        var requestSkew = TimeSpan.Zero;
+        var cleanupTimeout = TimeSpan.Zero;
+        var dummyPasswordHash = "";
+        var isAvailable = false;
+        var unavailabilityCode = "broker_not_configured";
+
         try
         {
             issuerConnectionString = TarazinConnection.Resolve(configuration);
+            var builder = new SqlConnectionStringBuilder(issuerConnectionString);
+            database = builder.InitialCatalog;
+
+            // A MAUI device must be given the SQL endpoint it can actually
+            // reach. Never infer it from the Web host's private/local issuer
+            // connection string (for example Data Source=. on the server).
+            var configuredPublicServer = configuration["CredentialBroker:PublicSqlServer"]?.Trim();
+            if (string.IsNullOrWhiteSpace(configuredPublicServer))
+                throw new InvalidOperationException("CredentialBroker:PublicSqlServer must be configured.");
+            publicServer = ValidatePublicServer(configuredPublicServer);
+
+            credentialLifetime = TimeSpan.FromMinutes(Clamp(configuration, "CredentialBroker:CredentialLifetimeMinutes", 5, 2, 15));
+            sessionLifetime = TimeSpan.FromMinutes(Clamp(configuration, "CredentialBroker:SessionLifetimeMinutes", 30, 5, 120));
+            requestSkew = TimeSpan.FromSeconds(Clamp(configuration, "CredentialBroker:RequestTimestampWindowSeconds", 90, 30, 300));
+            cleanupTimeout = TimeSpan.FromSeconds(Clamp(configuration, "CredentialBroker:CleanupTimeoutSeconds", 20, 5, 60));
+            dummyPasswordHash = PasswordHasher.Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
+            isAvailable = true;
+            unavailabilityCode = "";
         }
-        catch (InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
-            // Missing deployment secrets must not break DI or turn every request
-            // into an unhandled exception. Endpoints return a controlled 503
-            // until the server secret is supplied.
-            _issuerConnectionString = "";
-            _database = "";
-            _publicServer = "";
-            _credentialLifetime = TimeSpan.Zero;
-            _sessionLifetime = TimeSpan.Zero;
-            _requestSkew = TimeSpan.Zero;
-            _cleanupTimeout = TimeSpan.Zero;
-            _dummyPasswordHash = "";
-            _isAvailable = false;
-            return;
+            // Missing deployment secrets or a missing public SQL endpoint must
+            // not break DI or turn every request into an unhandled exception.
+            // The client receives a controlled, actionable 503 instead.
         }
 
         _issuerConnectionString = issuerConnectionString;
-        var builder = new SqlConnectionStringBuilder(_issuerConnectionString);
-        _database = builder.InitialCatalog;
-        var configuredPublicServer = configuration["CredentialBroker:PublicSqlServer"]?.Trim();
-        _publicServer = ValidatePublicServer(string.IsNullOrWhiteSpace(configuredPublicServer)
-            ? builder.DataSource
-            : configuredPublicServer);
-        _credentialLifetime = TimeSpan.FromMinutes(Clamp(configuration, "CredentialBroker:CredentialLifetimeMinutes", 5, 2, 15));
-        _sessionLifetime = TimeSpan.FromMinutes(Clamp(configuration, "CredentialBroker:SessionLifetimeMinutes", 30, 5, 120));
-        _requestSkew = TimeSpan.FromSeconds(Clamp(configuration, "CredentialBroker:RequestTimestampWindowSeconds", 90, 30, 300));
-        _cleanupTimeout = TimeSpan.FromSeconds(Clamp(configuration, "CredentialBroker:CleanupTimeoutSeconds", 20, 5, 60));
-        _dummyPasswordHash = PasswordHasher.Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
-        _isAvailable = true;
+        _database = database;
+        _publicServer = publicServer;
+        _credentialLifetime = credentialLifetime;
+        _sessionLifetime = sessionLifetime;
+        _requestSkew = requestSkew;
+        _cleanupTimeout = cleanupTimeout;
+        _dummyPasswordHash = dummyPasswordHash;
+        _isAvailable = isAvailable;
+        _unavailabilityCode = unavailabilityCode;
     }
 
     public async Task<BrokerResult> LoginAsync(MobileConnectionRequest request, CancellationToken ct)
     {
         if (!_isAvailable)
-            return BrokerResult.Unavailable();
+            return BrokerResult.Unavailable(_unavailabilityCode);
 
         try
         {
             return await LoginCoreAsync(request, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogSafeFailure("login", ex);
+            return InfrastructureFailure(ex);
         }
         finally
         {
@@ -197,7 +222,7 @@ public sealed class CredentialBrokerService
             if (issued is not null)
                 await BestEffortRevokePrincipalAsync(issued.LoginName);
             LogSafeFailure("issue", ex);
-            return BrokerResult.Unavailable();
+            return InfrastructureFailure(ex);
         }
         finally
         {
@@ -211,8 +236,28 @@ public sealed class CredentialBrokerService
         CancellationToken ct)
     {
         if (!_isAvailable)
-            return BrokerResult.Unavailable();
+            return BrokerResult.Unavailable(_unavailabilityCode);
 
+        try
+        {
+            return await RefreshCoreAsync(request, bearerToken, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogSafeFailure("refresh", ex);
+            return InfrastructureFailure(ex);
+        }
+    }
+
+    private async Task<BrokerResult> RefreshCoreAsync(
+        MobileConnectionRefreshRequest request,
+        string bearerToken,
+        CancellationToken ct)
+    {
         if (string.IsNullOrWhiteSpace(bearerToken) ||
             !IsValidRequest(request.CustomerGuid, request.Nonce, request.TimestampUtc))
             return BrokerResult.Rejected("invalid_token", "نشست اتصال معتبر نیست.");
@@ -348,7 +393,7 @@ public sealed class CredentialBrokerService
             if (replacement is not null)
                 await BestEffortRevokePrincipalAsync(replacement.LoginName);
             LogSafeFailure("refresh", ex);
-            return BrokerResult.Unavailable();
+            return InfrastructureFailure(ex);
         }
     }
 
@@ -880,15 +925,9 @@ public sealed class CredentialBrokerService
             }
         };
 
-        var isDev = string.Equals(
-            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-            "Development",
-            StringComparison.OrdinalIgnoreCase);
-        if (isDev)
-        {
-            response.Credential.TrustServerCertificate = isDev;
-        }
-
+        // SQL certificate validation stays enabled in every environment. Local
+        // development needs a locally trusted SQL certificate, not a client-side
+        // validation bypass embedded in the credential response.
         return response;
     }
 
@@ -915,9 +954,45 @@ public sealed class CredentialBrokerService
 
     public static string ReadBearerToken(HttpRequest request) => GetBearerToken(request);
 
+    private static BrokerResult InfrastructureFailure(Exception ex)
+    {
+        if (IsIssuerPermissionFailure(ex))
+            return BrokerResult.IssuerNotAuthorized();
+        if (IsBrokerSchemaFailure(ex))
+            return BrokerResult.NotReady();
+        return BrokerResult.Unavailable();
+    }
+
+    private static bool IsIssuerPermissionFailure(Exception ex)
+    {
+        var sql = FindSqlException(ex);
+        // 229: object permission denied; 15151/15247: principal/login
+        // administration denied. All mean the server-side issuer cannot create,
+        // grant, revoke, or clean up the short-lived MAUI principal.
+        return sql?.Number is 229 or 15151 or 15247;
+    }
+
+    private static bool IsBrokerSchemaFailure(Exception ex)
+    {
+        var sql = FindSqlException(ex);
+        // 207/208 signal a missing broker control-plane column/table, normally
+        // because the Web startup migration did not complete.
+        return sql?.Number is 207 or 208;
+    }
+
+    private static SqlException? FindSqlException(Exception? exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql)
+                return sql;
+        }
+        return null;
+    }
+
     private void LogSafeFailure(string operation, Exception ex)
     {
-        var sqlNumber = ex is SqlException sql ? sql.Number : 0;
+        var sqlNumber = FindSqlException(ex)?.Number ?? 0;
         _logger.LogError("Credential broker {Operation} failed ({ErrorType}, SqlNumber={SqlNumber})",
             operation, ex.GetType().Name, sqlNumber);
     }
@@ -1026,7 +1101,30 @@ public sealed record BrokerResult(int StatusCode, MobileConnectionResponse? Resp
         };
         return new(status, null, new CredentialBrokerError { Code = code, Message = message });
     }
-    public static BrokerResult Unavailable() =>
+    public static BrokerResult Unavailable(string? code = null)
+        => string.Equals(code, "broker_not_configured", StringComparison.Ordinal)
+            ? new(StatusCodes.Status503ServiceUnavailable, null,
+                new CredentialBrokerError
+                {
+                    Code = "broker_not_configured",
+                    Message = "سرویس ورود MAUI روی سرور پیکربندی نشده است."
+                })
+            : new(StatusCodes.Status503ServiceUnavailable, null,
+                new CredentialBrokerError { Code = "service_unavailable", Message = "سرویس اتصال موقتاً در دسترس نیست." });
+
+    public static BrokerResult IssuerNotAuthorized() =>
         new(StatusCodes.Status503ServiceUnavailable, null,
-            new CredentialBrokerError { Code = "service_unavailable", Message = "سرویس اتصال موقتاً در دسترس نیست." });
+            new CredentialBrokerError
+            {
+                Code = "issuer_not_authorized",
+                Message = "سرویس ورود MAUI مجوز صدور اتصال موقت را ندارد."
+            });
+
+    public static BrokerResult NotReady() =>
+        new(StatusCodes.Status503ServiceUnavailable, null,
+            new CredentialBrokerError
+            {
+                Code = "broker_not_ready",
+                Message = "سرویس ورود MAUI روی سرور آماده نشده است."
+            });
 }
