@@ -19,7 +19,7 @@ public sealed class AuthService
         _remote = remoteServices.SingleOrDefault();
     }
 
-    public bool RequiresCustomerGuid => _remote is not null;
+    public bool RequiresCustomerGuid => false;
 
     /// <summary>Returns the signed-in user, or null on bad credentials.</summary>
     public async Task<UserRow?> AuthenticateAsync(
@@ -33,10 +33,10 @@ public sealed class AuthService
 
         if (_remote is not null)
         {
-            if (customerGuid is null || customerGuid == Guid.Empty)
-                throw new SafeAuthenticationException("customer_guid_required", "شناسه مشتری معتبر لازم است.");
-
-            return await _remote.AuthenticateAsync(username.Trim(), password, customerGuid.Value, ct);
+            // When using MAUI remote authentication, CustomerGuid may come
+            // automatically from ServerEndpoint (e.g., embedded in URL path)
+            // so the user does not have to enter it manually.
+            return await _remote.AuthenticateAsync(username.Trim(), password, customerGuid ?? Guid.Empty, ct);
         }
 
         var user = await _db.QueryFirstOrDefaultAsync<UserRow>(

@@ -53,6 +53,8 @@ public static class TarazinDbInitializer
             await db.SeedAsync();
             await SyncAccessAsync(db);
             await EnsureBootstrapAdminAsync(db, config);
+            // Backfill CompanyId for existing business rows before mobile RLS migration.
+            await db.ExecuteAsync("central", "_MobileBackfill");
             // Apply RLS only after every schema and the control-plane tables
             // exist. This is idempotent and is never executed by MAUI.
             await db.ExecuteAsync("central", "_MobileSecurity");

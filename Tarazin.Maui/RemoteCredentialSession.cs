@@ -49,6 +49,11 @@ public sealed class RemoteCredentialSession :
         var normalizedEndpoint = endpoint.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
             ? endpoint
             : new Uri(endpoint.AbsoluteUri + "/", UriKind.Absolute);
+
+        // Extract customer GUID from endpoint URL path automatically so the user
+        // does not have to enter it manually (e.g., /customer/{guid}/).
+        _customerGuid = ExtractCustomerGuidFromEndpoint(endpoint);
+
         _http = new HttpClient
         {
             BaseAddress = normalizedEndpoint,
@@ -86,7 +91,7 @@ public sealed class RemoteCredentialSession :
     public async Task<UserRow?> AuthenticateAsync(
         string username,
         string password,
-        Guid customerGuid,
+        Guid customerGuid = default,
         CancellationToken ct = default)
     {
         ThrowIfDisposed();
@@ -98,11 +103,17 @@ public sealed class RemoteCredentialSession :
             if (_credential is not null || !string.IsNullOrWhiteSpace(_sessionToken))
                 await RevokeExistingCoreAsync(ct);
 
+            // Use the GUID embedded in ServerEndpoint automatically; fall back
+            // to the parameter only when no endpoint GUID was configured.
+            var effectiveCustomerGuid = (_customerGuid != Guid.Empty) ? _customerGuid : customerGuid;
+            if (effectiveCustomerGuid == Guid.Empty)
+                throw new SafeAuthenticationException("customer_guid_required", "شناسه مشتری معتبر لازم است.");
+
             request = new MobileConnectionRequest
             {
                 Username = username,
                 Password = password,
-                CustomerGuid = customerGuid,
+                CustomerGuid = effectiveCustomerGuid,
                 Nonce = CreateNonce(),
                 TimestampUtc = DateTimeOffset.UtcNow
             };
@@ -115,7 +126,7 @@ public sealed class RemoteCredentialSession :
                 ?? throw new SafeAuthenticationException("invalid_response", "پاسخ سرویس اتصال معتبر نیست.");
             try
             {
-                ValidateResponse(result, customerGuid, username.Trim());
+                ValidateResponse(result, effectiveCustomerGuid, username.Trim());
             }
             catch (SafeAuthenticationException)
             {
@@ -131,7 +142,7 @@ public sealed class RemoteCredentialSession :
             // connection fetch fails, discard the just-issued broker session too.
             try
             {
-                _connectionString = await FetchConnectionStringAsync(customerGuid, ct);
+                _connectionString = await FetchConnectionStringAsync(effectiveCustomerGuid, ct);
             }
             catch
             {
@@ -475,6 +486,24 @@ public sealed class RemoteCredentialSession :
 #else
         return false;
 #endif
+    }
+
+    private static Guid ExtractCustomerGuidFromEndpoint(Uri endpoint)
+    {
+        // Look for a GUID in any path segment (e.g., /customer/{guid}/).
+        var segments = endpoint.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var segment in segments)
+        {
+            if (Guid.TryParseExact(segment, "N", out var guid) ||
+                Guid.TryParseExact(segment, "D", out guid) ||
+                Guid.TryParseExact(segment, "B", out guid) ||
+                Guid.TryParseExact(segment, "P", out guid) ||
+                Guid.TryParse(segment, out guid))
+            {
+                return guid;
+            }
+        }
+        return Guid.Empty;
     }
 
     private static string CreateNonce()
