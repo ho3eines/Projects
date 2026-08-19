@@ -69,6 +69,12 @@ session و مجوزهای database-level برای user/role/grant لازم اس�
 برای همهٔ محیط‌ها:
 
 - SQL encryption و اعتبارسنجی عادی گواهی الزامی است؛ bypass گواهی اضافه نکنید.
+  **تنها استثنا:** توسعهٔ محلی که SQL Server با گواهی خودامضای پیش‌فرض اجرا می‌شود.
+  در این حالت فقط در محیط `Development` و فقط با set کردن صریح
+  `TARAZIN_SQL_TRUST_SERVER_CERTIFICATE=1` اعتبارسنجی گواهی سمت سرور وب غیرفعال
+  می‌شود (`TrustServerCertificate=true`). این متغیر در هیچ محیط دیگری (Staging/Production)
+  اثر ندارد و اتصال issuer همچنان `Encrypt=true` می‌ماند. برای استقرار واقعی گواهی
+  معتبر نصب کنید و این متغیر را set نکنید.
 - اگر TLS در reverse proxy خاتمه می‌یابد، `ReverseProxy:Enabled` را فعال و IP دقیق
   proxy بلافصل را در `ReverseProxy:KnownProxies` ثبت کنید. forwarded header از
   proxy ناشناخته پذیرفته نمی‌شود.
