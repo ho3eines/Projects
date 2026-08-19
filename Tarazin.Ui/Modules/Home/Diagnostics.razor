@@ -1,6 +1,7 @@
 @page "/diag"
 @using Tarazin.Data
 @inject DbService Db
+@inject IEnumerable<IRemoteAuthenticationService> RemoteAuth
 
 <PageTitle>عیب‌یابی اتصال</PageTitle>
 
@@ -31,6 +32,22 @@
             </tbody>
         </MudSimpleTable>
     </MudPaper>
+
+    @if (_isMauiHost && !Db.IsConnectionAvailable)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            <MudText Typo="Typo.subtitle2">
+                در MAUI رشتهٔ اتصال فقط پس از <b>ورود موفق از صفحهٔ ورود</b> از سرویس وب دریافت و
+                صرفاً در حافظهٔ همین فرایند نگه داشته می‌شود. وجود رکورد مشتری در پایگاه داده یا زدن
+                «آزمون اتصال» به‌تنهایی آن را آماده نمی‌کند؛ زمان آزمونِ چند میلی‌ثانیه‌ای یعنی
+                هنوز اتصالی دریافت نشده است. اگر ورود خطا داد، ابتدا همان پیام را برطرف کنید.
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Login" Href="/login">
+                رفتن به صفحهٔ ورود
+            </MudButton>
+        </MudAlert>
+    }
 
     <MudPaper Class="pa-4" Elevation="1">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
@@ -76,6 +93,13 @@
     private bool _testing;
     private ConnectionCheckResult? _result;
     private string? _safeFailure;
+    // IRemoteAuthenticationService فقط در هاست MAUI ثبت می‌شود؛ وب آن را ندارد.
+    private bool _isMauiHost;
+
+    protected override void OnInitialized()
+    {
+        _isMauiHost = RemoteAuth.Any();
+    }
 
     private async Task TestAsync()
     {
