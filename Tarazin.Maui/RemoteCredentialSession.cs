@@ -12,9 +12,10 @@ namespace Tarazin.Maui;
 /// <summary>
 /// MAUI-only connection session. Authenticates through the web broker
 /// (<c>api/mobile/connection/login</c>) and then fetches the server-managed SQL
-/// connection string from the web endpoint <c>api/{guid}</c>. The connection
-/// string is retained only in this process instance and is never written to
-/// preferences, files, SecureStorage, logs, or configuration.
+/// connection string from the web endpoint <c>api/{guid}</c>. CustomerGuid is
+/// read only from packaged <c>appsettings.json</c>. The connection string is
+/// retained only in this process instance and is never written to preferences,
+/// files, SecureStorage, logs, or configuration.
 /// </summary>
 public sealed class RemoteCredentialSession :
     ISqlConnectionProvider,
@@ -26,7 +27,7 @@ public sealed class RemoteCredentialSession :
     // Serializes login, refresh, and revoke so a late refresh response cannot
     // recreate a credential after logout (or overwrite a newer login).
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
-    private Guid _customerGuid;
+    private readonly Guid _customerGuid;
     private string _sessionToken = "";
     private DateTimeOffset _sessionExpiresAt;
     private CredentialState? _credential;
@@ -50,9 +51,13 @@ public sealed class RemoteCredentialSession :
             ? endpoint
             : new Uri(endpoint.AbsoluteUri + "/", UriKind.Absolute);
 
-        // Extract customer GUID from endpoint URL path automatically so the user
-        // does not have to enter it manually (e.g., /customer/{guid}/).
-        _customerGuid = ExtractCustomerGuidFromEndpoint(endpoint);
+        // CustomerGuid is a public tenant selector packaged with this build.
+        // It is read only from MAUI appsettings.json — never from the login
+        // form, URL path, query string, or environment.
+        var rawCustomerGuid = configuration["CustomerGuid"]?.Trim();
+        if (!Guid.TryParse(rawCustomerGuid, out var customerGuid) || customerGuid == Guid.Empty)
+            throw new InvalidOperationException("CustomerGuid must be a non-empty GUID in appsettings.json.");
+        _customerGuid = customerGuid;
 
         _http = new HttpClient
         {
@@ -103,17 +108,15 @@ public sealed class RemoteCredentialSession :
             if (_credential is not null || !string.IsNullOrWhiteSpace(_sessionToken))
                 await RevokeExistingCoreAsync(ct);
 
-            // Use the GUID embedded in ServerEndpoint automatically; fall back
-            // to the parameter only when no endpoint GUID was configured.
-            var effectiveCustomerGuid = (_customerGuid != Guid.Empty) ? _customerGuid : customerGuid;
-            if (effectiveCustomerGuid == Guid.Empty)
-                throw new SafeAuthenticationException("customer_guid_required", "شناسه مشتری معتبر لازم است.");
+            // Ignore the login-form parameter. The packaged appsettings.json
+            // value is the only customer selector this host is allowed to use.
+            _ = customerGuid;
 
             request = new MobileConnectionRequest
             {
                 Username = username,
                 Password = password,
-                CustomerGuid = effectiveCustomerGuid,
+                CustomerGuid = _customerGuid,
                 Nonce = CreateNonce(),
                 TimestampUtc = DateTimeOffset.UtcNow
             };
@@ -126,7 +129,7 @@ public sealed class RemoteCredentialSession :
                 ?? throw new SafeAuthenticationException("invalid_response", "پاسخ سرویس اتصال معتبر نیست.");
             try
             {
-                ValidateResponse(result, effectiveCustomerGuid, username.Trim());
+                ValidateResponse(result, _customerGuid, username.Trim());
             }
             catch (SafeAuthenticationException)
             {
@@ -142,7 +145,7 @@ public sealed class RemoteCredentialSession :
             // connection fetch fails, discard the just-issued broker session too.
             try
             {
-                _connectionString = await FetchConnectionStringAsync(effectiveCustomerGuid, ct);
+                _connectionString = await FetchConnectionStringAsync(_customerGuid, ct);
             }
             catch
             {
@@ -395,13 +398,14 @@ public sealed class RemoteCredentialSession :
             incoming.Username,
             incoming.Password,
             incoming.ExpiresAtUtc);
-        _customerGuid = response.CustomerGuid;
         _sessionToken = response.SessionToken;
         _sessionExpiresAt = response.SessionExpiresAtUtc;
 
         // Remove duplicate references from the deserialized response as soon as copied.
         incoming.Password = "";
         response.SessionToken = "";
+        // CustomerGuid stays the packaged appsettings value; do not replace it
+        // from the response or any other runtime source.
     }
 
     private static void ValidateResponse(
@@ -488,24 +492,6 @@ public sealed class RemoteCredentialSession :
 #endif
     }
 
-    private static Guid ExtractCustomerGuidFromEndpoint(Uri endpoint)
-    {
-        // Look for a GUID in any path segment (e.g., /customer/{guid}/).
-        var segments = endpoint.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var segment in segments)
-        {
-            if (Guid.TryParseExact(segment, "N", out var guid) ||
-                Guid.TryParseExact(segment, "D", out guid) ||
-                Guid.TryParseExact(segment, "B", out guid) ||
-                Guid.TryParseExact(segment, "P", out guid) ||
-                Guid.TryParse(segment, out guid))
-            {
-                return guid;
-            }
-        }
-        return Guid.Empty;
-    }
-
     private static string CreateNonce()
         => Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
@@ -515,7 +501,6 @@ public sealed class RemoteCredentialSession :
         _credential = null;
         _sessionToken = "";
         _sessionExpiresAt = default;
-        _customerGuid = default;
         _connectionString = "";
         SqlConnection.ClearAllPools();
     }

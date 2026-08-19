@@ -79,10 +79,12 @@ secret قابل‌استفاده را در برابر compromise همان پرد
 
 ## پیکربندی و نگه‌داری secret
 
-`Tarazin.Maui/appsettings.json` باید فقط `ServerEndpoint` عمومی و HTTPS را داشته
-باشد. MAUI نباید SQL connection، password، bootstrap secret، token، license key
-یا کلید decrypt را در source/configuration، Preferences، SecureStorage، SQLite،
-فایل یا browser storage نگه دارد.
+`Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid`
+عمومی را دارد. `CustomerGuid` یک selector عمومی است، نه هویت یا مجوز، و فقط از
+همین فایل خوانده می‌شود — نه از فرم ورود، نه از مسیر URL. MAUI نباید SQL
+connection، password، bootstrap secret، token، license key یا کلید decrypt را در
+source/configuration، Preferences، SecureStorage، SQLite، فایل یا browser storage
+نگه دارد.
 
 Web نیز secret واقعی را در فایل source-controlled ندارد:
 
@@ -132,9 +134,10 @@ SQL را ثبت می‌کنند.
 
 هیچ customer پیش‌فرضی فعال نیست. operator باید پس از ساخت شرکت، یک GUID تصادفی
 را server-side در `central.CredentialCustomers` به همان `CompanyId` متصل کند و
-فقط پس از تأیید مالکیت، `CredentialAccessEnabled` را فعال کند. GUID باید از کانال
-سازمانی مناسب به کاربر برسد. غیرفعال‌کردن customer یا شرکت، RLS را بلافاصله
-می‌بندد؛ cleanup سپس principalهای باقی‌مانده را حذف می‌کند.
+فقط پس از تأیید مالکیت، `CredentialAccessEnabled` را فعال کند. همان GUID در
+`Tarazin.Maui/appsettings.json` بسته‌بندی می‌شود و کاربر آن را وارد نمی‌کند.
+غیرفعال‌کردن customer یا شرکت، RLS را بلافاصله می‌بندد؛ cleanup سپس principalهای
+باقی‌مانده را حذف می‌کند.
 
 ## چک‌لیست تولید
 

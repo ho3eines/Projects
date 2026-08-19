@@ -33,9 +33,9 @@ public sealed class AuthService
 
         if (_remote is not null)
         {
-            // When using MAUI remote authentication, CustomerGuid may come
-            // automatically from ServerEndpoint (e.g., embedded in URL path)
-            // so the user does not have to enter it manually.
+            // MAUI reads CustomerGuid only from its packaged appsettings.json.
+            // The login form never collects it, and this unused argument is
+            // kept only to match the existing interface.
             return await _remote.AuthenticateAsync(username.Trim(), password, customerGuid ?? Guid.Empty, ct);
         }
 

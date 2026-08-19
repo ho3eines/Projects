@@ -47,7 +47,7 @@ Key mechanisms:
 3. **Scripts as embedded resources** — `Tarazin.Data/Scripts/**/*.sql` are `EmbeddedResource` in `Tarazin.Data` (`Tarazin.Scripts.{schema}.{name}.sql`); `ScriptCatalog` loads them from its own assembly so the packaged MAUI app never needs a content root. Files remain in the repo for editing/tooling (`tools/cross-schema-scan.sh`).
 4. **Shared static assets** — `Tarazin.Ui/wwwroot/css/app.css` is served by both hosts at `_content/Tarazin.Ui/css/app.css` (web static assets + BlazorWebView RCL assets).
 5. **Namespaces** — models `Tarazin.Models` (assembly `Tarazin.Share`); data `Tarazin.Data`; RCL root `Tarazin`; web host `Tarazin.Web`; MAUI `Tarazin.Maui` — no ambiguity across assemblies.
-6. **MAUI config and credential preparation** — `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS را دارد. `RemoteCredentialSession` از endpointهای login/refresh/revoke با nonce/timestamp/bearer session استفاده، پاسخ را سخت‌گیرانه validate و credential موقت را فقط در حافظه به provider SQL می‌دهد.
+6. **MAUI config and credential preparation** — `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی را دارد. شناسه فقط از همین فایل خوانده می‌شود، نه از فرم ورود و نه از مسیر URL. `RemoteCredentialSession` از endpointهای login/refresh/revoke با nonce/timestamp/bearer session استفاده، پاسخ را سخت‌گیرانه validate و credential موقت را فقط در حافظه به provider SQL می‌دهد.
 
 ## Consequences
 
