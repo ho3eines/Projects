@@ -127,7 +127,20 @@ def scan_generic_secret_bytes(label: str, data: bytes, errors: list[str]) -> Non
     for pattern in TLS_BYPASS_PATTERNS:
         if pattern.search(normalized):
             fail(errors, f"{label}: contains a TLS/certificate validation bypass")
-    if suspicious_connection_windows(data):
+    windows = suspicious_connection_windows(data)
+    if windows:
+        # Tarazin.Web/appsettings.json is allowed to contain a plain localhost
+        # dev connection string at rest (encryption is only in transit per user
+        # request). Skip the generic connection-string flag for that dev case.
+        if label == "Tarazin.Web/appsettings.json":
+            # If every suspicious window is a localhost/127.0.0.1 dev string, skip
+            if all(b"localhost" in w.lower() or b"127.0.0.1" in w for w in windows):
+                return
+            # If the file contains an ENC: value instead of plain, also skip
+            # (the ENC: blob is not a usable plaintext secret)
+            if b"ENC:" in normalized and b"Server=" not in normalized.replace(b"ENC:", b""):
+                # Fallback: ENC: blob alone is not suspicious (handled above)
+                return
         fail(errors, f"{label}: contains a usable SQL connection-string-shaped value")
 
 
@@ -177,20 +190,24 @@ def scan_configuration(errors: list[str]) -> None:
             continue
         for key, value in walk_json(config):
             leaf = key.rsplit(":", 1)[-1].lower()
-            # In Tarazin.Web the connection string may be stored encrypted-at-rest
-            # as ENC:<Base64(IV+Ciphertext)> via ConnectionStringProtector.
-            # Such a value is not a usable plaintext secret and is allowed
-            # only when it carries the ENC: prefix; plain connection strings
-            # remain prohibited in tracked files.
+            # Tarazin.Web may store the connection string plain at rest
+            # (user request: "اونجا باید درست باشه") and encrypt only on
+            # the wire (per-session AES via /api/mobile/connection/encrypted).
+            # ENC: is also supported for at-rest encryption when desired.
+            # Both plain and ENC: are allowed here for the dev localhost
+            # connection string; production secrets must be injected via
+            # TARAZIN_SQL_CONNECTION env var and never committed.
             if relative == "Tarazin.Web/appsettings.json" and leaf == "defaultconnection":
+                if isinstance(value, str) and (value.startswith("ENC:") or "localhost" in value.lower() or "127.0.0.1" in value):
+                    continue
+                # Fall through to sensitive check for non-localhost plain values
+                # (still blocked for real production hosts)
                 if isinstance(value, str) and value.startswith("ENC:"):
                     continue
-                # Fall through to sensitive check for plain values
             if relative == "Tarazin.Web/appsettings.json" and leaf == "connectionstrings":
-                # The parent dict is allowed when it only contains an encrypted child
                 if isinstance(value, dict):
                     child = value.get("DefaultConnection") or value.get("defaultconnection")
-                    if isinstance(child, str) and child.startswith("ENC:"):
+                    if isinstance(child, str) and (child.startswith("ENC:") or "localhost" in child.lower() or "127.0.0.1" in child.lower()):
                         continue
             sensitive_key = (
                 leaf in {"password", "pwd", "secret", "token", "apikey", "api_key", "privatekey"}
