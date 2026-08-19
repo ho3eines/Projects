@@ -5,6 +5,7 @@
 -- All function, ownership, and policy upgrades are one transaction: a failed
 -- migration cannot leave only part of the RLS boundary installed.
 SET XACT_ABORT ON;
+SET QUOTED_IDENTIFIER ON;
 BEGIN TRY
     BEGIN TRANSACTION;
 
