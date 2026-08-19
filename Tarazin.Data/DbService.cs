@@ -62,7 +62,10 @@ public sealed class DbService
         }
         catch (Exception ex)
         {
-            _logger.LogError("SQL connection test failed ({ErrorType})", ex.GetType().Name);
+            // شمارهٔ SqlException غیرمحرمانه است و برای عیب‌یابی ثبت می‌شود؛
+            // متن/رشتهٔ اتصال خام هرگز log نمی‌شود.
+            _logger.LogError("SQL connection test failed ({ErrorType}, SqlNumber={SqlNumber})",
+                ex.GetType().Name, FindSqlNumber(ex));
             return new ConnectionCheckResult(
                 Ok: false,
                 Message: Describe(ex),
@@ -72,18 +75,67 @@ public sealed class DbService
     }
 
     /// <summary>Maps failures to safe messages without returning exception text.</summary>
-    public static string Describe(Exception ex) => ex switch
+    public static string Describe(Exception ex)
     {
-        SqlException { Number: 18456 } => "اعتبار اتصال پایگاه داده پذیرفته نشد.",
-        SqlException { Number: 4060 or 4064 } => "دسترسی به پایگاه داده مقصد ممکن نیست.",
-        SqlException { Number: 40615 or 40532 } => "فایروال پایگاه داده اتصال را نپذیرفت.",
-        SqlException { Number: 53 or -1 or 2 or 258 } => "سرویس پایگاه داده در دسترس نیست.",
-        SqlException => "عملیات پایگاه داده انجام نشد.",
-        SafeDataException safe => safe.Message,
-        InvalidOperationException => "اتصال امن پایگاه داده آماده نیست.",
-        OperationCanceledException => "عملیات لغو شد.",
-        _ => "خطای غیرمنتظره‌ای هنگام دسترسی به داده رخ داد."
-    };
+        if (ex is SafeDataException safe)
+            return safe.Message;
+
+        if (ex is SqlException sql)
+        {
+            // شکست دست‌دادن TLS/گواهی ممکن است با کد منفی Schannel یا با متن
+            // «certificate» بیاید؛ پیش از هر نگاشت دیگری شناسایی می‌شود تا
+            // اپراتور به‌جای پیام عمومی، راه‌حل دقیق (اعتماد به گواهی) را ببیند.
+            if (IsTlsCertificateFailure(sql))
+                return "گواهی SQL Server توسط این دستگاه تأیید نمی‌شود (TLS).";
+
+            return sql.Number switch
+            {
+                18456 => "اعتبار اتصال پایگاه داده پذیرفته نشد.",
+                4060 or 4064 => "دسترسی به پایگاه داده مقصد ممکن نیست.",
+                40615 or 40532 => "فایروال پایگاه داده اتصال را نپذیرفت.",
+                // named pipes/TCP: سرور یافت نشد، اتصال رد شد یا مهلت تمام شد.
+                53 or 2 or 258 or 10060 or 10061 or 11001 => "سرویس پایگاه داده در دسترس نیست.",
+                _ => "عملیات پایگاه داده انجام نشد."
+            };
+        }
+
+        if (IsTlsCertificateFailure(ex))
+            return "گواهی SQL Server توسط این دستگاه تأیید نمی‌شود (TLS).";
+
+        return ex switch
+        {
+            InvalidOperationException => "اتصال امن پایگاه داده آماده نیست.",
+            OperationCanceledException => "عملیات لغو شد.",
+            _ => "خطای غیرمنتظره‌ای هنگام دسترسی به داده رخ داد."
+        };
+    }
+
+    /// <summary>
+    /// تشخیص شکست دست‌دادن TLS/گواهی که ممکن است به‌صورت SqlException با کد منفی
+    /// Schannel یا داخل InnerException (AuthenticationException/Win32) ظاهر شود.
+    /// فقط برای طبقه‌بندی استفاده می‌شود؛ متن خام هرگز برگردانده یا ثبت نمی‌شود.
+    /// </summary>
+    private static bool IsTlsCertificateFailure(Exception? exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException { Number: -2146893019 or -2146893013 or -2146893007 or -2146762487 })
+                return true;
+            if (current.Message.IndexOf("certificate", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+        return false;
+    }
+
+    private static int? FindSqlNumber(Exception? exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql)
+                return sql.Number;
+        }
+        return null;
+    }
 
     public async Task<IReadOnlyList<T>> QueryAsync<T>(
         string schema, string scriptName, object? parameters = null, CancellationToken ct = default)
@@ -388,8 +440,8 @@ public sealed class DbService
     {
         if (ex is SafeDataException safe)
             return safe;
-        _logger.LogWarning("Data operation {Schema}/{Script} failed ({ErrorType})",
-            schema, scriptName, ex.GetType().Name);
+        _logger.LogWarning("Data operation {Schema}/{Script} failed ({ErrorType}, SqlNumber={SqlNumber})",
+            schema, scriptName, ex.GetType().Name, FindSqlNumber(ex));
         return new SafeDataException(Describe(ex));
     }
 
