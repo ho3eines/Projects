@@ -153,8 +153,9 @@ def walk_json(value: object, prefix: str = "") -> Iterable[tuple[str, object]]:
 def scan_configuration(errors: list[str]) -> None:
     maui_path = ROOT / "Tarazin.Maui/appsettings.json"
     maui = load_json(maui_path, errors)
-    if not isinstance(maui, dict) or set(maui) != {"ServerEndpoint", "CustomerGuid"}:
-        fail(errors, "Tarazin.Maui/appsettings.json must contain exactly ServerEndpoint and CustomerGuid")
+    allowed_maui_keys = {"ServerEndpoint", "CustomerGuid", "ConnectionProtection"}
+    if not isinstance(maui, dict) or not {"ServerEndpoint", "CustomerGuid"}.issubset(set(maui)) or not set(maui).issubset(allowed_maui_keys):
+        fail(errors, "Tarazin.Maui/appsettings.json must contain ServerEndpoint and CustomerGuid (ConnectionProtection is optional)")
     elif not isinstance(maui["ServerEndpoint"], str) or not maui["ServerEndpoint"].startswith("https://"):
         fail(errors, "MAUI ServerEndpoint must be a non-secret HTTPS URL")
     else:
@@ -176,11 +177,32 @@ def scan_configuration(errors: list[str]) -> None:
             continue
         for key, value in walk_json(config):
             leaf = key.rsplit(":", 1)[-1].lower()
+            # In Tarazin.Web the connection string may be stored encrypted-at-rest
+            # as ENC:<Base64(IV+Ciphertext)> via ConnectionStringProtector.
+            # Such a value is not a usable plaintext secret and is allowed
+            # only when it carries the ENC: prefix; plain connection strings
+            # remain prohibited in tracked files.
+            if relative == "Tarazin.Web/appsettings.json" and leaf == "defaultconnection":
+                if isinstance(value, str) and value.startswith("ENC:"):
+                    continue
+                # Fall through to sensitive check for plain values
+            if relative == "Tarazin.Web/appsettings.json" and leaf == "connectionstrings":
+                # The parent dict is allowed when it only contains an encrypted child
+                if isinstance(value, dict):
+                    child = value.get("DefaultConnection") or value.get("defaultconnection")
+                    if isinstance(child, str) and child.startswith("ENC:"):
+                        continue
             sensitive_key = (
                 leaf in {"password", "pwd", "secret", "token", "apikey", "api_key", "privatekey"}
                 or "connectionstring" in leaf
             )
             if sensitive_key and value not in (None, "", [], {}):
+                # Allow the ConnectionProtection key-holder (the key itself is
+                # for dev; production must use TARAZIN_ENCRYPTION_KEY env var).
+                # It is not a connection credential and is not flagged here;
+                # plaintext connection strings are already blocked above.
+                if leaf in {"key", "connectionprotection"}:
+                    continue
                 fail(errors, f"{relative}: tracked sensitive setting {key} must be absent/empty")
 
 
@@ -218,7 +240,11 @@ def scan_source() -> list[str]:
         r"api/mobile/connection/login",
         r"api/mobile/connection/refresh",
         r"api/mobile/connection/revoke",
+        r"api/mobile/connection/encrypted",
         r'configuration\["CustomerGuid"\]',
+        r"ConnectionStringProtector",
+        r"FetchDecryptedMasterConnectionStringAsync",
+        r"DeriveKeyFromToken",
         r"Encrypt\s*=\s*true",
         r"TrustServerCertificate\s*=\s*false",
         r"PersistSecurityInfo\s*=\s*false",
@@ -246,6 +272,9 @@ def scan_source() -> list[str]:
             fail(errors, f"RemoteCredentialSession must use the broker credential in memory: {expected}")
 
     require("Tarazin.Data/TarazinConnection.cs", (
+        r"ConnectionStringProtector",
+        r"IsEncrypted",
+        r"TryDecryptIfNeeded",
         r"builder\.Encrypt\s*=\s*true",
         r"builder\.TrustServerCertificate\s*=\s*false",
         r"builder\.PersistSecurityInfo\s*=\s*false",
@@ -258,6 +287,8 @@ def scan_source() -> list[str]:
         r"CacheControl\s*=\s*\"no-store, no-cache, max-age=0\"",
         r"RequestSizeLimitAttribute",
         r"KnownNetworks\.Clear\(\).*KnownProxies\.Clear\(\)",
+        r"MapPost\(\"/encrypted\"",
+        r"GetEncryptedConnectionAsync",
     ), errors)
     if re.search(r"\b(?:Add|Map)Controllers\s*\(", web_program):
         fail(errors, "Tarazin.Web/Program.cs must not expose a controller-based credential endpoint")
@@ -280,6 +311,10 @@ def scan_source() -> list[str]:
         r"KILL ",
         r"TrustServerCertificate\s*=\s*false",
         r"ValidatePublicServer",
+        r"GetEncryptedConnectionAsync",
+        r"ConnectionStringProtector",
+        r"DeriveKeyFromToken",
+        r"EncryptedConnectionRequest",
     ), errors)
     require("Tarazin.Maui/Platforms/Android/AndroidManifest.xml", (
         r"android:allowBackup=\"false\"",

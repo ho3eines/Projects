@@ -45,3 +45,30 @@ public sealed class CredentialBrokerError
     public string Code { get; set; } = "request_rejected";
     public string Message { get; set; } = "درخواست اتصال پذیرفته نشد.";
 }
+
+/// <summary>
+/// Authenticated request for the encrypted master connection string.
+/// The bearer token is sent in the Authorization header; body carries
+/// replay protection and tenant binding.
+/// </summary>
+public sealed class EncryptedConnectionRequest
+{
+    public Guid CustomerGuid { get; set; }
+    public string Nonce { get; set; } = "";
+    public DateTimeOffset TimestampUtc { get; set; }
+}
+
+/// <summary>
+/// Encrypted master connection string response. The string is
+/// <c>ENC:Base64(IV+Ciphertext)</c> encrypted with a per-session key
+/// derived from the bearer token (SHA-256 of the token), so no static
+/// secret is stored in the MAUI binary. Transport is still over HTTPS.
+/// </summary>
+public sealed class EncryptedConnectionResponse
+{
+    /// <summary>Encrypted connection string: ENC:Base64(IV + AES-CBC ciphertext).</summary>
+    public string EncryptedConnectionString { get; set; } = "";
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    /// <summary>Hint for diagnostics only: database name, never the full secret.</summary>
+    public string Database { get; set; } = "";
+}

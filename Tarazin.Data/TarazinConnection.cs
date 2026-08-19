@@ -19,12 +19,26 @@ public static class TarazinConnection
     public const string EnvVariable = "TARAZIN_SQL_CONNECTION";
 
     /// <summary>Reads and validates the server-side deployment secret.</summary>
+    /// <remarks>
+    /// Supports encrypted storage in <c>appsettings.json</c>: when the configured
+    /// value starts with <c>ENC:</c> it is decrypted with
+    /// <see cref="ConnectionStringProtector"/> using the static key from
+    /// <c>TARAZIN_ENCRYPTION_KEY</c> or <c>ConnectionProtection:Key</c>. This
+    /// lets the connection string live encrypted in <c>appsettings.json</c> and
+    /// only exist in plaintext inside the server process memory — and, when
+    /// requested via the authenticated broker, be re-encrypted per-session for
+    /// delivery to MAUI.
+    /// </remarks>
     public static string Resolve(IConfiguration? config)
     {
         var value = ResolveRaw(config);
         if (string.IsNullOrWhiteSpace(value))
             throw new InvalidOperationException(
                 "No server-side SQL connection is configured. Supply it through the deployment secret store.");
+
+        // Encrypted-at-rest in appsettings.json: ENC:<Base64(IV+Ciphertext)>
+        // Decrypt before any further validation so the builder sees plaintext.
+        value = TryDecryptIfNeeded(value.Trim(), config);
 
         try
         {
@@ -68,6 +82,27 @@ public static class TarazinConnection
             return fromEnvironment;
 
         return config?.GetConnectionString(Name);
+    }
+
+    private static string TryDecryptIfNeeded(string value, IConfiguration? config)
+    {
+        if (!ConnectionStringProtector.IsEncrypted(value))
+            return value;
+
+        var key = ConnectionStringProtector.ResolveStaticKey(config);
+        if (string.IsNullOrWhiteSpace(key))
+            throw new InvalidOperationException(
+                "The SQL connection string is encrypted (ENC:) but no decryption key is configured. Set TARAZIN_ENCRYPTION_KEY or ConnectionProtection:Key (Base64 32-byte key).");
+
+        try
+        {
+            return ConnectionStringProtector.Decrypt(value, key);
+        }
+        catch (Exception ex) when (ex is ArgumentException or System.Security.Cryptography.CryptographicException or FormatException)
+        {
+            throw new InvalidOperationException(
+                "The encrypted SQL connection string could not be decrypted. Verify the key and ENC: payload.", ex);
+        }
     }
 
     /// <summary>Builds a server-only connection to <c>master</c>.</summary>

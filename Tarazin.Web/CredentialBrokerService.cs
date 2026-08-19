@@ -474,6 +474,105 @@ public sealed class CredentialBrokerService
             """, cancellationToken: ct));
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // Encrypted master connection-string delivery (appsettings.json → API → MAUI)
+    // ────────────────────────────────────────────────────────────────
+    // Reads the issuer connection string from appsettings.json (supports
+    // ENC: encrypted-at-rest via TarazinConnection) and re-encrypts it
+    // per-session with a key derived from the bearer token (SHA-256 of the
+    // token). MAUI derives the same key from its stored plaintext token and
+    // decrypts in memory — no static secret is stored in the MAUI binary
+    // for this path. The outer HTTPS (TLS) remains the primary transport
+    // protection; the inner AES layer satisfies the "encrypted to MAUI"
+    // requirement without putting a long-term decryption key in the client.
+
+    public async Task<BrokerEncryptedResult> GetEncryptedConnectionAsync(
+        EncryptedConnectionRequest request,
+        string bearerToken,
+        CancellationToken ct)
+    {
+        if (!_isAvailable)
+            return BrokerEncryptedResult.Unavailable(_unavailabilityCode);
+
+        try
+        {
+            return await GetEncryptedConnectionCoreAsync(request, bearerToken, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogSafeFailure("encrypted-connection", ex);
+            return BrokerEncryptedResult.Failure(InfrastructureFailure(ex).Error!);
+        }
+    }
+
+    private async Task<BrokerEncryptedResult> GetEncryptedConnectionCoreAsync(
+        EncryptedConnectionRequest request,
+        string bearerToken,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(bearerToken) ||
+            !IsValidRequest(request.CustomerGuid, request.Nonce, request.TimestampUtc))
+            return BrokerEncryptedResult.Rejected("invalid_request", "درخواست اتصال معتبر نیست.");
+
+        await using var connection = await OpenIssuerConnectionAsync(ct);
+        if (!await ConsumeNonceAsync(connection, request.Nonce, ct))
+            return BrokerEncryptedResult.Rejected("replayed_request", "این درخواست قبلاً استفاده شده است.");
+
+        var tokenHash = Sha256(bearerToken);
+        var familyId = await FindSessionFamilyAsync(connection, tokenHash, ct);
+        if (familyId is null)
+            return BrokerEncryptedResult.Rejected("invalid_token", "نشست اتصال معتبر یا فعال نیست.");
+
+        var session = await LoadSessionAsync(connection, tokenHash, ct);
+        if (session is null)
+        {
+            var principals = await MarkFamilyRevokedAsync(connection, familyId.Value, ct);
+            await BestEffortRevokePrincipalsAsync(principals);
+            return BrokerEncryptedResult.Rejected("invalid_token", "نشست اتصال معتبر یا فعال نیست.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (session.ActivatedAt is null || session.RevokedAt is not null ||
+            session.SessionExpiresAt <= now || session.CustomerGuid != request.CustomerGuid)
+            return BrokerEncryptedResult.Rejected("invalid_token", "نشست اتصال معتبر یا فعال نیست.");
+
+        if (!session.UserIsActive || !session.CustomerIsActive || session.CustomerIsDeleted ||
+            !session.CredentialAccessEnabled || !session.CompanyIsActive ||
+            session.CompanyIsDeleted || !session.IsAuthorized)
+        {
+            var principals = await MarkFamilyRevokedAsync(connection, session.SessionFamilyId, ct);
+            await BestEffortRevokePrincipalsAsync(principals);
+            return BrokerEncryptedResult.Rejected("authorization_expired", "مجوز مشتری یا کاربر منقضی شده است.");
+        }
+
+        // Authenticated and authorized — encrypt the issuer connection string
+        // with a per-session key derived from the bearer token.
+        // Also extend the encrypted payload lifetime to match the current
+        // credential lifetime so MAUI can use it until the next refresh.
+        var issuerPayload = _issuerConnectionString;
+        if (string.IsNullOrWhiteSpace(issuerPayload))
+            return BrokerEncryptedResult.Failure(new CredentialBrokerError { Code = "service_unavailable", Message = "سرویس اتصال موقتاً در دسترس نیست." });
+
+        var perSessionKey = ConnectionStringProtector.DeriveKeyFromToken(bearerToken);
+        var encrypted = ConnectionStringProtector.EncryptWithKeyBytes(issuerPayload, perSessionKey);
+
+        // Zero the per-session key bytes as soon as used (best-effort).
+        CryptographicOperations.ZeroMemory(perSessionKey);
+
+        var response = new EncryptedConnectionResponse
+        {
+            EncryptedConnectionString = encrypted,
+            ExpiresAtUtc = DateTimeOffset.UtcNow.Add(_credentialLifetime),
+            Database = _database
+        };
+
+        return BrokerEncryptedResult.Success(response);
+    }
+
     private IssuedPrincipal PlanPrincipal()
         => new(
             "tz_m_" + Guid.NewGuid().ToString("N"),
@@ -1127,4 +1226,31 @@ public sealed record BrokerResult(int StatusCode, MobileConnectionResponse? Resp
                 Code = "broker_not_ready",
                 Message = "سرویس ورود MAUI روی سرور آماده نشده است."
             });
+}
+
+public sealed record BrokerEncryptedResult(int StatusCode, EncryptedConnectionResponse? Response, CredentialBrokerError? Error)
+{
+    public static BrokerEncryptedResult Success(EncryptedConnectionResponse response) => new(StatusCodes.Status200OK, response, null);
+    public static BrokerEncryptedResult Rejected(string code, string message)
+    {
+        var status = code switch
+        {
+            "invalid_request" => StatusCodes.Status400BadRequest,
+            "invalid_token" or "authorization_expired" => StatusCodes.Status401Unauthorized,
+            "replayed_request" => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status403Forbidden
+        };
+        return new(status, null, new CredentialBrokerError { Code = code, Message = message });
+    }
+    public static BrokerEncryptedResult Unavailable(string? code = null)
+        => string.Equals(code, "broker_not_configured", StringComparison.Ordinal)
+            ? new(StatusCodes.Status503ServiceUnavailable, null,
+                new CredentialBrokerError { Code = "broker_not_configured", Message = "سرویس ورود MAUI روی سرور پیکربندی نشده است." })
+            : new(StatusCodes.Status503ServiceUnavailable, null,
+                new CredentialBrokerError { Code = "service_unavailable", Message = "سرویس اتصال موقتاً در دسترس نیست." });
+
+    public static BrokerEncryptedResult Failure(CredentialBrokerError error)
+        => new(error.Code == "issuer_not_authorized" || error.Code == "broker_not_ready"
+            ? StatusCodes.Status503ServiceUnavailable
+            : StatusCodes.Status503ServiceUnavailable, null, error);
 }
