@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import uuid
 import zipfile
 from pathlib import Path
 from typing import Iterable
@@ -150,10 +151,21 @@ def walk_json(value: object, prefix: str = "") -> Iterable[tuple[str, object]]:
 def scan_configuration(errors: list[str]) -> None:
     maui_path = ROOT / "Tarazin.Maui/appsettings.json"
     maui = load_json(maui_path, errors)
-    if not isinstance(maui, dict) or set(maui) != {"ServerEndpoint"}:
-        fail(errors, "Tarazin.Maui/appsettings.json must contain exactly ServerEndpoint")
+    if not isinstance(maui, dict) or set(maui) != {"ServerEndpoint", "CustomerGuid"}:
+        fail(errors, "Tarazin.Maui/appsettings.json must contain exactly ServerEndpoint and CustomerGuid")
     elif not isinstance(maui["ServerEndpoint"], str) or not maui["ServerEndpoint"].startswith("https://"):
         fail(errors, "MAUI ServerEndpoint must be a non-secret HTTPS URL")
+    else:
+        raw_guid = maui.get("CustomerGuid")
+        if not isinstance(raw_guid, str):
+            fail(errors, "MAUI CustomerGuid must be a GUID string")
+        else:
+            try:
+                parsed = uuid.UUID(raw_guid)
+                if parsed.int == 0:
+                    fail(errors, "MAUI CustomerGuid must be a non-empty GUID")
+            except (ValueError, AttributeError, TypeError):
+                fail(errors, "MAUI CustomerGuid must be a non-empty GUID")
 
     for relative in ("Tarazin.Maui/appsettings.json", "Tarazin.Web/appsettings.json"):
         path = ROOT / relative
@@ -204,6 +216,7 @@ def scan_source() -> list[str]:
         r"api/mobile/connection/login",
         r"api/mobile/connection/refresh",
         r"api/mobile/connection/revoke",
+        r'configuration\["CustomerGuid"\]',
         r"Encrypt\s*=\s*true",
         r"TrustServerCertificate\s*=\s*false",
         r"PersistSecurityInfo\s*=\s*false",
@@ -214,6 +227,7 @@ def scan_source() -> list[str]:
     for prohibited in (
         r"\bSecureStorage\s*\.", r"\bPreferences\s*\.", r"\bFile\.(?:Write|Append|Create)",
         r"localStorage", r"sessionStorage", r"SQLiteConnection", r"AddEnvironmentVariables\s*\(",
+        r"ExtractCustomerGuidFromEndpoint",
     ):
         if re.search(prohibited, remote, re.MULTILINE):
             fail(errors, f"RemoteCredentialSession uses prohibited secret persistence/config API: {prohibited}")

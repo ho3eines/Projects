@@ -90,7 +90,7 @@ Tarazin.slnx                       ← ۵ پروژه
     ├── App.xaml / App.xaml.cs
     ├── MainPage.xaml              ← BlazorWebView + RootComponent → {x:Type tarazin:App}
     ├── wwwroot/index.html         ← RTL؛ blazor.webview.js + _content/Tarazin.Ui/css/app.css
-    ├── appsettings.json           ← Embedded؛ فقط ServerEndpoint عمومی HTTPS
+    ├── appsettings.json           ← Embedded؛ فقط ServerEndpoint + CustomerGuid عمومی
     ├── Resources/                 ← AppIcon, Splash, Styles
     └── Platforms/                 ← Android / iOS / MacCatalyst / Windows
 docker-compose.yml                 ← فقط SQL Server
@@ -145,7 +145,7 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 ## 🔐 Auth
 - bootstrap admin فقط در اولین initialization و با password الزامی از secret store ساخته می‌شود؛ password پیش‌فرض وجود ندارد.
 - وب: `AuthService` مستقیماً PBKDF2 را سمت سرور بررسی می‌کند و نشست در `UserSession` هر circuit است.
-- MAUI: فرم همان است، اما `CustomerGuid` نیز می‌گیرد؛ broker HTTPS کاربر، customer فعال، شرکت و عضویت را بررسی و یک نشست/SQL credential کوتاه‌عمر صادر می‌کند. نشست و credential فقط در حافظهٔ اپ هستند.
+- MAUI: فرم ورود فقط نام کاربری و رمز را می‌گیرد. `CustomerGuid` فقط از `Tarazin.Maui/appsettings.json` خوانده می‌شود. broker HTTPS کاربر، customer فعال، شرکت و عضویت را بررسی و یک نشست/SQL credential کوتاه‌عمر صادر می‌کند. نشست و credential فقط در حافظهٔ اپ هستند.
 - مدیریت کاربران در `/central/users`
 
 ## 🗄️ Data Layer

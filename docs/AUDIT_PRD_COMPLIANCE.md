@@ -27,8 +27,9 @@
 ## ۲) معماری داده و استثنای امنیتی MAUI
 
 - Web اتصال مدیریتی SQL را فقط از secretهای server-side استقرار می‌گیرد.
-- `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS دارد؛ هیچ
-  connection string، SQL password، token، یا کلید دائمی در تنظیمات MAUI نیست.
+- `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid`
+  عمومی دارد؛ هیچ connection string، SQL password، token، یا کلید دائمی در تنظیمات
+  MAUI نیست. شناسه از فرم ورود یا URL خوانده نمی‌شود.
 - API عمومی CRUD اضافه نشده است. API محدود broker فقط login/refresh/revoke
   credential موقت MAUI را انجام می‌دهد.
 - broker قبل از صدور credential، customer، فعال‌بودن customer/user/company،

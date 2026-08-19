@@ -5,7 +5,7 @@
 دو مسیر پیکربندی عمداً از هم جدا هستند:
 
 - **Web/API** تنها در سمت سرور، تنظیم اتصال SQL را از پیکربندی استقرار یا secret store دریافت می‌کند.
-- **MAUI** هیچ تنظیم، رمز یا کلید SQL ندارد. `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint`، یعنی نشانی غیرمحرمانهٔ HTTPS وب/API، را نگه می‌دارد.
+- **MAUI** هیچ تنظیم، رمز یا کلید SQL ندارد. `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` (نشانی غیرمحرمانهٔ HTTPS وب/API) و `CustomerGuid` عمومی همان استقرار را نگه می‌دارد. شناسه از فرم ورود یا URL گرفته نمی‌شود.
 
 در ورود MAUI، برنامه نام کاربری، رمز ورود و GUID مشتری را از طریق HTTPS به broker (`/api/mobile/connection/login`) می‌فرستد. broker اعتبار کاربر، مشتری، شرکت و مجوز را بررسی می‌کند و پس از موفقیت، MAUI رشتهٔ اتصال SQL را از کنترلر `api/{guid}` دریافت می‌کند (تصمیم محصول: رشتهٔ اتصال کامل). رشتهٔ اتصال و session فقط در حافظهٔ فرایند MAUI نگه‌داری می‌شوند و با خروج پاک/لغو می‌شوند.
 
@@ -40,13 +40,16 @@ Web اتصال را به MAUI از طریق کنترلر `api/{guid}` می‌د�
 
 ## پیکربندی MAUI
 
-`Tarazin.Maui/appsettings.json` باید فقط endpoint باشد:
+`Tarazin.Maui/appsettings.json` باید فقط endpoint و شناسهٔ مشتری عمومی باشد:
 
 ```json
 {
-  "ServerEndpoint": "https://api.example.invalid/"
+  "ServerEndpoint": "https://api.example.invalid/",
+  "CustomerGuid": "11111111-1111-1111-1111-111111111111"
 }
 ```
+
+`CustomerGuid` را با GUID ثبت‌شده در `[central].[CredentialCustomers]` عوض کنید. از فرم ورود یا مسیر URL خوانده نمی‌شود.
 
 در build غیر Debug، endpoint غیر HTTPS رد می‌شود. Android نیز cleartext traffic و application backup را صریحاً غیرفعال می‌کند. هیچ connection string، SQL password، decryption key یا token را به این فایل یا platform resourceها اضافه نکنید.
 

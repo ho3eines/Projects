@@ -158,7 +158,8 @@ memory erasure.
 ### Configuration and host startup
 
 - `Tarazin.Maui/appsettings.json` now contains only a non-secret HTTPS
-  `ServerEndpoint`.
+  `ServerEndpoint` and a public `CustomerGuid`. The GUID is not collected from
+  the login form or parsed from the endpoint URL.
 - `Tarazin.Maui/MauiProgram.cs` registers the MAUI memory-only provider; no SQL
   credential or product license is loaded.
 - `Tarazin.Maui/Tarazin.Maui.csproj` retains endpoint-only settings as an

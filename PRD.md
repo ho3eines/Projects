@@ -60,8 +60,8 @@
 ## MAUI Blazor Hybrid (خلاصه)
 - `Tarazin.Maui/MainPage.xaml` → `BlazorWebView` با `RootComponent` = `Tarazin.App` (مشترک).
 - `wwwroot/index.html` → رانتایم `_framework/blazor.webview.js` + استاتیک‌های MudBlazor و RCL.
-- پیکربندی Embedded فقط `ServerEndpoint` عمومی HTTPS است؛ SQL connection/password، bootstrap secret، token و decryption key دائمی در MAUI ممنوع‌اند.
-- جریان: `Login + CustomerGuid → broker HTTPS → validation → credential موقت customer-bound → DbService مستقیم`. credential فقط در حافظه است، پیش از انقضا rotate و در logout revoke می‌شود.
+- پیکربندی Embedded فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی است؛ SQL connection/password، bootstrap secret، token و decryption key دائمی در MAUI ممنوع‌اند. شناسه از فرم ورود یا URL گرفته نمی‌شود.
+- جریان: `Login(username, password) + CustomerGuid از appsettings.json → broker HTTPS → validation → credential موقت customer-bound → DbService مستقیم`. credential فقط در حافظه است، پیش از انقضا rotate و در logout revoke می‌شود.
 - TLS و certificate validation عادی الزامی‌اند. امکان استخراج secret فعال از حافظهٔ client compromise‌شده با رمزنگاری client-held حل نمی‌شود؛ عمر کوتاه، least privilege، RLS و revoke کنترل اصلی‌اند.
 - build و رفتار SqlClient باید برای هر target MAUI در CI/E2E همان پلتفرم تأیید شود.
 
