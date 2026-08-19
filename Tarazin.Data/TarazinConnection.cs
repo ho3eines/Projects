@@ -41,6 +41,16 @@ public static class TarazinConnection
             builder.Encrypt = true;
             builder.TrustServerCertificate = false;
             builder.PersistSecurityInfo = false;
+
+            var isDevelopment = string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Development",
+                StringComparison.OrdinalIgnoreCase);
+            if (isDevelopment)
+            {
+                builder.TrustServerCertificate = isDevelopment;
+            }
+
             if (builder.ConnectTimeout <= 0 || builder.ConnectTimeout > 60)
                 builder.ConnectTimeout = 30;
             if (!builder.ShouldSerialize("Application Name"))

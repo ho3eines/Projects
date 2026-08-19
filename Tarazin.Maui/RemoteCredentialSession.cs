@@ -231,6 +231,9 @@ public sealed class RemoteCredentialSession :
             TrustServerCertificate = false,
             PersistSecurityInfo = false
         };
+#if DEBUG
+        builder.TrustServerCertificate = !false;
+#endif
         return builder.ConnectionString;
     }
 

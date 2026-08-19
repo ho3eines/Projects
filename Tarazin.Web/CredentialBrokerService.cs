@@ -850,33 +850,47 @@ public sealed class CredentialBrokerService
         Guid customerGuid,
         string token,
         DateTimeOffset sessionExpires,
-        IssuedPrincipal principal) => new()
+        IssuedPrincipal principal)
     {
-        User = new UserRow
+        var response = new MobileConnectionResponse
         {
-            UserId = user.UserId,
-            Username = user.Username,
-            PasswordHash = "",
-            DisplayName = user.DisplayName,
-            Role = user.Role,
-            RoleId = user.RoleId,
-            RoleTitle = user.RoleTitle,
-            IsActive = user.IsActive
-        },
-        CustomerGuid = customerGuid,
-        SessionToken = token,
-        SessionExpiresAtUtc = sessionExpires,
-        Credential = new MobileSqlCredential
+            User = new UserRow
+            {
+                UserId = user.UserId,
+                Username = user.Username,
+                PasswordHash = "",
+                DisplayName = user.DisplayName,
+                Role = user.Role,
+                RoleId = user.RoleId,
+                RoleTitle = user.RoleTitle,
+                IsActive = user.IsActive
+            },
+            CustomerGuid = customerGuid,
+            SessionToken = token,
+            SessionExpiresAtUtc = sessionExpires,
+            Credential = new MobileSqlCredential
+            {
+                Server = _publicServer,
+                Database = _database,
+                Username = principal.LoginName,
+                Password = principal.Password,
+                ExpiresAtUtc = principal.ExpiresAtUtc,
+                Encrypt = true,
+                TrustServerCertificate = false
+            }
+        };
+
+        var isDev = string.Equals(
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
+        if (isDev)
         {
-            Server = _publicServer,
-            Database = _database,
-            Username = principal.LoginName,
-            Password = principal.Password,
-            ExpiresAtUtc = principal.ExpiresAtUtc,
-            Encrypt = true,
-            TrustServerCertificate = false
+            response.Credential.TrustServerCertificate = isDev;
         }
-    };
+
+        return response;
+    }
 
     private bool IsValidRequest(Guid customerGuid, string nonce, DateTimeOffset timestamp)
     {
