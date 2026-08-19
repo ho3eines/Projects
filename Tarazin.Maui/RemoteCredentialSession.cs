@@ -26,9 +26,15 @@ public sealed class RemoteCredentialSession :
     // recreate a credential after logout (or overwrite a newer login).
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly Guid _customerGuid;
+    private readonly bool _useEncryptedMaster;
     private string _sessionToken = "";
     private DateTimeOffset _sessionExpiresAt;
     private CredentialState? _credential;
+    // Encrypted master connection-string fetched via the authenticated
+    // broker (appsettings.json → API → MAUI, per-session AES).
+    private CredentialState? _masterCredential;
+    private DateTimeOffset _masterExpiresAt;
+    private string _masterPlaintextCache = "";
     private bool _disposed;
 
     public RemoteCredentialSession(IConfiguration configuration)
@@ -54,6 +60,14 @@ public sealed class RemoteCredentialSession :
             throw new InvalidOperationException("CustomerGuid must be a non-empty GUID in appsettings.json.");
         _customerGuid = customerGuid;
 
+        // Optional encrypted-master mode: when true, after a successful broker
+        // login the same authenticated session is used to fetch the master
+        // connection string encrypted per-session (appsettings.json ENC: → API
+        // → MAUI per-session AES). The decrypted string stays in memory only.
+        // Default false keeps the short-lived least-privilege credential path.
+        _useEncryptedMaster =
+            bool.TryParse(configuration["ConnectionProtection:UseEncryptedMaster"], out var flag) && flag;
+
         _http = new HttpClient
         {
             BaseAddress = normalizedEndpoint,
@@ -64,14 +78,16 @@ public sealed class RemoteCredentialSession :
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Tarazin-MAUI/1.0");
     }
 
-    public bool IsAvailable => _credential is not null && !string.IsNullOrWhiteSpace(_sessionToken);
+    public bool IsAvailable => (_credential is not null || _masterCredential is not null) && !string.IsNullOrWhiteSpace(_sessionToken);
     public bool SupportsInitialization => false;
 
-    public string DatabaseName => _credential?.Database ?? "";
+    public string DatabaseName => _masterCredential?.Database ?? _credential?.Database ?? "";
 
-    public string Description => _credential is null
+    public string Description => _credential is null && _masterCredential is null
         ? "اتصال موقت از سرویس وب آماده نیست"
-        : "اتصال SQL کوتاه‌عمر دریافت‌شده از سرویس وب";
+        : _masterCredential is not null
+            ? "اتصال SQL رمزگذاری‌شدهٔ دریافت‌شده از appsettings.json سرور (per-session AES)"
+            : "اتصال SQL کوتاه‌عمر دریافت‌شده از سرویس وب";
 
     public async Task<UserRow?> AuthenticateAsync(
         string username,
@@ -122,6 +138,28 @@ public sealed class RemoteCredentialSession :
 
             ThrowIfDisposed();
             Apply(result);
+
+            // Appsettings.json → API → MAUI encrypted path:
+            // If the MAUI configuration opts into encrypted-master mode,
+            // immediately fetch the per-session encrypted master connection
+            // string (Web's appsettings.json ENC: → API per-session AES) so
+            // the caller can use the issuer string without a static key in
+            // the MAUI package. Failures here do not roll back the login —
+            // the short-lived credential remains usable.
+            if (_useEncryptedMaster)
+            {
+                try
+                {
+                    await FetchAndCacheEncryptedMasterCoreAsync(ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Keep the short-lived credential; encrypted master is
+                    // best-effort in this mode. The caller can retry via
+                    // FetchDecryptedMasterConnectionStringAsync().
+                }
+            }
+
             return result.User;
         }
         catch (SafeAuthenticationException)
@@ -147,9 +185,31 @@ public sealed class RemoteCredentialSession :
     public async ValueTask<SqlConnection> OpenConnectionAsync(CancellationToken ct = default)
     {
         ThrowIfDisposed();
-        // A caller can keep using DbService for a long session. Refresh before
-        // each newly opened connection when the short-lived SQL principal is
-        // near expiry, rather than waiting for an authentication failure.
+
+        // Encrypted-master mode takes precedence when available: the decrypted
+        // issuer connection string (from Web's encrypted appsettings.json, via
+        // per-session AES) is used directly. Its lifetime follows the broker
+        // credential lifetime; re-fetch when near expiry.
+        if (_masterCredential is not null)
+        {
+            await RefreshEncryptedMasterIfNeededAsync(ct);
+            var master = _masterCredential;
+            if (master is null)
+                throw new InvalidOperationException("Authenticate through the secure API before using SQL.");
+            var masterConnection = new SqlConnection(BuildConnectionString(master));
+            try
+            {
+                await masterConnection.OpenAsync(ct);
+                return masterConnection;
+            }
+            catch
+            {
+                await masterConnection.DisposeAsync();
+                throw;
+            }
+        }
+
+        // Default: short-lived least-privilege credential with proactive refresh.
         await RefreshIfNeededAsync(ct);
 
         var credential = _credential;
@@ -181,6 +241,155 @@ public sealed class RemoteCredentialSession :
         {
             ThrowIfDisposed();
             await RevokeExistingCoreAsync(ct);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Encrypted master connection-string path (appsettings.json → API → MAUI)
+    // ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fetches the per-session encrypted issuer connection string from the
+    /// authenticated broker (<c>POST /api/mobile/connection/encrypted</c>),
+    /// decrypts it with a key derived from the session token (SHA-256), and
+    /// returns the plaintext connection string. The plaintext is never written
+    /// to disk, SecureStorage, or logs — only kept in memory when cached via
+    /// <see cref="FetchAndCacheEncryptedMasterCoreAsync"/>.
+    /// </summary>
+    public async Task<string> FetchDecryptedMasterConnectionStringAsync(CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        if (string.IsNullOrWhiteSpace(_sessionToken))
+            throw new InvalidOperationException("Authenticate through the secure API before fetching the encrypted connection string.");
+
+        // Serialize with the lifecycle gate so this fetch races safely with
+        // refresh/revoke.
+        await _lifecycleGate.WaitAsync(ct);
+        try
+        {
+            ThrowIfDisposed();
+            return await FetchDecryptedMasterCoreAsync(ct);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    private async Task<string> FetchDecryptedMasterCoreAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_sessionToken) || _sessionExpiresAt <= DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("The credential session has expired. Sign in again.");
+
+        var request = new EncryptedConnectionRequest
+        {
+            CustomerGuid = _customerGuid,
+            Nonce = CreateNonce(),
+            TimestampUtc = DateTimeOffset.UtcNow
+        };
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/mobile/connection/encrypted")
+        {
+            Content = JsonContent.Create(request)
+        };
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _sessionToken);
+
+        using var response = await _http.SendAsync(httpRequest, ct);
+        if (!response.IsSuccessStatusCode)
+            throw await CreateSafeExceptionAsync(response, ct);
+
+        var payload = await response.Content.ReadFromJsonAsync<EncryptedConnectionResponse>(cancellationToken: ct)
+            ?? throw new SafeAuthenticationException("invalid_response", "پاسخ سرویس اتصال رمزگذاری‌شده معتبر نیست.");
+
+        if (string.IsNullOrWhiteSpace(payload.EncryptedConnectionString) ||
+            !payload.EncryptedConnectionString.StartsWith(ConnectionStringProtector.EncryptedPrefix, StringComparison.Ordinal))
+            throw new SafeAuthenticationException("invalid_response", "پاسخ سرویس اتصال رمزگذاری‌شده معتبر نیست.");
+
+        var key = ConnectionStringProtector.DeriveKeyFromToken(_sessionToken);
+        try
+        {
+            var plaintext = ConnectionStringProtector.DecryptWithKeyBytes(payload.EncryptedConnectionString, key);
+            // Validate as a SQL connection string before returning.
+            var builder = new SqlConnectionStringBuilder(plaintext);
+            if (string.IsNullOrWhiteSpace(builder.DataSource) || string.IsNullOrWhiteSpace(builder.InitialCatalog))
+                throw new SafeAuthenticationException("invalid_response", "رشتهٔ اتصال رمزگشایی‌شده نامعتبر است.");
+            return plaintext;
+        }
+        catch (CryptographicException ex)
+        {
+            throw new SafeAuthenticationException("invalid_response", "رمزگشایی رشتهٔ اتصال ناموفق بود.");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(key);
+        }
+    }
+
+    private async Task FetchAndCacheEncryptedMasterCoreAsync(CancellationToken ct)
+    {
+        var plaintext = await FetchDecryptedMasterCoreAsync(ct);
+        try
+        {
+            var builder = new SqlConnectionStringBuilder(plaintext)
+            {
+                Encrypt = true,
+                TrustServerCertificate = false,
+                PersistSecurityInfo = false
+            };
+            if (builder.ConnectTimeout <= 0 || builder.ConnectTimeout > 60)
+                builder.ConnectTimeout = 25;
+            if (!builder.ShouldSerialize("Application Name"))
+                builder.ApplicationName = "Tarazin-MAUI";
+
+            // We re-parse to the same shape as CredentialState but keep the
+            // full plaintext cached for direct SqlConnection construction if
+            // needed (used only to rebuild via BuildConnectionString).
+            _masterPlaintextCache = builder.ConnectionString;
+            _masterCredential = new CredentialState(
+                builder.DataSource,
+                builder.InitialCatalog,
+                builder.UserID,
+                builder.Password,
+                DateTimeOffset.UtcNow.AddMinutes(5)); // will be refreshed via re-fetch
+            _masterExpiresAt = _masterCredential.ExpiresAtUtc;
+            SqlConnection.ClearAllPools();
+        }
+        finally
+        {
+            // Do not keep the raw fetched plaintext beyond the builder copy in
+            // _masterPlaintextCache (which itself will be cleared on logout).
+            // The intermediate `plaintext` string cannot be reliably zeroed (immutable),
+            // but its lifetime is minimized and it is not stored beyond this scope.
+        }
+    }
+
+    private async Task RefreshEncryptedMasterIfNeededAsync(CancellationToken ct)
+    {
+        if (_masterCredential is null) return;
+        if (_masterExpiresAt - DateTimeOffset.UtcNow > TimeSpan.FromMinutes(1)) return;
+
+        await _lifecycleGate.WaitAsync(ct);
+        try
+        {
+            if (_masterCredential is null) return;
+            if (_masterExpiresAt - DateTimeOffset.UtcNow > TimeSpan.FromMinutes(1)) return;
+            if (_sessionExpiresAt <= DateTimeOffset.UtcNow || string.IsNullOrWhiteSpace(_sessionToken))
+            {
+                ClearLocal();
+                throw new InvalidOperationException("The credential session has expired. Sign in again.");
+            }
+
+            await FetchAndCacheEncryptedMasterCoreAsync(ct);
+            SqlConnection.ClearAllPools();
+        }
+        catch (SafeAuthenticationException ex)
+        {
+            ClearLocal();
+            throw new InvalidOperationException(SafeMessage(ex.Code));
         }
         finally
         {
@@ -462,6 +671,9 @@ public sealed class RemoteCredentialSession :
     private void ClearLocal()
     {
         _credential = null;
+        _masterCredential = null;
+        _masterExpiresAt = default;
+        _masterPlaintextCache = "";
         _sessionToken = "";
         _sessionExpiresAt = default;
         SqlConnection.ClearAllPools();
