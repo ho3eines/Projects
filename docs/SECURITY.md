@@ -116,10 +116,9 @@ Web هیچ connection string کامل یا credential دائمی را به MAUI 
 - MAUI release فقط endpoint با scheme `https` را می‌پذیرد و از certificate
   validation عادی پلتفرم استفاده می‌کند. callback یا تنظیم bypass گواهی وجود ندارد.
 - credential SQL با `Encrypt=true` و `TrustServerCertificate=false` در همهٔ محیط‌ها
-  مصرف می‌شود. حتی development باید از گواهی قابل‌اعتماد استفاده کند. تنها
-  استثنای مجاز: توسعهٔ محلی روی SQL Server با گواهی خودامضا که فقط با
-  `TARAZIN_SQL_TRUST_SERVER_CERTIFICATE=1` **در محیط Development** فعال می‌شود؛
-  این متغیر در Staging/Production اثر ندارد.
+  مصرف می‌شود؛ هیچ استثنا و متغیری برای bypass گواهی وجود ندارد (قانون ADR-004).
+  development هم باید از گواهی قابل‌اعتماد استفاده کند (روی SQL Server محلی گواهی
+  معتبر نصب کنید).
 - Web در production، HTTPS را enforce می‌کند؛ درخواست broker بدون HTTPS رد می‌شود.
 - در TLS termination، forwarded headers فقط وقتی فعال شوند که IP دقیق proxy
   بلافصل در `ReverseProxy:KnownProxies` ثبت شده باشد. trust list را خالی نکنید و

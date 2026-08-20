@@ -5,9 +5,13 @@
 	  <TargetFrameworks>net8.0-android</TargetFrameworks>
 	  <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>
 	  <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net8.0-ios;net8.0-maccatalyst</TargetFrameworks>
-	  
-    <!--<TargetFrameworks>net8.0-android;net8.0-ios;net8.0-maccatalyst</TargetFrameworks>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>-->
+
+    <!-- MAUI framework version — the last .NET 8 servicing release on NuGet.
+         MUST be defined here: the PackageReferences below use $(MauiVersion)
+         and an empty version fails restore immediately. Keep Controls and
+         WebView.Maui on the same version. -->
+    <MauiVersion>8.0.100</MauiVersion>
+
     <OutputType>Exe</OutputType>
     <RootNamespace>Tarazin.Maui</RootNamespace>
     <UseMaui>true</UseMaui>

@@ -22,7 +22,7 @@
 | 5 | 3 | ماژول طلافروشی: فاکتور فروش، قیمت طلا، اجناس، گزارشات | @dev_e |
 | 6 | 3 | ماژول فروشگاه: سبد خرید، سفارش، محصولات، مشتریان | @dev_f |
 | 7 | 2 | بازبینی ایستا انجام شد (بدون SQL/HttpClient در صفحات، مرز اسکیمه، مسیرها، تطبیق مدل↔اسکریپت)؛ **تست دستی با محیط واقعی (وب + MAUI) مانده** | @qa_lead |
-| 8 | 1 | `ci/ci.yml` (build وب + build MAUI با workload) نوشته شده؛ **فعال‌سازی در `.github/workflows/` و سبز شدن مانده** | @devops |
+| 8 | 1 | `ci/ci.yml` (build وب + build MAUI با workload) نوشته شده؛ **فعال‌سازی: انتقال به `.github/workflows/ci.yml` و پوش با اکانت دارای دسترسی workflows و سبز شدن مانده** | @devops |
 | 9 | 3 | مستندسازی نهایی (PRD، PLATFORM_PRD، PROJECT، ADRها، skills، .agents) **کامل**؛ انتقال به تولید مانده | @arch |
 | 10 | 3 | **ماژول ارز و معاملات ارزی (PRD §34–§63)**: اسکیمهٔ `currency` + مرکز نرخ‌ها، کیف پول، خرید/فروش ارز، معاملات ترکیبی، موتور تبدیل، دریافت آنلاین (TabloTala/Matisa)، ارزش لحظه‌ای دارایی، سود/زیان ارزی، دسترسی‌های `rates.*` — شرح کامل در `docs/CURRENCY_MODULE.md` | @dev_c |
 | 11 | 3 | **ماژول داشبورد و BI (PRD BI §1–§121)**: اسکیمهٔ `bi` (۲۸ اسکریپت) + مرکز فرماندهی `/bi` با ۱۴ تب (اجرایی/مالی/فروش/خزانه/طلا/ارز/انبار/مشتریان/بدهی‌ها/حقوق/فروشگاه/اهداف/هشدار/تحلیل هوشمند) + `BiAlerts` + **چاپ با Stimulsoft** (`Stimulsoft.Reports.Blazor` + `BiReportService` + `/bi/reports`) — شرح کامل در `docs/BI_MODULE.md` | @dev_a |
@@ -35,7 +35,7 @@
 | B2 | `dotnet workload install maui` + build MAUI (ویندوز) | محیط با SDK/ویندوز |
 | B3 | `docker compose up -d` با secretهای خارجی + تست E2E وب/MAUI با bootstrap password تزریق‌شده، broker login/refresh/revoke، replay/expiry/fake GUID/inactive/cross-customer، ثبت داده، گزارش و ممیزی. عیب‌یابی: `bash tools/test-connection.sh` و `/diag` امن | SQL Server + SDK |
 | B4 | تأیید build/runtime مسیر مستقیم SqlClient و broker برای Android/iOS؛ هر fallback باید بدون credential دائمی یا TLS bypass باشد | CI/device lab |
-| B5 | انتقال `ci/ci.yml` به `.github/workflows/ci.yml` و سبز شدن | دسترسی workflows |
+| B5 | انتقال `.github/workflows/ci.yml` به `.github/workflows/ci.yml` و سبز شدن | دسترسی workflows |
 | B6 | پیکربندی secret store تولید برای اتصال Web و bootstrap password؛ repository و artifact باید بدون مقدار secret باقی بمانند | تولید |
 | B7 | پاک‌سازی جدول‌های Outbox خواب (ADR-002) | اختیاری |
 

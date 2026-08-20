@@ -14,8 +14,9 @@ namespace Tarazin.Maui;
 /// <summary>
 /// MAUI Blazor Hybrid host — the shared UI (Tarazin.Ui) runs inside a
 /// BlazorWebView with full access to the local .NET runtime. Authentication
-/// and short-lived SQL connection preparation go through the HTTPS broker;
-/// existing business operations continue through the shared DbService.
+/// and the encrypted connection-string delivery go through the HTTPS broker
+/// (login → /encrypted، رمز per-session → رمزگشایی در حافظه) and the shared
+/// UI/data layer (DbService) executes SQL with it.
 /// </summary>
 public static class MauiProgram
 {

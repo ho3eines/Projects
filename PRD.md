@@ -20,8 +20,8 @@
 - **مدل‌ها فقط در `Tarazin.Share`** (namespace: `Tarazin.Models`) — قرارداد دامنه.
 - عملیات کسب‌وکار فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded Resource در
   `Tarazin.Data`) و Dapper اجرا می‌شوند. Web provider سمت سرور دارد؛ MAUI فقط
-  برای آماده‌سازی credential کوتاه‌عمر از broker امنیتی HTTPS استفاده می‌کند و
-  سپس همان عملیات مستقیم SQL را حفظ می‌کند. broker لایهٔ CRUD داده نیست.
+  فقط رشتهٔ اتصال را از broker امنیتی HTTPS به صورت **رمزگذاری‌شده** دریافت می‌کند و
+  سپس همان عملیات مستقیم SQL را با DbService اجرا می‌کند. broker لایهٔ CRUD داده نیست.
 
 ## Architecture (High Level)
 | لایه | مسئولیت | سازوکار |
@@ -33,7 +33,7 @@
 | Host MAUI | میزبانی UI در اپ بومی | `Tarazin.Maui` — BlazorWebView (Blazor Hybrid) |
 | Scripts | منطق دامنه و گزارش‌ها (report-first) | `Tarazin.Data/Scripts/{schema}/{Name}.sql` (Embedded) |
 | DB | یک دیتابیس `TarazinMaster` با اسکیمهٔ جدا برای هر محصول | SQL Server (docker compose) |
-| Auth | Web: PBKDF2 سمت سرور؛ MAUI: broker HTTPS با CustomerGuid و همان PBKDF2 | `AuthService` + `CredentialBrokerService` |
+| Auth | Web: PBKDF2 سمت سرور؛ MAUI: broker HTTPS با CustomerGuid + رشتهٔ اتصال فقط رمزگذاری‌شده از API (per-session AES) | `AuthService` + `CredentialBrokerService` + `/api/mobile/connection/encrypted` |
 | Audit | ثبت تمام عملیات با زنجیرهٔ هش | `AuditService` → `[central].[AuditLog]` |
 
 ## Key Rules (قوانین کلیدی)
@@ -61,7 +61,7 @@
 - `Tarazin.Maui/MainPage.xaml` → `BlazorWebView` با `RootComponent` = `Tarazin.App` (مشترک).
 - `wwwroot/index.html` → رانتایم `_framework/blazor.webview.js` + استاتیک‌های MudBlazor و RCL.
 - پیکربندی Embedded فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی است؛ SQL connection/password، bootstrap secret، token و decryption key دائمی در MAUI ممنوع‌اند. شناسه از فرم ورود یا URL گرفته نمی‌شود.
-- جریان: `Login(username, password) + CustomerGuid از appsettings.json → broker HTTPS → validation → credential موقت customer-bound → DbService مستقیم`. credential فقط در حافظه است، پیش از انقضا rotate و در logout revoke می‌شود.
+- جریان (قانون): `Login(username, password) + CustomerGuid از appsettings.json → broker HTTPS → validation → POST /connection/encrypted → رمزگشایی per-session در حافظه → DbService مستقیم`. رشتهٔ اتصال فقط از API و فقط رمزگذاری‌شده می‌آید (`UseEncryptedMaster=false` رد می‌شود)؛ در logout نشست revoke و حافظه پاک می‌شود.
 - TLS و certificate validation عادی الزامی‌اند. امکان استخراج secret فعال از حافظهٔ client compromise‌شده با رمزنگاری client-held حل نمی‌شود؛ عمر کوتاه، least privilege، RLS و revoke کنترل اصلی‌اند.
 - build و رفتار SqlClient باید برای هر target MAUI در CI/E2E همان پلتفرم تأیید شود.
 
