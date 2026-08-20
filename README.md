@@ -64,9 +64,14 @@ dotnet workload install maui
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
 
 # 5. انتشار اپ بومی
-# ویندوز (MSIX — در Visual Studio روی پروژهٔ Tarazin.Maui راست‌کلیک → Publish فعال است):
-dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-windows10.0.19041.0
+# ویندوز x64 (MSIX — در Visual Studio روی پروژهٔ Tarazin.Maui راست‌کلیک → Publish):
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-windows10.0.19041.0 -p:RuntimeIdentifier=win10-x64 -p:WindowsAppSDKSelfContained=true
 # نصب MSIX روی دستگاه دیگر به گواهی امضا نیاز دارد (در wizard می‌توانید self-signed بسازید).
+# برای تست سریع بدون MSIX/نصب، از publish profile پوشه‌ای استفاده کنید و exe خروجی را مستقیم اجرا کنید:
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj /p:PublishProfile=Folder-win10-x64
+# اگر برنامه بالا نیامد یا صفحهٔ خطای راه‌اندازی نشان داد، لاگ را از این مسیر بخوانید:
+# %LocalAppData%\Tarazin\maui-crash.log
+# راهنمای کامل: docs/WINDOWS_MAUI_LAUNCH.md
 
 # اندروید — APK امضاشدهٔ release. یک‌بار keystore بسازید (خارج از repo نگه دارید):
 keytool -genkeypair -v -keystore %USERPROFILE%\tarazin-release.keystore -alias tarazin -keyalg RSA -keysize 2048 -validity 10000
