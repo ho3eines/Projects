@@ -104,9 +104,8 @@
         }
         catch (SafeAuthenticationException ex)
         {
-            // Authentication may already have prepared a short-lived SQL
-            // principal before a later login step failed. Always revoke/erase
-            // it rather than leaving an unauthenticated credential session.
+            // خطای کنترل‌شدهٔ bootstrap اتصال (مثل قطع‌بودن API یا پاسخ نامعتبر) —
+            // همیشه نشست محلی را تمیز می‌کنیم تا حافظه بدون اعتبار نماند.
             await Session.SignOutAsync();
             Snackbar.Add(ex.Message, Severity.Error);
         }
