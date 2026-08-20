@@ -94,6 +94,41 @@
   <ItemGroup>
     <EmbeddedResource Include="appsettings.json" LogicalName="Tarazin.Maui.appsettings.json" />
   </ItemGroup>
-	
+
+  <!--
+    گارد بیلد برای «صفحه باز می‌شود ولی ERR_CONNECTION_CLOSED روی 0.0.0.0».
+
+    BlazorWebView روی ویندوز صفحهٔ میزبان را از روی دیسک می‌خواند
+    (WinUIWebViewManager.TryServeFromFolderAsync). اگر wwwroot\index.html در
+    خروجی نباشد، MAUI هیچ پاسخی ست نمی‌کند، WebView2 درخواست را به شبکه
+    می‌فرستد و Edge پیام «can't reach this page» را نشان می‌دهد — یعنی یک
+    خطای بیلد که خودش را به شکل خطای شبکه نشان می‌دهد.
+
+    این target همان شرط را در پایان بیلد ویندوز بررسی می‌کند تا مشکل سرِ
+    بیلد دیده شود، نه بعد از اجرا. عمداً Warning است نه Error: در بیلدهای
+    packaged، لایهٔ نهایی محتوا ممکن است MsixContent باشد و نخواهیم بیلد
+    درست را بشکنیم.
+  -->
+  <Target Name="TarazinVerifyWebAssets"
+          AfterTargets="Build"
+          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <PropertyGroup>
+      <_TarazinHostPage>$(OutDir)wwwroot\index.html</_TarazinHostPage>
+      <_TarazinMudCss>$(OutDir)wwwroot\_content\MudBlazor\MudBlazor.min.css</_TarazinMudCss>
+      <_TarazinUiCss>$(OutDir)wwwroot\_content\Tarazin.Ui\css\app.css</_TarazinUiCss>
+    </PropertyGroup>
+
+    <Warning Condition="!Exists('$(_TarazinHostPage)')"
+             Code="TZN0001"
+             Text="wwwroot\index.html در خروجی نیست ($(_TarazinHostPage)). برنامه باز می‌شود ولی WebView خطای ERR_CONNECTION_CLOSED روی 0.0.0.0 می‌دهد. راهنما: docs/WINDOWS_MAUI_LAUNCH.md" />
+
+    <Warning Condition="Exists('$(_TarazinHostPage)') And !Exists('$(_TarazinMudCss)')"
+             Code="TZN0002"
+             Text="دارایی‌های static web assets (MudBlazor) در خروجی نیستند ($(_TarazinMudCss)). رابط کاربری بدون استایل یا خالی بالا می‌آید. راهنما: docs/WINDOWS_MAUI_LAUNCH.md" />
+
+    <Warning Condition="Exists('$(_TarazinHostPage)') And !Exists('$(_TarazinUiCss)')"
+             Code="TZN0003"
+             Text="دارایی‌های static web assets (Tarazin.Ui) در خروجی نیستند ($(_TarazinUiCss)). راهنما: docs/WINDOWS_MAUI_LAUNCH.md" />
+  </Target>
 
 </Project>

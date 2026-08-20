@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
 using MudBlazor;
@@ -71,6 +72,14 @@ public static class MauiProgram
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
 #endif
+
+        // BlazorWebView مشکلات سرو کردن فایل را فقط از راه ILogger گزارش می‌کند
+        // (مثلاً «Response content not found» برای index.html). در Release هیچ
+        // Output window ای نیست، پس بدون این provider آن پیام‌ها گم می‌شوند و
+        // تنها نشانهٔ باقی‌مانده صفحهٔ ERR_CONNECTION_CLOSED روی 0.0.0.0 است.
+        builder.Logging.AddProvider(new StartupFileLoggerProvider());
+        builder.Logging.SetMinimumLevel(LogLevel.Warning);
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Debug);
 
         var fa = CultureInfo.GetCultureInfo("fa-IR");
         CultureInfo.DefaultThreadCurrentCulture = fa;

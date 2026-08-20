@@ -11,12 +11,22 @@ namespace Tarazin.Maui;
 internal sealed class StartupErrorPage : ContentPage
 {
     public StartupErrorPage(string title, Exception exception)
+        : this(title, exception.ToString())
+    {
+    }
+
+    /// <summary>
+    /// نسخهٔ بدون استثنا — برای خطاهای «تشخیص‌داده‌شده» که exception ندارند،
+    /// مثل نبودن فایل‌های wwwroot در خروجی Release. بدون این حالت، برنامه یک
+    /// WebView خالی نشان می‌داد و کاربر فقط پیام شبکهٔ Edge را می‌دید.
+    /// </summary>
+    public StartupErrorPage(string title, string details)
     {
         Title = "ترازین — خطای راه‌اندازی";
         FlowDirection = FlowDirection.RightToLeft;
         BackgroundColor = Color.FromArgb("#0B3A38");
 
-        var errorText = exception.ToString();
+        var errorText = details;
         var logPath = StartupCrashLog.FilePath;
 
         Content = new ScrollView
@@ -36,7 +46,7 @@ internal sealed class StartupErrorPage : ContentPage
                     },
                     new Label
                     {
-                        Text = "برنامه اجرا شد، اما ساخت پنجره/رابط کاربری شکست خورد. جزئیات خطا در پایین و در فایل لاگ ذخیره شده است.",
+                        Text = "برنامه اجرا شد، اما رابط کاربری بالا نیامد. جزئیات در پایین و در فایل لاگ ذخیره شده است.",
                         FontSize = 15,
                         TextColor = Colors.White
                     },
