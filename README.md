@@ -62,6 +62,13 @@ dotnet publish Tarazin.Web/Tarazin.Web.csproj -c Release -o ./publish
 # 4. اپ بومی (ویندوز — نیاز به workload)
 dotnet workload install maui
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
+
+# 5. انتشار اپ بومی
+# ویندوز (MSIX — در Visual Studio روی پروژهٔ Tarazin.Maui راست‌کلیک → Publish فعال است):
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-windows10.0.19041.0
+# نصب MSIX روی دستگاه دیگر به گواهی امضا نیاز دارد (در wizard می‌توانید self-signed بسازید).
+# اندروید (APK — امضای release با keystore خودتان):
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-android
 ```
 
 * مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال issuer از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
