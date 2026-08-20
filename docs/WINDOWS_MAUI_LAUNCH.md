@@ -7,7 +7,13 @@
 
 در این شاخه برای کاهش این خطاها:
 
-- خروجی ویندوز self-contained شد: `WindowsAppSDKSelfContained=true`.
+- خروجی ویندوز **در Release** self-contained شد: `WindowsAppSDKSelfContained=true` (فقط Release).
+  در Debug عمداً framework-dependent است: در بیلد packaged (MSIX) معمولی، فایل
+  `obj\...\MsixContent\AppxManifest.xml` تولید نمی‌شود و فعال‌بودن self-contained در Debug
+  باعث خطای `MSB4018` (تسک `GenerateAppManifestFromAppx`) می‌شود. در F5 دیباگ، خود Visual
+  Studio پکیج framework ویندوز App SDK را روی دستگاه توسعه register می‌کند (نیاز به نصب
+  جداگانهٔ runtime ندارد؛ اگر دستگاه runtime را نداشت، از
+  `winget install Microsoft.WindowsAppRuntime.1.5` استفاده کنید).
 - پروفایل x64 استاندارد اضافه شد: `MSIX-win10-x64.pubxml`.
 - پروفایل تست مستقیم اضافه شد: `Folder-win10-x64.pubxml`.
 - لاگ و fallback native startup اضافه شد تا اگر BlazorWebView/XAML خطا داد، پنجرهٔ خطا بسته نشود.

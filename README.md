@@ -62,6 +62,8 @@ dotnet publish Tarazin.Web/Tarazin.Web.csproj -c Release -o ./publish
 # 4. اپ بومی (ویندوز — نیاز به workload)
 dotnet workload install maui
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
+# بیلد/F5 دیباگ framework-dependent است (ویندوز App SDK runtime روی دستگاه توسعه لازم است؛
+# workload مائوئی VS آن را نصب/register می‌کند). MSIX ریلیز self-contained ساخته می‌شود.
 
 # 5. انتشار اپ بومی
 # ویندوز x64 (MSIX — در Visual Studio روی پروژهٔ Tarazin.Maui راست‌کلیک → Publish):
