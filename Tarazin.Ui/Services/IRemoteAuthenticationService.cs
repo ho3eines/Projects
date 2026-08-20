@@ -8,7 +8,6 @@ public interface IRemoteAuthenticationService
     Task<UserRow?> AuthenticateAsync(
         string username,
         string password,
-        Guid customerGuid,
         CancellationToken ct = default);
 }
 

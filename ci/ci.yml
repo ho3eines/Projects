@@ -23,7 +23,7 @@ jobs:
       - name: Build
         run: dotnet build Tarazin.Web/Tarazin.Web.csproj -c Release --no-restore
 
-      - name: Credential security regression scan
+      - name: Connection security regression scan
         run: python3 tools/security-regression-scan.py --self-test
 
       - name: Validate operational shell scripts

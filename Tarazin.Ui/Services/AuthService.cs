@@ -19,13 +19,10 @@ public sealed class AuthService
         _remote = remoteServices.SingleOrDefault();
     }
 
-    public bool RequiresCustomerGuid => false;
-
     /// <summary>Returns the signed-in user, or null on bad credentials.</summary>
     public async Task<UserRow?> AuthenticateAsync(
         string username,
         string password,
-        Guid? customerGuid = null,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
@@ -33,10 +30,8 @@ public sealed class AuthService
 
         if (_remote is not null)
         {
-            // MAUI reads CustomerGuid only from its packaged appsettings.json.
-            // The login form never collects it, and this unused argument is
-            // kept only to match the existing interface.
-            return await _remote.AuthenticateAsync(username.Trim(), password, customerGuid ?? Guid.Empty, ct);
+            // MAUI: verify via the Web host (POST /api/mobile/login).
+            return await _remote.AuthenticateAsync(username.Trim(), password, ct);
         }
 
         var user = await _db.QueryFirstOrDefaultAsync<UserRow>(

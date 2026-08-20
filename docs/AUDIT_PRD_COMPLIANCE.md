@@ -95,14 +95,15 @@
 
 1. build و تست Web و همهٔ targetهای MAUI در CI سبز شود.
 2. migration روی clone سازگار تولید اجرا و rollback/مالکیت داده تأیید شود.
-3. ماتریس E2E و امنیت بخش ۶، شامل replay/expiry/cross-customer، پاس شود.
+3. ماتریس E2E ورود وب و MAUI (معتبر/نامعتبر، API/SQL unavailable) پاس شود.
 4. artifactهای واقعی publish اسکن و decompile شوند و هیچ secret دائمی نداشته باشند.
 5. chain ممیزی اصلاح شود: `RowHash` باید predecessor را commit کند و انتخاب
    predecessor/insert برای هر tenant سریال و اتمیک باشد.
-6. SQL principal ایجادشده با permissionهای واقعی هر نقش آزمایش و issuer با
-   کمترین اختیار ممکن provision شود.
+6. (مسکوت — ۱۴۰۵/۰۵/۲۹) صدور principal موقت SQL با ساده‌سازی مدل MAUI حذف شد؛
+   به‌جای آن صحت رمزگشایی کلید مشتق از رمز در staging تأیید شود.
 7. تمام credentialهای تاریخی rotate و پاک‌سازی history به‌صورت جداگانه بررسی شود؛
    checkout فعلی grafted است و نبود secret در history را اثبات نمی‌کند.
 
-گزارش تفصیلی مسیر ورود secret، طراحی broker، فایل‌های تغییرکرده و محدودیت‌های
-release در `docs/SECURITY_REMEDIATION_REPORT.md` ثبت شده است.
+گزارش تفصیلی مسیر ورود secret، طراحی broker پیشین (حذف‌شده در ۱۴۰۵/۰۵/۲۹)،
+فایل‌های تغییرکردهٔ زمان خود و محدودیت‌های release در
+`docs/SECURITY_REMEDIATION_REPORT.md` ثبت شده است.

@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""Static and publish-artifact regression checks for MAUI credential safety.
+"""Static and publish-artifact regression checks for MAUI connection safety.
+
+Simplified model (2026-08-20, product-owner decision): MAUI logs in with
+username/password over HTTPS (POST /api/mobile/login); the Web host verifies
+the credentials and returns its SQL connection string encrypted with a key
+derived from the login password. MAUI decrypts it in memory and executes SQL
+directly — no broker sessions, tenant registries, or temporary SQL principals.
 
 This is deliberately dependency-free so it can run in developer shells and CI.
-It does not replace broker/RLS integration tests against SQL Server or a device.
+It does not replace login/connection integration tests against SQL Server or a
+device.
 """
 
 from __future__ import annotations
@@ -13,7 +20,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import uuid
 import zipfile
 from pathlib import Path
 from typing import Iterable
@@ -169,29 +175,15 @@ def walk_json(value: object, prefix: str = "") -> Iterable[tuple[str, object]]:
 def scan_configuration(errors: list[str]) -> None:
     maui_path = ROOT / "Tarazin.Maui/appsettings.json"
     maui = load_json(maui_path, errors)
-    allowed_maui_keys = {"ServerEndpoint", "CustomerGuid", "ConnectionProtection"}
-    if not isinstance(maui, dict) or not {"ServerEndpoint", "CustomerGuid"}.issubset(set(maui)) or not set(maui).issubset(allowed_maui_keys):
-        fail(errors, "Tarazin.Maui/appsettings.json must contain ServerEndpoint and CustomerGuid (ConnectionProtection is optional)")
+    # Project law (ADR-004, amendment 2026-08-20): the MAUI package contains
+    # exactly one non-secret value — the public HTTPS endpoint of the Web host.
+    # No connection string, key, token, or tenant identifier is packaged; the
+    # SQL connection string is delivered only encrypted (derived from the login
+    # password) by POST /api/mobile/login.
+    if not isinstance(maui, dict) or set(maui) != {"ServerEndpoint"}:
+        fail(errors, "Tarazin.Maui/appsettings.json must contain exactly one key: ServerEndpoint")
     elif not isinstance(maui["ServerEndpoint"], str) or not maui["ServerEndpoint"].startswith("https://"):
         fail(errors, "MAUI ServerEndpoint must be a non-secret HTTPS URL")
-    else:
-        raw_guid = maui.get("CustomerGuid")
-        if not isinstance(raw_guid, str):
-            fail(errors, "MAUI CustomerGuid must be a GUID string")
-        else:
-            try:
-                parsed = uuid.UUID(raw_guid)
-                if parsed.int == 0:
-                    fail(errors, "MAUI CustomerGuid must be a non-empty GUID")
-            except (ValueError, AttributeError, TypeError):
-                fail(errors, "MAUI CustomerGuid must be a non-empty GUID")
-
-    # Project law (ADR-004): the SQL connection string may only be received
-    # from the API in encrypted form — the plaintext credential path is not
-    # allowed for SQL execution in MAUI.
-    protection = maui.get("ConnectionProtection") if isinstance(maui, dict) else None
-    if isinstance(protection, dict) and protection.get("UseEncryptedMaster") is False:
-        fail(errors, "Tarazin.Maui/appsettings.json: UseEncryptedMaster=false is forbidden — the SQL connection string may only be received encrypted from the API (project law)")
 
     for relative in ("Tarazin.Maui/appsettings.json", "Tarazin.Web/appsettings.json"):
         path = ROOT / relative
@@ -257,49 +249,38 @@ def scan_source() -> list[str]:
     maui_program = require("Tarazin.Maui/MauiProgram.cs", (
         r"GetManifestResourceStream\(\"Tarazin\.Maui\.appsettings\.json\"\)",
         r"TARAZIN_SERVER_ENDPOINT",
-        r"AddSingleton<ISqlConnectionProvider>.*RemoteCredentialSession",
+        r"AddSingleton<ISqlConnectionProvider>.*ApiConnectionSession",
     ), errors)
     if re.search(r"TARAZIN_SQL_CONNECTION|GetConnectionString|ConnectionStrings", maui_program):
         fail(errors, "Tarazin.Maui/MauiProgram.cs must not load server SQL configuration")
 
-    remote = require("Tarazin.Maui/RemoteCredentialSession.cs", (
-        r"SemaphoreSlim\s+_lifecycleGate",
-        r"api/mobile/connection/login",
-        r"api/mobile/connection/refresh",
-        r"api/mobile/connection/revoke",
-        r"api/mobile/connection/encrypted",
-        r'configuration\["CustomerGuid"\]',
+    remote = require("Tarazin.Maui/ApiConnectionSession.cs", (
+        r"api/mobile/login",
         r"ConnectionStringProtector",
-        r"FetchDecryptedMasterConnectionStringAsync",
-        r"DeriveKeyFromToken",
+        r"DeriveKeyFromSecret",
+        r"DecryptWithKeyBytes",
         r"Encrypt\s*=\s*true",
         r"TrustServerCertificate\s*=\s*true",
         r"PersistSecurityInfo\s*=\s*false",
-        r"RevokeCandidateResponseAsync",
-        r"RandomNumberGenerator\.GetBytes",
+        r"RevokeAndClearAsync",
         r"#if DEBUG.*Uri\.UriSchemeHttp.*endpoint\.IsLoopback.*#else.*return false",
     ), errors)
     for prohibited in (
         r"\bSecureStorage\s*\.", r"\bPreferences\s*\.", r"\bFile\.(?:Write|Append|Create)",
         r"localStorage", r"sessionStorage", r"SQLiteConnection", r"AddEnvironmentVariables\s*\(",
-        r"ExtractCustomerGuidFromEndpoint", r"ConnectionStringPayload", r"FetchConnectionStringAsync",
         r"api/\{",
     ):
         if re.search(prohibited, remote, re.MULTILINE):
-            fail(errors, f"RemoteCredentialSession uses prohibited secret persistence/config API: {prohibited}")
+            fail(errors, f"ApiConnectionSession uses prohibited secret persistence/config API: {prohibited}")
 
     for expected in (
-        r"DataSource\s*=\s*credential\.Server",
-        r"InitialCatalog\s*=\s*credential\.Database",
-        r"UserID\s*=\s*credential\.Username",
-        r"Password\s*=\s*credential\.Password",
         # Project law: SQL executes ONLY with the decrypted API-delivered
-        # connection string; no plaintext credential fallback may return.
-        r"await RefreshEncryptedMasterIfNeededAsync\(ct\)",
-        r"UseEncryptedMaster=false مجاز نیست",
+        # connection string; there is no packaged credential fallback.
+        r"new SqlConnection\(connectionString\)",
+        r"رشتهٔ اتصال از API دریافت نشده است",
     ):
         if not re.search(expected, remote, re.MULTILINE | re.DOTALL):
-            fail(errors, f"RemoteCredentialSession must execute only with the encrypted API-delivered connection string: {expected}")
+            fail(errors, f"ApiConnectionSession must execute only with the encrypted API-delivered connection string: {expected}")
 
     require("Tarazin.Data/TarazinConnection.cs", (
         r"ConnectionStringProtector",
@@ -311,40 +292,29 @@ def scan_source() -> list[str]:
         r"catch \(ArgumentException\).*server-side SQL connection configuration is invalid",
     ), errors)
     web_program = require("Tarazin.Web/Program.cs", (
-        r"MapGroup\(\"/api/mobile/connection\"\)",
+        r"MapPost\(\"/api/mobile/login\"",
         r"RequireRateLimiting\(\"credential-broker\"\)",
         r"!http\.Request\.IsHttps\s*&&\s*!app\.Environment\.IsDevelopment\(\)",
         r"CacheControl\s*=\s*\"no-store, no-cache, max-age=0\"",
         r"RequestSizeLimitAttribute",
         r"KnownNetworks\.Clear\(\).*KnownProxies\.Clear\(\)",
-        r"MapPost\(\"/encrypted\"",
-        r"GetEncryptedConnectionAsync",
+        r"MobileConnectionService",
     ), errors)
     if re.search(r"\b(?:Add|Map)Controllers\s*\(", web_program):
         fail(errors, "Tarazin.Web/Program.cs must not expose a controller-based credential endpoint")
     if (ROOT / "Tarazin.Web/Controllers/ConnectionController.cs").exists():
         fail(errors, "ConnectionController must not expose a permanent SQL connection to MAUI")
-    require("Tarazin.Web/CredentialBrokerService.cs", (
+    require("Tarazin.Web/MobileConnectionService.cs", (
         r"PasswordHasher\.Verify\(request\.Password",
-        r"CredentialCustomers",
-        r"CredentialAccessEnabled",
-        r"IsAuthorized",
-        r"ConsumeNonceAsync",
-        r"TokenHash\s*=\s*Sha256",
-        r"TimeSpan\.FromMinutes\(Clamp\(configuration, \"CredentialBroker:CredentialLifetimeMinutes\", 5, 2, 15\)\)",
-        r"SessionFamilyId",
-        r"ActivatedAt",
-        r"sp_getapplock",
-        r"MarkFamilyRevokedAsync",
-        r"IsolationLevel\.Serializable",
-        r"ALTER LOGIN .* DISABLE",
-        r"KILL ",
-        r"TrustServerCertificate\s*=\s*true",
-        r"ValidatePublicServer",
-        r"GetEncryptedConnectionAsync",
+        r"TarazinConnection\.Resolve",
         r"ConnectionStringProtector",
-        r"DeriveKeyFromToken",
-        r"EncryptedConnectionRequest",
+        r"EncryptWithKeyBytes",
+        r"DeriveKeyFromSecret",
+        r"ZeroMemory",
+        r"IsDeleted = 0",
+        r"_dummyPasswordHash",
+        r"invalid_credentials",
+        r"user\.PasswordHash = \"\"",
     ), errors)
     require("Tarazin.Maui/Platforms/Android/AndroidManifest.xml", (
         r"android:allowBackup=\"false\"",
@@ -378,9 +348,8 @@ def scan_source() -> list[str]:
 
     # Logging must not interpolate raw exception messages or known secret variables.
     log_call = re.compile(r"\b(?:_logger|logger|app\.Logger)\.Log\w+\s*\((.*?)\);", re.DOTALL)
-    for relative in ("Tarazin.Web/Program.cs", "Tarazin.Web/CredentialBrokerService.cs",
-                     "Tarazin.Web/CredentialCleanupService.cs", "Tarazin.Data/DbService.cs",
-                     "Tarazin.Data/AuditService.cs"):
+    for relative in ("Tarazin.Web/Program.cs", "Tarazin.Web/MobileConnectionService.cs",
+                     "Tarazin.Data/DbService.cs", "Tarazin.Data/AuditService.cs"):
         text = (ROOT / relative).read_text(encoding="utf-8")
         for match in log_call.finditer(text):
             call = match.group(1)

@@ -94,8 +94,7 @@ builder.Services.AddMudServices(config =>
 
 // ── Tarazin services: UI layer (session/auth) + Data layer (DbService, ...) ─
 builder.Services.AddTarazinUiServices();
-builder.Services.AddScoped<CredentialBrokerService>();
-builder.Services.AddHostedService<CredentialCleanupService>();
+builder.Services.AddScoped<MobileConnectionService>();
 
 // نشست ورود را در protected session storage مرورگر نگه می‌داریم تا با
 // رفرش صفحه (که circuit و UserSession حافظه‌ای را از بین می‌برد) کاربر
@@ -148,99 +147,23 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
 
-// MAUI bootstrap endpoints. Responses are never cacheable and production
-// requests must use HTTPS with normal certificate validation.
-var broker = app.MapGroup("/api/mobile/connection")
-    .RequireRateLimiting("credential-broker");
-
-broker.MapPost("/login", async (MobileConnectionRequest request, HttpContext http,
-    CredentialBrokerService service, CancellationToken ct) =>
+// MAUI bootstrap endpoint (simplified 2026-08-20): POST /api/mobile/login
+// verifies the user's credentials against [central].[Users] — the same check
+// as the web login — and returns the server's SQL connection string encrypted
+// with a key derived from the login password. There are no sessions, nonce
+// registries, short-lived SQL principals, or refresh/revoke endpoints anymore.
+// Responses are never cacheable and production requests must use HTTPS with
+// normal certificate validation.
+app.MapPost("/api/mobile/login", async (MobileLoginRequest request, HttpContext http,
+    MobileConnectionService service, CancellationToken ct) =>
 {
     SetSensitiveResponseHeaders(http.Response);
     try
     {
         if (!http.Request.IsHttps && !app.Environment.IsDevelopment())
-            return BrokerError(StatusCodes.Status426UpgradeRequired, "https_required", "اتصال امن HTTPS لازم است.");
+            return MobileError(StatusCodes.Status426UpgradeRequired, "https_required", "اتصال امن HTTPS لازم است.");
 
-        return BrokerHttpResult(await service.LoginAsync(request, ct));
-    }
-    catch (OperationCanceledException) when (ct.IsCancellationRequested)
-    {
-        throw;
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning("Credential login request failed ({ErrorType})", ex.GetType().Name);
-        return BrokerError(StatusCodes.Status503ServiceUnavailable, "service_unavailable", "سرویس اتصال موقتاً در دسترس نیست.");
-    }
-    finally
-    {
-        request.Password = "";
-    }
-}).DisableAntiforgery().WithMetadata(new RequestSizeLimitAttribute(16_384));
-
-broker.MapPost("/refresh", async (MobileConnectionRefreshRequest request, HttpContext http,
-    CredentialBrokerService service, CancellationToken ct) =>
-{
-    SetSensitiveResponseHeaders(http.Response);
-    try
-    {
-        if (!http.Request.IsHttps && !app.Environment.IsDevelopment())
-            return BrokerError(StatusCodes.Status426UpgradeRequired, "https_required", "اتصال امن HTTPS لازم است.");
-
-        return BrokerHttpResult(await service.RefreshAsync(
-            request, CredentialBrokerService.ReadBearerToken(http.Request), ct));
-    }
-    catch (OperationCanceledException) when (ct.IsCancellationRequested)
-    {
-        throw;
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning("Credential refresh request failed ({ErrorType})", ex.GetType().Name);
-        return BrokerError(StatusCodes.Status503ServiceUnavailable, "service_unavailable", "سرویس اتصال موقتاً در دسترس نیست.");
-    }
-}).DisableAntiforgery().WithMetadata(new RequestSizeLimitAttribute(8_192));
-
-broker.MapPost("/revoke", async (HttpContext http, CredentialBrokerService service, CancellationToken ct) =>
-{
-    SetSensitiveResponseHeaders(http.Response);
-    try
-    {
-        if (!http.Request.IsHttps && !app.Environment.IsDevelopment())
-            return BrokerError(StatusCodes.Status426UpgradeRequired, "https_required", "اتصال امن HTTPS لازم است.");
-
-        await service.RevokeAsync(CredentialBrokerService.ReadBearerToken(http.Request), ct);
-    }
-    catch (OperationCanceledException) when (ct.IsCancellationRequested)
-    {
-        throw;
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning("Credential revoke request failed ({ErrorType})", ex.GetType().Name);
-    }
-    return Results.NoContent();
-}).DisableAntiforgery().WithMetadata(new RequestSizeLimitAttribute(1_024));
-
-// ── Encrypted master connection-string delivery (appsettings.json → API → MAUI) ──
-// Web reads the issuer string from appsettings.json (supports ENC: at-rest
-// encryption via ConnectionProtection:Key / TARAZIN_ENCRYPTION_KEY), then
-// re-encrypts it per-session with a key derived from the bearer token.
-// MAUI derives the same key from its stored session token and decrypts in
-// memory — no static decryption key is baked into the MAUI package.
-// Requires a valid, active broker session (same replay/customer checks as refresh).
-broker.MapPost("/encrypted", async (EncryptedConnectionRequest request, HttpContext http,
-    CredentialBrokerService service, CancellationToken ct) =>
-{
-    SetSensitiveResponseHeaders(http.Response);
-    try
-    {
-        if (!http.Request.IsHttps && !app.Environment.IsDevelopment())
-            return BrokerError(StatusCodes.Status426UpgradeRequired, "https_required", "اتصال امن HTTPS لازم است.");
-
-        var result = await service.GetEncryptedConnectionAsync(
-            request, CredentialBrokerService.ReadBearerToken(http.Request), ct);
+        var result = await service.LoginAsync(request, ct);
         return result.Response is not null
             ? Results.Json(result.Response, statusCode: result.StatusCode)
             : Results.Json(result.Error, statusCode: result.StatusCode);
@@ -251,10 +174,17 @@ broker.MapPost("/encrypted", async (EncryptedConnectionRequest request, HttpCont
     }
     catch (Exception ex)
     {
-        app.Logger.LogWarning("Encrypted connection request failed ({ErrorType})", ex.GetType().Name);
-        return BrokerError(StatusCodes.Status503ServiceUnavailable, "service_unavailable", "سرویس اتصال موقتاً در دسترس نیست.");
+        app.Logger.LogWarning("Mobile login request failed ({ErrorType})", ex.GetType().Name);
+        return MobileError(StatusCodes.Status503ServiceUnavailable, "service_unavailable", "سرویس اتصال موقتاً در دسترس نیست.");
     }
-}).DisableAntiforgery().WithMetadata(new RequestSizeLimitAttribute(8_192));
+    finally
+    {
+        request.Password = "";
+    }
+})
+.DisableAntiforgery()
+.RequireRateLimiting("credential-broker")
+.WithMetadata(new RequestSizeLimitAttribute(8_192));
 
 // مدل Blazor Server کلاسیک (net8): blazor.server.js و دارایی‌های استاتیک
 // MudBlazor/Tarazin.Ui از طریق static web assets و UseStaticFiles سرو می‌شوند.
@@ -266,13 +196,8 @@ app.MapFallbackToPage("/_Host");
 
 app.Run();
 
-static IResult BrokerHttpResult(BrokerResult result)
-    => result.Response is not null
-        ? Results.Json(result.Response, statusCode: result.StatusCode)
-        : Results.Json(result.Error, statusCode: result.StatusCode);
-
-static IResult BrokerError(int status, string code, string message)
-    => Results.Json(new CredentialBrokerError { Code = code, Message = message }, statusCode: status);
+static IResult MobileError(int status, string code, string message)
+    => Results.Json(new MobileConnectionError { Code = code, Message = message }, statusCode: status);
 
 static void SetSensitiveResponseHeaders(HttpResponse response)
 {

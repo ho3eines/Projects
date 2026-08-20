@@ -42,8 +42,9 @@ public static class ConnectionStringProtector
     }
 
     // -------------------------------------------------------------------
-    // Raw-key API (used for per-session delivery where the key is derived
-    // from the bearer token so no static secret is stored in the MAUI binary)
+    // Raw-key API (used for encrypted delivery to MAUI where the key is
+    // derived from the login password, so no static secret is stored in the
+    // MAUI binary)
     // -------------------------------------------------------------------
 
     public static string EncryptWithKeyBytes(string plaintext, byte[] keyBytes)
@@ -96,14 +97,17 @@ public static class ConnectionStringProtector
     }
 
     /// <summary>
-    /// Derives a 32-byte AES key from a bearer/session token (SHA-256 of the UTF-8 token).
-    /// Both Web and MAUI can derive the same key without storing a long-term secret.
+    /// Derives a 32-byte AES key from a secret the caller already holds
+    /// (SHA-256 of the UTF-8 secret). For MAUI delivery the secret is the
+    /// login password: the server verifies it against the stored PBKDF2 hash
+    /// before encrypting, and the client derives the identical key from the
+    /// password the user just typed — no long-term key is stored anywhere.
     /// </summary>
-    public static byte[] DeriveKeyFromToken(string token)
+    public static byte[] DeriveKeyFromSecret(string secret)
     {
-        if (string.IsNullOrWhiteSpace(token))
-            throw new ArgumentException("Token must not be empty.", nameof(token));
-        return SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        if (string.IsNullOrWhiteSpace(secret))
+            throw new ArgumentException("Secret must not be empty.", nameof(secret));
+        return SHA256.HashData(Encoding.UTF8.GetBytes(secret));
     }
 
     // -------------------------------------------------------------------
