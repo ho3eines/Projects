@@ -13,7 +13,7 @@
 معماری فعلی مطابق `skills/blazor/tarazin-project-architecture` و
 `.agents/tarazin-tsql` است: پنج پروژه با وابستگی یک‌طرفه
 (`Share ← Data ← Ui ← {Web, Maui}`)، دسترسی به داده با **Dapper + اسکریپت‌های
-TSQL نامدارِ Embedded** (بدون HTTP برای دادهٔ کسب‌وکار؛ broker محدود MAUI فقط
+TSQL نامدارِ Embedded** (بدون HTTP برای دادهٔ کسب‌وکار؛ endpoint ورود MAUI فقط
 credential موقت می‌دهد)، UI با **MudBlazor**، احراز هویت با **PBKDF2**، و ممیزی
 tenant-aware است. یکپارچگی زنجیرهٔ هش ممیزی هنوز نیازمند اصلاح و تست پویا است.
 

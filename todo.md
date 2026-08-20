@@ -1,10 +1,13 @@
 # TODO — ترازین (مدیریت هوشمند کسب‌وکار) — Blazor Hybrid
 
-> **وضعیت کلی (۱۴۰۵/۰۵/۲۷):** هستهٔ مشترک، Web، MAUI و hardening مسیر credential
-> پیاده‌سازی و static-review شده‌اند، اما release هنوز نیازمند build و تست پویا با
-> SQL Server واقعی است (SDK/SQL tooling در sandbox موجود نبود). CI و staging باید
-> migration، broker، RLS، replay/expiry/revoke و artifact scan را پیش از production
-> سبز کنند. مطابق Legend، هنوز چیزی Deploy نشده است.
+> **وضعیت کلی (۱۴۰۵/۰۵/۲۹):** هستهٔ مشترک و Web پیاده‌سازی و static-review
+> شده‌اند. اتصال MAUI به درخواست مالک پروژه ساده‌سازی شد: مدل broker
+> (CustomerGuid/session/tz_m_*) حذف شد؛ ورود در هر دو هاست **محلی و یکسان** است
+> (`AuthService`/PBKDF2) و API فقط یک‌بار رشتهٔ اتصال رمزگذاری‌شده را تحویل می‌دهد
+> (`POST /api/mobile/connection`، کلید مشتق از رمز ورود). release هنوز نیازمند
+> build و تست پویا با SQL Server واقعی است (SDK/SQL tooling در sandbox موجود نبود).
+> CI و staging باید build هر دو هاست، همهٔ اسکنرها، ورود وب/MAUI و artifact scan را
+> پیش از production سبز کنند. مطابق Legend، هنوز چیزی Deploy نشده است.
 
 | فاز | وضعیت (0 تا 4) | شرح کار | مسئول |
 |-----|-----------------|---------|--------|
@@ -33,8 +36,8 @@
 |---|-----|----------|
 | B1 | `dotnet build Tarazin.Web/Tarazin.Web.csproj` — تأیید build پنج‌پروژه (MudBlazor 9.8.0 روی net8.0) | محیط با SDK |
 | B2 | `dotnet workload install maui` + build MAUI (ویندوز) | محیط با SDK/ویندوز |
-| B3 | `docker compose up -d` با secretهای خارجی + تست E2E وب/MAUI با bootstrap password تزریق‌شده، broker login/refresh/revoke، replay/expiry/fake GUID/inactive/cross-customer، ثبت داده، گزارش و ممیزی. عیب‌یابی: `bash tools/test-connection.sh` و `/diag` امن | SQL Server + SDK |
-| B4 | تأیید build/runtime مسیر مستقیم SqlClient و broker برای Android/iOS؛ هر fallback باید بدون credential دائمی یا TLS bypass باشد | CI/device lab |
+| B3 | `docker compose up -d` با secretهای خارجی + تست E2E وب/MAUI با bootstrap password تزریق‌شده، ورود MAUI (رمز درست/غلط، API/SQL unavailable)، ثبت داده، گزارش و ممیزی. عیب‌یابی: `bash tools/test-connection.sh` و `/diag` امن | SQL Server + SDK |
+| B4 | تأیید build/runtime مسیر مستقیم SqlClient و endpoint ورود برای Android/iOS؛ بدون credential دائمی یا TLS bypassدر بسته | CI/device lab |
 | B5 | انتقال `.github/workflows/ci.yml` به `.github/workflows/ci.yml` و سبز شدن | دسترسی workflows |
 | B6 | پیکربندی secret store تولید برای اتصال Web و bootstrap password؛ repository و artifact باید بدون مقدار secret باقی بمانند | تولید |
 | B7 | پاک‌سازی جدول‌های Outbox خواب (ADR-002) | اختیاری |

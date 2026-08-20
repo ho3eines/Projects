@@ -41,7 +41,7 @@ Tarazin.Web    Tarazin.Maui
 Blazor Server   MAUI Blazor Hybrid (BlazorWebView)
 ```
 
-* قوانین: UI فقط در `Tarazin.Ui/Modules/...`، مدل فقط در `Tarazin.Share`، داده فقط در `Tarazin.Data/Scripts/{schema}/`، هیچ SQL خام در Razor و هیچ HTTP برای انتقال عملیات کسب‌وکار (فقط broker امنیتی MAUI و `PriceFeedService` بازار خارجی). مرز اسکیمه با `tools/cross-schema-scan.sh` چک می‌شود. — جزئیات در `docs/PROJECT.md` و `docs/adr/`.*
+* قوانین: UI فقط در `Tarazin.Ui/Modules/...`، مدل فقط در `Tarazin.Share`، داده فقط در `Tarazin.Data/Scripts/{schema}/`، هیچ SQL خام در Razor و هیچ HTTP برای انتقال عملیات کسب‌وکار (فقط endpoint bootstrap اتصال MAUI و `PriceFeedService` بازار خارجی). مرز اسکیمه با `tools/cross-schema-scan.sh` چک می‌شود. — جزئیات در `docs/PROJECT.md` و `docs/adr/`.*
 
 ---
 
@@ -62,12 +62,39 @@ dotnet publish Tarazin.Web/Tarazin.Web.csproj -c Release -o ./publish
 # 4. اپ بومی (ویندوز — نیاز به workload)
 dotnet workload install maui
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
+
+# 5. انتشار اپ بومی
+# ویندوز (MSIX — در Visual Studio روی پروژهٔ Tarazin.Maui راست‌کلیک → Publish فعال است):
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-windows10.0.19041.0
+# نصب MSIX روی دستگاه دیگر به گواهی امضا نیاز دارد (در wizard می‌توانید self-signed بسازید).
+
+# اندروید — APK امضاشدهٔ release. یک‌بار keystore بسازید (خارج از repo نگه دارید):
+keytool -genkeypair -v -keystore %USERPROFILE%\tarazin-release.keystore -alias tarazin -keyalg RSA -keysize 2048 -validity 10000
+# سپس (پسوردها را فقط همین‌جا/در CI secret بدهید، نه در csproj):
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-android ^
+  -p:AndroidKeyStore=true ^
+  -p:AndroidSigningKeyStore=%USERPROFILE%\tarazin-release.keystore ^
+  -p:AndroidSigningKeyAlias=tarazin ^
+  -p:AndroidSigningKeyPass=<secret> -p:AndroidSigningStorePass=<secret>
+# خروجی: Tarazin.Maui/bin/Release/net8.0-android/publish/*.apk — سایدلود یا Play Console (AAB با -p:AndroidPackageFormat=aab).
+# بدون keystore هم publish روی اندروید کار می‌کند ولی با debug-key امضا می‌شود (فقط برای تست).
+
+# iOS — فقط روی macOS (Xcode + workload) یا از VS ویندوز با «Pair to Mac»:
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-ios
+# برای App Store/TestFlight یا دستگاه واقعی: حساب Apple Developer + provisioning از Xcode/VS لازم است
+# (Distribution → App Store Connect در VS، یا Archive در Xcode)
+
+# نکتهٔ حیاتی برای دستگاه‌های واقعی (Android/iOS):
+# 1) ServerEndpoint پیش‌فرض https://localhost:65220 روی دستگاه به خودِ دستگاه اشاره می‌کند؛
+#    آن را به نشانی HTTPS عمومی وب (کامپیوتر توسعه: IP شبکه + گواهی قابل اعتماد) عوض کنید یا
+#    با متغیر محیطی TARAZIN_SERVER_ENDPOINT هنگام build تزریق کنید.
+# 2) رشتهٔ اتصال SQL سرور نیز باید به DNS/IP قابل‌دسترس از دستگاه اشاره کند (localhost برای خروجی موبایل معنا ندارد).
 ```
 
 * مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال issuer از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
 * اتصال SQL با `Encrypt=true` و `TrustServerCertificate=true` ساخته می‌شود (رمزنگاری کانال فعال، اعتبارسنجی گواهی غیرفعال — تصمیم ۱۴۰۵/۰۵/۲۹؛ جزئیات در `docs/SECURITY.md`).
-* `CredentialBroker:PublicSqlServer` یک نشانی غیرمحرمانهٔ SQL است که **خودِ دستگاه MAUI** باید بتواند به آن برسد. مقدار `localhost` فقط پیش‌فرض توسعهٔ محلیِ Windows است؛ برای شبکه/Android/iOS باید نام DNS یا IP قابل‌دسترسی از همان دستگاه تنظیم شود.
-* `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی دارد. شناسه از فرم ورود یا URL گرفته نمی‌شود. MAUI نام کاربری/رمز و GUID بسته‌بندی‌شده را به broker (`/api/mobile/connection/login`) می‌فرستد و **رشتهٔ اتصال SQL را فقط از API و فقط به صورت رمزگذاری‌شده** (`/api/mobile/connection/encrypted`، AES per-session با کلید مشتق از توکن جلسه) دریافت می‌کند؛ رمزگشایی فقط در حافظه و اجرا با `DbService` مشترک است. `UseEncryptedMaster=false` در استارتاپ رد می‌شود.
+* MAUI مستقیماً به `Data Source` همان رشتهٔ اتصالِ سرور وصل می‌شود؛ مقدار `localhost` فقط پیش‌فرض توسعهٔ محلیِ Windows است. برای دستگاه‌های دیگر، اتصال سرور باید به DNS/IP قابل‌دسترس از همان دستگاه اشاره کند.
+* `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS دارد. ورود در هر دو هاست دقیقاً یکسان است (همان `AuthService`/PBKDF2 محلی)؛ در MAUI فقط قبل از اولین ورود، یک‌بار `POST /api/mobile/connection` (همان بررسی اعتبار سمت سرور) **رشتهٔ اتصال SQL را رمزگذاری‌شده** (AES-256 با کلید مشتق از خود رمز ورود) می‌آورد؛ رمزگشایی فقط در حافظه و اجرا با `DbService` مشترک است.
 * اولین initialization فقط در Web اجرا می‌شود: `_Ensure.sql` → `_Seed.sql` → نقش‌ها/دسترسی‌ها → ساخت مدیر اولیه با password تزریق‌شده. هیچ رمز پیش‌فرضی وجود ندارد.
 * اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از دریافت رشتهٔ اتصال رمزگذاری‌شده از API، همان عملیات مستقیم `DbService` را اجرا می‌کند.
 

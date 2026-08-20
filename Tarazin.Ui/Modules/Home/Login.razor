@@ -35,12 +35,6 @@
                           InputType="@_pwdType" Adornment="Adornment.End"
                           AdornmentIcon="@_pwdIcon" OnAdornmentClick="TogglePwd"
                           Immediate="true" Class="mb-4" Required="true" RequiredError="رمز عبور لازم است." />
-            @if (Auth.RequiresCustomerGuid)
-            {
-                <MudTextField @bind-Value="_customerGuid" Label="شناسه مشتری" Variant="Variant.Outlined"
-                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Business"
-                              Immediate="true" Class="mb-5" Required="true" RequiredError="شناسه مشتری لازم است." />
-            }
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
                        Disabled="_busy" OnClick="LoginAsync" StartIcon="@Icons.Material.Filled.Login">
                 @(_busy ? "در حال ورود..." : "ورود")
@@ -61,7 +55,6 @@
     private bool _showPwd;
     private string _username = "";
     private string _password = "";
-    private string _customerGuid = "";
 
     private InputType _pwdType => _showPwd ? InputType.Text : InputType.Password;
     private string _pwdIcon => _showPwd ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility;
@@ -77,18 +70,7 @@
         _busy = true;
         try
         {
-            Guid? customerGuid = null;
-            if (Auth.RequiresCustomerGuid)
-            {
-                if (!Guid.TryParse(_customerGuid, out var parsedGuid) || parsedGuid == Guid.Empty)
-                {
-                    Snackbar.Add("شناسه مشتری معتبر نیست.", Severity.Error);
-                    return;
-                }
-                customerGuid = parsedGuid;
-            }
-
-            var user = await Auth.AuthenticateAsync(_username, _password, customerGuid);
+            var user = await Auth.AuthenticateAsync(_username, _password);
             if (user is null)
             {
                 Snackbar.Add("نام کاربری یا رمز عبور صحیح نیست.", Severity.Error);
@@ -122,9 +104,8 @@
         }
         catch (SafeAuthenticationException ex)
         {
-            // Authentication may already have prepared a short-lived SQL
-            // principal before a later login step failed. Always revoke/erase
-            // it rather than leaving an unauthenticated credential session.
+            // خطای کنترل‌شدهٔ bootstrap اتصال (مثل قطع‌بودن API یا پاسخ نامعتبر) —
+            // همیشه نشست محلی را تمیز می‌کنیم تا حافظه بدون اعتبار نماند.
             await Session.SignOutAsync();
             Snackbar.Add(ex.Message, Severity.Error);
         }

@@ -26,8 +26,8 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
 
-    <!-- Unpackaged WinExe so `dotnet run` / F5 work without MSIX. -->
-    <WindowsPackageType>None</WindowsPackageType>
+    <!-- Packaged (MSIX) Windows app: enables Visual Studio's Publish wizard
+         (creates a signed/self-signed MSIX). Decision 2026-08-20 (owner). -->
 
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
