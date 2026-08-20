@@ -22,25 +22,27 @@
             else
             {
                 <div class="d-flex align-center flex-wrap" style="gap:6px">
-                    <MudChip T="string" Size="Size.Small" Color="@TypeColor(Value.NodeType)" Variant="Variant.Filled">
+                    @* <MudChip T="string" Size="Size.Small" Color="@TypeColor(Value.NodeType)" Variant="Variant.Filled">
                         @TypeTitle(Value.NodeType)
-                    </MudChip>
+                    </MudChip> *@
                     <b>@Value.Title</b>
                     @* شناسهٔ اصلیِ حساب، «کد حساب» (مسیر کامل) است. *@
-                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">
-                        کد حساب: @Value.AccountCode
-                    </MudChip>
-                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
-                        کد گره: @Value.Code
-                    </MudChip>
                     <MudTooltip Text="کپی کد حساب">
-                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                                       OnClick="@(() => Copy("کد حساب", Value.AccountCode))" />
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled" OnClick="@(() => Copy("کد حساب", Value.AccountCode))">
+                            @Value.AccountCode
+                        </MudChip>
                     </MudTooltip>
-                    <MudTooltip Text="پاک کردن">
+                    @*  <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                        کد گره: @Value.Code
+                    </MudChip> *@
+                    @*       <MudTooltip Text="کپی کد حساب">
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                        />
+                    </MudTooltip> *@
+                   @*  <MudTooltip Text="پاک کردن">
                         <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error"
                                        OnClick="Clear" Disabled="@ReadOnly" />
-                    </MudTooltip>
+                    </MudTooltip> *@
                 </div>
             }
         </MudItem>

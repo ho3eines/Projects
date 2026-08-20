@@ -17,16 +17,13 @@
             <MudDatePicker Label="تاریخ سند" Culture="FaCulture" @bind-Date="_documentDate" />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined" Disabled="true">
+            <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined">
                 <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
                 <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
                 <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
                 <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
                 <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
             </MudSelect>
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">
-                اسناد افتتاحیه و اختتامیه توسط سیستم به‌صورت خودکار ایجاد می‌شوند.
-            </MudText>
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
             <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined" />
@@ -46,12 +43,12 @@
     <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
               @bind-SelectedItem="_selectedLine" SelectOnRowClick="true"
               RowStyleFunc="SelectedRowStyle"
-              OnRowClick="OnRowClick">
+              OnRowClick="@(async(a)=>await OnRowClick(a))">
         <HeaderContent>
-            <MudTh style="width:42%">حساب</MudTh>
-            <MudTh>شرح</MudTh>
-            <MudTh style="width:130px">بدهکار</MudTh>
-            <MudTh style="width:130px">بستانکار</MudTh>
+            <MudTh Style="width:250px">حساب</MudTh>
+            <MudTh Style="width:30%">شرح</MudTh>
+            <MudTh>بدهکار</MudTh>
+            <MudTh>بستانکار</MudTh>
             <MudTh style="width:48px"></MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -59,8 +56,8 @@
                 <AccountPickerField Value="@context.PickedAccount"
                                     ValueChanged="(v) => OnAccountPick(_lines.IndexOf(context), v)"
                                     PickerOptions="@(new AccountPickerOptions { TransactionalOnly = true })"
-                                    ButtonLabel="انتخاب حساب"
-                                    EmptyText="— انتخاب حساب —" />
+                                    ButtonLabel="حساب"
+                                    EmptyText="— انتخاب حساب" />
             </MudTd>
             <MudTd DataLabel="شرح">
                 <MudTextField T="string" Value="@context.Description"
@@ -89,17 +86,39 @@
 
     @if (_selectedLine is not null)
     {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-            ردیف انتخاب شد: <b>@(_selectedLine.AccountCode ?? "—") — @(_selectedLine.AccountTitle ?? "بدون عنوان")</b>
-            @if (CanShowSelectedDetail)
-            {
-                <span> — حساب تفصیلی است و قابل مرور می‌باشد.</span>
-            }
-            else if (!string.IsNullOrWhiteSpace(_selectedLine.AccountCode))
-            {
-                <span> — این حساب تفصیلی نهایی نیست، مرور گردش فقط برای تفصیلی‌ها امکان‌پذیر است.</span>
-            }
-        </MudAlert>
+        @if (_accountDetailBalance is not null)
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                حساب: <b>@(_selectedLine.AccountCode ?? "—") — @(_accountDetailBalance?.LinkName ?? "بدون عنوان")</b>
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                    @(_accountDetailBalance?.Debit.ToString("N0")) ریال
+                </MudChip>
+     
+                <MudChip T="string" Color="Color.Error" Size="Size.Small">
+                    @(_accountDetailBalance?.Credit.ToString("N0")) ریال
+                </MudChip>
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">
+                    @Math.Abs(_accountDetailBalance.OpeningBalance).ToString("N0")
+                    @if (_accountDetailBalance?.OpeningBalance > 0)
+                    {
+                        <span>ریال بستانکار</span>
+                    }
+                    else if (_accountDetailBalance?.OpeningBalance < 0)
+                    {
+                        <span>ریال بدهکار</span>
+                    }
+                </MudChip>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ShowSelectedDetailAsync"
+                           StartIcon="@Icons.Material.Filled.ManageSearch" Class="ms-2">
+                    جزییات
+                </MudButton>
+            </MudAlert>
+        }
+        else if (!string.IsNullOrWhiteSpace(_selectedLine.AccountCode))
+        {
+            <span> — این حساب تفصیلی نهایی نیست، مرور گردش فقط برای تفصیلی‌ها امکان‌پذیر است.</span>
+        }
     }
 
     <MudGrid Class="mb-4">
@@ -110,7 +129,7 @@
             <MudText Typo="Typo.body2">جمع بستانکار: <b>@SafeMoney(TotalCredit)</b></MudText>
         </MudItem>
         <MudItem xs="12">
-            <MudChip T="string" Color="@(IsBalanced ? Color.Success : Color.Error)" Size="Size.Small">
+            <MudChip T="string" Color="@(IsBalanced? Color.Success: Color.Error)" Size="Size.Small">
                 @(IsBalanced ? "✔ متوازن" : "✘ نامتوازن")
             </MudChip>
         </MudItem>
@@ -120,23 +139,6 @@
         <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine" StartIcon="@Icons.Material.Filled.Add">
             + ردیف
         </MudButton>
-
-        @if (CanShowSelectedDetail)
-        {
-            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ShowSelectedDetailAsync"
-                       StartIcon="@Icons.Material.Filled.ManageSearch" Class="ms-2">
-                نمایش تفصیلی
-            </MudButton>
-        }
-        else
-        {
-            <MudTooltip Text="برای نمایش گردش، ابتدا یک ردیف با حساب تفصیلی نهایی انتخاب کنید و دسترسی گزارشات را داشته باشید.">
-                <MudButton Variant="Variant.Outlined" Color="Color.Info" Disabled="true"
-                           StartIcon="@Icons.Material.Filled.ManageSearch" Class="ms-2">
-                    نمایش تفصیلی
-                </MudButton>
-            </MudTooltip>
-        }
 
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
                    StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
@@ -156,6 +158,8 @@
     private string _counterParty = "";
     private string _status = AccountingDocumentStatus.Draft;
     private bool _busy;
+
+    private AccountDetailBalance _accountDetailBalance= new AccountDetailBalance();
 
     private decimal TotalDebit
     {
@@ -211,13 +215,22 @@
         }
     }
 
-    private void OnRowClick(TableRowClickEventArgs<JournalLineRow> args)
+    private async Task OnRowClick(TableRowClickEventArgs<JournalLineRow> args)
     {
         try
         {
             if (args?.Item is not null)
             {
-                _selectedLine = args.Item;
+
+                // فراخوانی اطلاعات حساب
+                _accountDetailBalance = await Db.QueryFirstOrDefaultAsync<AccountDetailBalance>(Schema, "AccountDetailBalance", new
+                {
+                    CompanyId = Session.ActiveCompanyId,
+                    FiscalYearId = Session.ActiveFiscalYearId,
+                    AccountCode = args?.Item.AccountCode
+                }) ?? new AccountDetailBalance();
+
+                _selectedLine = args?.Item;
             }
         }
         catch (Exception ex)
