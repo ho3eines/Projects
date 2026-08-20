@@ -12,5 +12,16 @@ public class MainApplication : MauiApplication
     {
     }
 
-    protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+    protected override MauiApp CreateMauiApp()
+    {
+        try
+        {
+            return MauiProgram.CreateMauiApp();
+        }
+        catch (Exception ex)
+        {
+            StartupCrashLog.Write("Android CreateMauiApp failed", ex);
+            throw;
+        }
+    }
 }

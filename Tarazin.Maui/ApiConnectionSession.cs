@@ -28,34 +28,47 @@ public sealed class ApiConnectionSession :
     ICredentialSessionRevoker,
     IDisposable
 {
-    private readonly HttpClient _http;
+    private readonly HttpClient? _http;
+    private readonly string? _initError = null;
     private string? _connectionString; // decrypted, in-memory only
     private string _database = "";
     private bool _disposed;
 
     public ApiConnectionSession(IConfiguration configuration)
     {
-        var rawEndpoint = configuration["ServerEndpoint"]?.Trim();
-        if (!Uri.TryCreate(rawEndpoint, UriKind.Absolute, out var endpoint))
-            throw new InvalidOperationException("ServerEndpoint must be an absolute HTTPS URL.");
-        if (!IsSecureEndpoint(endpoint))
-            throw new InvalidOperationException("ServerEndpoint must use HTTPS (HTTP is allowed only for loopback development).");
-        if (!string.IsNullOrEmpty(endpoint.UserInfo) || !string.IsNullOrEmpty(endpoint.Query) ||
-            !string.IsNullOrEmpty(endpoint.Fragment))
-            throw new InvalidOperationException("ServerEndpoint must not contain credentials, query text, or fragments.");
-
-        var normalizedEndpoint = endpoint.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
-            ? endpoint
-            : new Uri(endpoint.AbsoluteUri + "/", UriKind.Absolute);
-
-        _http = new HttpClient
+        // Never throw from the constructor: UserSession resolves this during the
+        // first Blazor render. A ctor exception blanks the WebView with no UI.
+        try
         {
-            BaseAddress = normalizedEndpoint,
-            Timeout = TimeSpan.FromSeconds(25),
-            MaxResponseContentBufferSize = 64 * 1024
-        };
-        _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Tarazin-MAUI/1.0");
+            var rawEndpoint = configuration["ServerEndpoint"]?.Trim();
+            if (!Uri.TryCreate(rawEndpoint, UriKind.Absolute, out var endpoint))
+                throw new InvalidOperationException("نشانی سرور (ServerEndpoint) باید یک URL مطلق HTTPS باشد.");
+            if (!IsSecureEndpoint(endpoint))
+                throw new InvalidOperationException("نشانی سرور باید HTTPS باشد (HTTP فقط روی loopback در حالت Debug مجاز است).");
+            if (!string.IsNullOrEmpty(endpoint.UserInfo) || !string.IsNullOrEmpty(endpoint.Query) ||
+                !string.IsNullOrEmpty(endpoint.Fragment))
+                throw new InvalidOperationException("نشانی سرور نباید credential، query یا fragment داشته باشد.");
+
+            var normalizedEndpoint = endpoint.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
+                ? endpoint
+                : new Uri(endpoint.AbsoluteUri + "/", UriKind.Absolute);
+
+            _http = new HttpClient
+            {
+                BaseAddress = normalizedEndpoint,
+                Timeout = TimeSpan.FromSeconds(25),
+                MaxResponseContentBufferSize = 64 * 1024
+            };
+            _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd("Tarazin-MAUI/1.0");
+        }
+        catch (Exception ex)
+        {
+            _http?.Dispose();
+            _http = null;
+            _initError = ex.Message;
+            StartupCrashLog.Write("ApiConnectionSession init failed", ex);
+        }
     }
 
     public bool IsAvailable => _connectionString is not null;
@@ -80,12 +93,12 @@ public sealed class ApiConnectionSession :
         string password,
         CancellationToken ct = default)
     {
-        ThrowIfDisposed();
+        EnsureReady();
 
         var request = new ConnectionBootstrapRequest { Username = username, Password = password };
         try
         {
-            using var response = await _http.PostAsJsonAsync("api/mobile/connection", request, ct);
+            using var response = await _http!.PostAsJsonAsync("api/mobile/connection", request, ct);
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 return false; // نام کاربری یا رمز عبور صحیح نیست.
 
@@ -257,12 +270,22 @@ public sealed class ApiConnectionSession :
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
+    private void EnsureReady()
+    {
+        ThrowIfDisposed();
+        if (_http is null)
+            throw new SafeAuthenticationException("invalid_request",
+                string.IsNullOrWhiteSpace(_initError)
+                    ? "نشانی سرور پیکربندی نشده است."
+                    : _initError);
+    }
+
     public void Dispose()
     {
         if (_disposed)
             return;
         _disposed = true;
         ClearLocal();
-        _http.Dispose();
+        _http?.Dispose();
     }
 }

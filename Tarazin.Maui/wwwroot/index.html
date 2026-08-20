@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <base href="/" />
     <title>ترازین — مدیریت هوشمند کسب‌وکار</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
     <link href="_content/Tarazin.Ui/css/app.css" rel="stylesheet" />
     <style>
@@ -22,7 +19,7 @@
             align-items: center;
             justify-content: center;
             gap: 24px;
-            font-family: "Vazirmatn", Tahoma, "Segoe UI", sans-serif;
+            font-family: Tahoma, "Segoe UI", sans-serif;
             color: #e8efea;
             background:
                 radial-gradient(1200px 800px at 80% -10%, rgba(232, 200, 114, 0.18), transparent 60%),
@@ -76,22 +73,45 @@
             font-size: 12px;
             opacity: .6;
         }
-        @@keyframes tz-pop {
+        @keyframes tz-pop {
             0%   { transform: scale(.7); opacity: 0; }
             60%  { transform: scale(1.06); opacity: 1; }
             100% { transform: scale(1); }
         }
-        @@keyframes tz-slide {
+        @keyframes tz-slide {
             0%   { transform: translateX(-250%); }
             100% { transform: translateX(350%); }
         }
         @media (prefers-reduced-motion: reduce) {
             .tz-splash__logo, .tz-splash__bar::after { animation: none; }
         }
+        #blazor-error-ui {
+            display: none;
+            position: fixed;
+            inset-inline: 0;
+            bottom: 0;
+            z-index: 100000;
+            padding: 0.85rem 1.25rem 1rem;
+            background: #7f1d1d;
+            color: #fff7ed;
+            font-family: Tahoma, "Segoe UI", sans-serif;
+            box-shadow: 0 -8px 24px rgba(0,0,0,.28);
+        }
+        #blazor-error-ui.is-visible,
+        #blazor-error-ui.show {
+            display: block;
+        }
+        #blazor-error-ui .reload { color: #fde68a; }
+        #blazor-error-ui .dismiss {
+            cursor: pointer;
+            position: absolute;
+            inset-inline-end: 0.75rem;
+            top: 0.5rem;
+        }
     </style>
 </head>
 <body dir="rtl">
-    <!-- Splash screen: تا زمان آماده شدن BlazorWebView نمایش داده می‌شود -->
+    <!-- Splash: BlazorWebView itself starts Blazor — do NOT call Blazor.start() (that's WASM). -->
     <div id="tz-splash" aria-live="polite" aria-busy="true">
         <img class="tz-splash__logo" src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
         <h1 class="tz-splash__title">ترازین</h1>
@@ -100,29 +120,47 @@
         <div class="tz-splash__hint">در حال آماده‌سازی…</div>
     </div>
 
-    <div id="app"></div>
+    <div id="app">بارگذاری رابط کاربری…</div>
 
-    <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <div id="blazor-error-ui">
+        یک خطای پیش‌بینی‌نشده رخ داد. جزئیات در Output ویژوال استودیو یا
+        فایل <code>%LocalAppData%\Tarazin\maui-crash.log</code> است.
+        <a href="" class="reload">تلاش دوباره</a>
+        <span class="dismiss" role="button" tabindex="0">🗙</span>
+    </div>
+
+    <script src="_framework/blazor.webview.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
     <script>
         (function () {
             var splash = document.getElementById("tz-splash");
+            var app = document.getElementById("app");
+            var hidden = false;
             var timer = setTimeout(hideSplash, 8000);
 
             function hideSplash() {
-                if (!splash) return;
+                if (hidden || !splash) return;
+                hidden = true;
                 clearTimeout(timer);
                 splash.classList.add("is-hidden");
                 setTimeout(function () {
                     if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+                    splash = null;
                 }, 600);
             }
 
-            Blazor.start()
-                .then(function () {
-                    requestAnimationFrame(function () { requestAnimationFrame(hideSplash); });
-                })
-                .catch(hideSplash);
+            if (app && typeof MutationObserver !== "undefined") {
+                var obs = new MutationObserver(function () {
+                    if (app.childElementCount > 0 || (app.textContent && app.textContent.trim() && app.textContent.indexOf("بارگذاری") === -1)) {
+                        obs.disconnect();
+                        requestAnimationFrame(function () { requestAnimationFrame(hideSplash); });
+                    }
+                });
+                obs.observe(app, { childList: true, subtree: true, characterData: true });
+            }
+
+            window.addEventListener("error", function () { hideSplash(); });
+            window.addEventListener("unhandledrejection", function () { hideSplash(); });
         })();
     </script>
 </body>

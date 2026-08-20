@@ -24,18 +24,38 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
+        try
+        {
+            return BuildApp();
+        }
+        catch (Exception ex)
+        {
+            StartupCrashLog.Write("CreateMauiApp failed", ex);
+            throw;
+        }
+    }
+
+    private static MauiApp BuildApp()
+    {
         var builder = MauiApp.CreateBuilder();
 
         // The embedded MAUI configuration contains only the public HTTPS API
         // endpoint. SQL credentials and tokens are never packaged here.
-        using (var stream = typeof(MauiProgram).Assembly.GetManifestResourceStream("Tarazin.Maui.appsettings.json"))
+        try
         {
+            using var stream = typeof(MauiProgram).Assembly.GetManifestResourceStream("Tarazin.Maui.appsettings.json");
             if (stream is null)
-                throw new InvalidOperationException(
-                    "منبع «Tarazin.Maui.appsettings.json» در اسمبلی پیدا نشد. " +
-                    "در Tarazin.Maui.csproj باید EmbeddedResource با همین LogicalName تعریف شده باشد.");
-
-            builder.Configuration.AddJsonStream(stream);
+            {
+                StartupCrashLog.Write("Embedded resource Tarazin.Maui.appsettings.json was not found.");
+            }
+            else
+            {
+                builder.Configuration.AddJsonStream(stream);
+            }
+        }
+        catch (Exception ex)
+        {
+            StartupCrashLog.Write("Failed to load appsettings.json", ex);
         }
 
         // A deployment may override only this non-secret endpoint.
@@ -75,8 +95,6 @@ public static class MauiProgram
 
         // Shared business services and existing direct-SQL operations.
         builder.Services.AddTarazinUiServices();
-
-        
 
         return builder.Build();
     }
