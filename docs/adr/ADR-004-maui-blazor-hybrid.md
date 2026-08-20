@@ -1,6 +1,6 @@
 # ADR-004: MAUI Blazor Hybrid host — one shared UI, two hosts
 
-- **Status**: Accepted, security amendment 2026-08-18, TLS amendment 2026-08-20, simplification amendment 2026-08-20(v2)
+- **Status**: Accepted, security amendment 2026-08-18, TLS amendment 2026-08-20, simplification amendments 2026-08-20(v2, v3)
 - **Date**: 2026-08-12
 - **Relates to**: PRD v2.1 (Blazor Hybrid), ADR-001 (shared core), ADR-003 (contracts)
 - **Technical story**: adds a native desktop/mobile shell on top of the shared UI.
@@ -17,6 +17,14 @@
 > صدور principal که دیباگ استقرار را دشوار می‌کرد. پیامد امنیتی پذیرفته‌شده:
 > MAUI با همان هویت اتصال سرور کار می‌کند و مرز امنیتی به HTTPS + احراز هویت
 > کاربر + عدم ذخیره‌سازی محلی تکیه دارد. تاریخچهٔ قبلی این ADR بازنویسی نمی‌شود.
+
+> **Simplification amendment 2026-08-20 v3 (تصمیم مالک پروژه):** خودِ ورود هم از
+> API جدا شد و محلی/مشترک شد. API فقط یک نقش دارد: bootstrap یک‌بارهٔ اتصال —
+> `POST /api/mobile/connection` همان اعتبار نام کاربری/رمز را سمت سرور می‌سنجد و
+> رشتهٔ اتصال رمزگذاری‌شده را برمی‌گرداند؛ سپس ورود واقعی در هر دو هاست از یک مسیر
+> (`AuthService` → PBKDF2 → `DbService`) اجرا می‌شود و UI در هر دو پروژه دقیقاً
+> یکسان عمل می‌کند. API در پروژهٔ Web می‌ماند. این amendment جایگزین جزئیات v2
+> دربارهٔ «ورود از طریق API» می‌شود.
 
 > **TLS amendment 2026-08-20 (تصمیم مالک پروژه):** بند «بدون bypass گواهی» این ADR
 > ملغی می‌شود. اتصال SQL در همهٔ محیط‌ها با `Encrypt=true` و
@@ -71,7 +79,7 @@ Key mechanisms:
 3. **Scripts as embedded resources** — `Tarazin.Data/Scripts/**/*.sql` are `EmbeddedResource` in `Tarazin.Data` (`Tarazin.Scripts.{schema}.{name}.sql`); `ScriptCatalog` loads them from its own assembly so the packaged MAUI app never needs a content root. Files remain in the repo for editing/tooling (`tools/cross-schema-scan.sh`).
 4. **Shared static assets** — `Tarazin.Ui/wwwroot/css/app.css` is served by both hosts at `_content/Tarazin.Ui/css/app.css` (web static assets + BlazorWebView RCL assets).
 5. **Namespaces** — models `Tarazin.Models` (assembly `Tarazin.Share`); data `Tarazin.Data`; RCL root `Tarazin`; web host `Tarazin.Web`; MAUI `Tarazin.Maui` — no ambiguity across assemblies.
-6. **MAUI config and encrypted connection-string delivery** — `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS را دارد (amendment 2026-08-20 v2). `ApiConnectionSession` نام کاربری/رمز را به `POST /api/mobile/login` می‌فرستد؛ پاسخ موفق شامل رشتهٔ اتصال سرور است که با AES-256-CBC تحت کلید مشتق از رمز ورود (SHA-256) رمز شده و در همان حافظه رمزگشایی و به `DbService` مشترک برای اجرا داده می‌شود. هیچ کلید، token یا شناسهٔ مشتری در بستهٔ MAUI ذخیره نمی‌شود.
+6. **MAUI config and encrypted connection-string delivery** — `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS را دارد (amendments 2026-08-20 v2/v3). ورود در هر دو هاست از یک مسیر (`AuthService`/PBKDF2 محلی) اجرا می‌شود؛ `ApiConnectionSession` فقط در شروع سرد یک‌بار نام کاربری/رمز را به `POST /api/mobile/connection` می‌فرستد تا رشتهٔ اتصال سرور — رمز‌شده با AES-256-CBC تحت کلید مشتق از رمز ورود (SHA-256) — گرفته و در همان حافظه رمزگشایی شود و به `DbService` مشترک برسد. هیچ کلید، token یا شناسهٔ مشتری در بستهٔ MAUI ذخیره نمی‌شود.
 
 ## Consequences
 

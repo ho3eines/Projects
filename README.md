@@ -41,7 +41,7 @@ Tarazin.Web    Tarazin.Maui
 Blazor Server   MAUI Blazor Hybrid (BlazorWebView)
 ```
 
-* قوانین: UI فقط در `Tarazin.Ui/Modules/...`، مدل فقط در `Tarazin.Share`، داده فقط در `Tarazin.Data/Scripts/{schema}/`، هیچ SQL خام در Razor و هیچ HTTP برای انتقال عملیات کسب‌وکار (فقط endpoint ورود MAUI و `PriceFeedService` بازار خارجی). مرز اسکیمه با `tools/cross-schema-scan.sh` چک می‌شود. — جزئیات در `docs/PROJECT.md` و `docs/adr/`.*
+* قوانین: UI فقط در `Tarazin.Ui/Modules/...`، مدل فقط در `Tarazin.Share`، داده فقط در `Tarazin.Data/Scripts/{schema}/`، هیچ SQL خام در Razor و هیچ HTTP برای انتقال عملیات کسب‌وکار (فقط endpoint bootstrap اتصال MAUI و `PriceFeedService` بازار خارجی). مرز اسکیمه با `tools/cross-schema-scan.sh` چک می‌شود. — جزئیات در `docs/PROJECT.md` و `docs/adr/`.*
 
 ---
 
@@ -67,7 +67,7 @@ dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
 * مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال issuer از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
 * اتصال SQL با `Encrypt=true` و `TrustServerCertificate=true` ساخته می‌شود (رمزنگاری کانال فعال، اعتبارسنجی گواهی غیرفعال — تصمیم ۱۴۰۵/۰۵/۲۹؛ جزئیات در `docs/SECURITY.md`).
 * MAUI مستقیماً به `Data Source` همان رشتهٔ اتصالِ سرور وصل می‌شود؛ مقدار `localhost` فقط پیش‌فرض توسعهٔ محلیِ Windows است. برای دستگاه‌های دیگر، اتصال سرور باید به DNS/IP قابل‌دسترس از همان دستگاه اشاره کند.
-* `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS دارد. MAUI نام کاربری/رمز را به `POST /api/mobile/login` می‌فرستد (همان بررسی PBKDF2 ورود وب) و **رشتهٔ اتصال SQL را رمزگذاری‌شده** (AES-256 با کلید مشتق از خود رمز ورود) دریافت می‌کند؛ رمزگشایی فقط در حافظه و اجرا با `DbService` مشترک است.
+* `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS دارد. ورود در هر دو هاست دقیقاً یکسان است (همان `AuthService`/PBKDF2 محلی)؛ در MAUI فقط قبل از اولین ورود، یک‌بار `POST /api/mobile/connection` (همان بررسی اعتبار سمت سرور) **رشتهٔ اتصال SQL را رمزگذاری‌شده** (AES-256 با کلید مشتق از خود رمز ورود) می‌آورد؛ رمزگشایی فقط در حافظه و اجرا با `DbService` مشترک است.
 * اولین initialization فقط در Web اجرا می‌شود: `_Ensure.sql` → `_Seed.sql` → نقش‌ها/دسترسی‌ها → ساخت مدیر اولیه با password تزریق‌شده. هیچ رمز پیش‌فرضی وجود ندارد.
 * اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از دریافت رشتهٔ اتصال رمزگذاری‌شده از API، همان عملیات مستقیم `DbService` را اجرا می‌کند.
 

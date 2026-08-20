@@ -70,7 +70,7 @@ builder.Services.AddServerSideBlazor();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("credential-broker", httpContext =>
+    options.AddPolicy("mobile-connection", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
@@ -147,14 +147,14 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
 
-// MAUI bootstrap endpoint (simplified 2026-08-20): POST /api/mobile/login
-// verifies the user's credentials against [central].[Users] — the same check
-// as the web login — and returns the server's SQL connection string encrypted
-// with a key derived from the login password. There are no sessions, nonce
-// registries, short-lived SQL principals, or refresh/revoke endpoints anymore.
-// Responses are never cacheable and production requests must use HTTPS with
-// normal certificate validation.
-app.MapPost("/api/mobile/login", async (MobileLoginRequest request, HttpContext http,
+// MAUI connection bootstrap (2026-08-20): POST /api/mobile/connection verifies
+// the user's credentials against [central].[Users] — the same check as the web
+// login — and returns the server's SQL connection string encrypted with a key
+// derived from the login password. This endpoint does NOT perform the login
+// itself: after this one call, both hosts run the identical in-process login
+// (AuthService → PBKDF2 → DbService). Responses are never cacheable and
+// production requests must use HTTPS with normal certificate validation.
+app.MapPost("/api/mobile/connection", async (ConnectionBootstrapRequest request, HttpContext http,
     MobileConnectionService service, CancellationToken ct) =>
 {
     SetSensitiveResponseHeaders(http.Response);
@@ -163,7 +163,7 @@ app.MapPost("/api/mobile/login", async (MobileLoginRequest request, HttpContext 
         if (!http.Request.IsHttps && !app.Environment.IsDevelopment())
             return MobileError(StatusCodes.Status426UpgradeRequired, "https_required", "اتصال امن HTTPS لازم است.");
 
-        var result = await service.LoginAsync(request, ct);
+        var result = await service.BootstrapAsync(request, ct);
         return result.Response is not null
             ? Results.Json(result.Response, statusCode: result.StatusCode)
             : Results.Json(result.Error, statusCode: result.StatusCode);
@@ -174,7 +174,7 @@ app.MapPost("/api/mobile/login", async (MobileLoginRequest request, HttpContext 
     }
     catch (Exception ex)
     {
-        app.Logger.LogWarning("Mobile login request failed ({ErrorType})", ex.GetType().Name);
+        app.Logger.LogWarning("Mobile connection bootstrap failed ({ErrorType})", ex.GetType().Name);
         return MobileError(StatusCodes.Status503ServiceUnavailable, "service_unavailable", "سرویس اتصال موقتاً در دسترس نیست.");
     }
     finally
@@ -183,7 +183,7 @@ app.MapPost("/api/mobile/login", async (MobileLoginRequest request, HttpContext 
     }
 })
 .DisableAntiforgery()
-.RequireRateLimiting("credential-broker")
+.RequireRateLimiting("mobile-connection")
 .WithMetadata(new RequestSizeLimitAttribute(8_192));
 
 // مدل Blazor Server کلاسیک (net8): blazor.server.js و دارایی‌های استاتیک

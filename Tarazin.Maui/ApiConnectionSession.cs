@@ -10,20 +10,21 @@ namespace Tarazin.Maui;
 
 /// <summary>
 /// MAUI connection session (simplified 2026-08-20, product-owner decision).
-/// Login sends username/password to the Web host over HTTPS
-/// (<c>POST /api/mobile/login</c>); the server verifies them against
+/// This class is NOT the login: both hosts run the identical in-process login
+/// (AuthService → PBKDF2 → DbService). Its only API role is a one-time
+/// bootstrap: on the first login it POSTs the typed username/password to the
+/// Web host (<c>POST /api/mobile/connection</c>) which verifies them against
 /// [central].[Users] and returns the SQL connection string of its own
 /// configuration, encrypted with AES-256-CBC under a key derived from the
-/// login password (SHA-256). This class derives the same key from the typed
-/// password, decrypts the string, and keeps the plaintext in process memory
-/// only — handed to the shared UI/data layer (ISqlConnectionProvider →
-/// DbService) for direct SQL execution. The decrypted/cached value is never
-/// written to preferences, files, SecureStorage, logs, or configuration, and
-/// is erased on logout (<see cref="RevokeAndClearAsync"/>).
+/// login password (SHA-256). This class derives the same key, decrypts, and
+/// keeps the plaintext in process memory only — handed to the shared UI/data
+/// layer (ISqlConnectionProvider → DbService) for direct SQL execution. The
+/// cached value is never written to preferences, files, SecureStorage, logs,
+/// or configuration, and is erased on logout (<see cref="RevokeAndClearAsync"/>).
 /// </summary>
 public sealed class ApiConnectionSession :
     ISqlConnectionProvider,
-    IRemoteAuthenticationService,
+    IConnectionBootstrapper,
     ICredentialSessionRevoker,
     IDisposable
 {
@@ -60,31 +61,39 @@ public sealed class ApiConnectionSession :
     public bool IsAvailable => _connectionString is not null;
     public bool SupportsInitialization => false;
 
+    /// <inheritdoc cref="IConnectionBootstrapper.IsReady"/>
+    public bool IsReady => _connectionString is not null;
+
     public string DatabaseName => _database;
 
     public string Description => _connectionString is not null
         ? "اتصال SQL رمزگذاری‌شدهٔ دریافت‌شده از API (AES با کلید مشتق از رمز ورود) — اجرا در UI"
         : "رشتهٔ اتصال از API دریافت نشده است";
 
-    public async Task<UserRow?> AuthenticateAsync(
+    /// <summary>
+    /// One-time bootstrap before the first local login: asks the Web host for
+    /// the encrypted connection string. The server already verified these
+    /// credentials, so a 401 simply means "wrong username/password" (false).
+    /// </summary>
+    public async Task<bool> BootstrapAsync(
         string username,
         string password,
         CancellationToken ct = default)
     {
         ThrowIfDisposed();
 
-        var request = new MobileLoginRequest { Username = username, Password = password };
+        var request = new ConnectionBootstrapRequest { Username = username, Password = password };
         try
         {
-            using var response = await _http.PostAsJsonAsync("api/mobile/login", request, ct);
+            using var response = await _http.PostAsJsonAsync("api/mobile/connection", request, ct);
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                return null; // نام کاربری یا رمز عبور صحیح نیست.
+                return false; // نام کاربری یا رمز عبور صحیح نیست.
 
             if (!response.IsSuccessStatusCode)
                 throw await CreateSafeExceptionAsync(response, ct);
 
-            var result = await response.Content.ReadFromJsonAsync<MobileLoginResponse>(cancellationToken: ct);
-            if (result?.User is null || result.User.UserId <= 0 ||
+            var result = await response.Content.ReadFromJsonAsync<ConnectionBootstrapResponse>(cancellationToken: ct);
+            if (result is null ||
                 string.IsNullOrWhiteSpace(result.EncryptedConnectionString) ||
                 !result.EncryptedConnectionString.StartsWith(ConnectionStringProtector.EncryptedPrefix, StringComparison.Ordinal))
                 throw new SafeAuthenticationException("invalid_response", "پاسخ سرویس اتصال معتبر نیست.");
@@ -132,10 +141,9 @@ public sealed class ApiConnectionSession :
 
             ThrowIfDisposed();
             _connectionString = builder.ConnectionString;
-            _database = builder.InitialCatalog;
-            result.User.PasswordHash = "";
+            _database = string.IsNullOrWhiteSpace(result.Database) ? builder.InitialCatalog : result.Database;
             SqlConnection.ClearAllPools();
-            return result.User;
+            return true;
         }
         catch (SafeAuthenticationException)
         {

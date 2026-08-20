@@ -7,16 +7,17 @@ using Tarazin.Models;
 namespace Tarazin.Web;
 
 /// <summary>
-/// Simplified MAUI bootstrap (2026-08-20, product-owner decision): the old
-/// credential broker (CustomerGuid registry, replay nonces, short-lived tz_m_*
-/// SQL principals, refresh/revoke sessions) is removed. This service verifies
-/// the user's username/password against [central].[Users] — the exact same
-/// check the web login performs — and, on success, returns the server-side
-/// SQL connection string from configuration encrypted with AES-256-CBC under
-/// a key derived from the login password (SHA-256), so the MAUI client that
-/// knows the password can decrypt it in memory. No principal is created, no
-/// session is persisted, nothing is stored server-side beyond the audit-free
-/// user lookup. Issued passwords and connection strings are never logged.
+/// MAUI connection bootstrap (2026-08-20, product-owner decision): the old
+/// credential broker is removed, and login itself is NOT done through this
+/// API — both hosts run the identical in-process login (AuthService → PBKDF2
+/// → DbService). This service has exactly one job: verify the presented
+/// username/password against [central].[Users] (same check as the web login,
+/// with a dummy-hash pass so unknown usernames share the timing path) and, on
+/// success, return the server-side SQL connection string from configuration
+/// encrypted with AES-256-CBC under a key derived from the login password
+/// (SHA-256). The MAUI client derives the identical key from the password the
+/// user typed and decrypts in memory. No session is created or persisted;
+/// nothing about the request is logged beyond safe diagnostics.
 /// </summary>
 public sealed class MobileConnectionService
 {
@@ -54,37 +55,38 @@ public sealed class MobileConnectionService
         _isAvailable = available;
     }
 
-    public async Task<MobileLoginOutcome> LoginAsync(MobileLoginRequest request, CancellationToken ct)
+    public async Task<BootstrapOutcome> BootstrapAsync(ConnectionBootstrapRequest request, CancellationToken ct)
     {
         try
         {
             if (!_isAvailable)
-                return MobileLoginOutcome.Failure("service_unavailable",
+                return BootstrapOutcome.Failure("service_unavailable",
                     "سرویس اتصال موقتاً در دسترس نیست.");
 
             if (string.IsNullOrWhiteSpace(request.Username) || request.Username.Length > 128 ||
                 string.IsNullOrEmpty(request.Password) || request.Password.Length > 1024)
-                return MobileLoginOutcome.Rejected(StatusCodes.Status400BadRequest, "invalid_request",
+                return BootstrapOutcome.Rejected(StatusCodes.Status400BadRequest, "invalid_request",
                     "درخواست ورود معتبر نیست.");
 
-            UserRow? user;
+            BootstrapUserRow? user;
             await using (var connection = new SqlConnection(_connectionString))
             {
                 await connection.OpenAsync(ct);
-                // Same projection as the web login (central/UserAuthenticate.sql)
-                // so the MAUI session receives an identical UserRow.
-                user = await connection.QueryFirstOrDefaultAsync<UserRow>(new CommandDefinition("""
-                    SELECT u.UserId, u.Username, u.PasswordHash, u.DisplayName, u.Role, u.RoleId,
-                           r.Title AS RoleTitle, u.IsActive, u.CreatedAt, u.UpdatedAt, u.CreatedBy, u.UpdatedBy
+                // Same lookup as the web login (central/UserAuthenticate.sql).
+                // The row itself is not returned to the client; the client runs
+                // its own in-process login once it has the connection string.
+                user = await connection.QueryFirstOrDefaultAsync<BootstrapUserRow>(new CommandDefinition("""
+                    SELECT u.UserId, u.PasswordHash, u.IsActive
                     FROM [central].[Users] u
-                    LEFT JOIN [central].[Roles] r ON r.RoleId = u.RoleId AND r.IsDeleted = 0
                     WHERE u.Username = @Username AND u.IsDeleted = 0;
                     """, new { Username = request.Username.Trim() }, cancellationToken: ct));
             }
 
+            // PBKDF2 always runs (against a dummy hash for unknown users) so
+            // unknown-username and wrong-password share the same code path.
             var passwordAccepted = PasswordHasher.Verify(request.Password, user?.PasswordHash ?? _dummyPasswordHash);
             if (user is null || !user.IsActive || !passwordAccepted)
-                return MobileLoginOutcome.Rejected(StatusCodes.Status401Unauthorized, "invalid_credentials",
+                return BootstrapOutcome.Rejected(StatusCodes.Status401Unauthorized, "invalid_credentials",
                     "نام کاربری یا رمز عبور صحیح نیست.");
 
             // Encrypt the server connection string with a key derived from the
@@ -100,12 +102,8 @@ public sealed class MobileConnectionService
                 CryptographicOperations.ZeroMemory(key);
             }
 
-            // The hash never leaves the server host.
-            user.PasswordHash = "";
-
-            return MobileLoginOutcome.Success(new MobileLoginResponse
+            return BootstrapOutcome.Success(new ConnectionBootstrapResponse
             {
-                User = user,
                 EncryptedConnectionString = encrypted,
                 Database = _database
             });
@@ -117,7 +115,7 @@ public sealed class MobileConnectionService
         catch (Exception ex)
         {
             LogSafeFailure(ex);
-            return MobileLoginOutcome.Failure("service_unavailable",
+            return BootstrapOutcome.Failure("service_unavailable",
                 "سرویس اتصال موقتاً در دسترس نیست.");
         }
         finally
@@ -143,17 +141,23 @@ public sealed class MobileConnectionService
         _logger.LogError("Mobile connection login failed ({ErrorType}, SqlNumber={SqlNumber}, SqlNumbers={SqlNumbers})",
             ex.GetType().Name, sqlNumber, sqlNumbers);
     }
+    private sealed class BootstrapUserRow
+    {
+        public int UserId { get; init; }
+        public string PasswordHash { get; init; } = "";
+        public bool IsActive { get; init; }
+    }
 }
 
-public sealed record MobileLoginOutcome(int StatusCode, MobileLoginResponse? Response, MobileConnectionError? Error)
+public sealed record BootstrapOutcome(int StatusCode, ConnectionBootstrapResponse? Response, MobileConnectionError? Error)
 {
-    public static MobileLoginOutcome Success(MobileLoginResponse response)
+    public static BootstrapOutcome Success(ConnectionBootstrapResponse response)
         => new(StatusCodes.Status200OK, response, null);
 
-    public static MobileLoginOutcome Rejected(int statusCode, string code, string message)
+    public static BootstrapOutcome Rejected(int statusCode, string code, string message)
         => new(statusCode, null, new MobileConnectionError { Code = code, Message = message });
 
-    public static MobileLoginOutcome Failure(string code, string message)
+    public static BootstrapOutcome Failure(string code, string message)
         => new(StatusCodes.Status503ServiceUnavailable, null,
             new MobileConnectionError { Code = code, Message = message });
 }

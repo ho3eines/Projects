@@ -17,10 +17,11 @@ MAUI app (`Tarazin.Maui`, MAUI Blazor Hybrid in a BlazorWebView). Each product
 is a *bounded context*: a module (`Modules/{Name}/` in `Tarazin.Ui`) and one
 private SQL schema (`Data/Scripts/{schema}/` in `Tarazin.Data`, embedded
 resources). There is no public CRUD web service or WASM client: business data
-access remains in-process. A single mobile login endpoint (POST
-/api/mobile/login) authenticates MAUI users (same PBKDF2 check as web) and
-returns the server connection string encrypted with a password-derived key; it
-is not a business-data HTTP layer. The UI is built exclusively with MudBlazor.
+access remains in-process. A single bootstrap endpoint (POST
+/api/mobile/connection) verifies the MAUI user's credentials (same PBKDF2 check
+as web) and returns the server connection string encrypted with a
+password-derived key; the login itself then runs in-process, identical to the
+web. It is not a business-data HTTP layer. The UI is built exclusively with MudBlazor.
 
 **FA** – پنج پروژه با وابستگی یک‌طرفه همهٔ هفت محصول تجاری را میزبانی می‌کنند:
 `Tarazin.Share` (مدل‌ها/قراردادها) ← `Tarazin.Data` (لایهٔ داده: Dapper +
@@ -30,8 +31,9 @@ MAUI Blazor Hybrid داخل BlazorWebView). هر محصول یک *bounded contex
 ماژول (`Modules/{Name}/` در `Tarazin.Ui`) و یک اسکیمهٔ SQL خصوصی
 (`Data/Scripts/{schema}/` در `Tarazin.Data` — Embedded). هیچ وب‌سرویس عمومی
 CRUD و هیچ کلاینت WASM وجود ندارد: عملیات کسب‌وکار UI با لایهٔ داده در یک
-پروسه انجام می‌شود. endpoint ورود MAUI فقط احراز هویت و تحویل رمزگذاری‌شدهٔ
-رشتهٔ اتصال را انجام می‌دهد و مسیر دادهٔ کسب‌وکار نیست. رابط کاربری فقط با MudBlazor ساخته
+پروسه انجام می‌شود. endpoint bootstrap اتصال MAUI (یک‌بار، پیش از اولین ورود)
+فقط احراز هویت و تحویل رمزگذاری‌شدهٔ رشتهٔ اتصال را انجام می‌دهد و مسیر دادهٔ
+کسب‌وکار نیست؛ خود ورود محلی و مشترک با وب است. رابط کاربری فقط با MudBlazor ساخته
 می‌شود.
 
 ---
@@ -109,7 +111,7 @@ ADR-002 explains why the event backbone was retired.
 ## 5. Security & Compliance / امنیت
 
 * **AuthN** – username/password → `AuthService` (PBKDF2) against `[central].[Users]`.
-* **Session** – Web uses the SignalR circuit; MAUI holds only the decrypted in-memory connection string after a successful login (no server session).
+* **Session** – Web uses the SignalR circuit; MAUI runs the identical local login and holds only the decrypted in-memory connection string (no server session).
 * **MAUI credential** – the server connection string is transported only over validated HTTPS, encrypted with a key derived from the login password, retained in memory only; no permanent SQL secret/key/token is packaged or persisted.
 * **Audit** – mutating scripts are recorded in `[central].[AuditLog]`; hash-chain correctness and serialization still require dynamic remediation/validation before release.
 * **Schema/tenant isolation** – named scripts remain fully qualified; mobile access additionally uses customer/company ownership and RLS.
@@ -137,7 +139,7 @@ ADR-002 explains why the event backbone was retired.
 3. No `HttpClient`-for-data and no raw SQL in `.razor` files (static check).
 4. `tools/cross-schema-scan.sh` passes.
 5. Bootstrap login with an injected deployment secret works; no default password exists.
-6. Mobile login valid/invalid-credentials, API-unavailable and SQL-unavailable tests pass.
+6. Mobile bootstrap (valid/invalid credentials, API/SQL unavailable) and post-bootstrap offline-style login tests pass.
 7. Published MAUI artifacts and decompiled/string scans contain no permanent SQL credential, key or token.
 
 ## 10. Glossary / واژه‌نامه

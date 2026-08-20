@@ -8,7 +8,7 @@
 2. **هاست MAUI** (`Tarazin.Maui`) — MAUI Blazor Hybrid (دسکتاپ ویندوز/مک و موبایل).
 
 هیچ وب‌سرویس عمومی CRUD و هیچ کلاینت WASM جدا وجود ندارد. عملیات کسب‌وکار با
-اسکریپت نامدار مستقیم انجام می‌شود؛ تنها API داخلی endpoint ورود MAUI است
+اسکریپت نامدار مستقیم انجام می‌شود؛ تنها API داخلی endpoint bootstrap اتصال MAUI است
 برای MAUI است. رابط کاربری با **MudBlazor** ساخته می‌شود تا تیم درگیر طراحی دستی
 نشود.
 
@@ -33,7 +33,7 @@
 | Host MAUI | میزبانی UI در اپ بومی | `Tarazin.Maui` — BlazorWebView (Blazor Hybrid) |
 | Scripts | منطق دامنه و گزارش‌ها (report-first) | `Tarazin.Data/Scripts/{schema}/{Name}.sql` (Embedded) |
 | DB | یک دیتابیس `TarazinMaster` با اسکیمهٔ جدا برای هر محصول | SQL Server (docker compose) |
-| Auth | Web: PBKDF2 سمت سرور؛ MAUI: ورود HTTPS (`POST /api/mobile/login`) + رشتهٔ اتصال رمزگذاری‌شده از API (AES با کلید مشتق از رمز ورود) | `AuthService` + `MobileConnectionService` + `/api/mobile/login` |
+| Auth | هر دو هاست: همان ورود محلی `AuthService`/PBKDF2 روی `[central].[Users]`؛ MAUI فقط یک‌بار رشتهٔ اتصال رمزگذاری‌شده را از API می‌گیرد (AES با کلید مشتق از رمز ورود) | `AuthService` + `MobileConnectionService` + `POST /api/mobile/connection` |
 | Audit | ثبت تمام عملیات با زنجیرهٔ هش | `AuditService` → `[central].[AuditLog]` |
 
 ## Key Rules (قوانین کلیدی)
@@ -53,7 +53,7 @@
 
 ## What was removed (delete-list)
 - همهٔ پروژه‌های قدیمی: `webapi`، ۷ کلاینت WASM، `share`، `blazordeployservice`، `tests`.
-- وب‌سرویس عمومی CRUD، token در URL و رمزنگاری اختصاصی AES با کلید client-side. تنها API جدید، endpoint ورود MAUI روی HTTPS است که پس از احراز موفق، رشتهٔ اتصال سرور را رمزگذاری‌شده برمی‌گرداند. (مدل قبلی broker با CustomerGuid/session، ۱۴۰۵/۰۵/۲۹ به درخواست مالک پروژه ساده‌سازی شد.)
+- وب‌سرویس عمومی CRUD، token در URL و رمزنگاری اختصاصی AES با کلید client-side. تنها API جدید، endpoint bootstrap اتصال MAUI روی HTTPS است که پس از احراز موفق، رشتهٔ اتصال سرور را رمزگذاری‌شده برمی‌گرداند. (مدل قبلی broker با CustomerGuid/session، ۱۴۰۵/۰۵/۲۹ به درخواست مالک پروژه ساده‌سازی شد.)
 - بک‌بون رویدادها (Outbox) — cross-module عملیات مستقیماً و تراکنشی انجام می‌شود.
 - Bootstrap سفارشی و کامپوننت‌های دست‌ساز (DataGrid و...) — همه با MudBlazor جایگزین شدند.
 
@@ -61,7 +61,7 @@
 - `Tarazin.Maui/MainPage.xaml` → `BlazorWebView` با `RootComponent` = `Tarazin.App` (مشترک).
 - `wwwroot/index.html` → رانتایم `_framework/blazor.webview.js` + استاتیک‌های MudBlazor و RCL.
 - پیکربندی Embedded فقط `ServerEndpoint` عمومی HTTPS است؛ SQL connection/password، bootstrap secret، token و decryption key دائمی در MAUI ممنوع‌اند.
-- جریان (قانون): `Login(username, password) → POST /api/mobile/login → PBKDF2 → رشتهٔ اتصال رمزگذاری‌شده (کلید مشتق از رمز ورود) → رمزگشایی در حافظه → DbService مستقیم`. در logout فقط حافظه و pool پاک می‌شوند.
+- جریان (قانون): `Login(username, password) → اگر MAUI هنوز اتصال ندارد: POST /api/mobile/connection → رشتهٔ اتصال رمزگذاری‌شده (کلید مشتق از رمز ورود) → رمزگشایی در حافظه ← سپس ورود محلی مشترک (PBKDF2) → DbService مستقیم`. در logout فقط حافظه و pool پاک می‌شوند.
 - رمزنگاری کانال SQL (`Encrypt=true`) الزامی است؛ اعتبارسنجی گواهی SQL طبق تصمیم مالک پروژه (۱۴۰۵/۰۵/۲۹) غیرفعال است (`TrustServerCertificate=true`). امکان استخراج secret فعال از حافظهٔ client compromise‌شده با رمزنگاری client-held حل نمی‌شود؛ کنترل اصلی HTTPS، احراز هویت کاربر و عدم ذخیره‌سازی محلی است.
 - build و رفتار SqlClient باید برای هر target MAUI در CI/E2E همان پلتفرم تأیید شود.
 
@@ -70,7 +70,7 @@
 2. `dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0`
    روی ویندوز با `dotnet workload install maui` — بدون خطا.
 3. با `docker compose up -d` + `dotnet run` همهٔ ۹ ماژول از یک آدرس باز می‌شوند.
-4. در صفحات هیچ SQL خام یا HTTP برای CRUD/business data وجود ندارد؛ endpoint ورود MAUI و feed رسمی بازار تنها استثناهای محدودند.
+4. در صفحات هیچ SQL خام یا HTTP برای CRUD/business data وجود ندارد؛ endpoint bootstrap اتصال MAUI و feed رسمی بازار تنها استثناهای محدودند.
 5. اسکریپت‌های هر اسکیمه از اسکیمهٔ دیگر بدون اعلام قبلی استفاده نمی‌کنند
    (`tools/cross-schema-scan.sh` پاس شود).
 6. ورود با کاربر bootstrap و password تزریق‌شده از secret store و مدیریت کاربران در هر دو هاست کار می‌کند؛ password پیش‌فرض وجود ندارد.

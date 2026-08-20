@@ -13,11 +13,12 @@ namespace Tarazin.Maui;
 
 /// <summary>
 /// MAUI Blazor Hybrid host — the shared UI (Tarazin.Ui) runs inside a
-/// BlazorWebView with full access to the local .NET runtime. Login happens via
-/// the Web host (POST /api/mobile/login) which returns the SQL connection
-/// string encrypted with a key derived from the login password; the decrypted
-/// string lives in memory only and the shared UI/data layer (DbService)
-/// executes SQL with it — the same direct-SQL path as the web host.
+/// BlazorWebView with full access to the local .NET runtime. Both hosts run
+/// the identical in-process login (AuthService → PBKDF2 → DbService); the Web
+/// host's only API role is the one-time bootstrap (POST /api/mobile/connection)
+/// that returns the SQL connection string encrypted with a key derived from
+/// the login password. The decrypted string lives in memory only and the
+/// shared UI/data layer (DbService) executes SQL with it.
 /// </summary>
 public static class MauiProgram
 {
@@ -63,12 +64,13 @@ public static class MauiProgram
             config.SnackbarConfiguration.PreventDuplicates = false;
         });
 
-        // One memory-only object is both the remote authenticator and the SQL
-        // provider. Register it before shared services so the configuration-
-        // backed provider is never constructed in MAUI.
+        // One memory-only object is both the one-time connection bootstrapper
+        // (fetches the encrypted string from the Web host) and the SQL provider.
+        // Register it before shared services so the configuration-backed
+        // provider is never constructed in MAUI.
         builder.Services.AddSingleton<ApiConnectionSession>();
         builder.Services.AddSingleton<ISqlConnectionProvider>(sp => sp.GetRequiredService<ApiConnectionSession>());
-        builder.Services.AddSingleton<IRemoteAuthenticationService>(sp => sp.GetRequiredService<ApiConnectionSession>());
+        builder.Services.AddSingleton<IConnectionBootstrapper>(sp => sp.GetRequiredService<ApiConnectionSession>());
         builder.Services.AddSingleton<ICredentialSessionRevoker>(sp => sp.GetRequiredService<ApiConnectionSession>());
 
         // Shared business services and existing direct-SQL operations.

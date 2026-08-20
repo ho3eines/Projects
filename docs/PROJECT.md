@@ -20,10 +20,10 @@
 
 عملیات کسب‌وکار فقط از طریق **اسکریپت‌های TSQL نامدار** (Embedded در
 `Tarazin.Data`) و Dapper انجام می‌شوند. Web آن‌ها را با provider سمت سرور اجرا
-می‌کند. MAUI پس از ورود موفق در `POST /api/mobile/login`، رشتهٔ اتصال سرور را
-رمزگذاری‌شده (AES با کلید مشتق از رمز ورود) دریافت، در حافظه رمزگشایی می‌کند و
-همان عملیات مستقیم و نامدار را اجرا می‌کند؛ این endpoint یک API عمومی CRUD یا
-انتقال‌دهندهٔ دادهٔ کسب‌وکار نیست.
+می‌کند. MAUI فقط یک‌بار (پیش از اولین ورود) از `POST /api/mobile/connection`
+رشتهٔ اتصال سرور را رمزگذاری‌شده (AES با کلید مشتق از رمز ورود) دریافت و در حافظه
+رمزگشایی می‌کند؛ از آن‌به‌بعد همان ورود محلی و عملیات مستقیم و نامدارِ وب اجرا
+می‌شود. این endpoint یک API عمومی CRUD یا انتقال‌دهندهٔ دادهٔ کسب‌وکار نیست.
 
 > 📋 **PRD محصولات**: `PRD.md` · `PRD_All_Projects.md`
 > 🗺️ **برنامهٔ کار**: `docs/PLATFORM_ROADMAP.md`
@@ -146,7 +146,7 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 ## 🔐 Auth
 - bootstrap admin فقط در اولین initialization و با password الزامی از secret store ساخته می‌شود؛ password پیش‌فرض وجود ندارد.
 - وب: `AuthService` مستقیماً PBKDF2 را سمت سرور بررسی می‌کند و نشست در `UserSession` هر circuit است.
-- MAUI: فرم ورود فقط نام کاربری و رمز را می‌گیرد. `POST /api/mobile/login` همان بررسی PBKDF2 ورود وب را انجام می‌دهد و پس از ورود موفق رشتهٔ اتصال سرور را رمزگذاری‌شده (کلید مشتق از رمز ورود) برمی‌گرداند؛ رشتهٔ رمزگشایی‌شده فقط در حافظهٔ اپ است.
+- MAUI: فرم ورود و بررسی PBKDF2 دقیقاً همان مسیر وب است (`AuthService` محلی). تنها تفاوت: اگر هنوز رشتهٔ اتصال در حافظه نیست، یک‌بار `POST /api/mobile/connection` آن را رمزگذاری‌شده می‌آورد (سرور همان اعتبار را می‌سنجد)؛ رشتهٔ رمزگشایی‌شده فقط در حافظهٔ اپ است.
 - مدیریت کاربران در `/central/users`
 
 ## 🗄️ Data Layer
@@ -166,7 +166,7 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 - `Tarazin.Maui/MainPage.xaml`: `BlazorWebView` + `RootComponent` → `Tarazin.App` (از `Tarazin.Ui`)
 - `wwwroot/index.html`: اسکریپت رانتایم `_framework/blazor.webview.js` (نه server.js)
 - `appsettings.json` فقط `ServerEndpoint` عمومی HTTPS دارد؛ secret در package/IL قرار نمی‌گیرد.
-- login رشتهٔ اتصال رمزگذاری‌شده را از `POST /api/mobile/login` می‌گیرد؛ سپس همان `DbService` و اسکریپت‌های نامدار مستقیم اجرا می‌شوند. logout باعث پاک‌سازی حافظه/pool می‌شود.
+- login کاملاً محلی و مشترک با وب است؛ رشتهٔ اتصال فقط یک‌بار از `POST /api/mobile/connection` bootstrap می‌شود؛ سپس همان `DbService` و اسکریپت‌های نامدار مستقیم اجرا می‌شوند. logout باعث پاک‌سازی حافظه/pool می‌شود.
 - رشتهٔ اتصال در حافظهٔ یک کلاینت compromise‌شده قابل استخراج است؛ دفاع بر TLS، احراز هویت کاربر و عدم نگه‌داری محلی است، نه رمزنگاری با کلید دائمی داخل اپ.
 - سازگاری runtime مستقیم SqlClient برای هر target باید در build/E2E همان پلتفرم تأیید شود.
 - **پیش‌نیاز build محلی**: TFMهای `net8.0-android/ios/maccatalyst/windows` نیازمند
@@ -178,7 +178,7 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 ## ❌ Explicit Bans
 - ❌ پروژه/پکیج جدید خارج از پنج‌تایی `Share / Data / Ui / Web / Maui`
 - ❌ صفحهٔ جدید خارج از `Tarazin.Ui/Modules`؛ مدل جدید خارج از `Tarazin.Share`
-- ❌ وابستگی معکوس (Data → Ui یا Ui → Web) و HTTP برای CRUD/business data؛ endpoint ورود MAUI و feed رسمی بازار استثناهای مشخص‌اند
+- ❌ وابستگی معکوس (Data → Ui یا Ui → Web) و HTTP برای CRUD/business data؛ endpoint bootstrap اتصال MAUI و feed رسمی بازار استثناهای مشخص‌اند
 - ❌ Bootstrap دستی، CSS سفارشی زیاد، DataGrid سفارشی (همه MudBlazor)
 - ❌ SQL خام در `.razor` و تعریف `DbService` در هاست‌ها
 - ❌ پرسیدن دوبارهٔ ساختار از کاربر

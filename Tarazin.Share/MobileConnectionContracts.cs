@@ -1,25 +1,28 @@
 namespace Tarazin.Models;
 
 /// <summary>
-/// MAUI login request: just username and password over HTTPS.
-/// The password lives only in request memory and is also the (SHA-256-derived)
-/// key input for decrypting the delivered connection string.
+/// One-time MAUI connection bootstrap request: just username and password over
+/// HTTPS. The server verifies them exactly like the web login (PBKDF2 against
+/// [central].[Users]) before handing out anything. The password's own SHA-256
+/// is also the key input under which the connection string is encrypted, so
+/// the client that typed a wrong password cannot decrypt the answer anyway.
 /// </summary>
-public sealed class MobileLoginRequest
+public sealed class ConnectionBootstrapRequest
 {
     public string Username { get; set; } = "";
     public string Password { get; set; } = "";
 }
 
 /// <summary>
-/// Successful login payload: the signed-in user plus the server connection
-/// string, encrypted with AES-256-CBC under a key derived from the login
-/// password (SHA-256). MAUI derives the same key from the password the user
-/// just typed and decrypts it in memory — no key is stored in the app package.
+/// Successful bootstrap payload: the server's SQL connection string, encrypted
+/// with AES-256-CBC under a key derived from the login password (SHA-256).
+/// MAUI derives the same key from the password the user just typed and
+/// decrypts it in memory — no key is stored in the app package. After this
+/// single call, MAUI runs fully in-process exactly like the web host (local
+/// PBKDF2 login + DbService); no server session exists.
 /// </summary>
-public sealed class MobileLoginResponse
+public sealed class ConnectionBootstrapResponse
 {
-    public UserRow User { get; set; } = new();
     /// <summary>Encrypted connection string: ENC:Base64(IV + AES-CBC ciphertext).</summary>
     public string EncryptedConnectionString { get; set; } = "";
     /// <summary>Hint for diagnostics only: database name, never the full secret.</summary>

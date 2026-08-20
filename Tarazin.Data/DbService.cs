@@ -8,8 +8,9 @@ namespace Tarazin.Data;
 /// <summary>
 /// Executes named TSQL scripts against the single <c>TarazinMaster</c>
 /// database using Dapper in the current host process. The Web host obtains its
-/// connection from server-only configuration; MAUI obtains a short-lived,
-/// customer-bound credential from the HTTPS broker and keeps it in memory.
+/// connection from server-only configuration; MAUI bootstraps the same server
+/// connection string once from the Web host (encrypted, password-derived key)
+/// and keeps it in memory.
 ///
 /// There is no business-data HTTP transport. The schema is the scope guard:
 /// each product module only calls scripts of its own schema, and every script

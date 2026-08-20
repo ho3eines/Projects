@@ -1,9 +1,10 @@
 # TODO — ترازین (مدیریت هوشمند کسب‌وکار) — Blazor Hybrid
 
 > **وضعیت کلی (۱۴۰۵/۰۵/۲۹):** هستهٔ مشترک و Web پیاده‌سازی و static-review
-> شده‌اند. مسیر ورود MAUI به درخواست مالک پروژه ساده‌سازی شد: مدل broker
-> (CustomerGuid/session/tz_m_*) حذف و با `POST /api/mobile/login` (PBKDF2 مثل وب +
-> رشتهٔ اتصال رمزگذاری‌شده با کلید مشتق از رمز ورود) جایگزین شد. release هنوز نیازمند
+> شده‌اند. اتصال MAUI به درخواست مالک پروژه ساده‌سازی شد: مدل broker
+> (CustomerGuid/session/tz_m_*) حذف شد؛ ورود در هر دو هاست **محلی و یکسان** است
+> (`AuthService`/PBKDF2) و API فقط یک‌بار رشتهٔ اتصال رمزگذاری‌شده را تحویل می‌دهد
+> (`POST /api/mobile/connection`، کلید مشتق از رمز ورود). release هنوز نیازمند
 > build و تست پویا با SQL Server واقعی است (SDK/SQL tooling در sandbox موجود نبود).
 > CI و staging باید build هر دو هاست، همهٔ اسکنرها، ورود وب/MAUI و artifact scan را
 > پیش از production سبز کنند. مطابق Legend، هنوز چیزی Deploy نشده است.

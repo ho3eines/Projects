@@ -1,7 +1,7 @@
 # کانکشن استرینگ رمزگذاری‌شده: از appsettings.json به API و MAUI
 
-**تاریخ:** ۱۴۰۵/۰۵/۲۹ — نسخه ۳ (مدل ساده‌شده به درخواست مالک پروژه)  
-**وضعیت:** پیاده‌سازی ساده: یک endpoint ورود، رمزگذاری در API، رمزگشایی در MAUI
+**تاریخ:** ۱۴۰۵/۰۵/۲۹ — نسخه ۴ (ورود محلی مشترک در هر دو هاست؛ API فقط bootstrap یک‌باره)  
+**وضعیت:** رمزگذاری در API، رمزگشایی در MAUI؛ ورود همیشه همان مسیر محلی مشترک
 
 ---
 
@@ -12,19 +12,21 @@ Tarazin.Web/appsettings.json  ── رشته درست و plain (یا ENC: اخ�
         │  TarazinConnection.Resolve()  (اعتبارسنجی + Encrypt/TrustServerCertificate)
         ▼
 Tarazin.Web (حافظهٔ سرور)  ── plaintext فقط در RAM سرور
-        │  POST /api/mobile/login  { username, password }
-        │  ۱) بررسی PBKDF2 روی [central].[Users] — دقیقاً همان ورود وب
+        │  POST /api/mobile/connection  { username, password }   ← فقط یک‌بار (bootstrap)
+        │  ۱) بررسی PBKDF2 روی [central].[Users] — دقیقاً همان بررسی ورود وب
         │  ۲) **اینجا** رمزگذاری با AES-256-CBC، کلید = SHA-256(رمز ورود)
         ▼  HTTPS (TLS) + بدنهٔ ENC:Base64(IV+Ciphertext)
 Tarazin.Maui (حافظهٔ اپ)  ── کلید = SHA-256(همان رمز تایپ‌شده) ← رمزگشایی فقط در RAM
         │  هیچ کلید یا شناسه‌ای در بستهٔ اپ ذخیره نمی‌شود
+        │  **ورودِ واقعی محلی است** (همان AuthService وب: PBKDF2 ← DbService)
         ▼
 UI / DbService / SqlConnection (Encrypt=true, TrustServerCertificate=true) → SQL Server
 ```
 
 هیچ session، nonce، توکن، registry مشتری یا principal موقت SQL (`tz_m_*`) وجود
-ندارد؛ MAUI پس از ورود با همان هویت اتصالِ سرور کار می‌کند و خروج از حساب فقط
-پاک‌سازی محلی حافظه و connection pool است.
+ندارد؛ حتی خودِ ورود هم از طریق API انجام نمی‌شود. MAUI پس از bootstrap با همان
+هویت اتصالِ سرور کار می‌کند و خروج از حساب فقط پاک‌سازی محلی حافظه و connection
+pool است (ورود بعدی در صورت پاک‌شدن، دوباره bootstrap می‌کند).
 
 ---
 
@@ -52,19 +54,21 @@ DNS/IPای اشاره کند که از دستگاه MAUI reachable باشد.
 
 ## ۲. سمت API (`Tarazin.Web/MobileConnectionService.cs` + Program.cs)
 
-`POST /api/mobile/login` با بدنهٔ `{ "username": "...", "password": "..." }`:
+`POST /api/mobile/connection` با بدنهٔ `{ "username": "...", "password": "..." }`
+(فقط یک‌بار، پیش از اولین ورود محلی):
 
 1. `PasswordHasher.Verify` روی hash ذخیره‌شده (برای کاربر ناشناخته یک hash
    ساختگی تأیید می‌شود تا timing یکسان بماند). کاربر غیرفعال/رمز اشتباه →
-   پاسخ `401` با کد `invalid_credentials`.
+   پاسخ `401` با کد `invalid_credentials`. ردیف کاربر به کلاینت برنمی‌گردد —
+   ورود واقعی جداگانه و محلی است.
 2. پس از احراز موفق:
    ```csharp
    var key = ConnectionStringProtector.DeriveKeyFromSecret(request.Password); // SHA-256
    var encrypted = ConnectionStringProtector.EncryptWithKeyBytes(connectionString, key);
    CryptographicOperations.ZeroMemory(key);
    ```
-   پاسخ: `{ user, encryptedConnectionString, database }` — hash رمز هرگز در
-   پاسخ نیست.
+   پاسخ: `{ encryptedConnectionString, database }` — هیچ دادهٔ کاربری یا hashی
+   در پاسخ نیست.
 3. endpoint: `no-store`، rate limit ثابت، سقف body ۸KB، و در production فقط
    HTTPS (`426 https_required`).
 
@@ -75,6 +79,13 @@ credential/connection.
 
 ## ۳. سمت MAUI (`Tarazin.Maui/ApiConnectionSession.cs`)
 
+ورود دقیقاً همان کد وب است — `AuthService.AuthenticateAsync` روی
+`UserAuthenticate` + PBKDF2 محلی. تنها قدم اضافه: اگر هنوز رشتهٔ اتصال در حافظه
+نیست (`IConnectionBootstrapper.IsReady == false`)، همان نام کاربری/رمز به API
+می‌رود تا رشتهٔ رمزگذاری‌شده گرفته شود؛ اگر سرور `401` بدهد، رابط کاربری همان پیام
+وب («نام کاربری یا رمز عبور صحیح نیست») را نشان می‌دهد. رفتار UI در هر دو هاست
+یکی است.
+
 پیکربندی اپ فقط این است (`Tarazin.Maui/appsettings.json`):
 
 ```json
@@ -84,7 +95,7 @@ credential/connection.
 (در production می‌توان با متغیر محیطی `TARAZIN_SERVER_ENDPOINT` فقط همین نشانی
 غیرمحرمانه را override کرد.)
 
-بعد از ورود موفق:
+بعد از bootstrap موفق:
 
 1. کلید را از همان رمز تایپ‌شده مشتق می‌کند (`DeriveKeyFromSecret`)،
 2. `DecryptWithKeyBytes(ENC:...)` → رشتهٔ اتصال،

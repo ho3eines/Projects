@@ -4,19 +4,21 @@ using Tarazin.Models;
 namespace Tarazin.Services;
 
 /// <summary>
-/// Preserves the existing login service while selecting the host-appropriate
-/// preparation path: Web verifies directly on the server; MAUI first calls the
-/// HTTPS credential broker and only then enables direct named-script SQL calls.
+/// One identical login flow for both hosts. Web verifies directly on the
+/// server; MAUI runs the very same local PBKDF2 check — the only difference is
+/// that on a cold start the MAUI provider first fetches the encrypted
+/// connection string from the Web host (<see cref="IConnectionBootstrapper"/>),
+/// and that API verifies the same credentials before delivering it.
 /// </summary>
 public sealed class AuthService
 {
     private readonly DbService _db;
-    private readonly IRemoteAuthenticationService? _remote;
+    private readonly IConnectionBootstrapper? _bootstrapper;
 
-    public AuthService(DbService db, IEnumerable<IRemoteAuthenticationService> remoteServices)
+    public AuthService(DbService db, IEnumerable<IConnectionBootstrapper> bootstrappers)
     {
         _db = db;
-        _remote = remoteServices.SingleOrDefault();
+        _bootstrapper = bootstrappers.SingleOrDefault();
     }
 
     /// <summary>Returns the signed-in user, or null on bad credentials.</summary>
@@ -28,10 +30,15 @@ public sealed class AuthService
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             return null;
 
-        if (_remote is not null)
+        // MAUI cold start: the connection string is not in memory yet. Fetch it
+        // once from the Web host; the API verifies these credentials and
+        // returns false for wrong ones — the UI then shows exactly the same
+        // message as the local path below. Already-bootstrapped sessions skip
+        // this entirely, so steady-state login never touches the network.
+        if (_bootstrapper is not null && !_bootstrapper.IsReady &&
+            !await _bootstrapper.BootstrapAsync(username.Trim(), password, ct))
         {
-            // MAUI: verify via the Web host (POST /api/mobile/login).
-            return await _remote.AuthenticateAsync(username.Trim(), password, ct);
+            return null;
         }
 
         var user = await _db.QueryFirstOrDefaultAsync<UserRow>(

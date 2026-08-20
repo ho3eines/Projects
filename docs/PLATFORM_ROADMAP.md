@@ -11,14 +11,14 @@
 ```
 Tarazin.Share (models) ← Tarazin.Data (data layer, embedded scripts) ← Tarazin.Ui (UI RCL)
 ├── Tarazin.Web   → Blazor Server + mobile login endpoint (HTTPS)
-└── Tarazin.Maui  → POST /api/mobile/login → encrypted connection string → in-memory decrypt
+└── Tarazin.Maui  → local shared login; one-time POST /api/mobile/connection → encrypted connection string → in-memory decrypt
         └── existing direct DbService operations → SQL Server / TarazinMaster
                 [central] [accounting] [inventory] [treasury]
                 [payroll] [goldshop] [store]
 ```
 
 No separate ports per product, no public CRUD web API, no WASM clients, and no
-HTTP business-data layer. The mobile login endpoint is the narrow exception.
+HTTP business-data layer. The mobile connection bootstrap endpoint is the narrow exception.
 
 ## 1. Implementation status (2026-08-12)
 

@@ -2,7 +2,7 @@
 """Static and publish-artifact regression checks for MAUI connection safety.
 
 Simplified model (2026-08-20, product-owner decision): MAUI logs in with
-username/password over HTTPS (POST /api/mobile/login); the Web host verifies
+username/password over HTTPS (POST /api/mobile/connection); the Web host verifies
 the credentials and returns its SQL connection string encrypted with a key
 derived from the login password. MAUI decrypts it in memory and executes SQL
 directly — no broker sessions, tenant registries, or temporary SQL principals.
@@ -179,7 +179,7 @@ def scan_configuration(errors: list[str]) -> None:
     # exactly one non-secret value — the public HTTPS endpoint of the Web host.
     # No connection string, key, token, or tenant identifier is packaged; the
     # SQL connection string is delivered only encrypted (derived from the login
-    # password) by POST /api/mobile/login.
+    # password) by POST /api/mobile/connection.
     if not isinstance(maui, dict) or set(maui) != {"ServerEndpoint"}:
         fail(errors, "Tarazin.Maui/appsettings.json must contain exactly one key: ServerEndpoint")
     elif not isinstance(maui["ServerEndpoint"], str) or not maui["ServerEndpoint"].startswith("https://"):
@@ -250,12 +250,14 @@ def scan_source() -> list[str]:
         r"GetManifestResourceStream\(\"Tarazin\.Maui\.appsettings\.json\"\)",
         r"TARAZIN_SERVER_ENDPOINT",
         r"AddSingleton<ISqlConnectionProvider>.*ApiConnectionSession",
+        r"AddSingleton<IConnectionBootstrapper>.*ApiConnectionSession",
     ), errors)
     if re.search(r"TARAZIN_SQL_CONNECTION|GetConnectionString|ConnectionStrings", maui_program):
         fail(errors, "Tarazin.Maui/MauiProgram.cs must not load server SQL configuration")
 
     remote = require("Tarazin.Maui/ApiConnectionSession.cs", (
-        r"api/mobile/login",
+        r"api/mobile/connection",
+        r"BootstrapAsync",
         r"ConnectionStringProtector",
         r"DeriveKeyFromSecret",
         r"DecryptWithKeyBytes",
@@ -292,8 +294,8 @@ def scan_source() -> list[str]:
         r"catch \(ArgumentException\).*server-side SQL connection configuration is invalid",
     ), errors)
     web_program = require("Tarazin.Web/Program.cs", (
-        r"MapPost\(\"/api/mobile/login\"",
-        r"RequireRateLimiting\(\"credential-broker\"\)",
+        r"MapPost\(\"/api/mobile/connection\"",
+        r"RequireRateLimiting\(\"mobile-connection\"\)",
         r"!http\.Request\.IsHttps\s*&&\s*!app\.Environment\.IsDevelopment\(\)",
         r"CacheControl\s*=\s*\"no-store, no-cache, max-age=0\"",
         r"RequestSizeLimitAttribute",
@@ -314,7 +316,7 @@ def scan_source() -> list[str]:
         r"IsDeleted = 0",
         r"_dummyPasswordHash",
         r"invalid_credentials",
-        r"user\.PasswordHash = \"\"",
+        r"BootstrapAsync",
     ), errors)
     require("Tarazin.Maui/Platforms/Android/AndroidManifest.xml", (
         r"android:allowBackup=\"false\"",
