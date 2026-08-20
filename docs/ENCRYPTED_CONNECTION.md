@@ -22,7 +22,7 @@ Tarazin.Web (حافظهٔ سرور)  ── plaintext فقط در RAM سرور
 Tarazin.Maui (حافظهٔ اپ)  ── رمزگشایی با همان کلید مشتق از توکن، فقط در RAM
         │  سپس ارسال به UI (DbService / SqlConnection)
         ▼
-UI / SqlConnection (Encrypt=true, TrustServerCertificate=false) → SQL Server
+UI / SqlConnection (Encrypt=true, TrustServerCertificate=true) → SQL Server
 ```
 
 **نکته:** پشتیبانی از `ENC:` برای حالت at-rest همچنان در کد باقی است (برای کسانی که بخواهند فایل را هم رمزگذاری کنند)، اما پیش‌فرض فعلی دقیقاً مطابق درخواست شما **plain در فایل Web** است.
@@ -36,7 +36,7 @@ UI / SqlConnection (Encrypt=true, TrustServerCertificate=false) → SQL Server
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=example.invalid;Database=TarazinMaster;User Id=sa;Password=changeme;Encrypt=True;TrustServerCertificate=False;Application Name=Tarazin"
+    "DefaultConnection": "Server=example.invalid;Database=TarazinMaster;User Id=sa;Password=changeme;Encrypt=True;TrustServerCertificate=True;Application Name=Tarazin"
   }
 }
 ```
@@ -95,7 +95,7 @@ return new EncryptedConnectionResponse { EncryptedConnectionString = encrypted, 
 1. `FetchDecryptedMasterConnectionStringAsync()` → `POST /api/mobile/connection/encrypted`
 2. `DeriveKeyFromToken(sessionToken)` → `DecryptWithKeyBytes(ENC:..., key)` → `plaintext`
 3. `SqlConnectionStringBuilder` اعتبارسنجی → `CredentialState` فقط در RAM
-4. `OpenConnectionAsync()` آن را با `Encrypt=true, TrustServerCertificate=false` به `DbService` و سپس به UI می‌دهد
+4. `OpenConnectionAsync()` آن را با `Encrypt=true, TrustServerCertificate=true` به `DbService` و سپس به UI می‌دهد
 5. در `RevokeAndClearAsync()` یا انقضا، RAM و Pool پاک می‌شود
 
 `UseEncryptedMaster=false` مجاز نیست و `RemoteCredentialSession` در استارتاپ با خطا رد می‌شود (قانون پروژه: رشتهٔ اتصال فقط از API و فقط رمزگذاری‌شده).
@@ -122,7 +122,7 @@ var plain = await credentialSession.FetchDecryptedMasterConnectionStringAsync();
 ## ۵. چک‌لیست استقرار
 
 - [ ] `Tarazin.Web/appsettings.json` را با رشته درست plain برای dev پر کنید (یا در تولید فقط `TARAZIN_SQL_CONNECTION` را از Secret Manager تزریق کنید)
-- [ ] `CredentialBroker:PublicSqlServer` را به DNS/IP قابل‌دسترسی از MAUI با گواهی SQL معتبر تغییر دهید
+- [ ] `CredentialBroker:PublicSqlServer` را به DNS/IP قابل‌دسترسی از MAUI تغییر دهید
 - [ ] `Tarazin.Maui/appsettings.json` را فقط با `ServerEndpoint` و `CustomerGuid` و `UseEncryptedMaster:true` (الزامی) بسته‌بندی کنید
 - [ ] `dotnet build Tarazin.Web` و اسکن‌ها سبز — سپس E2E: `login → FetchDecryptedMaster → query → revoke`
 

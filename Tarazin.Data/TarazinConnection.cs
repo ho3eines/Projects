@@ -50,14 +50,14 @@ public static class TarazinConnection
                     "The server-side SQL connection configuration is incomplete.");
             }
 
-            // Server-to-SQL traffic is sensitive too. Do not let a deployment
-            // secret silently downgrade encryption or certificate validation.
-            // Certificate validation is always enforced — ADR-004: no target
-            // may add a certificate bypass, Development included. For a local
-            // SQL Server with a self-signed certificate, install a trusted
-            // certificate instead.
+            // Server-to-SQL traffic stays encrypted. Certificate validation is
+            // disabled by operator decision (2026-08-20): the app connects with
+            // TrustServerCertificate=true so any SQL Server certificate is
+            // accepted (the channel remains encrypted with Encrypt=true). This
+            // avoids the self-signed-certificate TLS failure on local/dev SQL
+            // Servers entirely. See docs/CONNECTION_TROUBLESHOOTING.md.
             builder.Encrypt = true;
-            builder.TrustServerCertificate = false;
+            builder.TrustServerCertificate = true;
             builder.PersistSecurityInfo = false;
 
             if (builder.ConnectTimeout <= 0 || builder.ConnectTimeout > 60)

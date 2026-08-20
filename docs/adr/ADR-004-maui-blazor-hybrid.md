@@ -1,9 +1,16 @@
 # ADR-004: MAUI Blazor Hybrid host — one shared UI, two hosts
 
-- **Status**: Accepted, security amendment 2026-08-18
+- **Status**: Accepted, security amendment 2026-08-18, TLS amendment 2026-08-20
 - **Date**: 2026-08-12
 - **Relates to**: PRD v2.1 (Blazor Hybrid), ADR-001 (shared core), ADR-003 (contracts)
 - **Technical story**: adds a native desktop/mobile shell on top of the shared UI.
+
+> **TLS amendment 2026-08-20 (تصمیم مالک پروژه):** بند «بدون bypass گواهی» این ADR
+> ملغی می‌شود. اتصال SQL در همهٔ محیط‌ها با `Encrypt=true` و
+> `TrustServerCertificate=true` ساخته می‌شود: رمزنگاری کانال الزامی می‌ماند، اما
+> اعتبارسنجی گواهی SQL Server غیرفعال است تا گواهی خودامضای SQL محلی خطای TLS
+> («گواهی SQL Server توسط این دستگاه تأیید نمی‌شود») ایجاد نکند. پیامد: اصالت
+> سرور SQL احراز نمی‌شود؛ برای استقرارهای حساس ریسک را با شبکه مقایسه کنید.
 
 > **Security amendment (v2 — قانون پروژه، به درخواست مالک محصول):** اشتراک UI و
 > مسیر `DbService` حفظ شده است، اما MAUI دیگر connection string دائمی را

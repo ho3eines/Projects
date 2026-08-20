@@ -43,7 +43,7 @@ HTTP business-data layer. The broker is the narrow control-plane exception.
 |---|---|
 | 8 | `ci/ci.yml` را با دسترسی workflows به `ci/ci.yml` منتقل، روی runner سبز و artifact scan را بازبینی کنید |
 | 9 | تست E2E/adversarial broker، RLS، فرم‌ها، گزارش‌ها و audit با SQL واقعی و Web/MAUI |
-| 10 | مسیر مستقیم SqlClient را روی Android/iOS تأیید کنید؛ فقط در صورت عدم پشتیبانی، fallback بدون secret دائمی/TLS bypass طراحی شود |
+| 10 | مسیر مستقیم SqlClient را روی Android/iOS تأیید کنید؛ فقط در صورت عدم پشتیبانی، fallback بدون credential دائمی طراحی شود |
 | 11 | بکاپ خودکار دیتابیس (یا پلن نگهداری) |
 | 12 | مستندسازی کاربر نهایی (راهنمای هر ماژول + راهنمای نصب اپ) |
 

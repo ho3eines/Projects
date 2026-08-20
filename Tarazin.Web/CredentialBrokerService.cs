@@ -1020,13 +1020,15 @@ public sealed class CredentialBrokerService
                 Password = principal.Password,
                 ExpiresAtUtc = principal.ExpiresAtUtc,
                 Encrypt = true,
-                TrustServerCertificate = false
+                TrustServerCertificate = true
             }
         };
 
-        // SQL certificate validation stays enabled in every environment. Local
-        // development needs a locally trusted SQL certificate, not a client-side
-        // validation bypass embedded in the credential response.
+        // Certificate validation is disabled by operator decision (2026-08-20):
+        // the credential response keeps encryption (Encrypt=true) but accepts
+        // any SQL Server certificate (TrustServerCertificate=true), matching
+        // the server-side TarazinConnection policy so MAUI connects the same
+        // way and the local self-signed-certificate TLS failure cannot occur.
         return response;
     }
 
