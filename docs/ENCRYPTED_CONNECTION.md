@@ -77,10 +77,10 @@ return new EncryptedConnectionResponse { EncryptedConnectionString = encrypted, 
 
 | مسیر | توصیف | پیش‌فرض |
 |------|--------|---------|
-| کوتاه‌عمر (least-privilege) | `login → credential موقت tz_m_*` با RLS | **فعال** |
-| مستر رمزگذاری‌شده (درخواست شما) | `appsettings.json plain → API per-session ENC: → MAUI decrypt → UI` | اختیاری |
+| کوتاه‌عمر (least-privilege) | `login → credential موقت tz_m_*` با RLS | حذف‌شده از مسیر SQL (فقط دفترچهٔ نشست) |
+| مستر رمزگذاری‌شده (قانون پروژه) | `appsettings.json plain → API per-session ENC: → MAUI decrypt → UI` | **تنها مسیر (پیش‌فرض و اجباری)** |
 
-برای فعال‌سازی مسیر مستر (همان خواستهٔ شما) در `Tarazin.Maui/appsettings.json`:
+مسیر مستر (قانون و پیش‌فرض پروژه) در `Tarazin.Maui/appsettings.json`:
 
 ```json
 {
@@ -98,7 +98,7 @@ return new EncryptedConnectionResponse { EncryptedConnectionString = encrypted, 
 4. `OpenConnectionAsync()` آن را با `Encrypt=true, TrustServerCertificate=false` به `DbService` و سپس به UI می‌دهد
 5. در `RevokeAndClearAsync()` یا انقضا، RAM و Pool پاک می‌شود
 
-اگر `UseEncryptedMaster=false` بماند، رفتار امن کوتاه‌عمر حفظ می‌شود اما متد `FetchDecryptedMasterConnectionStringAsync()` همچنان به‌صورت دستی قابل صدا زدن است:
+`UseEncryptedMaster=false` مجاز نیست و `RemoteCredentialSession` در استارتاپ با خطا رد می‌شود (قانون پروژه: رشتهٔ اتصال فقط از API و فقط رمزگذاری‌شده).
 
 ```csharp
 var plain = await credentialSession.FetchDecryptedMasterConnectionStringAsync();
@@ -123,7 +123,7 @@ var plain = await credentialSession.FetchDecryptedMasterConnectionStringAsync();
 
 - [ ] `Tarazin.Web/appsettings.json` را با رشته درست plain برای dev پر کنید (یا در تولید فقط `TARAZIN_SQL_CONNECTION` را از Secret Manager تزریق کنید)
 - [ ] `CredentialBroker:PublicSqlServer` را به DNS/IP قابل‌دسترسی از MAUI با گواهی SQL معتبر تغییر دهید
-- [ ] `Tarazin.Maui/appsettings.json` را فقط با `ServerEndpoint` و `CustomerGuid` (و در صورت نیاز `UseEncryptedMaster:true`) بسته‌بندی کنید
+- [ ] `Tarazin.Maui/appsettings.json` را فقط با `ServerEndpoint` و `CustomerGuid` و `UseEncryptedMaster:true` (الزامی) بسته‌بندی کنید
 - [ ] `dotnet build Tarazin.Web` و اسکن‌ها سبز — سپس E2E: `login → FetchDecryptedMaster → query → revoke`
 
 ---
@@ -137,5 +137,5 @@ var plain = await credentialSession.FetchDecryptedMasterConnectionStringAsync();
 - `Tarazin.Web/Program.cs` — `POST /api/mobile/connection/encrypted`
 - `Tarazin.Maui/RemoteCredentialSession.cs` — `FetchDecryptedMaster…` و `UseEncryptedMaster`
 - `Tarazin.Web/appsettings.json` — **plain (درست)**، بدون ENC: طبق درخواست
-- `Tarazin.Maui/appsettings.json` — `UseEncryptedMaster` اختیاری
+- `Tarazin.Maui/appsettings.json` — `UseEncryptedMaster: true` (اجباری — تنها مسیر)
 - `tools/security-regression-scan.py` — اجازهٔ plain localhost در Web

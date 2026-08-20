@@ -28,6 +28,12 @@ await Db.ExecuteAsync("SELECT * FROM Documents WHERE ...", null);
 // ❌ token/AES/handshake plumbing (v1.5)
 Request.SetUserToken(fromUrl);
 
+// ❌ MAUI: SQL connection string from anywhere except the encrypted API delivery
+new SqlConnection("Server=...;Password=...");          // hard-coded / packaged
+Configuration["ConnectionStrings:DefaultConnection"];  // MAUI has no such key
+// ❌ MAUI: turning off the encrypted delivery
+//    "ConnectionProtection": { "UseEncryptedMaster": false }  — rejected at startup
+
 // ❌ Bootstrap / hand-rolled CSS classes (h-table, h-card, ...)
 // ❌ custom DataGrid / PersianDatePicker — use MudTable / MudDatePicker
 ```
@@ -49,6 +55,13 @@ SELECT * FROM [store].[Orders];  -- must declare: -- Cross-schema: store
 ```csharp
 var rows = await Db.QueryAsync<DailyDocumentRow>("accounting", "DailyDocuments", param);
 await Db.ExecuteAsync("accounting", "DocumentInsert", param);
+```
+
+MAUI connection string — only this path (قانون):
+
+```text
+login → POST /api/mobile/connection/encrypted (AES per-session, key = SHA-256(token))
+      → decrypt in memory → ISqlConnectionProvider → DbService executes
 ```
 
 ```sql

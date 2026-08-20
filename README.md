@@ -66,9 +66,9 @@ dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
 
 * مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال issuer از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
 * `CredentialBroker:PublicSqlServer` یک نشانی غیرمحرمانهٔ SQL است که **خودِ دستگاه MAUI** باید بتواند به آن برسد. مقدار `localhost` فقط پیش‌فرض توسعهٔ محلیِ Windows است؛ برای شبکه/Android/iOS باید نام DNS یا IP قابل‌دسترسیِ دارای گواهی SQL معتبر تنظیم شود.
-* `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی دارد. شناسه از فرم ورود یا URL گرفته نمی‌شود. MAUI نام کاربری/رمز و GUID بسته‌بندی‌شده را به broker (`/api/mobile/connection/login`) می‌فرستد و فقط همان SQL credential کوتاه‌عمر، customer-bound و قابل‌لغوِ پاسخ broker را در حافظه نگه می‌دارد؛ endpoint عمومیِ رشتهٔ اتصال وجود ندارد.
+* `Tarazin.Maui/appsettings.json` فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی دارد. شناسه از فرم ورود یا URL گرفته نمی‌شود. MAUI نام کاربری/رمز و GUID بسته‌بندی‌شده را به broker (`/api/mobile/connection/login`) می‌فرستد و **رشتهٔ اتصال SQL را فقط از API و فقط به صورت رمزگذاری‌شده** (`/api/mobile/connection/encrypted`، AES per-session با کلید مشتق از توکن جلسه) دریافت می‌کند؛ رمزگشایی فقط در حافظه و اجرا با `DbService` مشترک است. `UseEncryptedMaster=false` در استارتاپ رد می‌شود.
 * اولین initialization فقط در Web اجرا می‌شود: `_Ensure.sql` → `_Seed.sql` → نقش‌ها/دسترسی‌ها → ساخت مدیر اولیه با password تزریق‌شده. هیچ رمز پیش‌فرضی وجود ندارد.
-* اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از آماده‌سازی credential کوتاه‌عمر همان عملیات مستقیم `DbService` را حفظ می‌کند.
+* اسکریپت‌های نامدار Embedded هستند (`Tarazin.Scripts.{schema}.{name}.sql`)؛ MAUI پس از دریافت رشتهٔ اتصال رمزگذاری‌شده از API، همان عملیات مستقیم `DbService` را اجرا می‌کند.
 
 ---
 

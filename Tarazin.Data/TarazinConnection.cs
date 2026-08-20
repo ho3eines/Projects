@@ -52,11 +52,12 @@ public static class TarazinConnection
 
             // Server-to-SQL traffic is sensitive too. Do not let a deployment
             // secret silently downgrade encryption or certificate validation.
-            // TrustServerCertificate is true only in Development with an explicit
-            // opt-in (see TrustServerCertificateForDevelopment); production always
-            // validates the SQL certificate.
+            // Certificate validation is always enforced — ADR-004: no target
+            // may add a certificate bypass, Development included. For a local
+            // SQL Server with a self-signed certificate, install a trusted
+            // certificate instead.
             builder.Encrypt = true;
-            builder.TrustServerCertificate = TrustServerCertificateForDevelopment();
+            builder.TrustServerCertificate = false;
             builder.PersistSecurityInfo = false;
 
             if (builder.ConnectTimeout <= 0 || builder.ConnectTimeout > 60)
@@ -84,25 +85,6 @@ public static class TarazinConnection
         return config?.GetConnectionString(Name);
     }
 
-    /// <summary>
-    /// Allows <c>TrustServerCertificate=true</c> only in the Development
-    /// environment and only when explicitly requested via
-    /// <c>TARAZIN_SQL_TRUST_SERVER_CERTIFICATE=1</c>. This is the escape hatch for
-    /// a local SQL Server whose auto-generated self-signed certificate cannot pass
-    /// strict chain validation. Every other environment keeps
-    /// <c>TrustServerCertificate=false</c> regardless of configuration, so a
-    /// deployment secret can never silently downgrade server-to-SQL security.
-    /// </summary>
-    private static bool TrustServerCertificateForDevelopment()
-    {
-        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-        if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var flag = Environment.GetEnvironmentVariable("TARAZIN_SQL_TRUST_SERVER_CERTIFICATE");
-        return string.Equals(flag, "1", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(flag, "true", StringComparison.OrdinalIgnoreCase);
-    }
 
     private static string TryDecryptIfNeeded(string value, IConfiguration? config)
     {

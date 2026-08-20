@@ -6,8 +6,9 @@
 Tarazin.Share (models) ← Tarazin.Data (data layer) ← Tarazin.Ui (UI RCL)
 ├── Tarazin.Web   → dotnet run --project Tarazin.Web   https://localhost:65220
 └── Tarazin.Maui  → dotnet build -f net8.0-windows10.0.19041.0 (ویندوز)
-        ├── HTTPS broker login/refresh/revoke (credential preparation only)
-        └── SQL Server — TarazinMaster (temporary customer-bound principal)
+        ├── HTTPS broker: login/refresh/revoke + POST /connection/encrypted
+        │   (رشتهٔ اتصال فقط رمزگذاری‌شده — AES per-session از توکن جلسه)
+        └── SQL Server — TarazinMaster
                 [central] [accounting] [inventory] [treasury]
                 [payroll] [goldshop] [store]
 ```
@@ -16,9 +17,14 @@ One shared core, two connection providers:
 
 - Web reads `ConnectionStrings:DefaultConnection` only from server-side
   deployment secrets and performs database initialization.
-- MAUI configuration contains only the public HTTPS `ServerEndpoint`.
-  `RemoteCredentialSession` obtains short-lived credentials after customer and
-  user authorization and retains them only in process memory.
+- **MAUI law (قانون):** the SQL connection string reaches MAUI **only from
+  the API, in encrypted form** (`POST /api/mobile/connection/encrypted`,
+  AES key derived per-session from the bearer token). `RemoteCredentialSession`
+  decrypts it in process memory only and hands it to the shared UI/data layer
+  (`ISqlConnectionProvider` → `DbService`) for execution. `Tarazin.Maui/appsettings.json`
+  contains only the public HTTPS `ServerEndpoint` + public `CustomerGuid`.
+  A plaintext credential/connection path must not be used;
+  `UseEncryptedMaster=false` is rejected at startup.
 
 ## Startup sequence (Web only)
 
@@ -28,7 +34,8 @@ One shared core, two connection providers:
 3. An initial admin is created only when users are empty and a strong bootstrap
    password was supplied by deployment; no default password exists.
 
-MAUI does not initialize the database and cannot connect to `master`.
+MAUI does not initialize the database (`OpenMasterConnectionAsync` always
+refuses); initialization stays Web-only.
 
 ## Services
 

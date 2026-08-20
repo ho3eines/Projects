@@ -11,9 +11,12 @@ namespace Tarazin.Maui;
 
 /// <summary>
 /// MAUI-only connection session. It authenticates through the Web credential
-/// broker and uses only the short-lived, customer-bound SQL credential returned
-/// by that broker. SQL material is retained only by this process instance and
-/// is never written to preferences, files, SecureStorage, logs, or configuration.
+/// broker and obtains the SQL connection string ONLY from the API, in
+/// encrypted per-session form (ENC: AES, key derived from the bearer token).
+/// The decrypted string lives in process memory only and is handed to the
+/// shared UI/data layer (ISqlConnectionProvider → DbService) for execution.
+/// SQL material is never written to preferences, files, SecureStorage, logs,
+/// or configuration.
 /// </summary>
 public sealed class RemoteCredentialSession :
     ISqlConnectionProvider,
@@ -29,9 +32,9 @@ public sealed class RemoteCredentialSession :
     private readonly bool _useEncryptedMaster;
     private string _sessionToken = "";
     private DateTimeOffset _sessionExpiresAt;
-    private CredentialState? _credential;
-    // Encrypted master connection-string fetched via the authenticated
-    // broker (appsettings.json → API → MAUI, per-session AES).
+    private CredentialState? _credential; // از پاسخ login — فقط دفترچهٔ نشست؛ هرگز برای اتصال SQL استفاده نمی‌شود
+    // رشتهٔ اتصال رمزگذاری‌شدهٔ دریافت‌شده از API (appsettings.json → API → MAUI،
+    // per-session AES) — تنها منبع مجاز اتصال SQL.
     private CredentialState? _masterCredential;
     private DateTimeOffset _masterExpiresAt;
     private string _masterPlaintextCache = "";
@@ -60,13 +63,15 @@ public sealed class RemoteCredentialSession :
             throw new InvalidOperationException("CustomerGuid must be a non-empty GUID in appsettings.json.");
         _customerGuid = customerGuid;
 
-        // Optional encrypted-master mode: when true, after a successful broker
-        // login the same authenticated session is used to fetch the master
-        // connection string encrypted per-session (appsettings.json ENC: → API
-        // → MAUI per-session AES). The decrypted string stays in memory only.
-        // Default false keeps the short-lived least-privilege credential path.
-        _useEncryptedMaster =
-            bool.TryParse(configuration["ConnectionProtection:UseEncryptedMaster"], out var flag) && flag;
+        // قانون پروژه (ADR-004 + docs/ENCRYPTED_CONNECTION.md):
+        // رشتهٔ اتصال SQL فقط از API و فقط به صورت رمزگذاری‌شده دریافت می‌شود؛
+        // بعد از رمزگشایی فقط در حافظه می‌ماند و به UI (DbService) برای اجرا
+        // داده می‌شود. خاموش کردن این مسیر مجاز نیست.
+        if (bool.TryParse(configuration["ConnectionProtection:UseEncryptedMaster"], out var flag) && !flag)
+            throw new InvalidOperationException(
+                "UseEncryptedMaster=false مجاز نیست: رشتهٔ اتصال SQL فقط باید از API به صورت " +
+                "رمزگذاری‌شده دریافت و به UI برای اجرا داده شود (قانون پروژه).");
+        _useEncryptedMaster = true;
 
         _http = new HttpClient
         {
@@ -78,16 +83,14 @@ public sealed class RemoteCredentialSession :
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Tarazin-MAUI/1.0");
     }
 
-    public bool IsAvailable => (_credential is not null || _masterCredential is not null) && !string.IsNullOrWhiteSpace(_sessionToken);
+    public bool IsAvailable => _masterCredential is not null && !string.IsNullOrWhiteSpace(_sessionToken);
     public bool SupportsInitialization => false;
 
-    public string DatabaseName => _masterCredential?.Database ?? _credential?.Database ?? "";
+    public string DatabaseName => _masterCredential?.Database ?? "";
 
-    public string Description => _credential is null && _masterCredential is null
-        ? "اتصال موقت از سرویس وب آماده نیست"
-        : _masterCredential is not null
-            ? "اتصال SQL رمزگذاری‌شدهٔ دریافت‌شده از appsettings.json سرور (per-session AES)"
-            : "اتصال SQL کوتاه‌عمر دریافت‌شده از سرویس وب";
+    public string Description => _masterCredential is not null
+        ? "اتصال SQL رمزگذاری‌شدهٔ دریافت‌شده از API (per-session AES) — اجرا در UI"
+        : "رشتهٔ اتصال رمزگذاری‌شده از API دریافت نشده است";
 
     public async Task<UserRow?> AuthenticateAsync(
         string username,
@@ -139,25 +142,21 @@ public sealed class RemoteCredentialSession :
             ThrowIfDisposed();
             Apply(result);
 
-            // Appsettings.json → API → MAUI encrypted path:
-            // If the MAUI configuration opts into encrypted-master mode,
-            // immediately fetch the per-session encrypted master connection
-            // string (Web's appsettings.json ENC: → API per-session AES) so
-            // the caller can use the issuer string without a static key in
-            // the MAUI package. Failures here do not roll back the login —
-            // the short-lived credential remains usable.
-            if (_useEncryptedMaster)
+            // Appsettings.json → API → MAUI encrypted path — تنها مسیر مجاز:
+            // بلافاصله بعد از login، رشتهٔ اتصال به صورت رمزگذاری‌شدهٔ per-session
+            // (کلید AES مشتق از توکن جلسه) از API گرفته و در حافظه رمزگشایی
+            // می‌شود تا UI آن را اجرا کند. اگر این مرحله شکست بخورد، هیچ مسیر
+            // جایگزینی برای اتصال SQL وجود ندارد؛ OpenConnectionAsync پیام روشن
+            // می‌دهد و کاربر می‌تواند دوباره وارد شود یا
+            // FetchDecryptedMasterConnectionStringAsync را صدا بزند.
+            try
             {
-                try
-                {
-                    await FetchAndCacheEncryptedMasterCoreAsync(ct);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    // Keep the short-lived credential; encrypted master is
-                    // best-effort in this mode. The caller can retry via
-                    // FetchDecryptedMasterConnectionStringAsync().
-                }
+                await FetchAndCacheEncryptedMasterCoreAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // ورود موفق باقی می‌ماند؛ اما اتصال SQL تا دریافت رشتهٔ
+                // رمزگذاری‌شده از API ممکن نیست (قانون: فقط API + رمزگذاری‌شده).
             }
 
             return result.User;
@@ -186,10 +185,9 @@ public sealed class RemoteCredentialSession :
     {
         ThrowIfDisposed();
 
-        // Encrypted-master mode takes precedence when available: the decrypted
-        // issuer connection string (from Web's encrypted appsettings.json, via
-        // per-session AES) is used directly. Its lifetime follows the broker
-        // credential lifetime; re-fetch when near expiry.
+        // The decrypted issuer connection string (from the API, per-session
+        // AES) is the ONLY SQL source. Its lifetime follows the broker
+        // session; re-fetch when near expiry.
         if (_masterCredential is not null)
         {
             await RefreshEncryptedMasterIfNeededAsync(ct);
@@ -209,24 +207,10 @@ public sealed class RemoteCredentialSession :
             }
         }
 
-        // Default: short-lived least-privilege credential with proactive refresh.
-        await RefreshIfNeededAsync(ct);
-
-        var credential = _credential;
-        if (credential is null)
-            throw new InvalidOperationException("Authenticate through the secure API before using SQL.");
-
-        var connection = new SqlConnection(BuildConnectionString(credential));
-        try
-        {
-            await connection.OpenAsync(ct);
-            return connection;
-        }
-        catch
-        {
-            await connection.DisposeAsync();
-            throw;
-        }
+        // قانون پروژه: اتصال SQL فقط با رشتهٔ رمزگذاری‌شدهٔ دریافت‌شده از API.
+        // هیچ credential خام/کوتاه‌عمر و هیچ رشتهٔ بسته‌بندی‌شده‌ای استفاده نمی‌شود.
+        throw new InvalidOperationException(
+            "رشتهٔ اتصال رمزگذاری‌شده از API دریافت نشده است؛ دوباره وارد شوید.");
     }
 
     public ValueTask<SqlConnection> OpenMasterConnectionAsync(CancellationToken ct = default)
@@ -383,6 +367,11 @@ public sealed class RemoteCredentialSession :
                 throw new InvalidOperationException("The credential session has expired. Sign in again.");
             }
 
+            // اگر نشست bearer نزدیک انقضاست، اول فقط خودِ نشست را با /refresh
+            // تمدید کن (قانون: رشتهٔ اتصال فقط از /encrypted می‌آید).
+            if (_sessionExpiresAt - DateTimeOffset.UtcNow <= TimeSpan.FromMinutes(5))
+                await RefreshSessionCoreAsync(ct);
+
             await FetchAndCacheEncryptedMasterCoreAsync(ct);
             SqlConnection.ClearAllPools();
         }
@@ -399,9 +388,9 @@ public sealed class RemoteCredentialSession :
 
     private static string BuildConnectionString(CredentialState credential)
     {
-        // These fields were structurally validated before CredentialState was
-        // created. Rebuild a fresh connection string for each connection so no
-        // server-side issuer credential can enter the MAUI process.
+        // These fields were structurally validated when CredentialState was
+        // created (parsed from the decrypted API string). A fresh connection
+        // string is rebuilt for every connection; nothing is persisted.
         var builder = new SqlConnectionStringBuilder
         {
             DataSource = credential.Server,
@@ -442,80 +431,44 @@ public sealed class RemoteCredentialSession :
         }
     }
 
-    private async Task RefreshIfNeededAsync(CancellationToken ct)
+    /// <summary>
+    /// فقط نشست bearer را با /refresh می‌چرخاند. credential داخل پاسخ فقط
+    /// دفترچهٔ نشست است و هرگز برای اتصال SQL استفاده نمی‌شود — رشتهٔ اتصال
+    /// فقط از POST /api/mobile/connection/encrypted می‌آید. فراخوان باید
+    /// lifecycle gate را نگه داشته باشد.
+    /// </summary>
+    private async Task RefreshSessionCoreAsync(CancellationToken ct)
     {
-        var current = _credential;
-        if (current is null)
-            throw new InvalidOperationException("Authenticate through the secure API before using SQL.");
-        if (current.ExpiresAtUtc - DateTimeOffset.UtcNow > TimeSpan.FromMinutes(1))
-            return;
+        var expectedUsername = _credential?.Username ?? "";
+        var refresh = new MobileConnectionRefreshRequest
+        {
+            CustomerGuid = _customerGuid,
+            Nonce = CreateNonce(),
+            TimestampUtc = DateTimeOffset.UtcNow
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/mobile/connection/refresh")
+        {
+            Content = JsonContent.Create(refresh)
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _sessionToken);
+        using var response = await _http.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            throw await CreateSafeExceptionAsync(response, ct);
 
-        await _lifecycleGate.WaitAsync(ct);
+        var result = await response.Content.ReadFromJsonAsync<MobileConnectionResponse>(cancellationToken: ct)
+            ?? throw new SafeAuthenticationException("invalid_response", "پاسخ تمدید اتصال معتبر نیست.");
         try
         {
-            current = _credential;
-            if (current is null)
-                throw new InvalidOperationException("The credential session is unavailable.");
-            if (current.ExpiresAtUtc - DateTimeOffset.UtcNow > TimeSpan.FromMinutes(1))
-                return;
-            if (_sessionExpiresAt <= DateTimeOffset.UtcNow || string.IsNullOrWhiteSpace(_sessionToken))
-            {
-                ClearLocal();
-                throw new InvalidOperationException("The credential session has expired. Sign in again.");
-            }
-
-            var refresh = new MobileConnectionRefreshRequest
-            {
-                CustomerGuid = _customerGuid,
-                Nonce = CreateNonce(),
-                TimestampUtc = DateTimeOffset.UtcNow
-            };
-            using var request = new HttpRequestMessage(HttpMethod.Post, "api/mobile/connection/refresh")
-            {
-                Content = JsonContent.Create(refresh)
-            };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _sessionToken);
-            using var response = await _http.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                ClearLocal();
-                throw await CreateSafeExceptionAsync(response, ct);
-            }
-
-            var result = await response.Content.ReadFromJsonAsync<MobileConnectionResponse>(cancellationToken: ct)
-                ?? throw new SafeAuthenticationException("invalid_response", "پاسخ تمدید اتصال معتبر نیست.");
-            try
-            {
-                ValidateResponse(result, _customerGuid, current.Username);
-            }
-            catch (SafeAuthenticationException)
-            {
-                await RevokeCandidateResponseAsync(result, ct);
-                throw;
-            }
-            ThrowIfDisposed();
-            Apply(result);
-            SqlConnection.ClearAllPools();
+            ValidateResponse(result, _customerGuid, expectedUsername);
         }
-        catch (SafeAuthenticationException ex)
+        catch (SafeAuthenticationException)
         {
-            ClearLocal();
-            throw new InvalidOperationException(SafeMessage(ex.Code));
+            await RevokeCandidateResponseAsync(result, ct);
+            throw;
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            ClearLocal();
-            throw new InvalidOperationException("The secure credential service timed out.");
-        }
-        catch (HttpRequestException)
-        {
-            ClearLocal();
-            throw new InvalidOperationException("The secure credential service is unavailable.");
-        }
-        finally
-        {
-            _lifecycleGate.Release();
-        }
+        ThrowIfDisposed();
+        Apply(result);
+        SqlConnection.ClearAllPools();
     }
 
     private async Task RevokeCandidateResponseAsync(

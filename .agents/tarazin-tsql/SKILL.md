@@ -25,8 +25,9 @@ Five projects with one-way dependencies (`Share ← Data ← Ui ← hosts`):
 UI is **MudBlazor**. Business-data access is **Dapper over named TSQL scripts**
 executed in the current host process — there is no public CRUD Web API or WASM
 data layer. The narrow MAUI credential broker is the only security API: it
-validates customer/user/company authorization and issues short-lived,
-revocable SQL credentials. Scripts are **embedded resources** in
+validates customer/user/company authorization and delivers the SQL connection
+string **only in encrypted form** (per-session AES from the bearer token).
+Scripts are **embedded resources** in
 `Tarazin.Data` so both hosts work without a content root.
 
 ```
@@ -38,7 +39,7 @@ revocable SQL credentials. Scripts are **embedded resources** in
 │        │ DbService.QueryAsync<T>(schema, script)              │
 │   Scripts/{schema}/{Name}.sql (embedded in Data) ── Dapper ─┐ │
 └─────────────────────────────────────────────────────────────┼──┘
-        host: Web (server-only SQL secret) / MAUI (HTTPS credential broker) ▼
+        host: Web (server-only SQL secret) / MAUI (encrypted connection string from API only) ▼
         SQL Server — TarazinMaster (one DB, one schema per product)
         [central] [accounting] [inventory] [treasury]
         [payroll] [goldshop] [store]
@@ -96,12 +97,14 @@ var count = await Db.ScalarAsync("central", "UserCount");
   `[central].[Users]` (PBKDF2), using only server-side SQL configuration.
 - MAUI login also requires `CustomerGuid`. `RemoteCredentialSession` calls the
   HTTPS broker login endpoint with nonce/timestamp and credentials; the broker
-  validates active customer/user/company and authorization before issuing a
-  short-lived SQL principal plus a bounded bearer session. Refresh rotates both;
-  sign-out revokes them. Neither is persisted by MAUI or sent in a URL.
+  validates active customer/user/company and authorization, opens a bounded
+  bearer session, and the connection string is then fetched **only** via
+  `POST /api/mobile/connection/encrypted` (AES per-session, key derived from
+  the token), decrypted in memory, and executed by the shared UI (`DbService`).
+  Sign-out revokes the session; nothing is persisted by MAUI or sent in a URL.
 - Web: `UserSession` is per SignalR circuit (scoped).
-- MAUI: the credential provider is memory-only; `UserSession` is scoped to the
-  native app service scope.
+- MAUI: the decrypted connection string is memory-only; `UserSession` is scoped
+  to the native app service scope.
 - Bootstrap creation requires a strong deployment secret. There is no default
   bootstrap password in source or configuration.
 
@@ -126,8 +129,9 @@ sensitive data). Audit failures are logged, never thrown.
 `TarazinDbInitializer.EnsureInitializedAsync(services)` runs only in the Web
 host: `DbService.EnsureSchemaAsync` (all `_Ensure.sql`) →
 `DbService.SeedAsync` (all `_Seed.sql`) → optional bootstrap admin from a
-strong deployment secret. MAUI credentials explicitly cannot connect to
-`master` or initialize schemas; MAUI starts credential preparation at login.
+strong deployment secret. MAUI credentials explicitly cannot initialize
+schemas (`OpenMasterConnectionAsync` always refuses); MAUI starts the
+encrypted connection-string delivery at login.
 
 ## 7. Rules when adding a new module
 

@@ -33,7 +33,7 @@ HTTP business-data layer. The broker is the narrow control-plane exception.
 | Auth (login, bootstrap admin, users page) | ✅ ایستا | PBKDF2؛ Web per-circuit؛ MAUI broker با customer/session/nonce |
 | Credential hardening + mobile RLS | ✅ ایستا / 🔲 پویا | endpoint-only config، credential موقت، revoke/cleanup، tenant ownership؛ SQL واقعی لازم است |
 | Audit page + auto-audit on every Execute | ⚠️ | tenant ownership اضافه شده؛ hash-chain correctness/serialization هنوز باز است |
-| CI: build Web + MAUI + source/artifact security scan | ✅ تعریف شد | `.github/workflows/ci.yml`؛ نتیجهٔ runner هنوز دریافت نشده است |
+| CI: build Web + MAUI + source/artifact security scan | ✅ تعریف شد | `ci/ci.yml`؛ نتیجهٔ runner هنوز دریافت نشده است |
 | **Full adversarial/E2E test with live SQL Server (Web + MAUI)** | 🔲 | نیازمند dotnet، SQL Server و device lab |
 | Android/iOS direct SqlClient runtime | 🔲 | باید روی هر target build و اجرا شود؛ fallback ناامن ممنوع است |
 
@@ -41,7 +41,7 @@ HTTP business-data layer. The broker is the narrow control-plane exception.
 
 | Phase | Work |
 |---|---|
-| 8 | `ci/ci.yml` را با دسترسی workflows به `.github/workflows/ci.yml` منتقل، روی runner سبز و artifact scan را بازبینی کنید |
+| 8 | `ci/ci.yml` را با دسترسی workflows به `ci/ci.yml` منتقل، روی runner سبز و artifact scan را بازبینی کنید |
 | 9 | تست E2E/adversarial broker، RLS، فرم‌ها، گزارش‌ها و audit با SQL واقعی و Web/MAUI |
 | 10 | مسیر مستقیم SqlClient را روی Android/iOS تأیید کنید؛ فقط در صورت عدم پشتیبانی، fallback بدون secret دائمی/TLS bypass طراحی شود |
 | 11 | بکاپ خودکار دیتابیس (یا پلن نگهداری) |

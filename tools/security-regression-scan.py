@@ -183,6 +183,13 @@ def scan_configuration(errors: list[str]) -> None:
             except (ValueError, AttributeError, TypeError):
                 fail(errors, "MAUI CustomerGuid must be a non-empty GUID")
 
+    # Project law (ADR-004): the SQL connection string may only be received
+    # from the API in encrypted form — the plaintext credential path is not
+    # allowed for SQL execution in MAUI.
+    protection = maui.get("ConnectionProtection") if isinstance(maui, dict) else None
+    if isinstance(protection, dict) and protection.get("UseEncryptedMaster") is False:
+        fail(errors, "Tarazin.Maui/appsettings.json: UseEncryptedMaster=false is forbidden — the SQL connection string may only be received encrypted from the API (project law)")
+
     for relative in ("Tarazin.Maui/appsettings.json", "Tarazin.Web/appsettings.json"):
         path = ROOT / relative
         config = load_json(path, errors)
@@ -283,10 +290,13 @@ def scan_source() -> list[str]:
         r"InitialCatalog\s*=\s*credential\.Database",
         r"UserID\s*=\s*credential\.Username",
         r"Password\s*=\s*credential\.Password",
-        r"await RefreshIfNeededAsync\(ct\)",
+        # Project law: SQL executes ONLY with the decrypted API-delivered
+        # connection string; no plaintext credential fallback may return.
+        r"await RefreshEncryptedMasterIfNeededAsync\(ct\)",
+        r"UseEncryptedMaster=false مجاز نیست",
     ):
-        if not re.search(expected, remote, re.MULTILINE):
-            fail(errors, f"RemoteCredentialSession must use the broker credential in memory: {expected}")
+        if not re.search(expected, remote, re.MULTILINE | re.DOTALL):
+            fail(errors, f"RemoteCredentialSession must execute only with the encrypted API-delivered connection string: {expected}")
 
     require("Tarazin.Data/TarazinConnection.cs", (
         r"ConnectionStringProtector",
