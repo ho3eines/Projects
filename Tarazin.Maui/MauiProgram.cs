@@ -37,6 +37,8 @@ public static class MauiProgram
 
     private static MauiApp BuildApp()
     {
+        StartupCrashLog.Write("BuildApp started");
+
         var builder = MauiApp.CreateBuilder();
 
         // The embedded MAUI configuration contains only the public HTTPS API
@@ -96,6 +98,8 @@ public static class MauiProgram
         // Shared business services and existing direct-SQL operations.
         builder.Services.AddTarazinUiServices();
 
-        return builder.Build();
+        var app = builder.Build();
+        StartupCrashLog.Write("BuildApp completed");
+        return app;
     }
 }
