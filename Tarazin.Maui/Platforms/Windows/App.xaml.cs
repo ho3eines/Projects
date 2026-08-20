@@ -53,7 +53,7 @@ public partial class App : MauiWinUIApplication
         e.Handled = true;
     }
 
-    private static void OnAppDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    private static void OnAppDomainUnhandledException(object sender, System.UnhandledExceptionEventArgs e)
     {
         if (e.ExceptionObject is Exception ex)
             ShowFatal("یک خطای خارج از چرخهٔ WinUI رخ داد.", ex);

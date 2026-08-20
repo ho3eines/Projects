@@ -38,8 +38,14 @@
     <!-- Windows release packages should not depend on a separately installed
          Windows App SDK Runtime. Without this, the app may build/deploy cleanly
          but close before managed startup code runs on machines missing that
-         runtime. -->
-    <WindowsAppSDKSelfContained Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</WindowsAppSDKSelfContained>
+         runtime.
+         RELEASE-ONLY: in Debug the packaged (MSIX) build never generates
+         obj\...\MsixContent\AppxManifest.xml on a plain Build, so the
+         WindowsAppSDK self-contained targets fail with MSB4018
+         (GenerateAppManifestFromAppx → DirectoryNotFoundException). Debug F5
+         runs framework-dependent and Visual Studio registers the Windows App
+         SDK framework package on the dev machine. -->
+    <WindowsAppSDKSelfContained Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(Configuration)' == 'Release'">true</WindowsAppSDKSelfContained>
     <RuntimeIdentifiers Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">win10-x64;win10-x86;win10-arm64</RuntimeIdentifiers>
 
     <GenerateAppInstallerFile>True</GenerateAppInstallerFile>
@@ -61,7 +67,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Direct references: MauiProgram.cs / ApiConnectionSession.cs consume
+         Tarazin.Data types (ISqlConnectionProvider) and Tarazin.Share models
+         (Tarazin.Models) directly, so the references are explicit instead of
+         relying on transitive flow through Tarazin.Ui. -->
     <ProjectReference Include="..\Tarazin.Ui\Tarazin.Ui.csproj" />
+    <ProjectReference Include="..\Tarazin.Data\Tarazin.Data.csproj" />
+    <ProjectReference Include="..\Tarazin.Share\Tarazin.Share.csproj" />
   </ItemGroup>
 
   <ItemGroup>
