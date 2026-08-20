@@ -321,7 +321,11 @@ public sealed class RemoteCredentialSession :
             var builder = new SqlConnectionStringBuilder(plaintext)
             {
                 Encrypt = true,
-                TrustServerCertificate = false,
+                // Certificate validation disabled by operator decision
+                // (2026-08-20): same policy as the server-side TarazinConnection
+                // so the local SQL Server self-signed certificate is accepted
+                // and the TLS certificate failure cannot occur.
+                TrustServerCertificate = true,
                 PersistSecurityInfo = false
             };
             if (builder.ConnectTimeout <= 0 || builder.ConnectTimeout > 60)
@@ -398,7 +402,9 @@ public sealed class RemoteCredentialSession :
             UserID = credential.Username,
             Password = credential.Password,
             Encrypt = true,
-            TrustServerCertificate = false,
+            // Certificate validation disabled by operator decision
+            // (2026-08-20), same policy as the server-side TarazinConnection.
+            TrustServerCertificate = true,
             PersistSecurityInfo = false,
             ConnectTimeout = 25,
             ApplicationName = "Tarazin-MAUI"
@@ -548,7 +554,7 @@ public sealed class RemoteCredentialSession :
             string.IsNullOrWhiteSpace(credential.Password) || credential.Password.Length > 256 ||
             credential.ExpiresAtUtc <= now || credential.ExpiresAtUtc > now.AddMinutes(20) ||
             credential.ExpiresAtUtc > response.SessionExpiresAtUtc ||
-            !credential.Encrypt || credential.TrustServerCertificate)
+            !credential.Encrypt || !credential.TrustServerCertificate)
         {
             if (credential is not null)
                 credential.Password = "";

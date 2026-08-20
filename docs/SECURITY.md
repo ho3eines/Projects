@@ -99,7 +99,8 @@ Web هیچ connection string کامل یا credential دائمی را به MAUI 
 پس از validation کامل broker، پاسخ login/refresh فقط credential SQL تصادفی،
 کوتاه‌عمر، customer-bound و قابل‌لغو همان session را دارد. MAUI آن را فقط در
 حافظه نگه می‌دارد و برای هر اتصال با `Encrypt=true`،
-`TrustServerCertificate=false` و `PersistSecurityInfo=false` بازسازی می‌کند.
+`TrustServerCertificate=true` و `PersistSecurityInfo=false` بازسازی می‌کند
+(اعتبارسنجی گواهی طبق تصمیم ۱۴۰۵/۰۵/۲۹ غیرفعال است؛ رمزنگاری کانال حفظ می‌شود).
 
 - endpointهای broker فقط HTTPS و `no-store` هستند؛ GUID به‌تنهایی هیچ credentialی
   برنمی‌گرداند.
@@ -114,11 +115,14 @@ Web هیچ connection string کامل یا credential دائمی را به MAUI 
 ## TLS و reverse proxy
 
 - MAUI release فقط endpoint با scheme `https` را می‌پذیرد و از certificate
-  validation عادی پلتفرم استفاده می‌کند. callback یا تنظیم bypass گواهی وجود ندارد.
-- credential SQL با `Encrypt=true` و `TrustServerCertificate=false` در همهٔ محیط‌ها
-  مصرف می‌شود؛ هیچ استثنا و متغیری برای bypass گواهی وجود ندارد (قانون ADR-004).
-  development هم باید از گواهی قابل‌اعتماد استفاده کند (روی SQL Server محلی گواهی
-  معتبر نصب کنید).
+  validation عادی پلتفرم برای وب‌سرور استفاده می‌کند. callback یا تنظیم bypass
+  گواهی برای endpoint وب وجود ندارد.
+- credential SQL با `Encrypt=true` و `TrustServerCertificate=true` در همهٔ محیط‌ها
+  مصرف می‌شود (تصمیم مالک پروژه ۱۴۰۵/۰۵/۲۹): رمزنگاری کانال الزامی می‌ماند ولی
+  اعتبارسنجی گواهی SQL Server غیرفعال است تا گواهی خودامضای SQL محلی خطای TLS
+  ایجاد نکند. پیامد: محرمانگی در برابر شنود حفظ می‌شود اما اصالت/هویت سرور SQL
+  احراز نمی‌شود — برای استقرارهای حساس، این تصمیم را با ریسک‌پذیری شبکه مقایسه
+  کنید.
 - Web در production، HTTPS را enforce می‌کند؛ درخواست broker بدون HTTPS رد می‌شود.
 - در TLS termination، forwarded headers فقط وقتی فعال شوند که IP دقیق proxy
   بلافصل در `ReverseProxy:KnownProxies` ثبت شده باشد. trust list را خالی نکنید و

@@ -35,8 +35,8 @@
 - broker قبل از صدور credential، customer، فعال‌بودن customer/user/company،
   مجوز کاربر، binding نشست و nonce/timestamp را بررسی می‌کند.
 - credential SQL کوتاه‌عمر، customer/company-bound، revocable و permission-derived
-  است؛ MAUI آن را فقط در حافظه نگه می‌دارد. انتقال HTTPS و validation عادی
-  certificate اجباری است.
+  است؛ MAUI آن را فقط در حافظه نگه می‌دارد. انتقال HTTPS اجباری است؛ اعتبارسنجی
+  گواهی SQL طبق تصمیم ۱۴۰۵/۰۵/۲۹ غیرفعال است (`TrustServerCertificate=true`).
 - داشتن credential قابل‌استفاده در process کلاینت به این معنی است که روی دستگاه
   compromise‌شده قابل استخراج است؛ encryption با کلید دائمی داخل client این
   محدودیت را حل نمی‌کند و به‌عنوان راهکار استفاده نشده است.

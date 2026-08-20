@@ -62,7 +62,7 @@
 - `wwwroot/index.html` → رانتایم `_framework/blazor.webview.js` + استاتیک‌های MudBlazor و RCL.
 - پیکربندی Embedded فقط `ServerEndpoint` عمومی HTTPS و `CustomerGuid` عمومی است؛ SQL connection/password، bootstrap secret، token و decryption key دائمی در MAUI ممنوع‌اند. شناسه از فرم ورود یا URL گرفته نمی‌شود.
 - جریان (قانون): `Login(username, password) + CustomerGuid از appsettings.json → broker HTTPS → validation → POST /connection/encrypted → رمزگشایی per-session در حافظه → DbService مستقیم`. رشتهٔ اتصال فقط از API و فقط رمزگذاری‌شده می‌آید (`UseEncryptedMaster=false` رد می‌شود)؛ در logout نشست revoke و حافظه پاک می‌شود.
-- TLS و certificate validation عادی الزامی‌اند. امکان استخراج secret فعال از حافظهٔ client compromise‌شده با رمزنگاری client-held حل نمی‌شود؛ عمر کوتاه، least privilege، RLS و revoke کنترل اصلی‌اند.
+- رمزنگاری کانال SQL (`Encrypt=true`) الزامی است؛ اعتبارسنجی گواهی SQL طبق تصمیم مالک پروژه (۱۴۰۵/۰۵/۲۹) غیرفعال است (`TrustServerCertificate=true`). امکان استخراج secret فعال از حافظهٔ client compromise‌شده با رمزنگاری client-held حل نمی‌شود؛ عمر کوتاه، least privilege، RLS و revoke کنترل اصلی‌اند.
 - build و رفتار SqlClient باید برای هر target MAUI در CI/E2E همان پلتفرم تأیید شود.
 
 ## Acceptance Criteria

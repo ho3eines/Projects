@@ -150,7 +150,7 @@ Tarazin.Maui  ──► Tarazin.Ui   (و غیرمستقیم Share/Data)
 
 ## 🗄️ Data Layer
 - Web اتصال مدیریتی SQL را از secret استقرار می‌گیرد (`TARAZIN_SQL_CONNECTION` یا provider تنظیمات server-side). مقدار واقعی در repository نیست.
-- MAUI هیچ connection string دائمی ندارد. `RemoteCredentialSession` provider قابل‌جایگزینی Data را با credential موقت، encrypted SQL و certificate validation تغذیه می‌کند.
+- MAUI هیچ connection string دائمی ندارد. `RemoteCredentialSession` provider قابل‌جایگزینی Data را با credential موقت و encrypted SQL تغذیه می‌کند (اعتبارسنجی گواهی طبق تصمیم ۱۴۰۵/۰۵/۲۹ غیرفعال است).
 - اسکریپت‌ها Embedded در `Tarazin.Data` هستند؛ embed شدن اسکریپت به معنی embed شدن credential نیست.
 - initialization دیتابیس فقط در Web اجرا می‌شود: `TarazinDbInitializer.EnsureInitializedAsync` → `_Ensure.sql`ها → `_Seed.sql`ها → RBAC → bootstrap admin → mobile RLS.
 - مسیر business پس از login تغییر نکرده است: `DbService.QueryAsync<T>(schema, name, @params)` / `ExecuteAsync` / `ScalarAsync`.

@@ -55,10 +55,10 @@ repository، `appsettings*.json`، Compose، CI YAML یا مستندات ننو�
 `CredentialBroker:PublicSqlServer` credential نیست؛ این مقدار فقط نام DNS/IP و
 port SQL است که **کلاینت MAUI** باید بتواند به آن برسد. مقدار source-controlled
 `localhost` تنها برای توسعهٔ محلی Windows مناسب است. در استقرار واقعی آن را با
-نام DNS/IP قابل‌دسترسی از دستگاه و دارای گواهی SQL معتبر جایگزین کنید. برای
+نام DNS/IP قابل‌دسترسی از دستگاه جایگزین کنید. برای
 Android emulator معمولاً loopback دستگاه با loopback Windows یکی نیست؛ از آدرس
-شبکه/adapter مناسب همان emulator استفاده کنید. برای دستگاه واقعی، DNS/IP شبکه و
-گواهی باید با نام مقصد سازگار باشند.
+شبکه/adapter مناسب همان emulator استفاده کنید. برای دستگاه واقعی، DNS/IP شبکه
+را متناسب با همان شبکه تنظیم کنید.
 
 issuer سمت سرور باید با حداقل اختیار لازم، امکان ایجاد، grant، disable و drop
 کردن principalهای `tz_m_*` و پاک‌سازی sessionهای آن‌ها را داشته باشد. با DBA
@@ -68,15 +68,17 @@ session و مجوزهای database-level برای user/role/grant لازم اس�
 
 برای همهٔ محیط‌ها:
 
-- SQL encryption و اعتبارسنجی عادی گواهی در همهٔ محیط‌ها الزامی است؛ هیچ متغیر
-  و استثنایی برای bypass گواهی وجود ندارد (قانون ADR-004). اگر SQL Server محلی با
-  گواهی خودامضا اجرا می‌شود، روی سرور SQL گواهی معتبر (از CA داخلی مورد اعتماد یا
-  گواهی رسمی) نصب کنید تا نام آن با `Data Source` هم‌خوان باشد.
+- اتصال SQL همیشه رمزنگاری می‌شود (`Encrypt=true`)، اما اعتبارسنجی گواهی طبق
+  تصمیم مالک پروژه (۱۴۰۵/۰۵/۲۹) غیرفعال است (`TrustServerCertificate=true`)؛
+  بنابراین گواهی خودامضای پیش‌فرض SQL Server محلی مشکلی ایجاد نمی‌کند و خطای
+  «گواهی SQL Server تأیید نمی‌شود (TLS)» نباید رخ دهد. برای این تصمیم و پیامدهایش
+  `docs/SECURITY.md` و amendment مربوطه در `docs/adr/ADR-004-maui-blazor-hybrid.md`
+  را ببینید.
 - اگر TLS در reverse proxy خاتمه می‌یابد، `ReverseProxy:Enabled` را فعال و IP دقیق
   proxy بلافصل را در `ReverseProxy:KnownProxies` ثبت کنید. forwarded header از
   proxy ناشناخته پذیرفته نمی‌شود.
 - پیش از تحویل MAUI، در firewall مسیر SQL از دستگاه هدف به
-  `CredentialBroker:PublicSqlServer` را باز و با گواهی معتبر آزمایش کنید.
+  `CredentialBroker:PublicSqlServer` را باز و آزمایش کنید.
 
 ## پیکربندی MAUI
 

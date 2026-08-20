@@ -45,7 +45,10 @@ PERMANENT_SECRET_PATTERNS = (
     ("JWT", re.compile(rb"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")),
 )
 TLS_BYPASS_PATTERNS = (
-    re.compile(rb"(?i)TrustServerCertificate\s*=\s*true"),
+    # Operator decision 2026-08-20: certificate validation is intentionally
+    # disabled (TrustServerCertificate=true) so local/dev SQL Servers with a
+    # self-signed certificate connect without TLS failures. Encryption must
+    # still be enabled and no validation callback may be installed.
     re.compile(rb"(?i)Encrypt\s*=\s*false"),
     re.compile(rb"DangerousAcceptAnyServerCertificateValidator"),
     re.compile(rb"ServerCertificateCustomValidationCallback\s*=\s*(?:\([^)]*\)|[^=;]+)=>\s*true"),
@@ -270,7 +273,7 @@ def scan_source() -> list[str]:
         r"FetchDecryptedMasterConnectionStringAsync",
         r"DeriveKeyFromToken",
         r"Encrypt\s*=\s*true",
-        r"TrustServerCertificate\s*=\s*false",
+        r"TrustServerCertificate\s*=\s*true",
         r"PersistSecurityInfo\s*=\s*false",
         r"RevokeCandidateResponseAsync",
         r"RandomNumberGenerator\.GetBytes",
@@ -303,7 +306,7 @@ def scan_source() -> list[str]:
         r"IsEncrypted",
         r"TryDecryptIfNeeded",
         r"builder\.Encrypt\s*=\s*true",
-        r"builder\.TrustServerCertificate\s*=\s*false",
+        r"builder\.TrustServerCertificate\s*=\s*true",
         r"builder\.PersistSecurityInfo\s*=\s*false",
         r"catch \(ArgumentException\).*server-side SQL connection configuration is invalid",
     ), errors)
@@ -336,7 +339,7 @@ def scan_source() -> list[str]:
         r"IsolationLevel\.Serializable",
         r"ALTER LOGIN .* DISABLE",
         r"KILL ",
-        r"TrustServerCertificate\s*=\s*false",
+        r"TrustServerCertificate\s*=\s*true",
         r"ValidatePublicServer",
         r"GetEncryptedConnectionAsync",
         r"ConnectionStringProtector",
@@ -423,7 +426,6 @@ def self_test() -> list[str]:
         b"Server=db.internal;Initial Catalog=Prod;User Id=app;Password=VerySecret123!;",
         b"Data Source=db;UID=mobile;PWD=Permanent42;Encrypt=true;",
         b"-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
-        b"TrustServerCertificate=true",
         b"Encrypt=false",
     )
     for index, fixture in enumerate(malicious):
@@ -434,7 +436,9 @@ def self_test() -> list[str]:
 
     benign = (
         b'{"ServerEndpoint":"https://api.example.invalid/"}',
-        b"builder.Password = value.Password; builder.Encrypt = true; builder.TrustServerCertificate = false;",
+        # TrustServerCertificate=true is now the operator-approved policy
+        # (2026-08-20); encryption must remain enabled.
+        b"builder.Password = value.Password; builder.Encrypt = true; builder.TrustServerCertificate = true;",
         b"MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:?Set an external secret}",
     )
     for index, fixture in enumerate(benign):
