@@ -67,8 +67,28 @@ dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0
 # ویندوز (MSIX — در Visual Studio روی پروژهٔ Tarazin.Maui راست‌کلیک → Publish فعال است):
 dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-windows10.0.19041.0
 # نصب MSIX روی دستگاه دیگر به گواهی امضا نیاز دارد (در wizard می‌توانید self-signed بسازید).
-# اندروید (APK — امضای release با keystore خودتان):
-dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-android
+
+# اندروید — APK امضاشدهٔ release. یک‌بار keystore بسازید (خارج از repo نگه دارید):
+keytool -genkeypair -v -keystore %USERPROFILE%\tarazin-release.keystore -alias tarazin -keyalg RSA -keysize 2048 -validity 10000
+# سپس (پسوردها را فقط همین‌جا/در CI secret بدهید، نه در csproj):
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-android ^
+  -p:AndroidKeyStore=true ^
+  -p:AndroidSigningKeyStore=%USERPROFILE%\tarazin-release.keystore ^
+  -p:AndroidSigningKeyAlias=tarazin ^
+  -p:AndroidSigningKeyPass=<secret> -p:AndroidSigningStorePass=<secret>
+# خروجی: Tarazin.Maui/bin/Release/net8.0-android/publish/*.apk — سایدلود یا Play Console (AAB با -p:AndroidPackageFormat=aab).
+# بدون keystore هم publish روی اندروید کار می‌کند ولی با debug-key امضا می‌شود (فقط برای تست).
+
+# iOS — فقط روی macOS (Xcode + workload) یا از VS ویندوز با «Pair to Mac»:
+dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-ios
+# برای App Store/TestFlight یا دستگاه واقعی: حساب Apple Developer + provisioning از Xcode/VS لازم است
+# (Distribution → App Store Connect در VS، یا Archive در Xcode)
+
+# نکتهٔ حیاتی برای دستگاه‌های واقعی (Android/iOS):
+# 1) ServerEndpoint پیش‌فرض https://localhost:65220 روی دستگاه به خودِ دستگاه اشاره می‌کند؛
+#    آن را به نشانی HTTPS عمومی وب (کامپیوتر توسعه: IP شبکه + گواهی قابل اعتماد) عوض کنید یا
+#    با متغیر محیطی TARAZIN_SERVER_ENDPOINT هنگام build تزریق کنید.
+# 2) رشتهٔ اتصال SQL سرور نیز باید به DNS/IP قابل‌دسترس از دستگاه اشاره کند (localhost برای خروجی موبایل معنا ندارد).
 ```
 
 * مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال issuer از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
