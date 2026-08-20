@@ -8,5 +8,15 @@ public partial class App : Application
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
-        => new(new MainPage());
+    {
+        try
+        {
+            return new Window(new MainPage());
+        }
+        catch (Exception ex)
+        {
+            StartupCrashLog.Write("CreateWindow failed", ex);
+            throw;
+        }
+    }
 }
