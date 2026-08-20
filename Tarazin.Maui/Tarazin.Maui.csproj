@@ -47,6 +47,16 @@
          SDK framework package on the dev machine. -->
     <WindowsAppSDKSelfContained Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(Configuration)' == 'Release'">true</WindowsAppSDKSelfContained>
     <RuntimeIdentifiers Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">win10-x64;win10-x86;win10-arm64</RuntimeIdentifiers>
+    <!-- A packaged (MSIX) Windows app has an app host exe, which cannot be
+         ProcessorArchitecture-neutral: WinUI.targets (_GetProjectArchitecture)
+         fails with "Packaged .NET applications with an app host exe cannot be
+         ProcessorArchitecture neutral. Please specify a RuntimeIdentifier or a
+         Platform other than AnyCPU." RuntimeIdentifiers (plural) only feeds
+         publish/restore; give the Windows build a concrete DEFAULT RID so a
+         plain `dotnet build` / Visual Studio design-time build resolves to a
+         real architecture instead of AnyCPU. An explicit
+         -p:RuntimeIdentifier=win10-x86|win10-arm64 still overrides this. -->
+    <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(RuntimeIdentifier)' == ''">win10-x64</RuntimeIdentifier>
 
     <GenerateAppInstallerFile>True</GenerateAppInstallerFile>
     <AppxPackageSigningEnabled>False</AppxPackageSigningEnabled>
