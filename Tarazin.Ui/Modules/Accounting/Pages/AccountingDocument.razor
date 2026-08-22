@@ -16,10 +16,7 @@
                Href="/accounting">
         بازگشت به اسناد
     </MudButton>
-    <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh"
-               OnClick="LoadAsync" Class="ms-2" Disabled="_loading">
-        تازه‌سازی
-    </MudButton>
+
 </PageHeader>
 
 @if (_loading)
@@ -34,7 +31,49 @@ else if (_document is null)
 }
 else
 {
-    <MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudPaper Elevation="1" Class="pa-4">
+@*         <MudText Typo="Typo.subtitle1" Class="mb-3">عملیات سند</MudText>
+ *@        <div class="d-flex flex-wrap" style="gap:8px">
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadAsync" Disabled="_loading">
+                بازخوانی
+            </MudButton>
+
+            @if (NextStatus is not null && CanChangeStatusTo(NextStatus))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.ArrowUpward"
+                           OnClick="@(() => ChangeStatusAsync(NextStatus))">
+                    @($"تغییر به «{SafeTitle(NextStatus)}»")
+                </MudButton>
+            }
+            @if (PreviousStatus is not null && CanChangeStatusTo(PreviousStatus))
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.ArrowDownward"
+                           OnClick="@(() => ChangeStatusAsync(PreviousStatus))">
+                    @($"برگشت به «{SafeTitle(PreviousStatus)}»")
+                </MudButton>
+            }
+            @if (CanDeleteDocument)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.DeleteOutline" OnClick="DeleteAsync">
+                    حذف سند
+                </MudButton>
+            }
+            @if (!IsReadOnly)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.Save">
+                    ذخیره تغییرات
+                </MudButton>
+            }
+        </div>
+    </MudPaper>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4 mt-4">
         <div class="d-flex align-center flex-wrap mb-3" style="gap:8px">
             <MudChip T="string" Size="Size.Small" Color="@StatusColor(_status)">
                 وضعیت: @SafeTitle(_status)
@@ -71,8 +110,19 @@ else
     </MudPaper>
 
     <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند — انتخاب ردیف برای مرور تفصیلی</MudText>
+        <div class="tz-pagehead">
 
+            <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند </MudText>
+            @if (!IsReadOnly)
+            {
+                <div class="tz-pagehead__actions">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
+                               StartIcon="@Icons.Material.Filled.Add">
+                        افزودن ردیف
+                    </MudButton>
+                </div>
+            }
+        </div>
         <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
                   @bind-SelectedItem="_selectedLine" SelectOnRowClick="true"
                   RowStyleFunc="SelectedRowStyle"
@@ -173,50 +223,10 @@ else
             </MudItem>
         </MudGrid>
 
-        <div class="d-flex flex-wrap" style="gap:8px">
-            
-            @if (!IsReadOnly)
-            {
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
-                           StartIcon="@Icons.Material.Filled.Add" Class="ms-2">
-                    + ردیف
-                </MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.Save" Class="ms-2">
-                    ذخیره تغییرات
-                </MudButton>
-            }
-        </div>
+
     </MudPaper>
 
-    <MudPaper Elevation="1" Class="pa-4">
-        <MudText Typo="Typo.subtitle1" Class="mb-3">عملیات سند</MudText>
-        <div class="d-flex flex-wrap" style="gap:8px">
-            @if (NextStatus is not null && CanChangeStatusTo(NextStatus))
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.ArrowUpward"
-                           OnClick="@(() => ChangeStatusAsync(NextStatus))">
-                    @($"تغییر به «{SafeTitle(NextStatus)}»")
-                </MudButton>
-            }
-            @if (PreviousStatus is not null && CanChangeStatusTo(PreviousStatus))
-            {
-                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.ArrowDownward"
-                           OnClick="@(() => ChangeStatusAsync(PreviousStatus))">
-                    @($"برگشت به «{SafeTitle(PreviousStatus)}»")
-                </MudButton>
-            }
-            @if (CanDeleteDocument)
-            {
-                <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.DeleteOutline" OnClick="DeleteAsync">
-                    حذف سند
-                </MudButton>
-            }
-        </div>
-    </MudPaper>
+
 }
 
 @code {
