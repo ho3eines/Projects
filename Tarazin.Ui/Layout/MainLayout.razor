@@ -33,19 +33,39 @@
 
         @if (Session.IsAuthenticated && Session.ActiveCompanyId != null && Session.ActiveFiscalYearId != null)
         {
-            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Business" Class="ms-2">
-                @Session.ActiveCompanyName | @Session.ActiveFiscalYearName
-            </MudChip>
-            @if (Session.ActiveCompanyId != null)
-            {
-                <MudSelect T="int" Label="سال مالی" @bind-Value="_selectedFiscalYearId" OnChange="OnFiscalYearChanged">
-                    <MudSelectItem Value="0">— همه —</MudSelectItem>
-                    @foreach (var y in _years)
+            @* کلیک روی چیپ «شرکت | سال مالی» منوی تمام سال‌های مالی مجاز را باز می‌کند. *@
+            <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Class="tz-fy-menu">
+                <ActivatorContent>
+                    @* در MudBlazor 9 کلیک روی ActivatorContent خودکار نیست؛ باید خودمان آن را
+                       به MenuContext وصل کنیم تا منو با کلیک باز/بسته شود. *@
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.Business" Class="ms-2 tz-fy-menu__chip"
+                             Style="cursor:pointer" OnClick="() => context.ToggleAsync()">
+                        @Session.ActiveCompanyName | @Session.ActiveFiscalYearName
+                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ms-1" />
+                    </MudChip>
+                </ActivatorContent>
+                <ChildContent>
+                    @if (_years.Count == 0)
                     {
-                        <MudSelectItem Value="@y.FiscalYearId">@y.YearName @(y.IsClosed ? "(بسته)" : "")</MudSelectItem>
+                        <MudMenuItem Disabled="true">
+                            @(string.IsNullOrWhiteSpace(_yearsError)
+                                ? "سال مالی‌ای برای این شرکت یافت نشد"
+                                : $"خطا در بارگذاری سال‌ها: {_yearsError}")
+                        </MudMenuItem>
                     }
-                </MudSelect>
-            }
+                    else
+                    {
+                        @foreach (var y in _years)
+                        {
+                            <MudMenuItem OnClick="@(() => SelectFiscalYearAsync(y))" Disabled="@IsActiveYear(y)"
+                                         Icon="@(IsActiveYear(y) ? Icons.Material.Filled.Check : Icons.Material.Filled.CalendarMonth)">
+                                @y.YearName @(y.IsClosed ? "(بسته)" : "")
+                            </MudMenuItem>
+                        }
+                    }
+                </ChildContent>
+            </MudMenu>
         }
 
         <MudSpacer />
@@ -59,11 +79,16 @@
         {
             <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Class="tz-user">
                 <ActivatorContent>
-                    <MudAvatar Size="Size.Small" Color="Color.Secondary" Class="tz-user__av">
-                        @Initial
-                    </MudAvatar>
-                    <span class="tz-user__name">@Session.DisplayName</span>
-                    <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" />
+                    @* همان باگ v9: کلیک باید دستی به MenuContext وصل شود (در غیر این صورت
+                       منو فقط با کیبورد باز می‌شود). *@
+                    <div class="d-inline-flex align-center"
+                         style="cursor:pointer" @onclick="() => context.ToggleAsync()">
+                        <MudAvatar Size="Size.Small" Color="Color.Secondary" Class="tz-user__av">
+                            @Initial
+                        </MudAvatar>
+                        <span class="tz-user__name">@Session.DisplayName</span>
+                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" />
+                    </div>
                 </ActivatorContent>
                 <ChildContent>
                     <MudMenuItem Disabled="true">@Session.RoleTitle</MudMenuItem>
@@ -132,7 +157,7 @@
    - اگر هیچ شرکتی در سیستم نیست → فرم ایجاد شرکت (اجباری).
    - اگر شرکت(ها) وجود دارند ولی کاربر محیط فعال ندارد →
      دیالوگ انتخاب شرکت (نه ایجاد).
-   - انتخاب/تغییر سال برای جابه‌جایی بین سال‌های موجود از «عملیات ویژه» انجام می‌شود.
+   - انتخاب/تغییر سال مالی از منوی سال در نوار بالای برنامه انجام می‌شود.
    ─────────────────────────────────────────────────────────── *@
 @if (Session.IsAuthenticated && (_showCompanyLock || _showCompanySelection))
 {
@@ -234,13 +259,11 @@
     private MudForm? _companyForm;
     private bool _busy;
 
-    // Fiscal year selector support
-    private int _selectedFiscalYearId;
-
     private string Initial =>
         string.IsNullOrWhiteSpace(Session.DisplayName) ? "ک" : Session.DisplayName[..1];
 
     private List<FiscalYearRow> _years = new();
+    private string _yearsError = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -249,7 +272,6 @@
         Nav.LocationChanged += OnLocation;
         RefreshPath(Nav.Uri);
         await EnsureContextAsync();
-        _selectedFiscalYearId = Session.ActiveFiscalYearId ?? 0;
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
@@ -340,32 +362,40 @@
         try
         {
             _years = (await Context.GetAuthorizedFiscalYearsAsync(Session.ActiveCompanyId.Value)).ToList();
+            _yearsError = "";
         }
         catch (Exception ex)
         {
+            // خطا را داخل منو نشان بده تا «خالی‌بودن» منو بی‌صدا نماند.
             _years = new();
+            _yearsError = ex.Message;
         }
     }
 
-    private async Task OnFiscalYearChanged(ChangeEventArgs e)
-    {
-        if (!int.TryParse(e.Value?.ToString(), out var newYearId)) return;
-        if (newYearId == _selectedFiscalYearId) return;
+    private bool IsActiveYear(FiscalYearRow year) => Session.ActiveFiscalYearId == year.FiscalYearId;
 
-        // Find the selected fiscal year object
-        var selectedYear = _years.FirstOrDefault(y => y.FiscalYearId == newYearId);
-        if (selectedYear == null) return;
+    private async Task SelectFiscalYearAsync(FiscalYearRow year)
+    {
+        var activeCompanyId = Session.ActiveCompanyId;
+        if (activeCompanyId is null || Session.ActiveFiscalYearId == year.FiscalYearId)
+            return;
 
         try
         {
-            // Resolve the selected company row using the current company id
-            var selectedCompanyRow = _selectionCompanies.FirstOrDefault(c => c.CompanyId == Session.ActiveCompanyId!.Value);
-            if (selectedCompanyRow == null) return;
-            // Pass the company row and fiscal year row to the service method
-            await Context.SetActiveContextAsync(selectedCompanyRow, selectedYear);
-            // Update the bound field to reflect the change
-            _selectedFiscalYearId = newYearId;
-            Snackbar.Add($"سال مالی فعال به «{selectedYear.YearName}» تغییر یافت.", Severity.Success);
+            // شرکت فعال را از فهرست شرکت‌های مجاز کاربر پیدا کن؛
+            // (نه از _selectionCompanies که فقط در حالت «انتخاب شرکت» پر است).
+            var companies = await Context.GetAuthorizedCompaniesAsync();
+            var company = companies.FirstOrDefault(c => c.CompanyId == activeCompanyId.Value);
+            if (company is null)
+                return;
+
+            await Context.SetActiveContextAsync(company, year);
+
+            // صفحه‌های برنامه سال فعال را فقط در لحظهٔ رندر از Session می‌خوانند؛
+            // پس بعد از تغییر سال باید صفحهٔ فعلی با محیط جدید دوباره بارگذاری شود
+            // (همان الگوی انتخاب/ایجاد شرکت در همین MainLayout). نشستِ جدید قبلاً
+            // در store مرورگر ذخیره شده و بعد از ریلود بازیابی می‌شود.
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
         }
         catch (Exception ex)
         {

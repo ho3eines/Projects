@@ -1005,10 +1005,10 @@ else
                 Snackbar.Add("دسترسی مشاهده سند حسابداری را ندارید.", Severity.Warning);
                 return;
             }
-            var parameters = new DialogParameters { ["DocumentId"] = documentId };
+            var parameters = new DialogParameters { ["DocumentId"] = documentId, ["IsModal"]=1 };
             var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
             // _ = DialogService.ShowAsync<DocumentDetailDialog>("جزئیات سند", parameters, options);
-            _ = DialogService.ShowAsync<AccountingDocument>("جزئیات سند", parameters, options);
+            _ = DialogService.ShowAsync<AccountingDocument>("جزئیات سند " + documentId.ToString(), parameters, options);
         }
         catch (Exception ex)
         {

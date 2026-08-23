@@ -8,17 +8,18 @@
 @inject NavigationManager Nav
 
 <PageTitle>سند حسابداری — حسابداری</PageTitle>
+@if (IsModal == 0)
+{
+    <PageHeader Title="@($"سند {(_document?.DocumentNumber ?? "")}")"
+                Subtitle="نمایش، ویرایش، تغییر وضعیت و حذف سند حسابداری. روی ردیف کلیک کنید تا سبز شود و مرور تفصیلی فعال شود."
+                Eyebrow="حسابداری">
+        <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowForward"
+                   Href="/accounting">
+            بازگشت به اسناد
+        </MudButton>
 
-<PageHeader Title="@($"سند {(_document?.DocumentNumber ?? "")}")"
-            Subtitle="نمایش، ویرایش، تغییر وضعیت و حذف سند حسابداری. روی ردیف کلیک کنید تا سبز شود و مرور تفصیلی فعال شود."
-            Eyebrow="حسابداری">
-    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowForward"
-               Href="/accounting">
-        بازگشت به اسناد
-    </MudButton>
-
-</PageHeader>
-
+    </PageHeader>
+}
 @if (_loading)
 {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
@@ -31,201 +32,202 @@ else if (_document is null)
 }
 else
 {
-    <MudPaper Elevation="1" Class="pa-4">
-@*         <MudText Typo="Typo.subtitle1" Class="mb-3">عملیات سند</MudText>
+    <div style="@(IsModal != 0 ? "margin: 10px;" : "")">
+        <MudPaper Elevation="1" Class="pa-4 ">
+            @*         <MudText Typo="Typo.subtitle1" Class="mb-3">عملیات سند</MudText>
  *@        <div class="d-flex flex-wrap" style="gap:8px">
 
-            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh"
-                       OnClick="LoadAsync" Disabled="_loading">
-                بازخوانی
-            </MudButton>
-
-            @if (NextStatus is not null && CanChangeStatusTo(NextStatus))
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.ArrowUpward"
-                           OnClick="@(() => ChangeStatusAsync(NextStatus))">
-                    @($"تغییر به «{SafeTitle(NextStatus)}»")
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadAsync" Disabled="_loading">
+                    بازخوانی
                 </MudButton>
-            }
-            @if (PreviousStatus is not null && CanChangeStatusTo(PreviousStatus))
-            {
-                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.ArrowDownward"
-                           OnClick="@(() => ChangeStatusAsync(PreviousStatus))">
-                    @($"برگشت به «{SafeTitle(PreviousStatus)}»")
-                </MudButton>
-            }
-            @if (CanDeleteDocument)
-            {
-                <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.DeleteOutline" OnClick="DeleteAsync">
-                    حذف سند
-                </MudButton>
-            }
-            @if (!IsReadOnly)
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
-                           StartIcon="@Icons.Material.Filled.Save">
-                    ذخیره تغییرات
-                </MudButton>
-            }
-        </div>
-    </MudPaper>
 
-    <MudPaper Elevation="1" Class="pa-4 mb-4 mt-4">
-        <div class="d-flex align-center flex-wrap mb-3" style="gap:8px">
-            <MudChip T="string" Size="Size.Small" Color="@StatusColor(_status)">
-                وضعیت: @SafeTitle(_status)
-            </MudChip>
-            @if (IsReadOnly)
-            {
-                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined"
-                         Icon="@Icons.Material.Filled.Lock">
-                    @ReadOnlyReason
-                </MudChip>
-            }
-        </div>
-
-        <MudGrid>
-            <MudItem xs="12" sm="6" md="4">
-                <MudDatePicker Label="تاریخ سند" Culture="FaCulture" @bind-Date="_documentDate"
-                               ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
-            </MudItem>
-            <MudItem xs="12" sm="6" md="4">
-                <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined"
-                           ReadOnly="IsReadOnly" Disabled="IsReadOnly">
-                    <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
-                    <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
-                    <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
-                    <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
-                    <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="12" md="4">
-                <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined"
-                              ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
-
-    <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <div class="tz-pagehead">
-
-            <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند </MudText>
-            @if (!IsReadOnly)
-            {
-                <div class="tz-pagehead__actions">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
-                               StartIcon="@Icons.Material.Filled.Add">
-                        افزودن ردیف
+                @if (NextStatus is not null && CanChangeStatusTo(NextStatus))
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
+                               StartIcon="@Icons.Material.Filled.ArrowUpward"
+                               OnClick="@(() => ChangeStatusAsync(NextStatus))">
+                        @($"تغییر به «{SafeTitle(NextStatus)}»")
                     </MudButton>
-                </div>
-            }
-        </div>
-        <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
-                  @bind-SelectedItem="_selectedLine" SelectOnRowClick="true"
-                  RowStyleFunc="SelectedRowStyle"
-                  OnRowClick="@(async(a)=>await OnRowClick(a))">
-            <HeaderContent>
-                <MudTh Style="width:250px">حساب</MudTh>
-                <MudTh Style="width:30%">شرح</MudTh>
-                <MudTh>بدهکار</MudTh>
-                <MudTh>بستانکار</MudTh>
-                <MudTh style="width:48px"></MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="حساب">
-                    <AccountPickerField Value="@context.PickedAccount"
-                                        ValueChanged="(v) => OnAccountPick(_lines.IndexOf(context), v)"
-                                        PickerOptions="@(new AccountPickerOptions { TransactionalOnly = true })"
-                                        ButtonLabel="حساب"
-                                        EmptyText="@AccountLabel(context)"
-                                        Disabled="IsReadOnly" ReadOnly="IsReadOnly" />
-                </MudTd>
-                <MudTd DataLabel="شرح">
-                    <MudTextField T="string" Value="@context.Description"
-                                  ValueChanged="@(v => context.Description = v)"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                }
+                @if (PreviousStatus is not null && CanChangeStatusTo(PreviousStatus))
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
+                               StartIcon="@Icons.Material.Filled.ArrowDownward"
+                               OnClick="@(() => ChangeStatusAsync(PreviousStatus))">
+                        @($"برگشت به «{SafeTitle(PreviousStatus)}»")
+                    </MudButton>
+                }
+                @if (CanDeleteDocument)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
+                               StartIcon="@Icons.Material.Filled.DeleteOutline" OnClick="DeleteAsync">
+                        حذف سند
+                    </MudButton>
+                }
+                @if (!IsReadOnly)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy"
+                               StartIcon="@Icons.Material.Filled.Save">
+                        ذخیره تغییرات
+                    </MudButton>
+                }
+            </div>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4 mt-4">
+            <div class="d-flex align-center flex-wrap mb-3" style="gap:8px">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(_status)">
+                    وضعیت: @SafeTitle(_status)
+                </MudChip>
+                @if (IsReadOnly)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined"
+                             Icon="@Icons.Material.Filled.Lock">
+                        @ReadOnlyReason
+                    </MudChip>
+                }
+            </div>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudDatePicker Label="تاریخ سند" Culture="FaCulture" @bind-Date="_documentDate"
+                                   ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined"
+                               ReadOnly="IsReadOnly" Disabled="IsReadOnly">
+                        <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
+                        <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
+                        <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
+                        <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
+                        <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="12" md="4">
+                    <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined"
                                   ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
-                </MudTd>
-                <MudTd DataLabel="بدهکار">
-                    <MudNumericField T="decimal" Value="@context.Debit"
-                                     ValueChanged="v => { context.Debit = v; }" Variant="Variant.Outlined"
-                                     Margin="Margin.Dense" Min="0" Format="#,##0.##"
-                                     ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
-                </MudTd>
-                <MudTd DataLabel="بستانکار">
-                    <MudNumericField T="decimal" Value="@context.Credit"
-                                     ValueChanged="v => { context.Credit = v; }" Variant="Variant.Outlined"
-                                     Margin="Margin.Dense" Min="0" Format="#,##0.##"
-                                     ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
-                </MudTd>
-                <MudTd DataLabel="">
-                    <span @onclick:stopPropagation="true">
-                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
-                                       Size="Size.Small" Disabled="@(IsReadOnly || _lines.Count <= 1)"
-                                       OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
-                    </span>
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
 
-        @if (_selectedLine is not null)
-        {
-            @if (_accountDetailBalance is not null)
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <div class="tz-pagehead">
+
+                <MudText Typo="Typo.subtitle1" Class="mb-3">ردیف‌های سند </MudText>
+                @if (!IsReadOnly)
+                {
+                    <div class="tz-pagehead__actions">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine"
+                                   StartIcon="@Icons.Material.Filled.Add">
+                            افزودن ردیف
+                        </MudButton>
+                    </div>
+                }
+            </div>
+            <MudTable T="JournalLineRow" Items="_lines" Hover="true" Dense="true" Class="mb-4"
+                      @bind-SelectedItem="_selectedLine" SelectOnRowClick="true"
+                      RowStyleFunc="SelectedRowStyle"
+                      OnRowClick="@(async(a)=>await OnRowClick(a))">
+                <HeaderContent>
+                    <MudTh Style="width:250px">حساب</MudTh>
+                    <MudTh Style="width:30%">شرح</MudTh>
+                    <MudTh>بدهکار</MudTh>
+                    <MudTh>بستانکار</MudTh>
+                    <MudTh style="width:48px"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="حساب">
+                        <AccountPickerField Value="@context.PickedAccount"
+                                            ValueChanged="(v) => OnAccountPick(_lines.IndexOf(context), v)"
+                                            PickerOptions="@(new AccountPickerOptions { TransactionalOnly = true })"
+                                            ButtonLabel="حساب"
+                                            EmptyText="@AccountLabel(context)"
+                                            Disabled="IsReadOnly" ReadOnly="IsReadOnly" />
+                    </MudTd>
+                    <MudTd DataLabel="شرح">
+                        <MudTextField T="string" Value="@context.Description"
+                                      ValueChanged="@(v => context.Description = v)"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+                    </MudTd>
+                    <MudTd DataLabel="بدهکار">
+                        <MudNumericField T="decimal" Value="@context.Debit"
+                                         ValueChanged="v => { context.Debit = v; }" Variant="Variant.Outlined"
+                                         Margin="Margin.Dense" Min="0" Format="#,##0.##"
+                                         ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+                    </MudTd>
+                    <MudTd DataLabel="بستانکار">
+                        <MudNumericField T="decimal" Value="@context.Credit"
+                                         ValueChanged="v => { context.Credit = v; }" Variant="Variant.Outlined"
+                                         Margin="Margin.Dense" Min="0" Format="#,##0.##"
+                                         ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
+                    </MudTd>
+                    <MudTd DataLabel="">
+                        <span @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
+                                           Size="Size.Small" Disabled="@(IsReadOnly || _lines.Count <= 1)"
+                                           OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                        </span>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            @if (_selectedLine is not null)
             {
-                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                    حساب: <b>@(_selectedLine.AccountCode ?? "—") — @(_accountDetailBalance?.LinkName ?? "بدون عنوان")</b>
-                    <MudChip T="string" Color="Color.Success" Size="Size.Small">
-                        @(_accountDetailBalance?.Debit.ToString("N0")) ریال
-                    </MudChip>
+                @if (_accountDetailBalance is not null)
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                        حساب: <b>@(_selectedLine.AccountCode ?? "—") — @(_accountDetailBalance?.LinkName ?? "بدون عنوان")</b>
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                            @(_accountDetailBalance?.Debit.ToString("N0")) ریال
+                        </MudChip>
 
-                    <MudChip T="string" Color="Color.Error" Size="Size.Small">
-                        @(_accountDetailBalance?.Credit.ToString("N0")) ریال
-                    </MudChip>
-                    <MudChip T="string" Color="Color.Default" Size="Size.Small">
-                        @Math.Abs(_accountDetailBalance.OpeningBalance).ToString("N0")
-                        @if (_accountDetailBalance?.OpeningBalance > 0)
-                        {
-                            <span>ریال بستانکار</span>
-                        }
-                        else if (_accountDetailBalance?.OpeningBalance < 0)
-                        {
-                            <span>ریال بدهکار</span>
-                        }
-                    </MudChip>
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small">
+                            @(_accountDetailBalance?.Credit.ToString("N0")) ریال
+                        </MudChip>
+                        <MudChip T="string" Color="Color.Default" Size="Size.Small">
+                            @Math.Abs(_accountDetailBalance.OpeningBalance).ToString("N0")
+                            @if (_accountDetailBalance?.OpeningBalance > 0)
+                            {
+                                <span>ریال بستانکار</span>
+                            }
+                            else if (_accountDetailBalance?.OpeningBalance < 0)
+                            {
+                                <span>ریال بدهکار</span>
+                            }
+                        </MudChip>
 
-                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ShowSelectedDetailAsync"
-                               StartIcon="@Icons.Material.Filled.ManageSearch">
-                        جزییات
-                    </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ShowSelectedDetailAsync"
+                                   StartIcon="@Icons.Material.Filled.ManageSearch">
+                            جزییات
+                        </MudButton>
 
-                </MudAlert>
+                    </MudAlert>
+                }
+                else if (!string.IsNullOrWhiteSpace(_selectedLine.AccountCode))
+                {
+                    <span> — این حساب تفصیلی نهایی نیست، مرور گردش فقط برای تفصیلی‌ها امکان‌پذیر است.</span>
+                }
             }
-            else if (!string.IsNullOrWhiteSpace(_selectedLine.AccountCode))
-            {
-                <span> — این حساب تفصیلی نهایی نیست، مرور گردش فقط برای تفصیلی‌ها امکان‌پذیر است.</span>
-            }
-        }
 
-        <MudGrid Class="mb-4">
-            <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.body2">جمع بدهکار: <b>@SafeMoney(TotalDebit)</b></MudText>
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.body2">جمع بستانکار: <b>@SafeMoney(TotalCredit)</b></MudText>
-            </MudItem>
-            <MudItem xs="12">
-                <MudChip T="string" Color="@(IsBalanced? Color.Success: Color.Error)" Size="Size.Small">
-                    @(IsBalanced ? "✔ متوازن" : "✘ نامتوازن")
-                </MudChip>
-            </MudItem>
-        </MudGrid>
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2">جمع بدهکار: <b>@SafeMoney(TotalDebit)</b></MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2">جمع بستانکار: <b>@SafeMoney(TotalCredit)</b></MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudChip T="string" Color="@(IsBalanced? Color.Success: Color.Error)" Size="Size.Small">
+                        @(IsBalanced ? "✔ متوازن" : "✘ نامتوازن")
+                    </MudChip>
+                </MudItem>
+            </MudGrid>
 
 
-    </MudPaper>
-
+        </MudPaper>
+    </div>
 
 }
 
@@ -234,6 +236,7 @@ else
     private const string Schema = "accounting";
 
     [Parameter] public int DocumentId { get; set; }
+    [Parameter] public int IsModal { get; set; } = 0;
 
     private DailyDocumentRow? _document;
     private List<JournalLineRow> _lines = new();
