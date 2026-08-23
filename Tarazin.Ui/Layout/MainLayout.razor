@@ -38,7 +38,7 @@
             </MudChip>
             @if (Session.ActiveCompanyId != null)
             {
-                <MudSelect T="int" Label="سال مالی" Value="@(Session.ActiveFiscalYearId ?? 0)" OnChange="OnFiscalYearChanged">
+                <MudSelect T="int" Label="سال مالی" @bind-Value="_selectedFiscalYearId" OnChange="OnFiscalYearChanged">
                     <MudSelectItem Value="0">— همه —</MudSelectItem>
                     @foreach (var y in _years)
                     {
@@ -110,14 +110,12 @@
             {
                 <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-4" Icon="@Icons.Material.Filled.Lock">
                     <MudText Typo="Typo.h6">@_denyMessage</MudText>
-                    <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="ms-4">
-                        بازگشت به خانه
-                    </MudButton>
+                    <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               Class="ms-4">بازگشت به خانه</MudButton>
                     @if (!Session.IsAuthenticated)
                     {
-                        <MudButton Href="/login" Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" Class="ms-2">
-                            ورود
-                        </MudButton>
+                        <MudButton Href="/login" Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
+                                   Class="ms-2">ورود</MudButton>
                     }
                 </MudAlert>
             }
@@ -138,7 +136,9 @@
    ─────────────────────────────────────────────────────────── *@
 @if (Session.IsAuthenticated && (_showCompanyLock || _showCompanySelection))
 {
-    <div class="tz-context-lock" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+    <div class="tz-context-lock" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+           background: rgba(0,0,0,0.8); z-index: 10000; display: flex;
+           align-items: center; justify-content: center;">
         @if (_showCompanySelection)
         {
             <MudPaper Elevation="5" Class="pa-6 mx-auto" Style="width: 100%; max-width: 500px; direction: rtl;">
@@ -147,11 +147,11 @@
                     <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">انتخاب شرکت مالی</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
                         یک شرکت مالی را برای ورود انتخاب کنید. سال مالی به‌صورت خودکار فعال می‌شود.
-                    </div>
-
+                    </MudText>
                 </div>
 
-                <MudSelect T="int" Label="شرکت مالی" @bind-Value="_selectedCompanyId" Variant="Variant.Outlined" Class="mb-4" Required="true">
+                <MudSelect T="int" Label="شرکت مالی" @bind-Value="_selectedCompanyId" Variant="Variant.Outlined"
+                           Class="mb-4" Required="true">
                     @foreach (var c in _selectionCompanies)
                     {
                         <MudSelectItem Value="@c.CompanyId">@c.CompanyName</MudSelectItem>
@@ -167,7 +167,7 @@
                     }
                     else
                     {
-                        <span>ورود به شرکت انتخ	lars</span>
+                        <span>ورود به شرکت انتخه</span>
                     }
                 </MudButton>
 
@@ -191,12 +191,11 @@
                     <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">ایجاد شرکت مالی</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
                         برای شروع باید یک شرکت مالی ایجاد کنید. سال مالی به‌صورت خودکار توسط سیستم ساخته می‌شود.
-                    </div>
-
+                    </MudText>
                 </div>
 
                 <MudForm @ref="_companyForm" @bind-IsValid="_companyValid">
-                    <MudTextField Label="نام شرکت مالی" @bind-Value="_newCompanyName"
+                    <MudTextField Label="نام شرکت جدید" @bind-Value="_newCompanyName"
                                   Required="true" RequiredError="نام شرکت الزامی است."
                                   Variant="Variant.Outlined" Class="mb-4" Immediate="true" />
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
@@ -235,6 +234,9 @@
     private MudForm? _companyForm;
     private bool _busy;
 
+    // Fiscal year selector support
+    private int _selectedFiscalYearId;
+
     private string Initial =>
         string.IsNullOrWhiteSpace(Session.DisplayName) ? "ک" : Session.DisplayName[..1];
 
@@ -247,6 +249,7 @@
         Nav.LocationChanged += OnLocation;
         RefreshPath(Nav.Uri);
         await EnsureContextAsync();
+        _selectedFiscalYearId = Session.ActiveFiscalYearId ?? 0;
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
@@ -295,7 +298,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"خطا در آمinhardeni : {ex.Message}", Severity.Error);
+            Snackbar.Add($"خطا در آماده‌سازی: {ex.Message}", Severity.Error);
             _showCompanyLock = true;
             _showCompanySelection = false;
         }
@@ -347,7 +350,7 @@
     private async Task OnFiscalYearChanged(ChangeEventArgs e)
     {
         if (!int.TryParse(e.Value?.ToString(), out var newYearId)) return;
-        if (newYearId == Session.ActiveFiscalYearId) return;
+        if (newYearId == _selectedFiscalYearId) return;
 
         // Find the selected fiscal year object
         var selectedYear = _years.FirstOrDefault(y => y.FiscalYearId == newYearId);
@@ -356,7 +359,8 @@
         try
         {
             await Context.SetActiveContextAsync(Session.ActiveCompanyId, selectedYear);
-            Session.ActiveFiscalYearId = newYearId;
+            // Update the bound field to reflect the change
+            _selectedFiscalYearId = newYearId;
             Snackbar.Add($"سال مالی فعال به «{selectedYear.YearName}» تغییر یافت.", Severity.Success);
         }
         catch (Exception ex)
@@ -365,8 +369,8 @@
         }
     }
 
-    // --- Added missing event handlers ---
-    private async Task SelectCompanyAsync()
+    // --- Added public event handlers ---
+    public async Task SelectCompanyAsync()
     {
         if (_busy) return;
         _busy = true;
@@ -388,7 +392,7 @@
         }
     }
 
-    private async Task CreateCompanyAsync()
+    public async Task CreateCompanyAsync()
     {
         if (_busy) return;
         await (_companyForm?.Validate() ?? Task.CompletedTask);
@@ -415,7 +419,7 @@
     }
     // --- End of added handlers ---
 
-    // Public Dispose signature required by Roslyn generator
+    // Explicit public Dispose to satisfy Roslyn generator
     public void Dispose()
     {
         Prefs.Changed -= OnPrefsChanged;
