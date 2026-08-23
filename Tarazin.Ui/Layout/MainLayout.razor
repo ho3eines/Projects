@@ -339,7 +339,7 @@
         if (Session.ActiveCompanyId == null) return;
         try
         {
-            _years = (await Context.GetAuthorizedFiscalYearsAsync(Session.ActiveCompanyId)).ToList();
+            _years = (await Context.GetAuthorizedFiscalYearsAsync(Session.ActiveCompanyId.Value)).ToList();
         }
         catch (Exception ex)
         {
@@ -358,7 +358,7 @@
 
         try
         {
-            await Context.SetActiveContextAsync(Session.ActiveCompanyId, selectedYear);
+            await Context.SetActiveContextAsync(Session.ActiveCompanyId.Value, selectedYear);
             // Update the bound field to reflect the change
             _selectedFiscalYearId = newYearId;
             Snackbar.Add($"سال مالی فعال به «{selectedYear.YearName}» تغییر یافت.", Severity.Success);
