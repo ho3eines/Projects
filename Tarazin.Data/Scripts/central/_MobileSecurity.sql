@@ -813,10 +813,18 @@ BEGIN
 
     IF @LegacyPartyUnique IS NOT NULL
     BEGIN
+        DECLARE @DropConstraintSql NVARCHAR(MAX);
+        DECLARE @DropIndexSql NVARCHAR(MAX);
         IF @LegacyPartyIsConstraint = 1
-            EXEC(N'ALTER TABLE [central].[Parties] DROP CONSTRAINT ' + QUOTENAME(@LegacyPartyUnique) + N';');
+        BEGIN
+            SET @DropConstraintSql = N'ALTER TABLE [central].[Parties] DROP CONSTRAINT ' + QUOTENAME(@LegacyPartyUnique) + N';';
+            EXEC(@DropConstraintSql);
+        END
         ELSE
-            EXEC(N'DROP INDEX ' + QUOTENAME(@LegacyPartyUnique) + N' ON [central].[Parties];');
+        BEGIN
+            SET @DropIndexSql = N'DROP INDEX ' + QUOTENAME(@LegacyPartyUnique) + N' ON [central].[Parties];';
+            EXEC(@DropIndexSql);
+        END
     END
 
     ALTER TABLE [central].[Parties]
