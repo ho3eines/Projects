@@ -358,7 +358,11 @@
 
         try
         {
-            await Context.SetActiveContextAsync(Session.ActiveCompanyId.Value, selectedYear);
+            // Resolve the selected company row using the current company id
+            var selectedCompanyRow = _selectionCompanies.FirstOrDefault(c => c.CompanyId == Session.ActiveCompanyId!.Value);
+            if (selectedCompanyRow == null) return;
+            // Pass the company row and fiscal year row to the service method
+            await Context.SetActiveContextAsync(selectedCompanyRow, selectedYear);
             // Update the bound field to reflect the change
             _selectedFiscalYearId = newYearId;
             Snackbar.Add($"سال مالی فعال به «{selectedYear.YearName}» تغییر یافت.", Severity.Success);
@@ -376,7 +380,11 @@
         _busy = true;
         try
         {
-            await Context.SelectCompanyAsync(_selectedCompanyId);
+            // Resolve the company row using the current company id
+            var selectedCompanyRow = _selectionCompanies.FirstOrDefault(c => c.CompanyId == _selectedCompanyId);
+            if (selectedCompanyRow == null) return;
+            // Pass the company id to the service method
+            await Context.SelectCompanyAsync(selectedCompanyRow.CompanyId);
             Snackbar.Add("شرکت با موفقیت انتخاب شد.", Severity.Success);
             _showCompanySelection = false;
             _showCompanyLock = false;
