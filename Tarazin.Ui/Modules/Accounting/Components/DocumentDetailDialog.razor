@@ -1,0 +1,146 @@
+@using System.Globalization
+@using Tarazin.Models
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">جزئیات سند — @(_document?.DocumentNumber ?? DocumentId.ToString())</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+            <MudText>در حال بارگذاری سند...</MudText>
+        }
+        else if (_document is null)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">سند مورد نظر یافت نشد.</MudAlert>
+        }
+        else
+        {
+            <MudPaper Class="pa-3 mb-3" Elevation="1">
+                <MudGrid Spacing="2">
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">تاریخ سند</MudText>
+                        <MudText>@_document.DocumentDate.ToString("yyyy/MM/dd")</MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">نوع سند</MudText>
+                        <MudText>@(_document.DocumentType ?? "—")</MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">طرف حساب</MudText>
+                        <MudText>@(_document.CounterPartyName ?? "—")</MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">وضعیت</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(_document.Status)">
+                            @AccountingDocumentStatus.Title(_document.Status)
+                        </MudChip>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">مبلغ کل</MudText>
+                        <MudText>@_document.TotalAmount.ToString("N0") ریال</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudText Typo="Typo.subtitle2" Class="mb-2">ردیفهای سند</MudText>
+            <MudTable Items="@_lines" Dense="true" Hover="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>حساب</MudTh>
+                    <MudTh>شرح</MudTh>
+                    <MudTh>بدهکار</MudTh>
+                    <MudTh>بستانکار</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.AccountCode — @context.Title</MudTd>
+                    <MudTd>@(context.Description ?? "—")</MudTd>
+                    <MudTd>@(context.Debit > 0 ? context.Debit.ToString("N0") : "—")</MudTd>
+                    <MudTd>@(context.Credit > 0 ? context.Credit.ToString("N0") : "—")</MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudGrid Class="mt-3">
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2">جمع بدهکار: <b>@_totalDebit.ToString("N0")</b></MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2">جمع بستانکار: <b>@_totalCredit.ToString("N0")</b></MudText>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "accounting";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public int DocumentId { get; set; }
+
+    private DailyDocumentRow? _document;
+    private List<DocumentLineRow> _lines = new();
+    private bool _loading = true;
+    private decimal _totalDebit;
+    private decimal _totalCredit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _document = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(Schema, "DocumentById", new
+            {
+                DocumentId,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
+            });
+
+            if (_document is not null)
+            {
+                var rows = await Db.QueryAsync<DocumentLineRow>(Schema, "DocumentLines", new
+                {
+                    DocumentId,
+                    CompanyId = Session.ActiveCompanyId,
+                    FiscalYearId = Session.ActiveFiscalYearId
+                });
+                _lines = (rows ?? Array.Empty<DocumentLineRow>()).ToList();
+                _totalDebit = _lines.Sum(l => l.Debit);
+                _totalCredit = _lines.Sum(l => l.Credit);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری سند: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private static Color StatusColor(string? status) => AccountingDocumentStatus.Normalize(status) switch
+    {
+        AccountingDocumentStatus.Finalized => Color.Success,
+        AccountingDocumentStatus.Confirmed => Color.Info,
+        AccountingDocumentStatus.Draft => Color.Warning,
+        _ => Color.Default
+    };
+}
