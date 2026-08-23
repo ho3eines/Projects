@@ -2,6 +2,7 @@
 @implements IDisposable
 @using Tarazin.Models
 @using Tarazin.Services
+@using Microsoft.AspNetCore.Components
 @inject UserSession Session
 @inject UiPreferences Prefs
 @inject NavigationManager Nav
@@ -35,6 +36,16 @@
             <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Business" Class="ms-2">
                 @Session.ActiveCompanyName | @Session.ActiveFiscalYearName
             </MudChip>
+            @if (Session.ActiveCompanyId != null)
+            {
+                <MudSelect T="int" Label="سال مالی" Value="@Session.ActiveFiscalYearId" OnChange="OnFiscalYearChanged">
+                    <MudSelectItem Value="0">— همه —</MudSelectItem>
+                    @foreach (var y in _years)
+                    {
+                        <MudSelectItem Value="@y.FiscalYearId">@y.YearName @(y.IsClosed ? "(بسته)" : "")</MudSelectItem>
+                    }
+                </MudSelect>
+            }
         }
 
         <MudSpacer />
@@ -64,6 +75,7 @@
                     <MudMenuItem Href="/diag" Icon="@Icons.Material.Filled.MonitorHeart">عیب‌یابی اتصال</MudMenuItem>
                     <MudDivider />
                     <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="Logout">خروج</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Filled.Settings" OnClick="NavigateToSettings">تنظیمات</MudMenuItem>
                 </ChildContent>
             </MudMenu>
         }
@@ -75,6 +87,8 @@
             </MudButton>
         }
     </MudAppBar>
+
+    <MudDivider />
 
     <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive"
                ClipMode="DrawerClipMode.Always" Anchor="Anchor.Start" Class="tz-drawer"
@@ -144,8 +158,7 @@
                 </MudSelect>
 
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
-                           OnClick="SelectCompanyAsync" StartIcon="@Icons.Material.Filled.Business"
-                           Disabled="@(_selectedCompanyId == 0 || _busy)">
+                           OnClick="SelectCompanyAsync" Disabled="@(_selectedCompanyId == 0 || _busy)">
                     @if (_busy)
                     {
                         <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
@@ -163,8 +176,7 @@
                     <MudTextField Label="نام شرکت جدید" @bind-Value="_newCompanyName"
                                   Variant="Variant.Outlined" Class="mb-3" Immediate="true" />
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
-                               OnClick="CreateCompanyAsync" StartIcon="@Icons.Material.Filled.AddBusiness"
-                               Disabled="@(string.IsNullOrWhiteSpace(_newCompanyName) || _busy)">
+                               OnClick="CreateCompanyAsync" Disabled="@(string.IsNullOrWhiteSpace(_newCompanyName) || _busy)">
                         ایجاد شرکت جدید
                     </MudButton>
                 </MudForm>
@@ -186,8 +198,7 @@
                                   Required="true" RequiredError="نام شرکت الزامی است."
                                   Variant="Variant.Outlined" Class="mb-4" Immediate="true" />
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
-                               OnClick="CreateCompanyAsync" StartIcon="@Icons.Material.Filled.AddBusiness"
-                               Disabled="@(!_companyValid || _busy)">
+                               OnClick="CreateCompanyAsync" Disabled="@(!_companyValid || _busy)">
                         @if (_busy)
                         {
                             <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
@@ -203,11 +214,11 @@
         }
     </div>
 }
-
 @code {
     private bool _drawerOpen = true;
     private string _path = "";
     private TarazinModule? _module;
+
     private bool _denied;
     private string _denyMessage = "";
 
@@ -224,6 +235,8 @@
 
     private string Initial =>
         string.IsNullOrWhiteSpace(Session.DisplayName) ? "ک" : Session.DisplayName[..1];
+
+    private List<FiscalYearRow> _years = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -275,64 +288,18 @@
                 _selectionCompanies.Clear();
                 _selectedCompanyId = 0;
             }
+
+            await LoadFiscalYearsAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"خطا در آماده‌سازی محیط کاری: {ex.Message}", Severity.Error);
+            Snackbar.Add($"خطا در آمinhardeni : {ex.Message}", Severity.Error);
             _showCompanyLock = true;
             _showCompanySelection = false;
         }
         finally
         {
             _loadingContext = false;
-        }
-    }
-
-    private async Task SelectCompanyAsync()
-    {
-        if (_busy || _selectedCompanyId == 0) return;
-        _busy = true;
-        try
-        {
-            await Context.SelectCompanyAsync(_selectedCompanyId);
-            Snackbar.Add("شرکت با موفقیت انتخاب شد.", Severity.Success);
-            _showCompanySelection = false;
-            _showCompanyLock = false;
-            Nav.NavigateTo(Nav.Uri, forceLoad: true);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-
-    private async Task CreateCompanyAsync()
-    {
-        if (_busy) return;
-        await (_companyForm?.Validate() ?? Task.CompletedTask);
-        if (!_companyValid || string.IsNullOrWhiteSpace(_newCompanyName)) return;
-
-        _busy = true;
-        try
-        {
-            await Context.CreateCompanyAsync(_newCompanyName.Trim());
-            Snackbar.Add($"شرکت «{_newCompanyName.Trim()}» با سال مالی جاری ایجاد شد.", Severity.Success);
-            _showCompanyLock = false;
-            _showCompanySelection = false;
-            _newCompanyName = "";
-            Nav.NavigateTo(Nav.Uri, forceLoad: true);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
         }
     }
 
@@ -357,7 +324,42 @@
         Nav.NavigateTo("/", forceLoad: true);
     }
 
-    public void Dispose()
+    private async Task NavigateToSettings()
+    {
+        Nav.NavigateTo("/settings");
+    }
+
+    private async Task LoadFiscalYearsAsync()
+    {
+        if (Session.ActiveCompanyId == null) return;
+        try
+        {
+            _years = (await Context.GetAuthorizedFiscalYearsAsync(Session.ActiveCompanyId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _years = new();
+        }
+    }
+
+    private async Task OnFiscalYearChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var newYearId)) return;
+        if (newYearId == Session.ActiveFiscalYearId) return;
+
+        try
+        {
+            await Context.SetActiveContextAsync(Session.ActiveCompanyId, newYearId);
+            Session.ActiveFiscalYearId = newYearId;
+            Snackbar.Add($"سال مالی فعال به «{_years.FirstOrDefault(y => y.FiscalYearId == newYearId)?.YearName}» تغییر یافت.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در تغییر سال مالی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    protected override void Dispose()
     {
         Prefs.Changed -= OnPrefsChanged;
         Session.Changed -= OnSessionChanged;
