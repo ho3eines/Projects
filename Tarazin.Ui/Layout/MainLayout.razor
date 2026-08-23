@@ -38,7 +38,7 @@
             </MudChip>
             @if (Session.ActiveCompanyId != null)
             {
-                <MudSelect T="int" Label="سال مالی" Value="@Session.ActiveFiscalYearId" OnChange="OnFiscalYearChanged">
+                <MudSelect T="int" Label="سال مالی" Value="@(Session.ActiveFiscalYearId ?? 0)" OnChange="OnFiscalYearChanged">
                     <MudSelectItem Value="0">— همه —</MudSelectItem>
                     @foreach (var y in _years)
                     {
@@ -147,7 +147,8 @@
                     <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">انتخاب شرکت مالی</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
                         یک شرکت مالی را برای ورود انتخاب کنید. سال مالی به‌صورت خودکار فعال می‌شود.
-                    </MudText>
+                    </div>
+
                 </div>
 
                 <MudSelect T="int" Label="شرکت مالی" @bind-Value="_selectedCompanyId" Variant="Variant.Outlined" Class="mb-4" Required="true">
@@ -166,7 +167,7 @@
                     }
                     else
                     {
-                        <span>ورود به شرکت انتخاب‌شده</span>
+                        <span>ورود به شرکت انتخ	lars</span>
                     }
                 </MudButton>
 
@@ -190,7 +191,8 @@
                     <MudText Typo="Typo.h5" Class="mt-2 font-weight-bold">ایجاد شرکت مالی</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
                         برای شروع باید یک شرکت مالی ایجاد کنید. سال مالی به‌صورت خودکار توسط سیستم ساخته می‌شود.
-                    </MudText>
+                    </div>
+
                 </div>
 
                 <MudForm @ref="_companyForm" @bind-IsValid="_companyValid">
@@ -347,11 +349,15 @@
         if (!int.TryParse(e.Value?.ToString(), out var newYearId)) return;
         if (newYearId == Session.ActiveFiscalYearId) return;
 
+        // Find the selected fiscal year object
+        var selectedYear = _years.FirstOrDefault(y => y.FiscalYearId == newYearId);
+        if (selectedYear == null) return;
+
         try
         {
-            await Context.SetActiveContextAsync(Session.ActiveCompanyId, newYearId);
+            await Context.SetActiveContextAsync(Session.ActiveCompanyId, selectedYear);
             Session.ActiveFiscalYearId = newYearId;
-            Snackbar.Add($"سال مالی فعال به «{_years.FirstOrDefault(y => y.FiscalYearId == newYearId)?.YearName}» تغییر یافت.", Severity.Success);
+            Snackbar.Add($"سال مالی فعال به «{selectedYear.YearName}» تغییر یافت.", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -359,7 +365,58 @@
         }
     }
 
-    protected override void Dispose()
+    // --- Added missing event handlers ---
+    private async Task SelectCompanyAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await Context.SelectCompanyAsync(_selectedCompanyId);
+            Snackbar.Add("شرکت با موفقیت انتخاب شد.", Severity.Success);
+            _showCompanySelection = false;
+            _showCompanyLock = false;
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CreateCompanyAsync()
+    {
+        if (_busy) return;
+        await (_companyForm?.Validate() ?? Task.CompletedTask);
+        if (!_companyValid || string.IsNullOrWhiteSpace(_newCompanyName)) return;
+
+        _busy = true;
+        try
+        {
+            await Context.CreateCompanyAsync(_newCompanyName.Trim());
+            Snackbar.Add($"شرکت «{_newCompanyName.Trim()}» با سال مالی جاری ایجاد شد.", Severity.Success);
+            _showCompanyLock = false;
+            _showCompanySelection = false;
+            _newCompanyName = "";
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+    // --- End of added handlers ---
+
+    // Public Dispose signature required by Roslyn generator
+    public void Dispose()
     {
         Prefs.Changed -= OnPrefsChanged;
         Session.Changed -= OnSessionChanged;
