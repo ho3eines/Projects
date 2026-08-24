@@ -1,0 +1,196 @@
+@page "/dev/bireport"
+@using Stimulsoft.Report
+@using Stimulsoft.Report.Blazor
+@using Stimulsoft.Report.Export
+@inject BiReportService ReportService
+@inject DbService Db
+
+<PageTitle>تست رندر گزارش BI</PageTitle>
+
+<MudStack Spacing="3" Class="pa-4" Style="max-width:1000px;margin:auto">
+    <PageHeader Title="تست رندر گزارش (Stimulsoft)"
+                Eyebrow="توسعه و عیب‌یابی"
+                Subtitle="صفحهٔ آزمایشی: یک گزارش از دادهٔ ثابت می‌سازد و با همان Viewer تولیدی نمایش می‌دهد — بدون نیاز به ورود یا دیتابیس. هدف: دیدن خروجی واقعی رندر و فونت روی همین دستگاه (وب، ویندوز، اندروید، iOS)." />
+
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        فونت گزارش از فاساد <b>Stimulsoft.Drawing</b> ساخته می‌شود؛ روی ویندوز پشت آن
+        System.Drawing و روی اندروید/iOS موتور مدیریت‌شدهٔ SixLabors است. اگر متن فارسی
+        در این صفحه درست نمایش داده شد، یعنی مسیر رندر موبایل سالم است.
+        خروجی بدون لایسنس با واترمارک آزمایشی همراه است (طبیعی).
+    </MudAlert>
+
+    <MudPaper Class="pa-4" Elevation="1">
+        <MudText Typo="Typo.h6" GutterBottom="true">مشخصات میزبان و موتور رندر</MudText>
+        <MudSimpleTable Dense="true" Hover="true">
+            <tbody>
+                <tr>
+                    <td>میزبان</td>
+                    <td>@_platformLabel</td>
+                </tr>
+                <tr>
+                    <td>.NET Runtime</td>
+                    <td>@Environment.Version</td>
+                </tr>
+                <tr>
+                    <td>Stimulsoft.Drawing (فاساد cross-platform فونت)</td>
+                    <td>@_drawingAssembly</td>
+                </tr>
+                <tr>
+                    <td>StiReport (موتور رندر)</td>
+                    <td>@_reportAssembly</td>
+                </tr>
+                <tr>
+                    <td>فونت واقعی رندر (resolve شده)</td>
+                    <td>@_actualFontName</td>
+                </tr>
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+
+    <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RebuildDemoAsync" Disabled="_busy"
+                   StartIcon="@Icons.Material.Filled.Refresh">
+            ساخت دوبارهٔ گزارش آزمایشی
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ExportPngAsync" Disabled="_busy || !_ready"
+                   StartIcon="@Icons.Material.Filled.Image">
+            خروجی تصویری (PNG صفحهٔ اول)
+        </MudButton>
+        @if (Db.IsConnectionAvailable)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" OnClick="BuildRealAsync" Disabled="_busy"
+                       StartIcon="@Icons.Material.Filled.Storage">
+                گزارش از دادهٔ واقعی (کیف پول ارز)
+            </MudButton>
+        }
+    </MudStack>
+
+    @if (_busy)
+    {
+        <MudPaper Elevation="1" Class="pa-8 text-center">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            <MudText Typo="Typo.body2" Class="mt-3">در حال ساخت گزارش…</MudText>
+        </MudPaper>
+    }
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            خطا: @_error
+        </MudAlert>
+    }
+
+    @if (_ready && !_busy)
+    {
+        <StiBlazorViewer Report="@_report" Width="100%" Height="560px" />
+    }
+
+    @if (_pngDataUrl is not null)
+    {
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" GutterBottom="true">
+                خروجی تصویری صفحهٔ اول (رندر سمت-سرور، بدون Viewer) — @_pngBytes بایت
+            </MudText>
+            <img src="@_pngDataUrl" alt="پیش‌نمایش PNG گزارش" style="max-width:100%;border:1px solid #d0d7dc;border-radius:8px" />
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private StiReport _report = new();
+    private bool _ready;
+    private bool _busy;
+    private string? _error;
+    private string? _pngDataUrl;
+    private long _pngBytes;
+    private string _platformLabel = "";
+    private string _drawingAssembly = "";
+    private string _reportAssembly = "";
+    private string _actualFontName = "—";
+
+    protected override void OnInitialized()
+    {
+        _platformLabel = OperatingSystem.IsAndroid() ? "Android"
+            : OperatingSystem.IsIOS() ? "iOS"
+            : OperatingSystem.IsMacCatalyst() ? "Mac Catalyst"
+            : OperatingSystem.IsWindows() ? "Windows (یا مرورگر — بلزور سرور)"
+            : "سایر";
+        _drawingAssembly = typeof(Stimulsoft.Drawing.Font).Assembly.GetName().Version?.ToString() ?? "?";
+        _reportAssembly = typeof(StiReport).Assembly.GetName().Version?.ToString() ?? "?";
+
+        // گزارش آزمایشی کاملاً هم‌زمان ساخته می‌شود (بدون I/O) تا در همان
+        // رندر اول، Viewer خالی نماند.
+        _report = ReportService.BuildDemoReport();
+        _ready = true;
+        RefreshActualFont();
+    }
+
+    private void RebuildDemoAsync() => RunSafe(() =>
+    {
+        _pngDataUrl = null;
+        _report = ReportService.BuildDemoReport();
+        _ready = true;
+        RefreshActualFont();
+    });
+
+    private void ExportPngAsync() => RunSafe(() =>
+    {
+        if (!_ready) return;
+
+        var settings = new StiImageExportSettings(StiImageType.Png)
+        {
+            PageRange = new StiPagesRange("1")
+        };
+        using var ms = new MemoryStream();
+        _report.ExportDocument(StiExportFormat.Image, ms, settings);
+
+        _pngBytes = ms.Length;
+        _pngDataUrl = "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
+    });
+
+    private async Task BuildRealAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var def = new BiReportDefinition(
+                "wallet", "کیف پول و موجودی ارز", "دادهٔ واقعی (اسکریپت WalletList)", "currency", "WalletList",
+                new Dictionary<string, object?> { ["FromDate"] = null, ["ToDate"] = null, ["OnlyNonZero"] = 0 },
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["CurrencyCode"] = "ارز", ["CurrencyName"] = "نام", ["Quantity"] = "موجودی",
+                    ["SystemRate"] = "نرخ سیستم", ["RialValue"] = "ارزش ریالی",
+                });
+            _pngDataUrl = null;
+            _report = await ReportService.BuildAsync(def);
+            _ready = true;
+            RefreshActualFont();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void RefreshActualFont()
+        => _actualFontName = BiReportService.GetActualFontName(_report) ?? "—";
+
+    private void RunSafe(Action action)
+    {
+        _error = null;
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

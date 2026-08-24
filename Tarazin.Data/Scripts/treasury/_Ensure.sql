@@ -385,3 +385,44 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_DayCloses_Company' AND object_id = OBJECT_ID(N'[treasury].[DayCloses]'))
     CREATE INDEX IX_DayCloses_Company ON [treasury].[DayCloses](CompanyId) WHERE CompanyId IS NOT NULL;
 GO
+
+-- ─────────────────────────────────────────────────────────────
+-- مهاجرت یکتایی کدها از «سراسری» به «درون‌شرکتی» در خزانه‌داری
+-- CREATE TABLE های قدیمی BankCode/CashBoxCode/CurrencyCode/DayDate را
+-- UNIQUE سراسری می‌کردند که با قانون چندشرکتی ناسازگار بود. قید خودکار
+-- قدیمی حذف و ایندکس یکتای فیلترشده (شرکت + کد) جایگزین می‌شود.
+-- ─────────────────────────────────────────────────────────────
+DECLARE @TrsUqTable NVARCHAR(128), @TrsUqName NVARCHAR(128), @TrsUqCol NVARCHAR(128), @TrsUqSql NVARCHAR(500);
+DECLARE trs_uq CURSOR LOCAL FAST_FORWARD FOR
+    SELECT t.name AS Tbl, kc.name AS UqName, c.name AS ColName
+    FROM sys.key_constraints kc
+    JOIN sys.tables t ON t.object_id = kc.parent_object_id
+    JOIN sys.index_columns ic ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+    JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+    WHERE t.schema_id = SCHEMA_ID(N'treasury') AND kc.type = N'UQ'
+      AND t.name IN (N'Banks', N'CashBoxes', N'CurrencyRates', N'DayCloses')
+      AND c.name IN (N'BankCode', N'CashBoxCode', N'CurrencyCode', N'DayDate');
+OPEN trs_uq;
+FETCH NEXT FROM trs_uq INTO @TrsUqTable, @TrsUqName, @TrsUqCol;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @TrsUqSql = N'ALTER TABLE [treasury].' + QUOTENAME(@TrsUqTable) + N' DROP CONSTRAINT ' + QUOTENAME(@TrsUqName) + N';';
+    EXEC sp_executesql @TrsUqSql;
+    FETCH NEXT FROM trs_uq INTO @TrsUqTable, @TrsUqName, @TrsUqCol;
+END
+CLOSE trs_uq;
+DEALLOCATE trs_uq;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Banks_Company_Code' AND object_id = OBJECT_ID(N'[treasury].[Banks]'))
+    CREATE UNIQUE INDEX UX_Banks_Company_Code ON [treasury].[Banks](CompanyId, BankCode) WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_CashBoxes_Company_Code' AND object_id = OBJECT_ID(N'[treasury].[CashBoxes]'))
+    CREATE UNIQUE INDEX UX_CashBoxes_Company_Code ON [treasury].[CashBoxes](CompanyId, CashBoxCode) WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_CurrencyRates_Company_Code' AND object_id = OBJECT_ID(N'[treasury].[CurrencyRates]'))
+    CREATE UNIQUE INDEX UX_CurrencyRates_Company_Code ON [treasury].[CurrencyRates](CompanyId, CurrencyCode) WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_DayCloses_Company_Date' AND object_id = OBJECT_ID(N'[treasury].[DayCloses]'))
+    CREATE UNIQUE INDEX UX_DayCloses_Company_Date ON [treasury].[DayCloses](CompanyId, DayDate) WHERE CompanyId IS NOT NULL;
+GO

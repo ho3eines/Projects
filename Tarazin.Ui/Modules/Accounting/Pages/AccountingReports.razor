@@ -2,6 +2,7 @@
 @using Tarazin.Modules.Accounting.Components
 @inject DbService Db
 @inject UserSession Session
+@inject AccountingContextService Context
 @inject AccountPickerService Picker
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
@@ -397,7 +398,8 @@ else
     private string? _status;
     private string _documentNumber = "";
     private DateTime? _from;
-    private DateTime? _to = DateTime.Today;
+    private DateTime? _to;
+    private FiscalYearRow? _fiscalYear;
     private int _hierarchyLevel = 1;
     private int _detailPage;
     private long _detailTotalRows;
@@ -432,8 +434,14 @@ else
         _appliedQueryKey = queryKey;
         if (RequestedReport is "hierarchy" or "detail" or "daily" or "ledger" or "trial")
             _report = RequestedReport;
-        if ((_report is "daily" or "ledger" or "trial") && _from is null)
-            _from = DateTime.Today.AddMonths(-1);
+
+        // پیش‌فرض بازهٔ تاریخ = کل بازهٔ سال مالی فعال (نه «امروز» یا «امروز منهای یک ماه»).
+        if (_fiscalYear is null)
+            _fiscalYear = await Context.GetActiveFiscalYearAsync();
+        if (_from is null)
+            _from = _fiscalYear?.StartDate ?? DateTime.Today.AddMonths(-1);
+        if (_to is null)
+            _to = _fiscalYear?.EndDate ?? DateTime.Today;
 
         if (!string.IsNullOrWhiteSpace(RequestedAccountCode))
         {
@@ -451,7 +459,9 @@ else
             return;
 
         _report = value;
-        _from = _report is "detail" or "hierarchy" ? null : DateTime.Today.AddMonths(-1);
+        // پیش‌فرض بازهٔ هر گزارش = بازهٔ سال مالی فعال.
+        _from = _fiscalYear?.StartDate ?? DateTime.Today.AddMonths(-1);
+        _to = _fiscalYear?.EndDate ?? DateTime.Today;
         _detailReturnReport = null;
         _detilEntity = null;
         ClearDetilDrill();
@@ -980,18 +990,18 @@ else
     private void OnDailyRowClick(TableRowClickEventArgs<DailyBookRow> args)
     {
         if (args.Item is { } row)
-            OpenDocument(row.DocumentId);
+            OpenDocument(row.DocumentId, row.DocumentNumber);
     }
 
     private void OnDetailTransactionRowClick(TableRowClickEventArgs<DetailAccountTransactionRow> args)
     {
         if (args.Item is { } row)
-            OpenDocument(row.DocumentId);
+            OpenDocument(row.DocumentId,row.DocumentNumber);
     }
 
     [Inject] private IDialogService DialogService { get; set; } = default!;
 
-    private void OpenDocument(int documentId)
+    private void OpenDocument(int documentId,string Documentcode)
     {
         try
         {

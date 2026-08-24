@@ -31,8 +31,10 @@ LEFT JOIN (
     FROM [currency].[CurrencyMovements]
     WHERE (@FromDate IS NULL OR MovementDate >= @FromDate)
       AND (@ToDate IS NULL OR MovementDate <= @ToDate)
+      AND CompanyId = [central].[fn_MobileCompanyId]()
     GROUP BY CurrencyCode
 ) m ON m.CurrencyCode = w.CurrencyCode
 WHERE c.IsActive = 1
+  AND w.CompanyId = [central].[fn_MobileCompanyId]()
   AND (@OnlyNonZero = 0 OR ISNULL(w.Quantity, 0) <> 0)
 ORDER BY RialValue DESC, w.CurrencyCode;

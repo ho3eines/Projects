@@ -9,6 +9,29 @@ SET QUOTED_IDENTIFIER ON;
 BEGIN TRY
     BEGIN TRANSACTION;
 
+-- Idempotent upgrade: drop every previously installed Mobile* policy first.
+-- Security policies schema-bind the predicate functions below, so
+-- CREATE OR ALTER FUNCTION would fail with 3729 while a policy is attached.
+-- All policies are recreated in the sections further down (business tables,
+-- central tables, Companies, global tables), so dropping here is safe and
+-- makes the whole script re-runnable on every startup.
+DECLARE @DropPolicyName SYSNAME;
+DECLARE drop_mobile_policies CURSOR LOCAL FAST_FORWARD FOR
+SELECT name
+FROM sys.security_policies
+WHERE schema_id = SCHEMA_ID(N'central') AND name LIKE N'Mobile%';
+OPEN drop_mobile_policies;
+FETCH NEXT FROM drop_mobile_policies INTO @DropPolicyName;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    DECLARE @DropPolicySql NVARCHAR(MAX) =
+        N'DROP SECURITY POLICY [central].' + QUOTENAME(@DropPolicyName) + N';';
+    EXEC sys.sp_executesql @DropPolicySql;
+    FETCH NEXT FROM drop_mobile_policies INTO @DropPolicyName;
+END
+CLOSE drop_mobile_policies;
+DEALLOCATE drop_mobile_policies;
+
 -- Authoritative v4 tenant-default function. Generated mobile principals can
 -- resolve only their live broker-bound company. Trusted Web/bootstrap identities
 -- retain the existing active-context/fallback behavior used by business-table
@@ -721,7 +744,14 @@ BEGIN
     -- Existing rows cannot be assigned safely by guessing when several tenant
     -- companies already exist. Stop instead of silently exposing them to the
     -- first company; deployment must backfill explicit ownership and retry.
+    -- central.AuditLog is exempt: its NULL CompanyId rows are system-level
+    -- records (startup migrations, seed, access syncs) written when no tenant
+    -- context exists. Backfilling them would misattribute system audit to a
+    -- company; the access predicate already hides NULL rows from mobile
+    -- sessions, which is the desired behavior for these records.
+    -- Convention: docs/adr/ADR-004-auditlog-null-company.md
     IF @CompanyCount > 1
+       AND NOT (@Schema = N'central' AND @Table = N'AuditLog')
     BEGIN
         IF COL_LENGTH(@Schema + N'.' + @Table, N'CompanyId') IS NULL
             SET @Sql = N'IF EXISTS (SELECT 1 FROM ' + @Qualified +

@@ -38,6 +38,7 @@ public sealed class DbService
     public string ConnectionDescription => _connectionProvider.Description;
     public bool IsConnectionAvailable => _connectionProvider.IsAvailable;
     public bool UsesTemporaryCredential => !_connectionProvider.SupportsInitialization;
+    public int? CurrentCompanyId => _currentUser.ActiveCompanyId;
 
     /// <summary>
     /// تست اتصال: باز کردن یک کانکشن و اجرای <c>SELECT 1</c>.
@@ -319,7 +320,14 @@ public sealed class DbService
         // هم‌راستا با EnsureSchemaAsync: ابتدا central (شرکت/سال/دسترسی‌ها)
         // تا بذرِ اسکیماهای وابسته، مقادیر صحیحِ خارج‌کلید را ببیند.
         var schemas = _catalog.Schemas
-            .OrderBy(s => string.Equals(s, "central", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .OrderBy(s => s switch
+            {
+                "central" => 0,
+                "accounting" => 1,
+                "inventory" => 2,
+                "goldshop" => 3,
+                _ => 10
+            })
             .ThenBy(s => s, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -340,6 +348,11 @@ public sealed class DbService
     /// </summary>
     private async Task ExecuteBatchesAsync(SqlConnection conn, string sql, CancellationToken ct)
     {
+        // Filtered indexes require these SET options for both DDL and DML.
+        // Explicitly set them because sqlcmd/ADO.NET defaults differ.
+        await conn.ExecuteAsync(new CommandDefinition(
+            "SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET CONCAT_NULL_YIELDS_NULL ON; SET ARITHABORT ON; SET NUMERIC_ROUNDABORT OFF;",
+            cancellationToken: ct));
         foreach (var batch in SqlScript.SplitBatches(sql))
         {
             await conn.ExecuteAsync(new CommandDefinition(batch, commandTimeout: 120, cancellationToken: ct));

@@ -94,9 +94,9 @@ public sealed class EntityCrudService
         EntityEditorKind.Account =>
             _db.ExecuteAsync("accounting", "ChartOfAccountDelete", new { AccountId = model.Id }),
         EntityEditorKind.GoldItem =>
-            _db.ExecuteAsync("goldshop", "GoldItemDelete", new { GoldItemId = model.Id }),
+            _db.ExecuteAsync("goldshop", "GoldItemDelete", new { GoldItemId = model.Id, CompanyId = _db.CurrentCompanyId }),
         EntityEditorKind.GoldPrice =>
-            _db.ExecuteAsync("goldshop", "GoldPriceDelete", new { PriceId = model.Id }),
+            _db.ExecuteAsync("goldshop", "GoldPriceDelete", new { PriceId = model.Id, CompanyId = _db.CurrentCompanyId }),
         EntityEditorKind.InventoryItem =>
             _db.ExecuteAsync("inventory", "ItemDelete", new { ItemId = model.Id }),
         EntityEditorKind.Warehouse =>

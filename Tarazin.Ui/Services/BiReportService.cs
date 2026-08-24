@@ -1,9 +1,13 @@
 using System.Data;
 using System.Drawing;
+using System.Reflection;
 using Stimulsoft.Base.Drawing;
 using Stimulsoft.Report;
 using Stimulsoft.Report.Components;
 using Tarazin.Data;
+// فونت گزارش از فاساد cross-platform خود Stimulsoft (Stimulsoft.Drawing) می‌آید —
+// در ویندوز روی System.Drawing و در اندروید/iOS روی SixLabors.ImageSharp اجرا می‌شود.
+using StiFont = Stimulsoft.Drawing.Font;
 
 namespace Tarazin.Services;
 
@@ -16,8 +20,9 @@ namespace Tarazin.Services;
 /// - سرویس، DataTable را از خروجی اسکریپت می‌سازد و یک StiReport جدولی (سربرگ + باند داده)
 ///   به‌صورت برنامه‌نویسی می‌سازد؛ سپس در <c>StiBlazorViewer</c> رندر/چاپ/خروجی PDF-Excel می‌شود.
 /// - فونت/رنگ اجزای گزارش از API رسمی Stimulsoft .NET استفاده می‌کند:
-///   <c>StiText.Font</c> از نوع <see cref="Font"/> (System.Drawing) و براش‌ها
-///   <c>StiSolidBrush(Color)</c> هستند؛ System.Drawing.Common وابستگی ترایای خود Stimulsoft است.
+///   <c>StiText.Font</c> از نوع <c>Stimulsoft.Drawing.Font</c> (فاساد cross-platform خود Stimulsoft)
+///   و براش‌ها <c>StiSolidBrush(Color)</c> هستند؛ در MAUI اندروید/iOS همین فاساد
+///   روی SixLabors.ImageSharp اجرا می‌شود (نه System.Drawing.Common ویندوزی).
 ///
 /// نکتهٔ لایسنس: بدون کلید لایسنس Stimulsoft، خروجی با واترمارک آزمایشی رندر می‌شود؛
 /// برای تولید باید لایسنس خریداری و در Program.cs ثبت شود (مستند در docs/BI_MODULE.md).
@@ -37,6 +42,62 @@ public sealed class BiReportService
         var rows = await _db.QueryAsync<dynamic>(def.Schema, def.Script, def.Params, ct);
         var table = ToDataTable(rows, def.Script);
         return BuildTableReport(def.Title, def.Subtitle, table, def.ColumnTitles);
+    }
+
+    /// <summary>
+    /// ساخت یک گزارش آزمایشی از دادهٔ ثابت (بدون نیاز به دیتابیس/ورود) — برای تست
+    /// رندر و فونت روی هر پلتفرم (به‌ویژه MAUI اندروید/iOS). دقیقاً از همان مسیر
+    /// تولیدی <see cref="BuildTableReport"/> عبور می‌کند تا فاساد cross-platform
+    /// فونت (Stimulsoft.Drawing) در عمل تست شود.
+    /// </summary>
+    public StiReport BuildDemoReport()
+    {
+        var table = new DataTable("DemoGoldSales");
+        table.Columns.Add("InvoiceNumber", typeof(string));
+        table.Columns.Add("InvoiceDate", typeof(string));
+        table.Columns.Add("CustomerName", typeof(string));
+        table.Columns.Add("ItemTitle", typeof(string));
+        table.Columns.Add("WeightGram", typeof(string));
+        table.Columns.Add("TotalAmount", typeof(string));
+
+        table.Rows.Add("1001", "1403/05/12", "مشتری آزمایشی یک", "انگشتر طلا", "4.25", "82,500,000");
+        table.Rows.Add("1002", "1403/05/13", "مشتری آزمایشی دو", "گردنبند طلا", "8.10", "158,900,000");
+        table.Rows.Add("1003", "1403/05/14", "مشتری آزمایشی سه", "دستبند طلا", "12.40", "241,000,000");
+
+        return BuildTableReport(
+            "گزارش آزمایشی فروش طلا (بدون دیتابیس)",
+            "دادهٔ ثابت — تست رندر Stimulsoft.Drawing روی همین دستگاه",
+            table,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["InvoiceNumber"] = "شماره",
+                ["InvoiceDate"] = "تاریخ",
+                ["CustomerName"] = "مشتری",
+                ["ItemTitle"] = "جنس",
+                ["WeightGram"] = "وزن (گرم)",
+                ["TotalAmount"] = "مبلغ (ریال)",
+            });
+    }
+
+    /// <summary>
+    /// نام فونتِ واقعاً استفاده‌شده در رندر برای اولین <see cref="StiText"/> گزارش.
+    /// از فیلد داخلی <c>sixFont</c> (SixLabors) می‌خواند تا نام resolve شده را بدهد —
+    /// یعنی وقتی «Vazirmatn» روی دستگاه نصب نباشد، «Roboto» فالتبک برمی‌گردد؛ چون
+    /// <c>Font.Name</c> عمومی فقط نام درخواستی را می‌دهد، نه نام واقعی.
+    /// </summary>
+    public static string? GetActualFontName(StiReport report)
+    {
+        if (report is null) return null;
+        var sixFontField = typeof(StiFont).GetField("sixFont", BindingFlags.NonPublic | BindingFlags.Instance);
+        foreach (var component in report.GetComponents())
+        {
+            if (component is not StiText text || text.Font is null) continue;
+            var sixFont = sixFontField?.GetValue(text.Font);
+            var family = sixFont?.GetType().GetProperty("Family")?.GetValue(sixFont);
+            var name = family?.GetType().GetProperty("Name")?.GetValue(family)?.ToString();
+            if (!string.IsNullOrWhiteSpace(name)) return name;
+        }
+        return null;
     }
 
     /// <summary>تبدیل خروجی Dapper به DataTable (نام ستون‌ها از aliases اسکریپت).</summary>
@@ -65,7 +126,24 @@ public sealed class BiReportService
     /// ساخت گزارش جدولی (سربرگ + ردیف سرستون + باند داده) با مدل شیء Stimulsoft.
     /// واحد مختصات: صدم اینچ (پیش‌فرض StiReport).
     /// </summary>
-    private static StiReport BuildTableReport(string title, string subtitle, DataTable table,
+    /// <summary>
+    /// ساخت فونت گزارش با فاساد cross-platform Stimulsoft.Drawing.
+    /// نام فونت «Vazirmatn» است (همان فونت UI پروژه). موتور رندر (پیش‌فرض ImageSharp) فونت را
+    /// از فایل‌های فونت نصب‌شدهٔ همان دستگاه پیدا می‌کند؛ اگر پیدا نشد (معمولاً در اندروید/IOS و
+    /// سرورهای بدون نصب فونت) خودکار به Roboto جاسازیشدهٔ Stimulsoft برمی‌گردد تا رندر همیشه
+    /// سالم بماند — یعنی خروجی روی دستگاه‌های بدون Vazirmatn یکسان (Roboto) است.
+    /// امضای سازندهٔ آن از <see cref="FontStyle"/> (System.Drawing) استفاده می‌کند که
+    /// فقط یک enum است؛ خود رندر در اندروید/iOS توسط SixLabors انجام می‌شود، پس CA1416
+    /// در اینجا مثبتِ کاذب است و به‌صورت موضعی (فقط داخل همین متد) غیرفعال شده.
+    /// </summary>
+    private static StiFont MakeFont(float size, bool bold)
+    {
+#pragma warning disable CA1416 // FontStyle فقط enum است؛ پیاده‌سازی واقعی در Stimulsoft.Drawing (SixLabors) است
+        return new StiFont("Vazirmatn", size, bold ? FontStyle.Bold : FontStyle.Regular);
+#pragma warning restore CA1416
+    }
+
+    private static StiReport BuildTableReport(string title, string? subtitle, DataTable table,
         IReadOnlyDictionary<string, string>? columnTitles)
     {
         var report = new StiReport { ReportName = title };
@@ -84,7 +162,7 @@ public sealed class BiReportService
         {
             Name = "Title",
             Text = title,
-            Font = new Font("Tahoma", 14, FontStyle.Bold),
+            Font = MakeFont(14, bold: true),
             HorAlignment = StiTextHorAlignment.Center,
             TextBrush = new StiSolidBrush(Color.FromArgb(94, 53, 177)),
             Width = pageWidth, Height = 35, Left = 0, Top = 5
@@ -97,7 +175,7 @@ public sealed class BiReportService
         {
             Name = "Meta",
             Text = meta,
-            Font = new Font("Tahoma", 9, FontStyle.Regular),
+            Font = MakeFont(9, bold: false),
             HorAlignment = StiTextHorAlignment.Center,
             TextBrush = new StiSolidBrush(Color.Gray),
             Width = pageWidth, Height = 22, Left = 0, Top = 42
@@ -114,7 +192,7 @@ public sealed class BiReportService
             {
                 Name = "Col_" + column.ColumnName,
                 Text = header,
-                Font = new Font("Tahoma", 10, FontStyle.Bold),
+                Font = MakeFont(10, bold: true),
                 HorAlignment = StiTextHorAlignment.Center,
                 TextBrush = new StiSolidBrush(Color.White),
                 Brush = new StiSolidBrush(Color.FromArgb(94, 53, 177)),
@@ -139,7 +217,7 @@ public sealed class BiReportService
                 Name = "Val_" + column.ColumnName,
                 // اتصال به ستون داده از طریق عبارت {Table.Column} انجام می‌شود (الگوی رسمی Stimulsoft)
                 Text = "{" + table.TableName + "." + column.ColumnName + "}",
-                Font = new Font("Tahoma", 9, FontStyle.Regular),
+                Font = MakeFont(9, bold: false),
                 TextBrush = new StiSolidBrush(Color.Black),
                 Width = colWidth, Height = dataHeight, Left = x, Top = 0,
                 CanGrow = true

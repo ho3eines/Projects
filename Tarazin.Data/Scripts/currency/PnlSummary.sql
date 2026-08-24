@@ -10,7 +10,8 @@ WITH FxLegs AS (
     SELECT l.LegType, l.ItemKey, ISNULL(l.RealizedPnl, 0) AS Pnl
     FROM [currency].[FxTransactionLegs] l
     JOIN [currency].[FxTransactions] t ON t.FxTransactionId = l.FxTransactionId
-    WHERE (@FromDate IS NULL OR t.TransactionDate >= @FromDate)
+    WHERE t.CompanyId = [central].[fn_MobileCompanyId]()
+      AND (@FromDate IS NULL OR t.TransactionDate >= @FromDate)
       AND (@ToDate IS NULL OR t.TransactionDate <= @ToDate)
 )
 SELECT N'fx_trade' AS PnlKey, N'سود معاملات ارز (محقق‌شده)' AS Title,
@@ -21,6 +22,7 @@ SELECT N'fx_unreal', N'سود تغییر ارزش ارز (محقق‌نشده)',
 FROM [currency].[Wallets] w
 LEFT JOIN [currency].[PriceRates] r
     ON r.PriceItemId = (SELECT PriceItemId FROM [currency].[PriceItems] WHERE ItemKey = w.CurrencyCode AND IsDeleted = 0)
+WHERE w.CompanyId = [central].[fn_MobileCompanyId]()
 UNION ALL
 SELECT N'gold_trade', N'سود معاملات طلا/سکه/فلز (محقق‌شده)',
        ROUND(ISNULL((SELECT SUM(Pnl) FROM FxLegs WHERE LegType IN (N'Gold', N'Coin', N'Metal')), 0), 0)
@@ -30,15 +32,18 @@ SELECT N'gold_unreal', N'سود تغییر ارزش طلا/سکه (محقق‌ن
 FROM [currency].[AssetHoldings] h
 JOIN [currency].[PriceItems] p ON p.ItemKey = h.ItemKey
 LEFT JOIN [currency].[PriceRates] r ON r.PriceItemId = p.PriceItemId
+WHERE h.CompanyId = [central].[fn_MobileCompanyId]()
 UNION ALL
 SELECT N'gold_workmanship', N'سود اجرت',
        ROUND(ISNULL((SELECT SUM(ISNULL(s.Workmanship, 0)) FROM [goldshop].[SaleInvoices] s
-                     WHERE (@FromDate IS NULL OR s.InvoiceDate >= @FromDate)
+                     WHERE s.CompanyId = [central].[fn_MobileCompanyId]()
+                       AND (@FromDate IS NULL OR s.InvoiceDate >= @FromDate)
                        AND (@ToDate IS NULL OR s.InvoiceDate <= @ToDate)), 0), 0)
 UNION ALL
 SELECT N'gold_profit', N'سود فروش کالا (فاکتور طلا)',
        ROUND(ISNULL((SELECT SUM(ISNULL(s.Profit, 0)) FROM [goldshop].[SaleInvoices] s
-                     WHERE (@FromDate IS NULL OR s.InvoiceDate >= @FromDate)
+                     WHERE s.CompanyId = [central].[fn_MobileCompanyId]()
+                       AND (@FromDate IS NULL OR s.InvoiceDate >= @FromDate)
                        AND (@ToDate IS NULL OR s.InvoiceDate <= @ToDate)), 0), 0)
 UNION ALL
 SELECT N'gold_coin', N'سود سکه (معاملات ترکیبی)',
@@ -59,6 +64,7 @@ SELECT N'net', N'سود خالص',
                    JOIN [currency].[PriceItems] p ON p.ItemKey = h.ItemKey
                    LEFT JOIN [currency].[PriceRates] r ON r.PriceItemId = p.PriceItemId), 0)
          + ISNULL((SELECT SUM(ISNULL(s.Workmanship, 0) + ISNULL(s.Profit, 0)) FROM [goldshop].[SaleInvoices] s
-                   WHERE (@FromDate IS NULL OR s.InvoiceDate >= @FromDate)
+                   WHERE s.CompanyId = [central].[fn_MobileCompanyId]()
+                       AND (@FromDate IS NULL OR s.InvoiceDate >= @FromDate)
                      AND (@ToDate IS NULL OR s.InvoiceDate <= @ToDate)), 0)
        , 0)

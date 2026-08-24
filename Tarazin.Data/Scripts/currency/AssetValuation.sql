@@ -9,13 +9,13 @@
 SELECT N'Cash' AS GroupKey, N'نقد' AS AssetType, N'صندوق ' + c.Title AS Title, N'ریال' AS Unit,
        NULL AS Quantity, NULL AS Rate, c.Balance AS RialValue, NULL AS UnrealizedPnl
 FROM [treasury].[CashBoxes] c
-WHERE c.IsDeleted = 0 AND c.Balance <> 0
+WHERE c.IsDeleted = 0 AND c.CompanyId = [central].[fn_MobileCompanyId]() AND c.Balance <> 0
 
 UNION ALL
 
 SELECT N'Cash', N'نقد', N'بانک ' + b.AccountName, N'ریال', NULL, NULL, b.Balance, NULL
 FROM [treasury].[BankAccounts] b
-WHERE b.IsDeleted = 0 AND b.Balance <> 0
+WHERE b.IsDeleted = 0 AND b.CompanyId = [central].[fn_MobileCompanyId]() AND b.Balance <> 0
 
 UNION ALL
 
@@ -27,7 +27,7 @@ FROM [currency].[Wallets] w
 JOIN [currency].[Currencies] cu ON cu.CurrencyCode = w.CurrencyCode AND cu.IsDeleted = 0
 LEFT JOIN [currency].[PriceRates] r
     ON r.PriceItemId = (SELECT PriceItemId FROM [currency].[PriceItems] WHERE ItemKey = w.CurrencyCode AND IsDeleted = 0)
-WHERE ISNULL(w.Quantity, 0) <> 0
+WHERE w.CompanyId = [central].[fn_MobileCompanyId]() AND ISNULL(w.Quantity, 0) <> 0
 
 UNION ALL
 
@@ -39,6 +39,6 @@ SELECT CASE p.ItemType WHEN N'Gold' THEN N'Gold' WHEN N'Coin' THEN N'Coin' ELSE 
 FROM [currency].[AssetHoldings] h
 JOIN [currency].[PriceItems] p ON p.ItemKey = h.ItemKey
 LEFT JOIN [currency].[PriceRates] r ON r.PriceItemId = p.PriceItemId
-WHERE ISNULL(h.Quantity, 0) <> 0
+WHERE h.CompanyId = [central].[fn_MobileCompanyId]() AND ISNULL(h.Quantity, 0) <> 0
 
 ORDER BY GroupKey, Title;

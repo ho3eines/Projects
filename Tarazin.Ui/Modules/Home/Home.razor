@@ -48,6 +48,7 @@
         @if (!Session.IsAuthenticated || Session.CanView(m.Key))
         {
         <button type="button" class="tz-modcard" style="--tz-accent:@m.Accent"
+                aria-label="@($"باز کردن ماژول {m.Title}")"
                 @onclick="() => Nav.NavigateTo(m.Url)">
             <div class="tz-modcard__icon">
                 <MudIcon Icon="@m.Icon" />

@@ -150,7 +150,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [accounting].[BaseDetil] (
         DetilId        INT IDENTITY(1,1) PRIMARY KEY,
-        DetilCode      NVARCHAR(7) NOT NULL UNIQUE,    -- دقیقاً 7 رقم، یکتا در کل سیستم
+        DetilCode      NVARCHAR(7) NOT NULL,           -- دقیقاً 7 رقم؛ یکتایی با UX_BaseDetil_Company_Code
         Title          NVARCHAR(200) NOT NULL,
         [Description]  NVARCHAR(500) NULL,
         IsActive       BIT NOT NULL DEFAULT 1,
@@ -247,6 +247,7 @@ BEGIN
         FromCode       NVARCHAR(7) NULL,
         ToCode         NVARCHAR(7) NULL,
         DefaultNature  NVARCHAR(10) NOT NULL CONSTRAINT DF_AccountGroups_DefaultNature DEFAULT N'Both',
+        DefaultMoeinId INT NULL,
         [Description]  NVARCHAR(500) NULL,
         IsActive       BIT NOT NULL CONSTRAINT DF_AccountGroups_IsActive DEFAULT 1,
         IsDeleted      BIT NOT NULL CONSTRAINT DF_AccountGroups_IsDeleted DEFAULT 0,
@@ -269,15 +270,41 @@ BEGIN
 END
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_AccountGroups_Type_Code_Active' AND object_id = OBJECT_ID(N'[accounting].[AccountGroups]'))
-    CREATE UNIQUE INDEX UX_AccountGroups_Type_Code_Active
-        ON [accounting].[AccountGroups](GroupType, GroupCode)
-        WHERE IsDeleted = 0;
+-- چندشرکتی: یکتایی گروه‌ها درون‌شرکتی است (CompanyId, GroupType, GroupCode).
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_AccountGroups_Type_Code_Active' AND object_id = OBJECT_ID(N'[accounting].[AccountGroups]'))
+    DROP INDEX UX_AccountGroups_Type_Code_Active ON [accounting].[AccountGroups];
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_AccountGroups_Company_Type_Code' AND object_id = OBJECT_ID(N'[accounting].[AccountGroups]'))
+    CREATE UNIQUE INDEX UX_AccountGroups_Company_Type_Code
+        ON [accounting].[AccountGroups](CompanyId, GroupType, GroupCode)
+        WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AccountGroups_Type_Active' AND object_id = OBJECT_ID(N'[accounting].[AccountGroups]'))
     CREATE INDEX IX_AccountGroups_Type_Active
         ON [accounting].[AccountGroups](GroupType, IsDeleted, IsActive)
-        INCLUDE (GroupCode, Title, FromCode, ToCode, DefaultNature);
+GO
+
+-- DefaultMoeinId: معین پیش‌فرض هر گروه تفصیلی (برای auto-link خودکار طرف‌حساب‌ها و کالاها).
+IF COL_LENGTH(N'accounting.AccountGroups', N'DefaultMoeinId') IS NULL
+    ALTER TABLE [accounting].[AccountGroups] ADD DefaultMoeinId INT NULL;
+GO
+-- Backfill: گروه‌های نمونهٔ seed (مشتریان ← 10/001 دارایی جاری، تأمین‌کنندگان ← 20/001 بدهی‌های جاری)
+-- برای هر شرکت فعال، اگر گروهی هنوز معین پیش‌فرض ندارد، از مسیر Col/Moein شناسایی می‌شود.
+UPDATE g
+SET g.DefaultMoeinId = m.MoeinId
+FROM [accounting].[AccountGroups] g
+JOIN [central].[Companies] cmp ON cmp.CompanyId = g.CompanyId AND cmp.IsDeleted = 0
+JOIN [accounting].[BaseCol] c  ON c.CompanyId = g.CompanyId
+JOIN [accounting].[BaseMoein] m ON m.ColId = c.ColId AND m.CompanyId = g.CompanyId
+WHERE g.GroupType = N'Detil' AND g.IsDeleted = 0 AND g.DefaultMoeinId IS NULL
+  AND ((g.GroupCode = N'01' AND c.ColCode = N'10' AND m.MoeinCode = N'001')
+    OR (g.GroupCode = N'02' AND c.ColCode = N'20' AND m.MoeinCode = N'001')
+    OR (g.GroupCode = N'03' AND c.ColCode = N'10' AND m.MoeinCode = N'002')
+    OR (g.GroupCode = N'04' AND c.ColCode = N'40' AND m.MoeinCode = N'001'));
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_AccountGroups_DefaultMoein')
+    ALTER TABLE [accounting].[AccountGroups] WITH CHECK
+        ADD CONSTRAINT FK_AccountGroups_DefaultMoein FOREIGN KEY (DefaultMoeinId)
+        REFERENCES [accounting].[BaseMoein](MoeinId);
 GO
 
 -- مهاجرت بدون تخریب برای دیتابیس‌های موجود: حساب‌های قدیمی بدون گروه می‌مانند
@@ -674,6 +701,36 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_BaseCol_Company_Code'
         WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
 GO
 
+-- مهاجرت یکتایی کد حساب تفصیلی از «سراسری» به «درون‌شرکتی»:
+-- CREATE TABLE قدیمی DetilCode را UNIQUE سراسری می‌کرد که با قانون چندشرکتی
+-- ناسازگار بود. قید خودکار قدیمی حذف و ایندکس یکتای فیلترشده جایگزین می‌شود.
+DECLARE @BaseDetilCodeUq NVARCHAR(128) = NULL;
+SELECT @BaseDetilCodeUq = kc.name
+FROM sys.key_constraints kc
+CROSS APPLY (
+    SELECT COUNT(*) AS ColCount, MAX(c.name) AS LastCol
+    FROM sys.index_columns ic
+    INNER JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+    WHERE ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+) cols
+WHERE kc.parent_object_id = OBJECT_ID(N'[accounting].[BaseDetil]')
+  AND kc.type = N'UQ'
+  AND cols.ColCount = 1
+  AND cols.LastCol = N'DetilCode';
+IF @BaseDetilCodeUq IS NOT NULL
+BEGIN
+    DECLARE @dropBaseDetilUqSql NVARCHAR(400) =
+        N'ALTER TABLE [accounting].[BaseDetil] DROP CONSTRAINT ' + QUOTENAME(@BaseDetilCodeUq) + N';';
+    EXEC sp_executesql @dropBaseDetilUqSql;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_BaseDetil_Company_Code' AND object_id = OBJECT_ID(N'[accounting].[BaseDetil]'))
+    CREATE UNIQUE INDEX UX_BaseDetil_Company_Code
+        ON [accounting].[BaseDetil](CompanyId, DetilCode)
+        WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+
 -- ایندکس‌های شرکت‌محور درخت (الگوی مهاجرت موجود: فیلترشده و idempotent)
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_BaseCol_Company' AND object_id = OBJECT_ID(N'[accounting].[BaseCol]'))
     CREATE INDEX IX_BaseCol_Company ON [accounting].[BaseCol](CompanyId, IsDeleted, IsActive) INCLUDE (ColCode, Title);
@@ -836,4 +893,32 @@ END
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_TaxRules_Company_Code' AND object_id = OBJECT_ID(N'[accounting].[TaxRules]'))
     CREATE UNIQUE INDEX UX_TaxRules_Company_Code ON [accounting].[TaxRules](CompanyId, RuleCode) WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+GO
+-- =============================================
+-- تنظیمات سراسری حسابداری هر شرکت (تنظیمات شرکت مالی)
+-- گروه‌های تفصیلی مشتری/تأمین‌کننده/موجودی که همهٔ ماژول‌ها از آن استفاده می‌کنند.
+-- =============================================
+IF OBJECT_ID(N'accounting.CompanyAccountSettings', N'U') IS NULL
+BEGIN
+    CREATE TABLE [accounting].[CompanyAccountSettings] (
+        CompanyId              INT NOT NULL PRIMARY KEY,
+        CustomerAccountGroupId INT NULL,
+        SupplierAccountGroupId INT NULL,
+        InventoryAccountGroupId INT NULL,
+        UpdatedAt              DATETIME2 NOT NULL CONSTRAINT DF_CompanyAccountSettings_UpdatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedBy              NVARCHAR(100) NULL
+    );
+END
+GO
+-- Backfill از تنظیمات طلافروشی (یک‌بار برای دادهٔ موجود)
+IF NOT EXISTS (SELECT 1 FROM [accounting].[CompanyAccountSettings])
+    AND EXISTS (SELECT 1 FROM [goldshop].[GoldShopSettings])
+BEGIN
+    INSERT INTO [accounting].[CompanyAccountSettings]
+        (CompanyId, CustomerAccountGroupId, SupplierAccountGroupId, InventoryAccountGroupId, UpdatedAt, UpdatedBy)
+    SELECT CompanyId, CustomerAccountGroupId, SupplierAccountGroupId, InventoryAccountGroupId, SYSUTCDATETIME(), N'backfill'
+    FROM [goldshop].[GoldShopSettings]
+    WHERE CustomerAccountGroupId IS NOT NULL OR SupplierAccountGroupId IS NOT NULL OR InventoryAccountGroupId IS NOT NULL;
+END
 GO

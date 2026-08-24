@@ -1,0 +1,12 @@
+SET NOCOUNT ON;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'SalesAccountCode') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD SalesAccountCode NVARCHAR(4000) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'SalesAccountTitle') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD SalesAccountTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'InventoryAccountCode') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD InventoryAccountCode NVARCHAR(4000) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'InventoryAccountTitle') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD InventoryAccountTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'TaxPayableAccountCode') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD TaxPayableAccountCode NVARCHAR(4000) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'TaxPayableAccountTitle') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD TaxPayableAccountTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'CashAccountCode') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD CashAccountCode NVARCHAR(4000) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'CashAccountTitle') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD CashAccountTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'BankChartAccountCode') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD BankChartAccountCode NVARCHAR(4000) NULL;
+IF COL_LENGTH(N'goldshop.GoldShopSettings',N'BankChartAccountTitle') IS NULL ALTER TABLE [goldshop].[GoldShopSettings] ADD BankChartAccountTitle NVARCHAR(200) NULL;
+SELECT 'done' AS Status;

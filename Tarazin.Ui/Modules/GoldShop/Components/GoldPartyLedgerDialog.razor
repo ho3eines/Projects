@@ -1,0 +1,47 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">حساب @Party.FullName</MudText>
+        <MudGrid Class="my-3">
+            <MudItem xs="12" sm="4"><MudAlert Severity="@(_rialBalance >= 0 ? Severity.Warning : Severity.Success)" Dense="true">ریالی: @_rialBalance.ToString("N0")</MudAlert></MudItem>
+            <MudItem xs="12" sm="4"><MudAlert Severity="@(_goldBalance >= 0 ? Severity.Warning : Severity.Success)" Dense="true">طلا: @_goldBalance.ToString("N3") گرم</MudAlert></MudItem>
+            <MudItem xs="12" sm="4"><MudAlert Severity="Severity.Info" Dense="true">ارز: @_currencyBalance.ToString("N3") @(_currencyCode ?? "")</MudAlert></MudItem>
+        </MudGrid>
+        <MudTable Items="_rows" Dense="true" Hover="true" Loading="_loading">
+            <HeaderContent><MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>بدهکار ریالی</MudTh><MudTh>بستانکار ریالی</MudTh><MudTh>بدهکار طلا</MudTh><MudTh>بستانکار طلا</MudTh><MudTh>شرح</MudTh></HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.EntryDate.ToString("yyyy/MM/dd")</MudTd><MudTd>@context.EntryType</MudTd>
+                <MudTd>@context.DebitRial.ToString("N0")</MudTd><MudTd>@context.CreditRial.ToString("N0")</MudTd>
+                <MudTd>@context.DebitGoldGram.ToString("N3")</MudTd><MudTd>@context.CreditGoldGram.ToString("N3")</MudTd><MudTd>@context.Description</MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Color="Color.Secondary">گردشی ثبت نشده است.</MudText></NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions><MudButton OnClick="@(() => MudDialog.Cancel())">بستن</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public GoldPartyRow Party { get; set; } = new();
+    private List<GoldPartyLedgerRow> _rows = new();
+    private bool _loading = true;
+    private decimal _rialBalance, _goldBalance, _currencyBalance;
+    private string? _currencyCode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _rows = (await Db.QueryAsync<GoldPartyLedgerRow>("goldshop", "GoldPartyBalance", new { CompanyId = Session.ActiveCompanyId, PartyId = Party.PartyId })).ToList();
+            _rialBalance = _rows.Sum(x => x.DebitRial - x.CreditRial);
+            _goldBalance = _rows.Sum(x => x.DebitGoldGram - x.CreditGoldGram);
+            _currencyBalance = _rows.Sum(x => x.DebitCurrency - x.CreditCurrency);
+            _currencyCode = _rows.Select(x => x.CurrencyCode).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+}

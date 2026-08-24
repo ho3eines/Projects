@@ -1,11 +1,13 @@
 @page "/goldshop/settings"
 @inject DbService Db
+@inject UserSession Session
 @inject EntityCrudService EntityCrud
+@inject IDialogService Dialog
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — طلافروشی</PageTitle>
 
-<PageHeader Title="امکانات و جداول پایه" Subtitle="تعریف و ویرایش اجناس طلا.">
+<PageHeader Title="امکانات و اتصال حسابداری" Subtitle="اجناس، قیمت‌ها، انبار طلافروشی و گروه‌های تفصیلی مشتری/تأمین‌کننده.">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
                OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGoldItem()))">
         جنس جدید
@@ -41,6 +43,15 @@
     </MudTable>
 </MudPaper>
 
+<MudPaper Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6">یکپارچه‌سازی طلافروشی</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">انبار و حساب‌های مشتری/تأمین‌کننده را در تنظیمات شرکت فعال انتخاب کنید.</MudText>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        برای جلوگیری از ثبت اشتباه، ثبت فاکتور تنها با مشتری معتبر و شرکت فعال انجام می‌شود. موجودی طلا باید از کالاهای ماژول انبار تغذیه شود و ثبت پرداخت از خزانه‌داری انجام می‌گیرد.
+    </MudAlert>
+    <MudButton Class="mt-3" Variant="Variant.Outlined" Color="Color.Primary" Href="/goldshop/settings/integration" StartIcon="@Icons.Material.Filled.Link">تنظیم اتصال‌ها</MudButton>
+</MudPaper>
+
 @code {
     private const string Schema = "goldshop";
     private List<GoldItemRow> _items = new();
@@ -53,7 +64,7 @@
         _loading = true;
         try
         {
-            _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList")).ToList();
+            _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         }
         catch (Exception ex)
         {

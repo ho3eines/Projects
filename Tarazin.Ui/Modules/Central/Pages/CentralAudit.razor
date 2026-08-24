@@ -4,17 +4,35 @@
 
 <PageTitle>ممیزی — ترازین</PageTitle>
 
-<PageHeader Title="ممیزی سیستم" Subtitle="رویدادهای ثبت‌شده با زنجیرهٔ هش (ضد دستکاری)." />
+<PageHeader Title="ممیزی سیستم" Subtitle="رویدادهای ثبت‌شده با زنجیرهٔ هش (ضد دستکاری). ردیف‌های «سیستمی» عملیات سطح‌مرکزی هستند (بدون شرکت — ADR-004)." />
+
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="اسکیمه" @bind-Value="_schema" Variant="Variant.Outlined" />
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="اسکیمه" @bind-Value="_schema" Variant="Variant.Outlined" Disabled="_loading" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="نام اسکریپت" @bind-Value="_script" Variant="Variant.Outlined" />
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="نام اسکریپت" @bind-Value="_script" Variant="Variant.Outlined" Disabled="_loading" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" Disabled="_loading" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" Disabled="_loading" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="6">
+            <MudSelect T="string" Label="شرکت / مالکیت" @bind-Value="_companyFilter"
+                       Variant="Variant.Outlined" Disabled="_loading" AdornmentIcon="@Icons.Material.Filled.Business">
+                <MudSelectItem Value="@CompanyFilterAll">همهٔ شرکت‌ها + سیستمی</MudSelectItem>
+                <MudSelectItem Value="@CompanyFilterSystem">🔧 فقط سیستمی (بدون شرکت)</MudSelectItem>
+                @foreach (var company in _companies)
+                {
+                    <MudSelectItem Value="@company.CompanyId.ToString()">@company.CompanyName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="6">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2"
                        StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
                 جستجو
             </MudButton>
@@ -25,31 +43,94 @@
 <MudPaper Elevation="1" Class="pa-4">
     <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
         <HeaderContent>
-            <MudTh>#</MudTh><MudTh>اسکیمه</MudTh><MudTh>اسکریپت</MudTh><MudTh>نتیجه</MudTh><MudTh>تاریخ</MudTh><MudTh>هش</MudTh>
+            <MudTh>#</MudTh>
+            <MudTh>مالکیت</MudTh>
+            <MudTh>اسکیمه</MudTh>
+            <MudTh>اسکریپت</MudTh>
+            <MudTh>کاربر</MudTh>
+            <MudTh>نتیجه</MudTh>
+            <MudTh>تاریخ</MudTh>
+            <MudTh>هش</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="#">@context.AuditId</MudTd>
+            <MudTd DataLabel="مالکیت">
+                @if (context.CompanyId is null)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">سیستمی</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@(context.CompanyName ?? $"شرکت {context.CompanyId}")</MudChip>
+                }
+            </MudTd>
             <MudTd DataLabel="اسکیمه">@context.SchemaName</MudTd>
             <MudTd DataLabel="اسکریپت">@context.ScriptName</MudTd>
+            <MudTd DataLabel="کاربر">@(string.IsNullOrEmpty(context.UserTokenId) ? "—" : context.UserTokenId)</MudTd>
             <MudTd DataLabel="نتیجه">
                 <MudChip T="string" Size="Size.Small" Color="@(context.Outcome == "Success" ? Color.Success : Color.Error)">@context.Outcome</MudChip>
             </MudTd>
             <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
-            <MudTd DataLabel="هش" Style="direction:ltr; font-size:.7rem">@context.RowHash[..12]…</MudTd>
+            <MudTd DataLabel="هش" Style="direction:ltr; font-size:.7rem">@context.RowHash[..Math.Min(12, context.RowHash.Length)]…</MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">رویدادی نیست.</MudText></NoRecordsContent>
     </MudTable>
+
+    <MudGrid Class="mt-2">
+        <MudItem xs="12" sm="6">
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@PageCaption</MudText>
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudStack Row="true" Spacing="1" Class="justify-end">
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="_page == 0 || _loading"
+                               OnClick="@(() => ChangePageAsync(-1))" />
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="((_page + 1) * PageSize) >= _totalRows || _loading"
+                               OnClick="@(() => ChangePageAsync(1))" />
+            </MudStack>
+        </MudItem>
+    </MudGrid>
 </MudPaper>
 
 @code {
     private const string Schema = "central";
+    private const int PageSize = 50;
+    private const string CompanyFilterAll = "all";
+    private const string CompanyFilterSystem = "null";
+    private static readonly System.Globalization.CultureInfo FaCulture = System.Globalization.CultureInfo.GetCultureInfo("fa-IR");
 
     private List<AuditRow> _rows = new();
+    private List<CompanyRow> _companies = new();
     private bool _loading = true;
+    private int _page;
+    private long _totalRows;
     private string _schema = "";
     private string _script = "";
+    private DateTime? _from;
+    private DateTime? _to;
+    private string _companyFilter = CompanyFilterAll;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private string PageCaption => _totalRows == 0
+        ? "رویدادی نیست."
+        : $"نمایش {_page * PageSize + 1:N0} تا {Math.Min((_page + 1L) * PageSize, _totalRows):N0} از {_totalRows:N0}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCompaniesAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadCompaniesAsync()
+    {
+        try
+        {
+            _companies = (await Db.QueryAsync<CompanyRow>(Schema, "CompanyList")).ToList();
+        }
+        catch
+        {
+            // فهرست شرکت‌ها اختیاری است؛ بدون آن هم فیلتر «سیستمی/همه» کار می‌کند.
+            _companies = new List<CompanyRow>();
+        }
+    }
 
     private async Task LoadAsync()
     {
@@ -60,19 +141,40 @@
             {
                 SchemaName = string.IsNullOrWhiteSpace(_schema) ? null : _schema.Trim(),
                 ScriptName = string.IsNullOrWhiteSpace(_script) ? null : _script.Trim(),
-                FromDate = (DateTime?)null,
-                ToDate = (DateTime?)null,
-                SkipRows = 0,
-                TakeSize = 200
+                FromDate = _from,
+                ToDate = _to,
+                CompanyFilter = _companyFilter,
+                SkipRows = _page * PageSize,
+                TakeSize = PageSize
             })).ToList();
+
+            _totalRows = _rows.FirstOrDefault()?.TotalRows ?? 0;
+            if (_rows.Count == 0 && _totalRows > 0 && _page > 0)
+            {
+                // صفحهٔ آخر خالی شد (مثلاً بعد از فیلتر مجدد) — به صفحهٔ اول برگرد.
+                _page = 0;
+                await LoadAsync();
+                return;
+            }
         }
         catch (Exception ex)
         {
+            _rows = new List<AuditRow>();
+            _totalRows = 0;
             Snackbar.Add(ex.Message, Severity.Error);
         }
         finally
         {
             _loading = false;
         }
+    }
+
+    private async Task ChangePageAsync(int delta)
+    {
+        var next = _page + delta;
+        if (next < 0) return;
+        if (_totalRows > 0 && next * PageSize >= _totalRows) return;
+        _page = next;
+        await LoadAsync();
     }
 }

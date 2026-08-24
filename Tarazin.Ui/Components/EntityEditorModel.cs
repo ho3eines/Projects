@@ -112,6 +112,7 @@ public sealed class EntityEditorModel
         Code = row?.ItemCode ?? "",
         Title = row?.Title ?? "",
         Amount = row?.Purity,
+        ExtraText = row?.InventoryItemCode ?? "",
         IsActive = row?.IsActive ?? true
     };
 

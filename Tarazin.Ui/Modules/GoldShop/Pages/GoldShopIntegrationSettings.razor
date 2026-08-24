@@ -1,0 +1,103 @@
+@page "/goldshop/settings/integration"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>اتصال‌های طلافروشی</PageTitle>
+<PageHeader Title="تنظیمات اتصال طلافروشی" Subtitle="انبار اختصاصی، حساب‌های حسابداری و تسویهٔ خزانه برای شرکت فعال." />
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3">
+    گروه‌های تفصیلی مشتری/تأمین‌کننده/موجودی در <MudLink Href="/accounting/settings" Typo="Typo.body2">تنظیمات شرکت مالی (حسابداری)</MudLink> تعریف می‌شوند و اینجا به‌صورت خودکار اعمال می‌شوند.
+</MudAlert>
+<MudPaper Class="pa-4">
+    <MudForm @ref="_form" @bind-IsValid="_valid">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudSelect T="int?" Label="انبار طلافروشی" @bind-Value="_warehouse" Required="true" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">انتخاب کنید</MudSelectItem>@foreach(var w in _warehouses){<MudSelectItem Value="@((int?)w.WarehouseId)">@w.Title</MudSelectItem>}</MudSelect></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">حساب فروش طلا</MudText>
+                <AccountPickerField Value="_salesAccount" ValueChanged="OnSalesAccountAsync" ButtonLabel="انتخاب حساب فروش" EmptyText="حساب فروش انتخاب نشده است." PickerOptions="@_moeinOptions" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">حساب موجودی طلا</MudText>
+                <AccountPickerField Value="_inventoryAccount" ValueChanged="OnInventoryAccountAsync" ButtonLabel="انتخاب حساب موجودی" EmptyText="حساب موجودی انتخاب نشده است." PickerOptions="@_moeinOptions" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">حساب مالیات پرداختنی</MudText>
+                <AccountPickerField Value="_taxAccount" ValueChanged="OnTaxAccountAsync" ButtonLabel="انتخاب حساب مالیات" EmptyText="حساب مالیات انتخاب نشده است." PickerOptions="@_moeinOptions" />
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudSelect T="int?" Label="صندوق پیش‌فرض خزانه" @bind-Value="_cashBox" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">— بدون صندوق —</MudSelectItem>@foreach(var c in _cashBoxes){<MudSelectItem Value="@((int?)c.CashBoxId)">@c.Title</MudSelectItem>}</MudSelect></MudItem>
+            <MudItem xs="12" sm="6"><MudSelect T="int?" Label="حساب بانکی پیش‌فرض خزانه" @bind-Value="_bankAccount" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">— بدون بانک —</MudSelectItem>@foreach(var b in _banks){<MudSelectItem Value="@((int?)b.AccountId)">@b.AccountName — @b.AccountNo</MudSelectItem>}</MudSelect></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">حساب صندوق (سند حسابداری)</MudText>
+                <AccountPickerField Value="_cashAccountId" ValueChanged="OnCashAccountAsync" ButtonLabel="انتخاب حساب صندوق" EmptyText="حساب صندوق برای سند حسابداری انتخاب نشده است." PickerOptions="@_moeinOptions" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">حساب بانکی سند حسابداری</MudText>
+                <AccountPickerField Value="_bankChartAccount" ValueChanged="OnBankChartAccountAsync" ButtonLabel="انتخاب حساب بانک" EmptyText="حساب بانک برای سند حسابداری انتخاب نشده است." PickerOptions="@_moeinOptions" />
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudNumericField T="decimal" Label="مالیات فروش طلا (%)" @bind-Value="_tax" Min="0" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudNumericField T="decimal" Label="مالیات اجرت (%)" @bind-Value="_laborTax" Min="0" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12"><MudSwitch T="bool" @bind-Value="_enabled" Color="Color.Success">فعال‌سازی یکپارچه‌سازی طلافروشی</MudSwitch></MudItem>
+        </MudGrid>
+    </MudForm>
+    <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره تنظیمات</MudButton>
+</MudPaper>
+<MudAlert Class="mt-4" Severity="Severity.Info">حساب‌های حسابداری از درخت حساب‌ها انتخاب می‌شوند؛ پرداخت و دریافت فاکتور از خزانه‌داری انجام و به‌صورت خودکار به حساب مشتری وصل می‌شود.</MudAlert>
+@code {
+    private MudForm? _form; private bool _valid, _busy, _enabled=true; private int? _warehouse,_cashBox,_bankAccount; private decimal _tax=10,_laborTax=10;
+    private AccountPickerResult? _salesAccount,_inventoryAccount,_taxAccount,_bankChartAccount;
+    private List<WarehouseRow> _warehouses=new(); private List<CashBoxRow> _cashBoxes=new(); private List<BankAccountRow> _banks=new();
+    private static readonly AccountPickerOptions _moeinOptions = new() { Title="انتخاب حساب (کل/معین/تفصیلی)", AllowedType=AccountPickerType.Moein, TransactionalOnly=true };
+    private AccountPickerResult? _cashAccountId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _warehouses=(await Db.QueryAsync<WarehouseRow>("inventory","WarehouseList",new{CompanyId=Session.ActiveCompanyId})).ToList();
+            _cashBoxes=(await Db.QueryAsync<CashBoxRow>("treasury","CashBoxList",new{CompanyId=Session.ActiveCompanyId})).ToList();
+            _banks=(await Db.QueryAsync<BankAccountRow>("treasury","BankAccountList",new{CompanyId=Session.ActiveCompanyId})).ToList();
+            var s=await Db.QueryFirstOrDefaultAsync<GoldShopSettingsRow>("goldshop","GoldShopSettingsGet",new{CompanyId=Session.ActiveCompanyId});
+            if(s is not null)
+            {
+                _warehouse=s.InventoryWarehouseId;
+                _cashBox=s.CashBoxId; _bankAccount=s.BankAccountId; _tax=s.DefaultTaxPercent; _laborTax=s.LaborTaxPercent; _enabled=s.IsEnabled;
+                if(s.SalesAccountId is int sid && sid>0) _salesAccount=new AccountPickerResult{Id=sid,AccountCode=s.SalesAccountCode??"",Title=s.SalesAccountTitle??"",NodeType="BaseMoein"};
+                if(s.InventoryAccountId is int iid && iid>0) _inventoryAccount=new AccountPickerResult{Id=iid,AccountCode=s.InventoryAccountCode??"",Title=s.InventoryAccountTitle??"",NodeType="BaseMoein"};
+                if(s.TaxPayableAccountId is int tid && tid>0) _taxAccount=new AccountPickerResult{Id=tid,AccountCode=s.TaxPayableAccountCode??"",Title=s.TaxPayableAccountTitle??"",NodeType="BaseMoein"};
+                if(s.CashAccountId is int cid && cid>0) _cashAccountId=new AccountPickerResult{Id=cid,AccountCode=s.CashAccountCode??"",Title=s.CashAccountTitle??"",NodeType="BaseMoein"};
+                if(s.BankChartAccountId is int bid && bid>0) _bankChartAccount=new AccountPickerResult{Id=bid,AccountCode=s.BankChartAccountCode??"",Title=s.BankChartAccountTitle??"",NodeType="BaseMoein"};
+            }
+        }
+        catch(Exception ex){Snackbar.Add(ex.Message,Severity.Error);}
+    }
+
+    private Task OnSalesAccountAsync(AccountPickerResult? v){_salesAccount=v;return Task.CompletedTask;}
+    private Task OnInventoryAccountAsync(AccountPickerResult? v){_inventoryAccount=v;return Task.CompletedTask;}
+    private Task OnTaxAccountAsync(AccountPickerResult? v){_taxAccount=v;return Task.CompletedTask;}
+    private Task OnCashAccountAsync(AccountPickerResult? v){_cashAccountId=v;return Task.CompletedTask;}
+    private Task OnBankChartAccountAsync(AccountPickerResult? v){_bankChartAccount=v;return Task.CompletedTask;}
+
+    private async Task SaveAsync()
+    {
+        if(_form is null)return;
+        await _form.ValidateAsync();
+        if(!_valid)return;
+        _busy=true;
+        try
+        {
+            await Db.ExecuteAsync("goldshop","GoldShopSettingsUpsert",new
+            {
+                CompanyId=Session.ActiveCompanyId,InventoryWarehouseId=_warehouse,
+                SalesAccountId=_salesAccount?.Id,SalesAccountCode=_salesAccount?.AccountCode,SalesAccountTitle=_salesAccount?.Title,
+                InventoryAccountId=_inventoryAccount?.Id,InventoryAccountCode=_inventoryAccount?.AccountCode,InventoryAccountTitle=_inventoryAccount?.Title,
+                TaxPayableAccountId=_taxAccount?.Id,TaxPayableAccountCode=_taxAccount?.AccountCode,TaxPayableAccountTitle=_taxAccount?.Title,
+                CashAccountId=_cashAccountId?.Id,CashAccountCode=_cashAccountId?.AccountCode,CashAccountTitle=_cashAccountId?.Title,
+                BankAccountId=_bankAccount,CashBoxId=_cashBox,BankChartAccountId=_bankChartAccount?.Id,BankChartAccountCode=_bankChartAccount?.AccountCode,BankChartAccountTitle=_bankChartAccount?.Title,
+                DefaultTaxPercent=_tax,LaborTaxPercent=_laborTax,IsEnabled=_enabled,UpdatedBy=Session.UserName
+            });
+            Snackbar.Add("تنظیمات اتصال ذخیره شد.",Severity.Success);
+        }
+        catch(Exception ex){Snackbar.Add(ex.Message,Severity.Error);}
+        finally{_busy=false;}
+    }
+}

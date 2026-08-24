@@ -1,6 +1,8 @@
 @page "/store/settings"
 @inject DbService Db
 @inject EntityCrudService EntityCrud
+@inject IDialogService Dialog
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — فروشگاه اینترنتی</PageTitle>
@@ -42,6 +44,53 @@
                 <NoRecordsContent><MudText Color="Color.Secondary">محصولی نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="دسته‌های کالا">
+        @if (Session.HasPermission(TarazinPermissions.StoreCategories))
+        {
+            <MudPaper Elevation="1" Class="pa-4">
+                <div class="d-flex justify-end mb-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="OpenNewCategoryAsync">
+                        دستهٔ جدید
+                    </MudButton>
+                </div>
+                <MudTable Items="_categories" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                    <HeaderContent>
+                        <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>ترتیب</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="کد">@context.CategoryCode</MudTd>
+                        <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                        <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>
+                        <MudTd DataLabel="وضعیت">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                                @(context.IsActive ? "فعال" : "غیرفعال")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="عملیات">
+                            <MudTooltip Text="ویرایش دسته">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                               OnClick="@(() => OpenEditCategoryAsync(context))" />
+                            </MudTooltip>
+                            <MudTooltip Text="حذف">
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => DeleteCategoryAsync(context))" />
+                            </MudTooltip>
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent><MudText Color="Color.Secondary">دسته‌ای نیست.</MudText></NoRecordsContent>
+                </MudTable>
+            </MudPaper>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
+                شما دسترسی لازم برای مدیریت دسته‌های کالا را ندارید (دسترسی «فروشگاه — مدیریت دسته‌بندی کالا»).
+                برای دریافت دسترسی با مدیر سیستم تماس بگیرید.
+            </MudAlert>
+        }
     </MudTabPanel>
 
     <MudTabPanel Text="مشتریان">
@@ -87,6 +136,7 @@
     private const string Schema = "store";
     private List<ProductRow> _products = new();
     private List<CustomerRow> _customers = new();
+    private List<ProductCategoryRow> _categories = new();
     private bool _loading = true;
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -98,6 +148,8 @@
         {
             _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
             _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList")).ToList();
+            if (Session.HasPermission(TarazinPermissions.StoreCategories))
+                _categories = (await Db.QueryAsync<ProductCategoryRow>(Schema, "ProductCategoryList")).ToList();
         }
         catch (Exception ex)
         {
@@ -119,5 +171,47 @@
     {
         if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
+    }
+
+    // ── دسته‌های کالا (الگوی مودال — بخش ۴ اسکیل) ──────────────────────
+
+    private async Task OpenNewCategoryAsync()
+    {
+        var dlg = await Dialog.ShowAsync<ProductCategoryDialog>("دستهٔ کالای جدید",
+            new DialogParameters { ["Model"] = null },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task OpenEditCategoryAsync(ProductCategoryRow row)
+    {
+        var dlg = await Dialog.ShowAsync<ProductCategoryDialog>($"ویرایش «{row.Title}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteCategoryAsync(ProductCategoryRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف دستهٔ «{row.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+
+        try
+        {
+            await Db.ExecuteAsync("store", "ProductCategoryDelete",
+                new { CategoryId = row.CategoryId, UpdatedBy = Session.UserName });
+            Snackbar.Add("دستهٔ کالا حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 }

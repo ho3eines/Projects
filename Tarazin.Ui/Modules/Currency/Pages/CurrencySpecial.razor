@@ -89,10 +89,14 @@
                     <MudNumericField T="int" Label="فاصلهٔ بروزرسانی خودکار (ثانیه — ۱۰/۳۰/۶۰/۳۰۰ …)"
                                      @bind-Value="_intervalValue" Variant="Variant.Outlined" Min="10" />
                 </MudItem>
-                <MudItem xs="12" md="6" Class="d-flex align-center">
-                    <MudSwitch T="bool" Label="همگام‌سازی خودکار نرخ آنلاین → نرخ سیستم"
-                               @bind-Value="_autoPromote" Color="Color.Primary"
-                               HelperText="پیش‌فرض خاموش: نرخ آنلاین ابتدا فقط در بخش آنلاین می‌نشیند و با تأیید مدیر وارد نرخ سیستم می‌شود (§46)." />
+                <MudItem xs="12" md="6">
+                    <div class="d-flex flex-column">
+                        <MudSwitch T="bool" Label="همگام‌سازی خودکار نرخ آنلاین → نرخ سیستم"
+                                   @bind-Value="_autoPromote" Color="Color.Primary" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                            پیش‌فرض خاموش: نرخ آنلاین ابتدا فقط در بخش آنلاین می‌نشیند و با تأیید مدیر وارد نرخ سیستم می‌شود (§46).
+                        </MudText>
+                    </div>
                 </MudItem>
                 <MudItem xs="12">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSettingsAsync" Disabled="_busy"

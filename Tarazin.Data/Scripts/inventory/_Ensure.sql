@@ -149,6 +149,35 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Warehouses_Company' A
     CREATE INDEX IX_Warehouses_Company ON [inventory].[Warehouses](CompanyId) WHERE CompanyId IS NOT NULL;
 GO
 
+-- مهاجرت یکتایی کد انبار از «سراسری» به «درون‌شرکتی» (مثل BaseCol):
+-- CREATE TABLE قدیمی WarehouseCode را UNIQUE سراسری می‌کرد که با قانون
+-- چندشرکتی ناسازگار بود. قید خودکار قدیمی حذف و ایندکس یکتای فیلترشده جایگزین می‌شود.
+DECLARE @WarehouseCodeUq NVARCHAR(128) = NULL;
+SELECT @WarehouseCodeUq = kc.name
+FROM sys.key_constraints kc
+CROSS APPLY (
+    SELECT COUNT(*) AS ColCount, MAX(c.name) AS LastCol
+    FROM sys.index_columns ic
+    INNER JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+    WHERE ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+) cols
+WHERE kc.parent_object_id = OBJECT_ID(N'[inventory].[Warehouses]')
+  AND kc.type = N'UQ'
+  AND cols.ColCount = 1
+  AND cols.LastCol = N'WarehouseCode';
+IF @WarehouseCodeUq IS NOT NULL
+BEGIN
+    DECLARE @dropWhUqSql NVARCHAR(400) =
+        N'ALTER TABLE [inventory].[Warehouses] DROP CONSTRAINT ' + QUOTENAME(@WarehouseCodeUq) + N';';
+    EXEC sp_executesql @dropWhUqSql;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Warehouses_Company_Code' AND object_id = OBJECT_ID(N'[inventory].[Warehouses]'))
+    CREATE UNIQUE INDEX UX_Warehouses_Company_Code
+        ON [inventory].[Warehouses](CompanyId, WarehouseCode)
+        WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
+GO
+
 -- ─────────────────────────────────────────────────────────────
 -- Multi-Company: Items per-company scoping
 -- ─────────────────────────────────────────────────────────────
@@ -168,6 +197,33 @@ END
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Items_Company' AND object_id = OBJECT_ID(N'[inventory].[Items]'))
     CREATE INDEX IX_Items_Company ON [inventory].[Items](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+-- مهاجرت یکتایی کد کالا از «سراسری» به «درون‌شرکتی» (مثل WarehouseCode):
+DECLARE @ItemCodeUq NVARCHAR(128) = NULL;
+SELECT @ItemCodeUq = kc.name
+FROM sys.key_constraints kc
+CROSS APPLY (
+    SELECT COUNT(*) AS ColCount, MAX(c.name) AS LastCol
+    FROM sys.index_columns ic
+    INNER JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+    WHERE ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+) cols
+WHERE kc.parent_object_id = OBJECT_ID(N'[inventory].[Items]')
+  AND kc.type = N'UQ'
+  AND cols.ColCount = 1
+  AND cols.LastCol = N'ItemCode';
+IF @ItemCodeUq IS NOT NULL
+BEGIN
+    DECLARE @dropItemUqSql NVARCHAR(400) =
+        N'ALTER TABLE [inventory].[Items] DROP CONSTRAINT ' + QUOTENAME(@ItemCodeUq) + N';';
+    EXEC sp_executesql @dropItemUqSql;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Items_Company_Code' AND object_id = OBJECT_ID(N'[inventory].[Items]'))
+    CREATE UNIQUE INDEX UX_Items_Company_Code
+        ON [inventory].[Items](CompanyId, ItemCode)
+        WHERE IsDeleted = 0 AND CompanyId IS NOT NULL;
 GO
 
 -- ─────────────────────────────────────────────────────────────

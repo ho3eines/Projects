@@ -5,10 +5,13 @@
 
 :root {
     --tz-font: "Vazirmatn", Tahoma, "Segoe UI", sans-serif;
-    --tz-ink: #0e4d4a;
-    --tz-gold: #c49a3c;
-    --tz-paper: #f3eee3;
-    --tz-radius: 14px;
+    /* توکن‌های رنگ از پالت واحدِ MudTheme (TarazinTheme.cs) مشتق می‌شوند تا منبعِ رنگ
+       یکی بماند و با حالت روشن/تیره هماهنگ شود؛ مقدار ثابت فقط فالبک است اگر متغیر
+       Mud هنوز در دسترس نباشد. */
+    --tz-ink: var(--mud-palette-primary, #0e4d4a);
+    --tz-gold: var(--mud-palette-secondary, #c49a3c);
+    --tz-paper: var(--mud-palette-background, #f3eee3);
+    --tz-radius: var(--mud-default-borderradius, 14px);
 }
 
 html, body {
@@ -794,4 +797,62 @@ body {
     color: var(--mud-palette-text-secondary);
     direction: ltr;
     flex-shrink: 0;
+}
+
+/* ── قفل محیط، اسکلتون، دسترس‌پذیری، موبایل ───────────────────── */
+
+/* پوشش «ایجاد شرکت» — استایل به‌جای inline در MainLayout اینجا متمرکز شد. */
+.tz-context-lock {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--mud-palette-overlay-dark, rgba(0, 0, 0, 0.8));
+    padding: 1rem;
+}
+
+.tz-context-lock__card {
+    width: 100%;
+    max-width: 450px;
+    direction: rtl;
+}
+
+/* اسکلتون جدول (کامپوننت TableSkeleton) */
+.tz-skeleton-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.75rem 0.25rem;
+}
+
+.tz-skeleton-table__row {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.tz-skeleton-table__cell {
+    flex: 1;
+    border-radius: 6px;
+}
+
+/* دسترس‌پذیری: نمایان‌بودن فوکوسِ کیبورد روی عناصر تعاملیِ سفارشی (که MudBlazor نیستند) */
+.tz-modcard:focus-visible,
+.tz-subnav__tab:focus-visible,
+.tz-fy-menu__chip:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+/* موبایل: چیپ «سال مالی» جمع‌وجورتر و بدون سرریز در عرض کم */
+@media (max-width: 600px) {
+    .tz-fy-menu__chip {
+        max-width: 46vw;
+    }
+    .tz-fy-menu__chip .mud-chip-content {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }

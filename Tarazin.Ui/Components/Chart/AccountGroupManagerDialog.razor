@@ -50,11 +50,15 @@
                         </MudChip>
                     </MudTd>
                     <MudTd>
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                       Title="ویرایش" OnClick="@(() => EditAsync(context))" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                       Title="حذف" Disabled="@(context.AssignedAccountCount > 0)"
-                                       OnClick="@(() => DeleteAsync(context))" />
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => EditAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           Disabled="@(context.AssignedAccountCount > 0)"
+                                           OnClick="@(() => DeleteAsync(context))" />
+                        </MudTooltip>
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent>

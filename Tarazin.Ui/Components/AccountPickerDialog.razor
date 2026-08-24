@@ -24,9 +24,8 @@
                               Placeholder="مثلاً: بانک ملی یا 0000123 یا 100010000123" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudSelect T="string" Label="فیلتر نوع" @bind-Value="_typeFilter" Variant="Variant.Outlined" Dense="true"
+                <MudSelect T="string" Label="فیلتر نوع" Value="_typeFilter" ValueChanged="OnTypeFilterChanged" Variant="Variant.Outlined" Dense="true"
                            Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.FilterList"
-                           OnClose="RefreshAsync"
                            Clearable="true">
                     <MudSelectItem T="string" Value="@((string?)null)">همه</MudSelectItem>
                     <MudSelectItem T="string" Value="@("Col")">فقط حساب کل</MudSelectItem>
@@ -287,6 +286,13 @@
     {
         try { await RefreshAsync(); }
         catch (Exception ex) { Snackbar.Add($"خطا در جستجو: {ex.Message}", Severity.Error); }
+    }
+
+    // در MudBlazor 9 رویداد انتخابِ MudSelect «ValueChanged» است (نه OnClose که حذف شده).
+    private async Task OnTypeFilterChanged(string? value)
+    {
+        _typeFilter = value;
+        await RefreshAsync();
     }
 
     private async Task OnSearchCleared(MouseEventArgs _)

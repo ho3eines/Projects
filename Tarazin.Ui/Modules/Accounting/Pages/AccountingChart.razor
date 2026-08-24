@@ -16,7 +16,7 @@
             Eyebrow="حسابداری">
 </PageHeader>
 
-<MudTabs Elevation="1" Rounded="true" PanelClass="pa-4" Class="mt-3">
+<MudTabs Elevation="1" Rounded="true" TabPanelsClass="pa-4" Class="mt-3">
     <MudTabPanel Text="درختواره حساب‌ها">
         <div class="d-flex align-center flex-wrap gap-2 mb-4 mt-2">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
@@ -42,7 +42,7 @@
         </div>
 
         <MudPaper Elevation="1" Class="pa-3 mb-3">
-            <MudGrid Spacing="2" AlignItems="Center.Center">
+            <MudGrid Spacing="2">
                 <MudItem xs="12" md="5">
                     <MudTextField @ref="_searchRef"
                                   Label="جستجو (نام، کد گره، کد حساب)"
@@ -56,8 +56,8 @@
                                   Placeholder="مثلاً: بانک ملی | 0000123 | 100010000123" />
                 </MudItem>
                 <MudItem xs="6" md="2">
-                    <MudSelect T="string" Label="فیلتر نوع" @bind-Value="_typeFilter" Variant="Variant.Outlined" Dense="true"
-                               OnClose="OnFilterChanged" Clearable="true">
+                    <MudSelect T="string" Label="فیلتر نوع" Value="_typeFilter" ValueChanged="OnTypeFilterChanged" Variant="Variant.Outlined" Dense="true"
+                               Clearable="true">
                         <MudSelectItem T="string" Value="@((string?)null)">همه</MudSelectItem>
                         <MudSelectItem T="string" Value="@("Col")">فقط حساب کل</MudSelectItem>
                         <MudSelectItem T="string" Value="@("Moein")">فقط معین</MudSelectItem>
@@ -65,8 +65,8 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="6" md="2">
-                    <MudSelect T="string" Label="وضعیت" @bind-Value="_statusFilter" Variant="Variant.Outlined" Dense="true"
-                               OnClose="OnFilterChanged" Clearable="true">
+                    <MudSelect T="string" Label="وضعیت" Value="_statusFilter" ValueChanged="OnStatusFilterChanged" Variant="Variant.Outlined" Dense="true"
+                               Clearable="true">
                         <MudSelectItem T="string" Value="@((string?)null)">همه</MudSelectItem>
                         <MudSelectItem T="string" Value="@("Active")">فقط فعال</MudSelectItem>
                         <MudSelectItem T="string" Value="@("Inactive")">فقط غیرفعال</MudSelectItem>
@@ -279,7 +279,7 @@
                             <MudText Typo="Typo.subtitle2" Class="mb-2">
                                 استفاده در @_usagePaths.Count مسیر
                             </MudText>
-                            <MudList T="object" Dense="true" DisableGutters="true">
+                            <MudList T="object" Dense="true" Gutters="false">
                                 @foreach (var p in _usagePaths)
                                 {
                                     <MudListItem T="object" Icon="@Icons.Material.Filled.SubdirectoryArrowRight">
@@ -584,6 +584,19 @@
     }
 
     private void OnFilterChanged() => ApplyFilter();
+
+    // در MudBlazor 9 رویداد انتخابِ MudSelect «ValueChanged» است (نه OnClose که حذف شده).
+    private void OnTypeFilterChanged(string? value)
+    {
+        _typeFilter = value;
+        OnFilterChanged();
+    }
+
+    private void OnStatusFilterChanged(string? value)
+    {
+        _statusFilter = value;
+        OnFilterChanged();
+    }
 
     private readonly HashSet<(string Type, int Id)> _expanded = new();
 

@@ -1,0 +1,37 @@
+@page "/goldshop/parties"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>مشتریان و تأمین‌کنندگان — طلافروشی</PageTitle>
+<PageHeader Title="مشتریان و تأمین‌کنندگان" Subtitle="حساب ریالی، طلا و ارز هر طرف حساب؛ لینک تفصیلی حسابداری در همین صفحه قابل مشاهده است." />
+<MudPaper Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="4"><MudSelect T="string" Label="نوع" @bind-Value="_type" Variant="Variant.Outlined"><MudSelectItem Value="@("")">همه</MudSelectItem><MudSelectItem Value="@("Customer")">مشتریان</MudSelectItem><MudSelectItem Value="@("Vendor")">تأمین‌کنندگان</MudSelectItem></MudSelect></MudItem>
+        <MudItem xs="12" sm="5"><MudTextField Label="جستجو" @bind-Value="_search" Variant="Variant.Outlined" /></MudItem>
+        <MudItem xs="12" sm="3"><MudButton FullWidth="true" Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAsync">جستجو</MudButton></MudItem>
+    </MudGrid>
+</MudPaper>
+<MudPaper Class="pa-4">
+    <div class="d-flex justify-end mb-3"><MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => EditAsync(new GoldPartyEditModel { PartyType = string.IsNullOrEmpty(_type) ? "Customer" : _type }))">طرف حساب جدید</MudButton></div>
+    <MudTable Items="_rows" Loading="_loading" Dense="true" Hover="true" Striped="true">
+        <HeaderContent><MudTh>نوع</MudTh><MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>ریالی</MudTh><MudTh>طلا (گرم)</MudTh><MudTh>ارز</MudTh><MudTh>تفصیلی</MudTh><MudTh>عملیات</MudTh></HeaderContent>
+        <RowTemplate>
+            <MudTd>@(context.PartyType == "Customer" ? "مشتری" : "تأمین‌کننده")</MudTd><MudTd>@context.PartyCode</MudTd><MudTd><b>@context.FullName</b></MudTd>
+            <MudTd Class="@(context.BalanceRial > 0 ? "text-error" : "text-success")">@context.BalanceRial.ToString("N0")</MudTd><MudTd>@context.GoldBalanceGram.ToString("N3")</MudTd><MudTd>@context.CurrencyBalance.ToString("N3") @context.CurrencyCode</MudTd>
+            <MudTd>@(context.DetailAccountCode ?? (context.DetailLinkId?.ToString() ?? "تنظیم نشده"))</MudTd>
+            <MudTd><MudTooltip Text="گردش حساب"><MudIconButton Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Info" OnClick="@(() => LedgerAsync(context))" /><MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => EditAsync(ToModel(context)))" /><MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(() => DeleteAsync(context))" /></MudTooltip></MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText>طرف حساب ثبت نشده است.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+@code {
+    private List<GoldPartyRow> _rows = new(); private string _type = ""; private string _search = ""; private bool _loading;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync() { _loading=true; try { _rows=(await Db.QueryAsync<GoldPartyRow>("goldshop","GoldPartyList",new { CompanyId=Session.ActiveCompanyId, PartyType=string.IsNullOrEmpty(_type)?null:_type, SearchText=_search??"", SkipRows=0, TakeSize=200 })).ToList(); } catch(Exception ex){Snackbar.Add(ex.Message,Severity.Error);} finally{_loading=false;} }
+    private static GoldPartyEditModel ToModel(GoldPartyRow x)=>new(){PartyId=x.PartyId,PartyCode=x.PartyCode,PartyType=x.PartyType,FullName=x.FullName,NationalId=x.NationalId,Phone=x.Phone,Email=x.Email,DetailLinkId=x.DetailLinkId,DetailAccountCode=x.DetailAccountCode,IsActive=x.IsActive};
+    private async Task EditAsync(GoldPartyEditModel model){var d=await Dialog.ShowAsync<GoldPartyDialog>(model.PartyId==0?"طرف حساب جدید":"ویرایش طرف حساب",new DialogParameters<GoldPartyDialog>{{x=>x.Model,model}},new DialogOptions{MaxWidth=MaxWidth.Small,FullWidth=true,CloseButton=true});if((await d.Result) is {Canceled:false})await LoadAsync();}
+    private async Task LedgerAsync(GoldPartyRow row){var d=await Dialog.ShowAsync<GoldPartyLedgerDialog>($"حساب {row.FullName}",new DialogParameters<GoldPartyLedgerDialog>{{x=>x.Party,row}},new DialogOptions{MaxWidth=MaxWidth.Large,FullWidth=true,CloseButton=true});}
+    private async Task DeleteAsync(GoldPartyRow row){if(await Dialog.ShowMessageBoxAsync("حذف",$"طرف حساب «{row.FullName}» حذف شود؟",yesText:"حذف",cancelText:"انصراف") is true){try{await Db.ExecuteAsync("goldshop","GoldPartyDelete",new{CompanyId=Session.ActiveCompanyId,PartyId=row.PartyId});await LoadAsync();}catch(Exception ex){Snackbar.Add(ex.Message,Severity.Error);}}}
+}

@@ -238,9 +238,9 @@ public class DetailAccountTransactionRow
 /// 
 public class AccountDetailBalance
 {
-    public string AccountCode { get; set; }
-    public string Title { get; set; }
-    public string LinkName { get; set; }
+    public string AccountCode { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string LinkName { get; set; } = "";
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
     public decimal OpeningBalance { get; set; }

@@ -381,6 +381,14 @@ WHERE [Status] IS NULL OR LTRIM(RTRIM([Status])) = N'';
 GO
 
 -- ─────────────────────────────────────────────────────────────
+-- Party tenant backfill (customer and supplier master)
+IF COL_LENGTH(N'central.Parties', N'CompanyId') IS NOT NULL
+BEGIN
+    DECLARE @PartyDefaultCompanyId INT=(SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted=0 ORDER BY CompanyId);
+    IF @PartyDefaultCompanyId IS NOT NULL UPDATE [central].[Parties] SET CompanyId=@PartyDefaultCompanyId WHERE CompanyId IS NULL;
+END
+GO
+
 -- MAUI credential broker control plane (server-side only)
 -- ─────────────────────────────────────────────────────────────
 -- This dedicated registry is an explicit deployment/customer boundary. It

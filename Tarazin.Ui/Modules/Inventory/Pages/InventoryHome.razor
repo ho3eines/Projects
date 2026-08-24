@@ -26,7 +26,7 @@
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true" RowsPerPage="25">
         <HeaderContent>
             <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>کالا</MudTh>
             <MudTh>انبار</MudTh><MudTh>تعداد</MudTh><MudTh>ارزش</MudTh><MudTh>وضعیت</MudTh>
@@ -44,6 +44,7 @@
             </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></NoRecordsContent>
+        <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 </MudPaper>
 

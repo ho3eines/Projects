@@ -55,9 +55,9 @@ BEGIN TRY
     IF @From IS NULL
         THROW 50146, N'گروه تفصیلی فعال و معتبر نیست.', 1;
 
-    -- اولین حفرهٔ آزاد بازه پیدا می‌شود. ایندکس یکتای DetilCode و قفل گروه
+    -- اولین حفرهٔ آزاد بازه پیدا می‌شود. ایندکس یکتای (CompanyId, DetilCode) و قفل گروه
     -- تخصیص را قطعی می‌کنند؛ رکورد حذف نرم نیز شماره را رزرو نگه می‌دارد.
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WITH (UPDLOCK, HOLDLOCK) WHERE DetilCode = @From)
+    IF NOT EXISTS (SELECT 1 FROM [accounting].[BaseDetil] WITH (UPDLOCK, HOLDLOCK) WHERE DetilCode = @From AND CompanyId = @CompanyId)
         SET @Next = @From;
     ELSE
     BEGIN
@@ -65,11 +65,13 @@ BEGIN TRY
             @Next = RIGHT(N'0000000' + CONVERT(NVARCHAR(7), code.NumericCode + 1), 7)
         FROM [accounting].[BaseDetil] d WITH (UPDLOCK, HOLDLOCK)
         CROSS APPLY (VALUES (TRY_CONVERT(INT, d.DetilCode))) code(NumericCode)
-        WHERE code.NumericCode >= CONVERT(INT, @From)
+        WHERE d.CompanyId = @CompanyId
+          AND code.NumericCode >= CONVERT(INT, @From)
           AND code.NumericCode < CONVERT(INT, @To)
           AND NOT EXISTS (
               SELECT 1 FROM [accounting].[BaseDetil] nextCode WITH (UPDLOCK, HOLDLOCK)
-              WHERE nextCode.DetilCode = RIGHT(N'0000000' + CONVERT(NVARCHAR(7), code.NumericCode + 1), 7)
+              WHERE nextCode.CompanyId = @CompanyId
+                AND nextCode.DetilCode = RIGHT(N'0000000' + CONVERT(NVARCHAR(7), code.NumericCode + 1), 7)
           )
         ORDER BY code.NumericCode;
     END

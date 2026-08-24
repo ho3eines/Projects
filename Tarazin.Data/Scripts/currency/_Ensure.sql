@@ -176,7 +176,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [currency].[Wallets] (
         WalletId       INT IDENTITY(1,1) PRIMARY KEY,
-        CurrencyCode   NVARCHAR(10) NOT NULL UNIQUE,
+        CurrencyCode   NVARCHAR(10) NOT NULL,
         Quantity       DECIMAL(18,4) NOT NULL DEFAULT 0,
         AvgBuyRate     DECIMAL(18,2) NULL,            -- نرخ متوسط خرید
         OpeningQty     DECIMAL(18,4) NOT NULL DEFAULT 0,   -- موجودی اول دوره
@@ -186,9 +186,60 @@ BEGIN
         LastMovementAt DATETIME2 NULL,
         CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         UpdatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        UpdatedBy      NVARCHAR(100) NULL
+        UpdatedBy      NVARCHAR(100) NULL,
+        CompanyId      INT NULL
     );
 END
+
+-- Existing databases created before tenant ownership was added to wallets.
+IF COL_LENGTH(N'currency.Wallets', N'CompanyId') IS NULL
+    ALTER TABLE [currency].[Wallets] ADD [CompanyId] INT NULL;
+
+-- Wallets/AssetHoldings are tenant-owned. Older databases used global unique
+-- constraints on CurrencyCode/ItemKey, which prevented two companies from
+-- owning the same currency or physical asset key. Replace them with filtered
+-- composite uniqueness; NULL ownership remains temporarily valid until the
+-- central backfill runs.
+DECLARE @LegacyIndexName SYSNAME, @LegacyIsConstraint BIT, @DropSql NVARCHAR(500);
+
+SELECT TOP (1) @LegacyIndexName = i.name, @LegacyIsConstraint = i.is_unique_constraint
+FROM sys.indexes i
+JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.key_ordinal = 1
+JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+WHERE i.object_id = OBJECT_ID(N'currency.Wallets')
+  AND i.is_unique = 1 AND i.is_primary_key = 0 AND c.name = N'CurrencyCode'
+  AND NOT EXISTS (SELECT 1 FROM sys.index_columns extra WHERE extra.object_id = i.object_id AND extra.index_id = i.index_id AND extra.key_ordinal > 1);
+IF @LegacyIndexName IS NOT NULL
+BEGIN
+    SET @DropSql = CASE WHEN @LegacyIsConstraint = 1
+        THEN N'ALTER TABLE [currency].[Wallets] DROP CONSTRAINT ' + QUOTENAME(@LegacyIndexName) + N';'
+        ELSE N'DROP INDEX ' + QUOTENAME(@LegacyIndexName) + N' ON [currency].[Wallets];' END;
+    EXEC sys.sp_executesql @DropSql;
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'currency.Wallets') AND name = N'UX_Wallets_Company_Currency')
+    CREATE UNIQUE INDEX [UX_Wallets_Company_Currency]
+        ON [currency].[Wallets]([CompanyId], [CurrencyCode])
+        WHERE [CompanyId] IS NOT NULL;
+
+SELECT @LegacyIndexName = NULL, @LegacyIsConstraint = NULL;
+SELECT TOP (1) @LegacyIndexName = i.name, @LegacyIsConstraint = i.is_unique_constraint
+FROM sys.indexes i
+JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.key_ordinal = 1
+JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+WHERE i.object_id = OBJECT_ID(N'currency.AssetHoldings')
+  AND i.is_unique = 1 AND i.is_primary_key = 0 AND c.name = N'ItemKey'
+  AND NOT EXISTS (SELECT 1 FROM sys.index_columns extra WHERE extra.object_id = i.object_id AND extra.index_id = i.index_id AND extra.key_ordinal > 1);
+IF @LegacyIndexName IS NOT NULL
+BEGIN
+    SET @DropSql = CASE WHEN @LegacyIsConstraint = 1
+        THEN N'ALTER TABLE [currency].[AssetHoldings] DROP CONSTRAINT ' + QUOTENAME(@LegacyIndexName) + N';'
+        ELSE N'DROP INDEX ' + QUOTENAME(@LegacyIndexName) + N' ON [currency].[AssetHoldings];' END;
+    EXEC sys.sp_executesql @DropSql;
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'currency.AssetHoldings') AND name = N'UX_AssetHoldings_Company_Item')
+    CREATE UNIQUE INDEX [UX_AssetHoldings_Company_Item]
+        ON [currency].[AssetHoldings]([CompanyId], [ItemKey])
+        WHERE [CompanyId] IS NOT NULL;
 
 -- ── CurrencyMovements (گردش ارز) — PRD §36/§37 ──────────────────────────
 IF NOT EXISTS (
@@ -282,13 +333,14 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [currency].[AssetHoldings] (
         HoldingId    INT IDENTITY(1,1) PRIMARY KEY,
-        ItemKey      NVARCHAR(50) NOT NULL UNIQUE,   -- XAU-18 | SIKKEH-EMAMI | XAG
+        ItemKey      NVARCHAR(50) NOT NULL,           -- XAU-18 | SIKKEH-EMAMI | XAG
         Title        NVARCHAR(200) NOT NULL,
         Quantity     DECIMAL(18,4) NOT NULL DEFAULT 0,
         CostRate     DECIMAL(18,2) NULL,             -- نرخ خرید ثبت‌شده (برای سود/زیان ارزش)
         CreatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         UpdatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        UpdatedBy    NVARCHAR(100) NULL
+        UpdatedBy    NVARCHAR(100) NULL,
+        CompanyId    INT NULL
     );
 END
 
@@ -308,7 +360,8 @@ BEGIN
         CoinPart     DECIMAL(18,2) NOT NULL DEFAULT 0,
         MetalPart    DECIMAL(18,2) NOT NULL DEFAULT 0,
         CreatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        CreatedBy    NVARCHAR(100) NULL
+        CreatedBy    NVARCHAR(100) NULL,
+        CompanyId    INT NULL
     );
     CREATE INDEX IX_AssetValuation_Date ON [currency].[AssetValuationHistory](SnapshotDate);
 END

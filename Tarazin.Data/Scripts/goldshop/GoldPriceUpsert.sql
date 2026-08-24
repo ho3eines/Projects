@@ -8,8 +8,8 @@
 BEGIN TRAN;
     IF @PriceId = 0
     BEGIN
-        INSERT INTO [goldshop].[GoldPrices] (ItemCode, Title, PricePerGram, RateToIRR, CreatedAt, UpdatedAt)
-        VALUES (@ItemCode, @Title, @PricePerGram, @RateToIRR, SYSUTCDATETIME(), SYSUTCDATETIME());
+        INSERT INTO [goldshop].[GoldPrices] (ItemCode, Title, PricePerGram, RateToIRR, CreatedAt, UpdatedAt, CompanyId)
+        VALUES (@ItemCode, @Title, @PricePerGram, @RateToIRR, SYSUTCDATETIME(), SYSUTCDATETIME(), @CompanyId);
     END
     ELSE
     BEGIN
@@ -18,11 +18,11 @@ BEGIN TRAN;
             PricePerGram = @PricePerGram,
             RateToIRR = @RateToIRR,
             UpdatedAt = SYSUTCDATETIME()
-        WHERE PriceId = @PriceId;
+        WHERE PriceId = @PriceId AND CompanyId = @CompanyId;
     END
 
     INSERT INTO [goldshop].[Outbox] (EventType, EventKey, Payload, PayloadVersion)
-    VALUES (N'GoldPriceUpdated', CONCAT(N'ItemCode=', @ItemCode),
+    VALUES (N'GoldPriceUpdated', CONCAT(N'CompanyId=', @CompanyId, N';ItemCode=', @ItemCode),
         (SELECT @ItemCode AS ItemCode, @PricePerGram AS PricePerGram, @RateToIRR AS RateToIRR,
                 SYSUTCDATETIME() AS UpdatedAt
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER), 1);

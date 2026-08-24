@@ -1,6 +1,7 @@
 @inject DbService Db
 @inject UserSession Session
 @inject UserService Users
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -127,6 +128,8 @@
                         <MudItem xs="12">
                             <MudNumericField T="decimal?" Label="عیار" @bind-Value="Model.Amount"
                                              Min="0" Variant="Variant.Outlined" />
+                        <MudTextField Label="کد کالای انبار مرتبط" @bind-Value="Model.ExtraText"
+                                      HelperText="مثلاً GOLD-18؛ برای کاهش موجودی هنگام فروش طلا" Variant="Variant.Outlined" />
                         </MudItem>
                         break;
 
@@ -320,7 +323,7 @@
         if (_busy || _form is null)
             return;
 
-        await _form.Validate();
+        await _form.ValidateAsync();
         if (!_isValid)
             return;
 
@@ -409,6 +412,8 @@
                         ItemCode = Model.Code.Trim(),
                         Title = Model.Title.Trim(),
                         Purity = Model.Amount,
+                        InventoryItemCode = NullIfWhiteSpace(Model.ExtraText),
+                        CompanyId = Session.ActiveCompanyId,
                         Model.IsActive
                     });
                     break;
@@ -420,7 +425,8 @@
                         ItemCode = Model.Code.Trim(),
                         Title = Model.Title.Trim(),
                         PricePerGram = Model.Amount ?? 0,
-                        RateToIRR = Model.SecondaryAmount
+                        RateToIRR = Model.SecondaryAmount,
+                        CompanyId = Session.ActiveCompanyId
                     });
                     break;
 

@@ -1,5 +1,6 @@
 @page "/inventory/settings"
 @inject DbService Db
+@inject UserSession Session
 @inject EntityCrudService EntityCrud
 @inject ISnackbar Snackbar
 
@@ -97,7 +98,7 @@
         try
         {
             _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
-            _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList")).ToList();
+            _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         }
         catch (Exception ex)
         {

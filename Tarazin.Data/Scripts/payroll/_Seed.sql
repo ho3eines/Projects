@@ -40,9 +40,10 @@ BEGIN
     VALUES (N'1405-04', 3, 281400000, N'Finalized', SYSUTCDATETIME(), N'seed', @SeedCompanyId);
 
     DECLARE @Rid INT = (SELECT TOP 1 RunId FROM [payroll].[PayrollRuns] WHERE Period = N'1405-04');
-    INSERT INTO [payroll].[PayrollRunItems] (RunId, EmployeeId, EmployeeName, Amount)
+    INSERT INTO [payroll].[PayrollRunItems] (RunId, EmployeeId, EmployeeName, Amount, CompanyId)
     SELECT @Rid, e.EmployeeId, e.FullName,
            ISNULL((SELECT SUM(Amount) FROM [payroll].[SalaryItems] s
-                   WHERE s.EmployeeId = e.EmployeeId AND s.Period = N'1405-04'), 0)
+                   WHERE s.EmployeeId = e.EmployeeId AND s.Period = N'1405-04'), 0),
+           @SeedCompanyId
     FROM [payroll].[Employees] e;
 END

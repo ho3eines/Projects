@@ -1,13 +1,14 @@
 @page "/accounting"
 @inject DbService Db
 @inject UserSession Session
+@inject AccountingContextService Context
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
-<PageTitle>اسناد روز — حسابداری</PageTitle>
+<PageTitle>اسناد — حسابداری</PageTitle>
 
-<PageHeader Title="اسناد روز" Subtitle="از تاریخ تا تاریخ — پیش‌فرض امروز. کلیک روی ردیف، سند را باز می‌کند." Eyebrow="حسابداری" />
+<PageHeader Title="اسناد" Subtitle="از تاریخ تا تاریخ — پیش‌فرض بازهٔ سال مالی فعال. کلیک روی ردیف، سند را باز می‌کند." Eyebrow="حسابداری" />
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
@@ -31,7 +32,7 @@
 
 <MudPaper Elevation="1" Class="pa-4">
     <MudTable T="DailyDocumentRow" Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
-              OnRowClick="TableRowClick">
+              RowsPerPage="25" OnRowClick="TableRowClick">
         <HeaderContent>
             <MudTh>شماره</MudTh>
             <MudTh>تاریخ</MudTh>
@@ -73,6 +74,7 @@
         <NoRecordsContent>
             <MudText Color="Color.Secondary">سندی در این بازه نیست.</MudText>
         </NoRecordsContent>
+        <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 </MudPaper>
 
@@ -88,8 +90,10 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _from = DateTime.Today;
-        _to = DateTime.Today;
+        // پیش‌فرض بازه = کل بازهٔ سال مالی فعال (نه فقط امروز).
+        var fy = await Context.GetActiveFiscalYearAsync();
+        _from = fy?.StartDate ?? DateTime.Today;
+        _to = fy?.EndDate ?? DateTime.Today;
         await LoadAsync();
     }
 

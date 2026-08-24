@@ -72,7 +72,7 @@
     protected override async Task OnInitializedAsync()
     {
         _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
-        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList")).ToList();
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
     }
 
     private async Task SaveAsync()

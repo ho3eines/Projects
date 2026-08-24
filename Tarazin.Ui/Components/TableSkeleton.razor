@@ -1,0 +1,22 @@
+@* اسکلتون بارگذاری برای جدول‌ها — به‌جای یک اسپینر، ساختار ردیف/ستون را نشان می‌دهد
+   تا درک سرعت بهتر شود و layout هنگام آمدن داده نپرد.
+   استفاده:  @if (_loading) { <TableSkeleton Columns="4" Rows="6" /> } else { <MudTable ... /> } *@
+<div class="tz-skeleton-table" aria-hidden="true">
+    @for (var r = 0; r < Rows; r++)
+    {
+        <div class="tz-skeleton-table__row">
+            @for (var c = 0; c < Columns; c++)
+            {
+                <MudSkeleton Class="tz-skeleton-table__cell" Height="1.1rem" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>تعداد ردیف‌های نمونه.</summary>
+    [Parameter] public int Rows { get; set; } = 5;
+
+    /// <summary>تعداد ستون‌های نمونه (معمولاً برابر ستون‌های جدول واقعی).</summary>
+    [Parameter] public int Columns { get; set; } = 4;
+}

@@ -1,23 +1,114 @@
 @page "/settings"
-@using Microsoft.AspNetCore.Components
+@inject UserSession Session
+@inject UiPreferences Prefs
 @inject NavigationManager Nav
 
-<div class="settings-container">
-    <h1>تنظیمات</h1>
-    <p>این صفحه برای مدیریت تنظیمات aplikasyon است.</p>
-    <p> lagha specific ha may be added later.</p>
-    <nav>
-        <ul>
-            <li><a href="">Export Data</a></li>
-            <li><a href="">User Management</a></li>
-            <li><a href="">System Preferences</a></li>
-        </ul>
-    </nav>
-</div>
+<PageTitle>تنظیمات — ترازین</PageTitle>
 
-<style>
-.settings-container {
-    padding: 20px;
-    text-align: center;
+<PageHeader Title="تنظیمات" Subtitle="تنظیمات نمایش، مدیریت کاربران و نقش‌ها، و خروجی گزارش‌ها." Eyebrow="سیستم" />
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4 h-100">
+            <div class="d-flex align-center mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Palette" Color="Color.Primary" Class="me-2" />
+                <MudText Typo="Typo.h6">تنظیمات نمایش</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                حالت تیره یا روشن رابط کاربری. این تنظیم برای همین نشست/مرورگر اعمال می‌شود.
+            </MudText>
+            <MudSwitch T="bool" Label="حالت تیره" @bind-Value="DarkMode" Color="Color.Primary" />
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4 h-100">
+            <div class="d-flex align-center mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Color="Color.Primary" Class="me-2" />
+                <MudText Typo="Typo.h6">مدیریت کاربران</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                کاربران، نقش‌ها و دسترسی‌ها (RBAC) و مشاهدهٔ ممیزی سیستم.
+            </MudText>
+            <MudStack Spacing="2">
+                @if (Session.HasPermission(TarazinPermissions.Users))
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Group" Href="/central/users">
+                        مدیریت کاربران
+                    </MudButton>
+                }
+                @if (Session.HasPermission(TarazinPermissions.Roles))
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.AdminPanelSettings" Href="/central/roles">
+                        نقش‌ها و دسترسی‌ها
+                    </MudButton>
+                }
+                @if (Session.HasPermission(TarazinPermissions.Audit))
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Policy" Href="/central/audit">
+                        ممیزی سیستم
+                    </MudButton>
+                }
+                @if (!Session.HasAny(TarazinPermissions.Users, TarazinPermissions.Roles, TarazinPermissions.Audit))
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                        برای مدیریت کاربران به دسترسی مدیر سیستم نیاز دارید.
+                    </MudAlert>
+                }
+            </MudStack>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4 h-100">
+            <div class="d-flex align-center mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Class="me-2" />
+                <MudText Typo="Typo.h6">گزارش‌ها و خروجی</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                چاپ، PDF و Excel گزارش‌ها از طریق Viewer استیمولسافت — هر گزارش از دادهٔ واقعی نرم‌افزار ساخته می‌شود.
+            </MudText>
+            @if (Session.HasPermission(TarazinPermissions.For("bi", TarazinActions.Reports)))
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Assessment" Href="/bi/reports">
+                    گزارش‌ها و چاپ
+                </MudButton>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                    برای دسترسی به گزارش‌ها با مدیر سیستم تماس بگیرید.
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="0" Class="mt-4 pa-4">
+    <MudText Typo="Typo.caption" Color="Color.Secondary">
+        وضعیت نشست: @(Session.IsAuthenticated ? $"وارد شده — {Session.DisplayName} ({Session.RoleTitle})" : "خارج شده")
+    </MudText>
+</MudPaper>
+
+@code {
+    private bool _dark;
+
+    protected override void OnInitialized()
+    {
+        _dark = Prefs.IsDarkMode;
+    }
+
+    private bool DarkMode
+    {
+        get => _dark;
+        set
+        {
+            _dark = value;
+            Prefs.SetDarkMode(value);
+        }
+    }
 }
-</style>

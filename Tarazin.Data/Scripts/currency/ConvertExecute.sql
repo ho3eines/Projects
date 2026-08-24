@@ -16,10 +16,15 @@ IF @FeeAmount > 0 AND @FeeChargeTo = N'Rial' AND (@FundType IS NULL OR @FundType
 
 DECLARE @SrcQty DECIMAL(18,4) = 0, @SrcAvg DECIMAL(18,2) = NULL;
 SELECT @SrcQty = ISNULL(Quantity, 0), @SrcAvg = AvgBuyRate
-FROM [currency].[Wallets] WHERE CurrencyCode = @SourceCurrency;
+FROM [currency].[Wallets]
+WHERE CurrencyCode = @SourceCurrency
+  AND CompanyId = [central].[fn_MobileCompanyId]();
 
 IF @SrcQty < @SourceAmount
-    THROW 51174, N'موجودی ' + @SourceCurrency + N' برای تبدیل کافی نیست', 1;
+BEGIN
+    DECLARE @InsufficientMsg NVARCHAR(2048) = N'موجودی ' + @SourceCurrency + N' برای تبدیل کافی نیست';
+    THROW 51174, @InsufficientMsg, 1;
+END
 
 -- ارزش‌گذاری بر مبنای ریال (§40): مبدا/مقصد هر دو به ریال → مابه‌التفاوت = سود/زیان تبدیل
 DECLARE @TargetRialValue DECIMAL(18,2) = ROUND(@TargetAmount * @TargetRate, 0);
@@ -28,9 +33,9 @@ DECLARE @SrcPnl DECIMAL(18,2) = -@SpreadLoss - @FeeAmount;   -- هزینه/سو�
 
 BEGIN TRAN;
     INSERT INTO [currency].[FxTransactions]
-        (TransactionNumber, TransactionDate, TransactionTime, TransactionType, Status, TotalRial, Description, CreatedBy)
+        (TransactionNumber, TransactionDate, TransactionTime, TransactionType, Status, TotalRial, Description, CreatedBy, CompanyId)
     VALUES
-        (N'', CAST(@RateDate AS DATE), CAST(@RateDate AS TIME(0)), N'Conversion', N'Posted', @RialAmount, @Description, @CreatedBy);
+        (N'', CAST(@RateDate AS DATE), CAST(@RateDate AS TIME(0)), N'Conversion', N'Posted', @RialAmount, @Description, @CreatedBy, [central].[fn_MobileCompanyId]());
 
     DECLARE @TxId INT = SCOPE_IDENTITY();
     UPDATE [currency].[FxTransactions]
@@ -39,26 +44,29 @@ BEGIN TRAN;
 
     -- خروج مبدا
     INSERT INTO [currency].[CurrencyMovements]
-        (MovementNumber, MovementDate, MovementTime, MovementType, Direction, CurrencyCode, Quantity, Rate, AmountRial, FxTransactionId, SourceReference, Description, CreatedBy)
+        (MovementNumber, MovementDate, MovementTime, MovementType, Direction, CurrencyCode, Quantity, Rate, AmountRial, FxTransactionId, SourceReference, Description, CreatedBy, CompanyId)
     VALUES
         (N'', CAST(@RateDate AS DATE), CAST(@RateDate AS TIME(0)), N'Conversion', N'Out', @SourceCurrency, @SourceAmount, @SourceRate, @RialAmount,
-         @TxId, N'FX:' + CAST(@TxId AS NVARCHAR(20)) + N'-SRC', N'تبدیل به ' + @TargetCurrency, @CreatedBy);
+         @TxId, N'FX:' + CAST(@TxId AS NVARCHAR(20)) + N'-SRC', N'تبدیل به ' + @TargetCurrency, @CreatedBy, [central].[fn_MobileCompanyId]());
 
     UPDATE [currency].[Wallets]
     SET Quantity = Quantity - @SourceAmount,
         OutQty = OutQty + @SourceAmount, LastMovementAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
-    WHERE CurrencyCode = @SourceCurrency;
+    WHERE CurrencyCode = @SourceCurrency
+      AND CompanyId = [central].[fn_MobileCompanyId]();
 
     -- ورود مقصد
     INSERT INTO [currency].[CurrencyMovements]
-        (MovementNumber, MovementDate, MovementTime, MovementType, Direction, CurrencyCode, Quantity, Rate, AmountRial, FxTransactionId, SourceReference, Description, CreatedBy)
+        (MovementNumber, MovementDate, MovementTime, MovementType, Direction, CurrencyCode, Quantity, Rate, AmountRial, FxTransactionId, SourceReference, Description, CreatedBy, CompanyId)
     VALUES
         (N'', CAST(@RateDate AS DATE), CAST(@RateDate AS TIME(0)), N'Conversion', N'In', @TargetCurrency, @TargetAmount, @TargetRate, @TargetRialValue,
-         @TxId, N'FX:' + CAST(@TxId AS NVARCHAR(20)) + N'-DST', N'از تبدیل ' + @SourceCurrency, @CreatedBy);
+         @TxId, N'FX:' + CAST(@TxId AS NVARCHAR(20)) + N'-DST', N'از تبدیل ' + @SourceCurrency, @CreatedBy, [central].[fn_MobileCompanyId]());
 
     DECLARE @DstQty DECIMAL(18,4) = 0, @DstAvg DECIMAL(18,2) = NULL;
     SELECT @DstQty = ISNULL(Quantity, 0), @DstAvg = AvgBuyRate
-    FROM [currency].[Wallets] WHERE CurrencyCode = @TargetCurrency;
+    FROM [currency].[Wallets]
+    WHERE CurrencyCode = @TargetCurrency
+      AND CompanyId = [central].[fn_MobileCompanyId]();
 
     DECLARE @NewAvg DECIMAL(18,2);
     IF @DstAvg IS NULL OR @DstAvg = 0
@@ -66,14 +74,18 @@ BEGIN TRAN;
     ELSE
         SET @NewAvg = ROUND((@DstQty * @DstAvg + @TargetAmount * @TargetRate) / (@DstQty + @TargetAmount), 0);
 
-    IF EXISTS (SELECT 1 FROM [currency].[Wallets] WHERE CurrencyCode = @TargetCurrency)
+    IF EXISTS (SELECT 1 FROM [currency].[Wallets]
+                   WHERE CurrencyCode = @TargetCurrency
+                     AND CompanyId = [central].[fn_MobileCompanyId]())
         UPDATE [currency].[Wallets]
         SET Quantity = Quantity + @TargetAmount, AvgBuyRate = @NewAvg,
             InQty = InQty + @TargetAmount, LastMovementAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
-        WHERE CurrencyCode = @TargetCurrency;
+        WHERE CurrencyCode = @TargetCurrency
+          AND CompanyId = [central].[fn_MobileCompanyId]();
     ELSE
-        INSERT INTO [currency].[Wallets] (CurrencyCode, Quantity, AvgBuyRate, OpeningQty, InQty, OutQty, UpdatedAt, UpdatedBy)
-        VALUES (@TargetCurrency, @TargetAmount, @NewAvg, 0, @TargetAmount, 0, SYSUTCDATETIME(), @CreatedBy);
+        INSERT INTO [currency].[Wallets]
+            (CurrencyCode, Quantity, AvgBuyRate, OpeningQty, InQty, OutQty, UpdatedAt, UpdatedBy, CompanyId)
+        VALUES (@TargetCurrency, @TargetAmount, @NewAvg, 0, @TargetAmount, 0, SYSUTCDATETIME(), @CreatedBy, [central].[fn_MobileCompanyId]());
 
     -- شماره‌دهی گردش‌های ارزی این تبدیل
     UPDATE [currency].[CurrencyMovements]
@@ -82,46 +94,48 @@ BEGIN TRAN;
 
     -- پاها
     INSERT INTO [currency].[FxTransactionLegs]
-        (FxTransactionId, LegType, ItemKey, Title, Direction, Quantity, Rate, AmountRial, RealizedPnl, Description)
+        (FxTransactionId, LegType, ItemKey, Title, Direction, Quantity, Rate, AmountRial, RealizedPnl, Description, CompanyId)
     VALUES
-        (@TxId, N'Currency', @SourceCurrency, @SourceCurrency, N'Out', @SourceAmount, @SourceRate, @RialAmount, @SrcPnl, N'تبدیل به ' + @TargetCurrency),
-        (@TxId, N'Currency', @TargetCurrency, @TargetCurrency, N'In', @TargetAmount, @TargetRate, @TargetRialValue, NULL, N'از تبدیل ' + @SourceCurrency);
+        (@TxId, N'Currency', @SourceCurrency, @SourceCurrency, N'Out', @SourceAmount, @SourceRate, @RialAmount, @SrcPnl, N'تبدیل به ' + @TargetCurrency, [central].[fn_MobileCompanyId]()),
+        (@TxId, N'Currency', @TargetCurrency, @TargetCurrency, N'In', @TargetAmount, @TargetRate, @TargetRialValue, NULL, N'از تبدیل ' + @SourceCurrency, [central].[fn_MobileCompanyId]());
 
     -- کارمزد ریالی → خزانه (دریافت کارمزد از مشتری: صندوق/بانک افزایش می‌یابد — §41)
     IF @FeeAmount > 0 AND @FeeChargeTo = N'Rial'
     BEGIN
         INSERT INTO [treasury].[CashMovements]
-            (MovementNumber, MovementDate, Direction, Amount, CurrencyCode, AccountId, CashBoxId, Description, SourceReference, Status, CreatedBy)
+            (MovementNumber, MovementDate, Direction, Amount, CurrencyCode, AccountId, CashBoxId, Description, SourceReference, Status, CreatedBy, CompanyId)
         VALUES
             (N'', CAST(@RateDate AS DATE), N'In', @FeeAmount, N'IRR',
              CASE WHEN @FundType = N'Bank' THEN @FundId ELSE NULL END,
              CASE WHEN @FundType = N'Cash' THEN @FundId ELSE NULL END,
              N'کارمزد دریافت‌شدهٔ تبدیل ' + @SourceCurrency + N'→' + @TargetCurrency,
-             N'FX:' + CAST(@TxId AS NVARCHAR(20)) + N'-FEE', N'Posted', @CreatedBy);
+             N'FX:' + CAST(@TxId AS NVARCHAR(20)) + N'-FEE', N'Posted', @CreatedBy, [central].[fn_MobileCompanyId]());
 
         IF @FundType = N'Bank'
             UPDATE [treasury].[BankAccounts]
-            SET Balance = Balance + @FeeAmount WHERE AccountId = @FundId;
+            SET Balance = Balance + @FeeAmount
+            WHERE AccountId = @FundId AND CompanyId = [central].[fn_MobileCompanyId]();
         ELSE
             UPDATE [treasury].[CashBoxes]
-            SET Balance = Balance + @FeeAmount WHERE CashBoxId = @FundId;
+            SET Balance = Balance + @FeeAmount
+            WHERE CashBoxId = @FundId AND CompanyId = [central].[fn_MobileCompanyId]();
     END
 
     -- سند حسابداری (دوبل متوازن — رجوع به منطق شرح‌شده در اسکریپت)
     IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1030' AND IsDeleted = 0)
-        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-        VALUES (N'1030', N'موجودی ارز', N'Asset', 1, SYSUTCDATETIME());
+        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+        VALUES (N'1030', N'موجودی ارز', N'Asset', 1, SYSUTCDATETIME(), [central].[fn_MobileCompanyId]());
     IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6000' AND IsDeleted = 0)
-        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-        VALUES (N'6000', N'سود و زیان تسعیر ارز', N'Income', 1, SYSUTCDATETIME());
+        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+        VALUES (N'6000', N'سود و زیان تسعیر ارز', N'Income', 1, SYSUTCDATETIME(), [central].[fn_MobileCompanyId]());
     IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6100' AND IsDeleted = 0)
-        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-        VALUES (N'6100', N'کارمزد و سایر هزینه‌ها', N'Expense', 1, SYSUTCDATETIME());
+        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+        VALUES (N'6100', N'کارمزد و سایر هزینه‌ها', N'Expense', 1, SYSUTCDATETIME(), [central].[fn_MobileCompanyId]());
 
     INSERT INTO [accounting].[Documents]
-        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted)
+        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted, CompanyId)
     VALUES
-        (N'', CAST(@RateDate AS DATE), N'FxConvert', NULL, @RialAmount, N'IRR', N'Posted', SYSUTCDATETIME(), @CreatedBy, 0);
+        (N'',         CAST(@RateDate AS DATE), N'FxConvert', NULL, @RialAmount, N'IRR', N'Posted', SYSUTCDATETIME(), @CreatedBy, 0, [central].[fn_MobileCompanyId]());
 
     DECLARE @Did INT = SCOPE_IDENTITY();
     UPDATE [accounting].[Documents]
@@ -131,25 +145,25 @@ BEGIN TRAN;
     -- بدهکار: موجودی ارز مقصد (ارزش خالص پس از کارمزد)
     INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
     SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'موجودی ارز ' + @TargetCurrency, @TargetRialValue, 0
-    FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0;
+    FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
 
     -- بستانکار: موجودی ارز مبدا (ارزش کامل)
     INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
     SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'موجودی ارز ' + @SourceCurrency, 0, @RialAmount
-    FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0;
+    FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
 
     -- کارمزد ریالی: از مشتری نقداً دریافت می‌شود → بدهکار صندوق/بانک (سند متوازن و هماهنگ با خزانه)
     IF @FeeAmount > 0 AND @FeeChargeTo = N'Rial'
         INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
         SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'دریافت کارمزد تبدیل ارز', @FeeAmount, 0
         FROM [accounting].[ChartOfAccounts] a
-        WHERE a.AccountCode = CASE WHEN @FundType = N'Bank' THEN N'1010' ELSE N'1000' END AND a.IsDeleted = 0;
+        WHERE a.AccountCode = CASE WHEN @FundType = N'Bank' THEN N'1010' ELSE N'1000' END AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
 
     -- کارمزد مبدا/مقصد: داخل خودِ تبدیل کسر شده → هزینهٔ کارمزد (سند متوازن)
     IF @FeeAmount > 0 AND @FeeChargeTo <> N'Rial'
         INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
         SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'کارمزد تبدیل ارز (' + @FeeChargeTo + N')', @FeeAmount, 0
-        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6100' AND a.IsDeleted = 0;
+        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6100' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
 
     -- سود/زیان تبدیل (مابه‌التفاوت ریالی) → 6000
     IF @SpreadLoss <> 0
@@ -157,16 +171,17 @@ BEGIN TRAN;
         IF @SpreadLoss > 0
             INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
             SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'زیان تبدیل ارز', @SpreadLoss, 0
-            FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0;
+            FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
         ELSE
             INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
             SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'سود تبدیل ارز', 0, ABS(@SpreadLoss)
-            FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0;
+            FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
     END
 
     UPDATE [currency].[FxTransactions]
     SET DocumentId = @Did
-    WHERE FxTransactionId = @TxId;
+    WHERE FxTransactionId = @TxId
+      AND CompanyId = [central].[fn_MobileCompanyId]();
 
     -- تاریخچهٔ نرخ (قفل نرخ هر دو ارز — §48/§49)
     INSERT INTO [currency].[RateHistory]

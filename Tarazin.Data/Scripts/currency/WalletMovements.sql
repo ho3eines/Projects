@@ -8,14 +8,15 @@ SELECT m.MovementId, m.MovementNumber, m.MovementDate, CONVERT(NVARCHAR(8), m.Mo
        m.MovementType, m.Direction, m.CurrencyCode, c.CurrencyName,
        m.Quantity, m.Rate, m.AmountRial, m.CounterPartyName, m.FundType, m.FundId,
        CASE m.FundType
-           WHEN N'Cash' THEN (SELECT Title FROM [treasury].[CashBoxes] WHERE CashBoxId = m.FundId)
-           WHEN N'Bank' THEN (SELECT AccountName FROM [treasury].[BankAccounts] WHERE AccountId = m.FundId)
+           WHEN N'Cash' THEN (SELECT Title FROM [treasury].[CashBoxes] WHERE CashBoxId = m.FundId AND CompanyId = [central].[fn_MobileCompanyId]())
+           WHEN N'Bank' THEN (SELECT AccountName FROM [treasury].[BankAccounts] WHERE AccountId = m.FundId AND CompanyId = [central].[fn_MobileCompanyId]())
            ELSE NULL
        END AS FundTitle,
        m.FxTransactionId, m.DocumentId, m.Description, m.CreatedBy, m.CreatedAt
 FROM [currency].[CurrencyMovements] m
 LEFT JOIN [currency].[Currencies] c ON c.CurrencyCode = m.CurrencyCode
-WHERE (@CurrencyCode IS NULL OR m.CurrencyCode = @CurrencyCode)
+WHERE m.CompanyId = [central].[fn_MobileCompanyId]()
+  AND (@CurrencyCode IS NULL OR m.CurrencyCode = @CurrencyCode)
   AND (@FromDate IS NULL OR m.MovementDate >= @FromDate)
   AND (@ToDate IS NULL OR m.MovementDate <= @ToDate)
   AND (@Direction IS NULL OR m.Direction = @Direction)

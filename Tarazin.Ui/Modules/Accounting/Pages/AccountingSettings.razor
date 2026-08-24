@@ -1,0 +1,95 @@
+@page "/accounting/settings"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>تنظیمات شرکت مالی — حسابداری</PageTitle>
+<PageHeader Title="تنظیمات شرکت مالی" Subtitle="گروه‌های تفصیلی مشترک حسابداری که همهٔ ماژول‌ها (مشتریان، تأمین‌کنندگان، موجودی کالا) از آن استفاده می‌کنند — یک بار تنظیم کنید، همه‌جا یکسان." />
+<MudPaper Class="pa-4">
+    <MudForm @ref="_form" @bind-IsValid="_valid">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" Label="گروه تفصیلی مشتریان" @bind-Value="_customerGroup" Variant="Variant.Outlined"
+                           HelperText="تفصیلی هر مشتری به‌صورت خودکار در این گروه ساخته می‌شود">
+                    <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
+                    @foreach (var g in _detilGroups)
+                    {
+                        <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" Label="گروه تفصیلی تأمین‌کنندگان" @bind-Value="_supplierGroup" Variant="Variant.Outlined"
+                           HelperText="تفصیلی هر تأمین‌کننده به‌صورت خودکار در این گروه ساخته می‌شود">
+                    <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
+                    @foreach (var g in _detilGroups)
+                    {
+                        <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" Label="گروه تفصیلی موجودی کالا" @bind-Value="_inventoryGroup" Variant="Variant.Outlined"
+                           HelperText="تفصیلی هر کالا به‌صورت خودکار در این گروه ساخته می‌شود">
+                    <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
+                    @foreach (var g in _detilGroups)
+                    {
+                        <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+    <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">
+        ذخیره تنظیمات شرکت
+    </MudButton>
+</MudPaper>
+<MudAlert Class="mt-4" Severity="Severity.Info">
+    این تنظیمات در سطح شرکت مالی است و بین همهٔ ماژول‌ها مشترک است؛ اگر گروهی را اینجا عوض کنید،
+    لینک تفصیلی مشتریان/تأمین‌کنندگان/کالاهای آینده طبق گروه جدید ساخته می‌شود.
+</MudAlert>
+
+@code {
+    private MudForm? _form;
+    private bool _valid, _busy;
+    private int? _customerGroup, _supplierGroup, _inventoryGroup;
+    private List<AccountGroupRow> _detilGroups = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _detilGroups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList",
+                new { CompanyId = Session.ActiveCompanyId, GroupType = "Detil", IncludeInactive = 0 })).ToList();
+            var s = await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting", "CompanyAccountSettingsGet",
+                new { CompanyId = Session.ActiveCompanyId });
+            if (s is not null)
+            {
+                _customerGroup = s.CustomerAccountGroupId;
+                _supplierGroup = s.SupplierAccountGroupId;
+                _inventoryGroup = s.InventoryAccountGroupId;
+            }
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("accounting", "CompanyAccountSettingsUpsert", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                CustomerAccountGroupId = _customerGroup,
+                SupplierAccountGroupId = _supplierGroup,
+                InventoryAccountGroupId = _inventoryGroup,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("تنظیمات شرکت ذخیره شد.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

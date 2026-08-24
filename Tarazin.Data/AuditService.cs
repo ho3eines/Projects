@@ -14,6 +14,11 @@ namespace Tarazin.Data;
 /// tamper-evident chain: <c>RowHash</c> omits <c>PrevHash</c>, and predecessor
 /// lookup/insertion are not serialized. ADR-002 records this release gate.
 ///
+/// <c>CompanyId</c> is deliberately <c>NULL</c> for system-level operations
+/// (startup migrations, seed, access syncs) that run with no tenant context.
+/// Those rows must NEVER be backfilled to a company — see
+/// docs/adr/ADR-004-auditlog-null-company.md.
+///
 /// Self-contained on purpose: it opens its own connection and resolves its own
 /// scripts so it never depends on <see cref="DbService"/> — that would create a
 /// circular dependency and recursion, because <see cref="DbService"/> auto-audits

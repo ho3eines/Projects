@@ -1,13 +1,8 @@
 # TODO — ترازین (مدیریت هوشمند کسب‌وکار) — Blazor Hybrid
 
-> **وضعیت کلی (۱۴۰۵/۰۵/۲۹):** هستهٔ مشترک و Web پیاده‌سازی و static-review
-> شده‌اند. اتصال MAUI به درخواست مالک پروژه ساده‌سازی شد: مدل broker
-> (CustomerGuid/session/tz_m_*) حذف شد؛ ورود در هر دو هاست **محلی و یکسان** است
-> (`AuthService`/PBKDF2) و API فقط یک‌بار رشتهٔ اتصال رمزگذاری‌شده را تحویل می‌دهد
-> (`POST /api/mobile/connection`، کلید مشتق از رمز ورود). release هنوز نیازمند
-> build و تست پویا با SQL Server واقعی است (SDK/SQL tooling در sandbox موجود نبود).
-> CI و staging باید build هر دو هاست، همهٔ اسکنرها، ورود وب/MAUI و artifact scan را
-> پیش از production سبز کنند. مطابق Legend، هنوز چیزی Deploy نشده است.
+> 🧑‍💻 **راهنمای کدنویسی الزامی:** قبل از هر تغییر/دریافت پارامتر، `.claude/skills/tarazin-development/SKILL.md` را کامل بخوان — معماری، لایهٔ داده، قواعد MudBlazor 9.8.0، دسترسی‌ها و الگوهای کپی‌پذیر (جدول/فرم/منو/دیالوگ) همه در آن است.
+>
+> **وضعیت کلی (۱۴۰۵/۰۶/۰۲):** Web با SQL Server واقعی لایو بررسی شد؛ مسیرهای CRUD ماژول‌های حسابداری، انبار، خزانه، حقوق، طلافروشی، فروشگاه و ارز، داشبورد BI، Viewer گزارش و ممیزی Central سالم هستند. اصلاح tenant ارز، seed چندشرکتی کیف‌پول/دارایی، و زنجیرهٔ `Ensure → Seed → Backfill → MobileSecurity` در startup تأیید شد. اتصال MAUI همچنان نیازمند build و تست دستگاهی در محیط دارای workload است؛ هیچ چیزی Deploy نشده است.
 
 | فاز | وضعیت (0 تا 4) | شرح کار | مسئول |
 |-----|-----------------|---------|--------|
@@ -24,10 +19,11 @@
 | 4 | 3 | ماژول حقوق و دستمزد: کارمندان، فیش، نهایی‌کردن دوره، گزارشات | @dev_d |
 | 5 | 3 | ماژول طلافروشی: فاکتور فروش، قیمت طلا، اجناس، گزارشات | @dev_e |
 | 6 | 3 | ماژول فروشگاه: سبد خرید، سفارش، محصولات، مشتریان | @dev_f |
-| 7 | 2 | بازبینی ایستا انجام شد (بدون SQL/HttpClient در صفحات، مرز اسکیمه، مسیرها، تطبیق مدل↔اسکریپت)؛ **تست دستی با محیط واقعی (وب + MAUI) مانده** | @qa_lead |
+| 7 | 3 | بازبینی ایستا + تست لایو Web با SQL Server واقعی انجام شد؛ تست دستگاهی MAUI و E2E موبایل هنوز مانده | @qa_lead |
 | 8 | 1 | `ci/ci.yml` (build وب + build MAUI با workload) نوشته شده؛ **فعال‌سازی: انتقال به `.github/workflows/ci.yml` و پوش با اکانت دارای دسترسی workflows و سبز شدن مانده** | @devops |
 | 9 | 3 | مستندسازی نهایی (PRD، PLATFORM_PRD، PROJECT، ADRها، skills، .agents) **کامل**؛ انتقال به تولید مانده | @arch |
-| 10 | 3 | **ماژول ارز و معاملات ارزی (PRD §34–§63)**: اسکیمهٔ `currency` + مرکز نرخ‌ها، کیف پول، خرید/فروش ارز، معاملات ترکیبی، موتور تبدیل، دریافت آنلاین (TabloTala/Matisa)، ارزش لحظه‌ای دارایی، سود/زیان ارزی، دسترسی‌های `rates.*` — شرح کامل در `docs/CURRENCY_MODULE.md` | @dev_c |
+| 11 | 2 | **یکپارچه‌سازی طلافروشی + ارز + انبار + حسابداری + خزانه**: مشتری/تأمین‌کننده، دفتر بدهکار/بستانکار ریالی/طلا/ارز، فاکتور مالیاتی و اجرت، پرداخت خزانه، کاهش موجودی و تنظیمات لینک حسابداری؛ مسیرهای `/goldshop/parties` و `/goldshop/settings/integration` اضافه شد. picker تفصیلی گرافیکی و برگشت فاکتور هنوز مانده | @dev_e |
+| 10 | 3 | **ماژول ارز و معاملات ارزی (PRD §34–§63)**: اسکیمهٔ `currency` + مرکز نرخ‌ها، کیف پول، خرید/فروش ارز، معاملات ترکیبی، موتور تبدیل، دریافت آنلاین (TabloTala/Matisa)، ارزش لحظه‌ای دارایی، سود/زیان ارزی، دسترسی‌های `rates.*`؛ ایزولاسیون چندشرکتی و seed مستقل برای شرکت‌ها نیز تأیید شد — شرح کامل در `docs/CURRENCY_MODULE.md` | @dev_c |
 | 11 | 3 | **ماژول داشبورد و BI (PRD BI §1–§121)**: اسکیمهٔ `bi` (۲۸ اسکریپت) + مرکز فرماندهی `/bi` با ۱۴ تب (اجرایی/مالی/فروش/خزانه/طلا/ارز/انبار/مشتریان/بدهی‌ها/حقوق/فروشگاه/اهداف/هشدار/تحلیل هوشمند) + `BiAlerts` + **چاپ با Stimulsoft** (`Stimulsoft.Reports.Blazor` + `BiReportService` + `/bi/reports`) — شرح کامل در `docs/BI_MODULE.md` | @dev_a |
 
 ## کارهای باز (Backlog)
@@ -35,9 +31,9 @@
 | # | کار | پیش‌نیاز |
 |---|-----|----------|
 | B1 | `dotnet build Tarazin.Web/Tarazin.Web.csproj` — تأیید build پنج‌پروژه (MudBlazor 9.8.0 روی net8.0) | محیط با SDK |
-| B2 | `dotnet workload install maui` + build MAUI (ویندوز) | محیط با SDK/ویندوز |
+| B2 | `dotnet workload install maui` + build MAUI (ویندوز) | build `net8.0-windows10.0.19041.0/win10-x64` موفق با ۰ خطا؛ دو هشدار MSB3277 مربوط به conflict Stimulsoft/WebUtilities باقی و publish/device test مانده |
 | B3 | `docker compose up -d` با secretهای خارجی + تست E2E وب/MAUI با bootstrap password تزریق‌شده، ورود MAUI (رمز درست/غلط، API/SQL unavailable)، ثبت داده، گزارش و ممیزی. عیب‌یابی: `bash tools/test-connection.sh` و `/diag` امن | SQL Server + SDK |
-| B4 | تأیید build/runtime مسیر مستقیم SqlClient و endpoint ورود برای Android/iOS؛ بدون credential دائمی یا TLS bypassدر بسته | CI/device lab |
+| B4 | تأیید build/runtime مسیر مستقیم SqlClient و endpoint ورود برای Android/iOS؛ بدون credential دائمی یا TLS bypassدر بسته | build Android موفق؛ runtime دستگاهی Android/iOS و بررسی endpoint در CI/device lab مانده |
 | B5 | انتقال `.github/workflows/ci.yml` به `.github/workflows/ci.yml` و سبز شدن | دسترسی workflows |
 | B6 | پیکربندی secret store تولید برای اتصال Web و bootstrap password؛ repository و artifact باید بدون مقدار secret باقی بمانند | تولید |
 | B7 | پاک‌سازی جدول‌های Outbox خواب (ADR-002) | اختیاری |

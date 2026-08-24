@@ -9,7 +9,7 @@
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="مشتری" @bind-Value="_customerId" Variant="Variant.Outlined" OnSelectedValueChanged="id => OnCustomerChanged(id)">
+            <MudSelect T="int" Label="مشتری" Value="_customerId" ValueChanged="OnCustomerChanged" Variant="Variant.Outlined">
                 <MudSelectItem Value="0">— انتخاب مشتری —</MudSelectItem>
                 @foreach (var c in _customers)
                 {

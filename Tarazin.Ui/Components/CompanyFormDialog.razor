@@ -47,7 +47,7 @@
     private async Task SaveAsync()
     {
         if (_busy) return;
-        await _form!.Validate();
+        await _form!.ValidateAsync();
         if (!_isValid) return;
 
         _busy = true;

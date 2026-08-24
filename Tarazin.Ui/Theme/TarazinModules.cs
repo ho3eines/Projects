@@ -36,11 +36,11 @@ public static class TarazinModules
                 new("نقش‌ها و دسترسی‌ها", "/central/roles", Icons.Material.Filled.AdminPanelSettings, TarazinPermissions.Roles),
                 new("ممیزی", "/central/audit", Icons.Material.Filled.Policy, TarazinPermissions.Audit),
             ]),
-        new("accounting", "حسابداری", "اسناد روز، دفتر روزنامه و کل، تراز آزمایشی",
+        new("accounting", "حسابداری", "اسناد، دفتر روزنامه و کل، تراز آزمایشی",
             "/accounting", Icons.Material.Filled.AccountBalance, "#1E4B73",
             [
                 new("داشبورد", "/accounting/dashboard", Icons.Material.Filled.Dashboard, Perm("accounting", TarazinActions.View)),
-                new("اسناد روز", "/accounting", Icons.Material.Filled.Today, Perm("accounting", TarazinActions.View)),
+                new("اسناد", "/accounting", Icons.Material.Filled.Description, Perm("accounting", TarazinActions.View)),
                 new("ثبت سند", "/accounting/entry", Icons.Material.Filled.PostAdd, Perm("accounting", TarazinActions.Entry)),
                 // صفحهٔ سند از فهرست اسناد باز می‌شود و در زیرمنو تکرار نمی‌شود؛
                 // اما باید در گاردِ مسیر شناخته شود تا با «مشاهدهٔ حسابداری» محافظت شود.
@@ -48,6 +48,7 @@ public static class TarazinModules
                 new("جداول پایه", "/accounting/chart", Icons.Material.Filled.AccountTree, TarazinPermissions.ChartView),
                 new("عملیات ویژه", "/accounting/special", Icons.Material.Filled.AutoFixHigh, Perm("accounting", TarazinActions.Special)),
                 new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment, Perm("accounting", TarazinActions.Reports)),
+                new("تنظیمات شرکت", "/accounting/settings", Icons.Material.Filled.CorporateFare, Perm("accounting", TarazinActions.Settings)),
             ]),
         new("inventory", "انبار", "رسید و حواله، کارتکس، موجودی کالا",
             "/inventory", Icons.Material.Filled.Inventory2, "#4A6B3A",
@@ -85,9 +86,10 @@ public static class TarazinModules
                 new("داشبورد", "/goldshop/dashboard", Icons.Material.Filled.Dashboard, Perm("goldshop", TarazinActions.View)),
                 new("فروش روز", "/goldshop", Icons.Material.Filled.Today, Perm("goldshop", TarazinActions.View)),
                 new("فاکتور فروش", "/goldshop/entry", Icons.Material.Filled.PointOfSale, Perm("goldshop", TarazinActions.Entry)),
+                new("مشتریان و تأمین‌کنندگان", "/goldshop/parties", Icons.Material.Filled.People, Perm("goldshop", TarazinActions.View)),
                 new("قیمت طلا", "/goldshop/special", Icons.Material.Filled.ShowChart, Perm("goldshop", TarazinActions.Special)),
                 new("گزارشات", "/goldshop/reports", Icons.Material.Filled.Assessment, Perm("goldshop", TarazinActions.Reports)),
-                new("امکانات", "/goldshop/settings", Icons.Material.Filled.Tune, Perm("goldshop", TarazinActions.Settings)),
+                new("اتصال انبار و حسابداری", "/goldshop/settings/integration", Icons.Material.Filled.Link, Perm("goldshop", TarazinActions.Settings)),
             ]),
         new("currency", "ارز و معاملات ارزی", "کیف پول ارز، خرید و فروش، تبدیل، مرکز نرخ‌ها و ارزش لحظه‌ای دارایی",
             "/currency", Icons.Material.Filled.Payments, "#2E7D32",

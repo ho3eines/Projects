@@ -19,8 +19,9 @@ SELECT
     s.CreatedAt,
     s.UpdatedAt
 FROM [goldshop].[SaleInvoices] s
-LEFT JOIN [goldshop].[GoldItems] g ON g.ItemCode = s.ItemCode
+LEFT JOIN [goldshop].[GoldItems] g ON g.ItemCode = s.ItemCode AND g.CompanyId = s.CompanyId
 WHERE s.InvoiceDate BETWEEN @FromDate AND @ToDate
+  AND s.CompanyId = @CompanyId
   AND (@SearchText = N'' OR s.InvoiceNumber LIKE N'%' + @SearchText + N'%'
        OR s.CustomerName LIKE N'%' + @SearchText + N'%')
 ORDER BY s.InvoiceDate DESC, s.InvoiceId DESC

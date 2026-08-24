@@ -138,6 +138,44 @@ BEGIN
     );
 END
 
+-- Product categories (دسته‌بندی کالا) — نمونهٔ الگوی CRUD اسکیل.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'ProductCategories')
+BEGIN
+    CREATE TABLE [store].[ProductCategories] (
+        CategoryId   INT IDENTITY(1,1) PRIMARY KEY,
+        CategoryCode NVARCHAR(50) NOT NULL UNIQUE,
+        Title        NVARCHAR(200) NOT NULL,
+        SortOrder    INT NOT NULL DEFAULT 0,
+        IsActive     BIT NOT NULL DEFAULT 1,
+        IsDeleted    BIT NOT NULL DEFAULT 0,
+        CreatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt    DATETIME2 NULL,
+        CreatedBy    NVARCHAR(100) NULL,
+        UpdatedBy    NVARCHAR(100) NULL
+    );
+END
+
+-- Multi-Company: ProductCategories per-company scoping
+IF COL_LENGTH(N'store.ProductCategories', N'CompanyId') IS NULL
+    ALTER TABLE [store].[ProductCategories] ADD CompanyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ProductCategories_Company')
+    ALTER TABLE [store].[ProductCategories] WITH CHECK ADD CONSTRAINT FK_ProductCategories_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+GO
+IF EXISTS (SELECT 1 FROM [store].[ProductCategories] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_ProductCategories INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_ProductCategories IS NOT NULL
+        UPDATE [store].[ProductCategories] SET CompanyId = @DefaultCompanyId_ProductCategories WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ProductCategories_Company' AND object_id = OBJECT_ID(N'[store].[ProductCategories]'))
+    CREATE INDEX IX_ProductCategories_Company ON [store].[ProductCategories](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
 -- Event backbone (ADR-002).
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t

@@ -1,169 +1,467 @@
 @page "/goldshop/entry"
+@using System.Text.Json
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
 
-<PageTitle>فاکتور فروش — طلافروشی</PageTitle>
+<PageTitle>فاکتور طلافروشی</PageTitle>
 
-<PageHeader Title="ثبت فاکتور فروش طلا" Subtitle="نرخ جاری طلا از مرکز نرخ‌ها (§54) — با یک کلیک در فاکتور قرار می‌گیرد؛ مالیات بر اساس نرخ فعال درج‌شده در حسابداری محاسبه می‌شود." />
-<MudPaper Elevation="1" Class="pa-4">
-    <MudGrid>
-        <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="جنس طلا" @bind-Value="_itemId" Variant="Variant.Outlined" @bind-Value:after="OnItemChanged">
-                <MudSelectItem Value="0">— انتخاب جنس —</MudSelectItem>
-                @foreach (var g in _items)
-                {
-                    <MudSelectItem Value="g.GoldItemId">@g.ItemCode — @g.Title</MudSelectItem>
-                }
-            </MudSelect>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="نام مشتری" @bind-Value="_customerName" Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
-        </MudItem>
-    </MudGrid>
+<PageHeader Title="ثبت فاکتور طلافروشی (فروش / خرید)" Subtitle="فاکتور چندردیفهٔ طلا و ارز؛ نرخ ارز: کمتر از ۱۰۰ = درصد بالای نرخ سیستم، ۱۰۰ به بالا = مبلغ. تیک مالیات ۱۰٪ اضافه می‌کند. تسویهٔ ترکیبی (نقدی/بانک/ارز/طلا/چک/نسیه) با تراز صفر و اتصال خودکار به انبار، دفتر طرف حساب، کیف پول، خزانه و سند حسابداری (یاداشت)." />
 
-    @if (_selectedRate is not null)
-    {
-        <MudPaper Elevation="0" Class="pa-3 mb-3" Style="background: rgba(0,0,0,.04);border-radius:8px">
-            <MudText Typo="Typo.subtitle2" Class="mb-2">نرخ جاری — @_selectedRate.Title (منبع: @(_selectedRate.SourceKey ?? "دستی"))</MudText>
-            <MudGrid>
-                <MudItem xs="12" sm="6" md="4">
-                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Medium">
-                        نرخ آنلاین: @(_selectedRate.OnlineRate?.ToString("N0") ?? "—") ریال
-                    </MudChip>
+<!-- ۱) مشخصات فاکتور -->
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">مشخصات فاکتور</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">نوع فاکتور، طرف حساب و تاریخ را تعیین کنید</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string" Label="نوع فاکتور" @bind-Value="_mode" Variant="Variant.Outlined" @bind-Value:after="OnModeChanged">
+                    <MudSelectItem Value="@("Sale")">فروش به مشتری</MudSelectItem>
+                    <MudSelectItem Value="@("Purchase")">خرید از تأمین‌کننده</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="int" Label="@(_mode == "Sale" ? "مشتری" : "تأمین‌کننده")" @bind-Value="_partyId" Variant="Variant.Outlined">
+                    <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                    @foreach (var p in _parties) { <MudSelectItem Value="p.PartyId">@p.FullName</MudSelectItem> }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton FullWidth="true" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddLine">افزودن ردیف</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+<!-- ۲) ریز فاکتور -->
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">ریز فاکتور</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@(_lines.Count) ردیف — طلا و/یا ارز؛ اجرت و سود فقط در فروش</MudText>
+        </CardHeaderContent>
+        <CardHeaderActions>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="AddLine">افزودن ردیف</MudButton>
+        </CardHeaderActions>
+    </MudCardHeader>
+    <MudCardContent>
+        @if (_lines.Count > 0)
+        {
+            <MudTable T="EntryLine" Items="_lines" Hover="true" Dense="true" Striped="true" Class="mb-3">
+                <HeaderContent>
+                    <MudTh Style="width:90px">نوع</MudTh>
+                    <MudTh Style="min-width:200px">کالا / ارز</MudTh>
+                    <MudTh Style="width:110px">مقدار</MudTh>
+                    <MudTh Style="width:170px">نرخ / قیمت</MudTh>
+                    @if (_mode == "Sale")
+                    {
+                        <MudTh Style="width:120px">اجرت</MudTh>
+                        <MudTh Style="width:120px">سود</MudTh>
+                    }
+                    else
+                    {
+                        <MudTh Style="width:120px">اجرت</MudTh>
+                    }
+                    <MudTh Style="width:80px">مالیات</MudTh>
+                    <MudTh Style="width:140px">ارزش ردیف</MudTh>
+                    <MudTh Style="width:60px"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudSelect T="string" Value="context.RowType" ValueChanged="v => OnRowTypeChanged(context, v)" Dense="true" Variant="Variant.Text">
+                            <MudSelectItem Value="@("Gold")">طلا</MudSelectItem>
+                            <MudSelectItem Value="@("Currency")">ارز</MudSelectItem>
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd>
+                        @if (context.RowType == "Gold")
+                        {
+                            <MudSelect T="int" Value="context.GoldItemId" ValueChanged="v => OnLineItemChanged(context, v)" Dense="true" Variant="Variant.Outlined" Label="جنس طلا">
+                                <MudSelectItem Value="0">— انتخاب جنس —</MudSelectItem>
+                                @foreach (var g in _items) { <MudSelectItem Value="g.GoldItemId">@g.ItemCode — @g.Title</MudSelectItem> }
+                            </MudSelect>
+                        }
+                        else
+                        {
+                            <MudSelect T="string" Value="context.CurrencyCode" ValueChanged="v => OnLineCurrencyChanged(context, v)" Dense="true" Variant="Variant.Outlined" Label="ارز">
+                                <MudSelectItem Value="@("")">— انتخاب ارز —</MudSelectItem>
+                                @foreach (var w in _wallets) { <MudSelectItem Value="w.CurrencyCode">@w.CurrencyCode — @w.CurrencyName</MudSelectItem> }
+                            </MudSelect>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <MudNumericField T="decimal" Value="context.Qty" ValueChanged="v => context.Qty = v" Variant="Variant.Outlined" Min="0" />
+                    </MudTd>
+                    <MudTd>
+                        @if (context.RowType == "Gold")
+                        {
+                            <MudNumericField T="decimal" Value="context.Price" ValueChanged="v => context.Price = v" Variant="Variant.Outlined" Min="0" Format="#,##0.##" />
+                        }
+                        else
+                        {
+                            <MudNumericField T="decimal" Value="context.Rate" ValueChanged="v => context.Rate = v" Variant="Variant.Outlined" Min="0" Format="#,##0.##" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@RateHint(context)</MudText>
+                        }
+                    </MudTd>
+                    @if (_mode == "Sale")
+                    {
+                        <MudTd><MudNumericField T="decimal" Value="context.Workmanship" ValueChanged="v => context.Workmanship = v" Variant="Variant.Outlined" Min="0" Format="#,##0" /></MudTd>
+                        <MudTd><MudNumericField T="decimal" Value="context.Profit" ValueChanged="v => context.Profit = v" Variant="Variant.Outlined" Min="0" Format="#,##0" /></MudTd>
+                    }
+                    else
+                    {
+                        <MudTd><MudNumericField T="decimal" Value="context.Workmanship" ValueChanged="v => context.Workmanship = v" Variant="Variant.Outlined" Min="0" Format="#,##0" /></MudTd>
+                    }
+                    <MudTd><MudCheckBox T="bool" Value="context.TaxEnabled" ValueChanged="v => context.TaxEnabled = v" /></MudTd>
+                    <MudTd><MudText Typo="Typo.body2" Class="font-weight-medium">@LineTotal(context).ToString("N0")</MudText></MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.Remove(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText>ریزی ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(13,110,253,.08);border-radius:8px">
+                        <MudText Typo="Typo.caption" Color="Color.Primary">جمع پایه</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Primary">@TotalBase.ToString("N0") <small>ریال</small></MudText>
+                    </MudPaper>
                 </MudItem>
-                <MudItem xs="12" sm="6" md="4">
-                    <MudButton Variant="Variant.Text" Color="Color.Secondary" Size="Size.Small"
-                               OnClick="@(() => UseSystemRate())" Disabled="@(_selectedRate.SystemRate <= 0)"
-                               StartIcon="@Icons.Material.Filled.Download">
-                        نرخ سیستم: @_selectedRate.SystemRate.ToString("N0") — کلیک برای استفاده
-                    </MudButton>
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(255,193,7,.12);border-radius:8px">
+                        <MudText Typo="Typo.caption" Color="Color.Warning">مالیات</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Warning">@TotalTax.ToString("N0") <small>ریال</small></MudText>
+                    </MudPaper>
                 </MudItem>
-                <MudItem xs="12" sm="4" md="4">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        آخرین بروزرسانی: @(_selectedRate.LastFetchAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")
-                    </MudText>
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(25,135,84,.10);border-radius:8px">
+                        <MudText Typo="Typo.caption" Color="Color.Success">کل فاکتور</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Success">@Total.ToString("N0") <small>ریال</small></MudText>
+                    </MudPaper>
                 </MudItem>
             </MudGrid>
-        </MudPaper>
-    }
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">برای شروع، ردیف‌های فاکتور (طلا و/یا ارز) را اضافه کنید.</MudAlert>
+        }
+    </MudCardContent>
+</MudCard>
 
-    <MudGrid>
-        <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="وزن (گرم)" @bind-Value="_weight" Variant="Variant.Outlined" Min="0" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="قیمت هر گرم (ریال)" @bind-Value="_pricePerGram" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="اجرت" @bind-Value="_workmanship" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="سود" @bind-Value="_profit" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
-        </MudItem>
-        <MudItem xs="12">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
-                       OnClick="SaveAsync" Disabled="_busy">
-                ثبت فاکتور
+<!-- ۳) تسویه -->
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">تسویه</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">ترکیبی از نقدی، بانک، ارز، طلا، چک و نسیه (باقیمانده)؛ مجموع باید با کل فاکتور تراز شود</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">نقدی و بانک</MudText>
+        <MudGrid Spacing="2" Class="mb-2">
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField T="decimal" Label="نقدی (صندوق)" @bind-Value="_payCash" Format="#,##0" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField T="decimal" Label="پرداخت بانکی" @bind-Value="_payBank" Format="#,##0" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">پرداخت با ارز</MudText>
+        <MudGrid Spacing="2" Class="mb-2">
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string" Label="ارز پرداختی" @bind-Value="_payCurrencyCode" Variant="Variant.Outlined" @bind-Value:after="OnPayCurrencyChanged">
+                    <MudSelectItem Value="@("")">— بدون ارز —</MudSelectItem>
+                    @foreach (var w in _wallets) { <MudSelectItem Value="w.CurrencyCode">@w.CurrencyCode</MudSelectItem> }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField T="decimal" Label="مقدار ارز" @bind-Value="_payCurrencyQty" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField T="decimal" Label="نرخ ارز (٪ یا مبلغ)" @bind-Value="_payCurrencyRate" Format="#,##0.##" Variant="Variant.Outlined" Min="0" HelperText="کمتر از ۱۰۰ = درصد بالای نرخ سیستم" />
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">پرداخت با طلا</MudText>
+        <MudGrid Spacing="2" Class="mb-2">
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField T="decimal" Label="@(_mode == "Sale" ? "طلا (تحویل از مشتری، گرم)" : "طلا (پرداخت به تأمین‌کننده، گرم)")" @bind-Value="_payGoldGram" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField T="string" Label="نرخ طلا (گرم)" Value="@GoldPrice.ToString("N0")" Disabled="true" Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">پرداخت با چک</MudText>
+        <MudGrid Spacing="2" Class="mb-2">
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField T="string" Label="شماره چک" @bind-Value="_payChequeNumber" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="int" Label="بانک" @bind-Value="_payChequeBankId" Variant="Variant.Outlined">
+                    <MudSelectItem Value="0">— انتخاب بانک —</MudSelectItem>
+                    @foreach (var b in _banks) { <MudSelectItem Value="b.BankId">@b.Title</MudSelectItem> }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField T="decimal" Label="مبلغ چک" @bind-Value="_payChequeAmount" Format="#,##0" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker Label="سررسید چک" Culture="FaCulture" @bind-Date="_payChequeDueDate" Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-3" />
+        <MudGrid Spacing="2" Class="mb-2">
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string" Label="نوع نسیه" @bind-Value="_creditType" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Rial")">نسیه به مبلغ (ریال)</MudSelectItem>
+                    <MudSelectItem Value="@("Gold")">نسیه به طلا</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                <MudText Typo="Typo.body2">
+                    ارزش ارز: <b>@PayCurrencyValue.ToString("N0")</b> — ارزش طلا: <b>@GoldTradeValue.ToString("N0")</b> — پرداخت‌ها: <b>@Payments.ToString("N0")</b>
+                </MudText>
+            </MudItem>
+        </MudGrid>
+
+        <MudAlert Severity="@(Remainder < 0 ? Severity.Error : Remainder == 0 ? Severity.Success : Severity.Warning)" Dense="true" Class="mt-2">
+            نسیه (باقیمانده): @Remainder.ToString("N0") ریال @(Remainder == 0 ? "— تراز صفر ✓" : Remainder < 0 ? "— مبلغ تسویه بیشتر از کل فاکتور است!" : "— با نسیه پوشش داده می‌شود (تراز صفر)")
+        </MudAlert>
+
+        <div class="d-flex justify-end mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy || Remainder < -0.5m">
+                @(_mode == "Sale" ? "ثبت فاکتور فروش" : "ثبت فاکتور خرید")
             </MudButton>
-        </MudItem>
-    </MudGrid>
-</MudPaper>
+        </div>
+    </MudCardContent>
+</MudCard>
 
 @code {
     private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
     private const string Schema = "goldshop";
 
+    private sealed class EntryLine
+    {
+        public string RowType { get; set; } = "Gold";
+        public int GoldItemId { get; set; }
+        public string? ItemCode { get; set; }
+        public string Title { get; set; } = "";
+        public decimal Qty { get; set; }
+        public decimal Price { get; set; }
+        public decimal Workmanship { get; set; }
+        public decimal Profit { get; set; }
+        public decimal Rate { get; set; }
+        public string CurrencyCode { get; set; } = "";
+        public bool TaxEnabled { get; set; }
+        public decimal SystemRate { get; set; }
+    }
+
+    private List<EntryLine> _lines = new();
     private List<GoldItemRow> _items = new();
+    private List<GoldPartyRow> _parties = new();
     private List<GoldRateBoardRow> _goldRates = new();
-    private int _itemId;
-    private string _customerName = "";
+    private List<WalletRow> _wallets = new();
+    private string _mode = "Sale";
+    private int _partyId;
     private DateTime? _date = DateTime.Today;
-    private decimal _weight;
-    private decimal _pricePerGram;
-    private decimal _workmanship;
-    private decimal _profit;
+    private decimal _payCash, _payBank, _payCurrencyQty, _payCurrencyRate, _payGoldGram;
+    private string _payCurrencyCode = "";
+    private string _payChequeNumber = "";
+    private int _payChequeBankId;
+    private decimal _payChequeAmount;
+    private DateTime? _payChequeDueDate;
+    private string _creditType = "Rial";
+    private List<BankRow> _banks = new();
+    private decimal _taxPct = 10, _laborTaxPct = 10;
     private bool _busy;
 
-    private GoldRateBoardRow? _selectedRate =>
-        _itemId == 0 ? null : _goldRates.FirstOrDefault(r =>
-            string.Equals(r.ItemKey, _items.FirstOrDefault(g => g.GoldItemId == _itemId)?.ItemCode, StringComparison.OrdinalIgnoreCase));
+    private decimal TaxPct => _taxPct;
+    private decimal LaborTaxPct => _laborTaxPct;
 
-    protected override async Task OnInitializedAsync()
+    private decimal ResolvedRate(EntryLine l) =>
+        l.RowType == "Currency" ? (l.Rate < 100 ? Math.Round(l.SystemRate * (1 + l.Rate / 100m), 0) : l.Rate) : 0;
+
+    private decimal LineBase(EntryLine l) =>
+        l.RowType == "Gold" ? Math.Round(l.Qty * l.Price + l.Workmanship + l.Profit, 0) : Math.Round(l.Qty * ResolvedRate(l), 0);
+
+    private decimal LineTax(EntryLine l) =>
+        l.TaxEnabled
+            ? (l.RowType == "Gold"
+                ? Math.Round((l.Qty * l.Price + l.Profit) * TaxPct / 100m + l.Workmanship * LaborTaxPct / 100m, 0)
+                : Math.Round(l.Qty * ResolvedRate(l) * TaxPct / 100m, 0))
+            : 0;
+
+    private decimal LineTotal(EntryLine l) => LineBase(l) + LineTax(l);
+
+    private decimal TotalBase => _lines.Sum(LineBase);
+    private decimal TotalTax => _lines.Sum(LineTax);
+    private decimal Total => TotalBase + TotalTax;
+
+    private decimal GoldPrice
     {
-        _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList")).ToList();
-        // نرخ جاری طلا از «مرکز نرخ‌ها و قیمت‌ها» (PRD §54/§60) — اسکریپت goldshop/GoldRateBoard
-        _goldRates = (await Db.QueryAsync<GoldRateBoardRow>(Schema, "GoldRateBoard", new
+        get
         {
-            ItemType = "Gold"
-        })).ToList();
-    }
-
-    private void OnItemChanged()
-    {
-        if (_selectedRate is not null && _selectedRate.SystemRate > 0)
-            _pricePerGram = _selectedRate.SystemRate;
-    }
-
-    private void UseSystemRate()
-    {
-        if (_selectedRate is not null && _selectedRate.SystemRate > 0)
-        {
-            _pricePerGram = _selectedRate.SystemRate;
-            Snackbar.Add($"نرخ سیستم {_selectedRate.Title} ({_selectedRate.SystemRate:N0}) در فاکتور قرار گرفت (§54).", Severity.Info);
+            var qty = _lines.Where(l => l.RowType == "Gold").Sum(l => l.Qty);
+            return qty > 0 ? Math.Round(_lines.Where(l => l.RowType == "Gold").Sum(l => l.Qty * l.Price) / qty, 0) : 0;
         }
     }
 
-    /// <summary>ردیف تابلو نرخ طلا از مرکز قیمت (قرارداد مشترک).</summary>
-    private sealed class GoldRateBoardRow
+    private decimal PayResolvedRate =>
+        _payCurrencyQty > 0 ? (_payCurrencyRate < 100 ? Math.Round(SystemRateFor(_payCurrencyCode) * (1 + _payCurrencyRate / 100m), 0) : _payCurrencyRate) : 0;
+
+    private decimal PayCurrencyValue => _payCurrencyQty > 0 ? Math.Round(_payCurrencyQty * PayResolvedRate, 0) : 0;
+    private decimal GoldTradeValue => _payGoldGram > 0 ? Math.Round(_payGoldGram * GoldPrice, 0) : 0;
+    private decimal Payments => _payCash + _payBank + PayCurrencyValue + GoldTradeValue + _payChequeAmount;
+    private decimal Remainder => Total - Payments;
+
+    private decimal SystemRateFor(string code) =>
+        _wallets.FirstOrDefault(w => w.CurrencyCode == code)?.SystemRate ?? 0;
+
+    private string RateHint(EntryLine l) =>
+        l.RowType == "Currency"
+            ? (l.Rate > 0 && l.Rate < 100 ? $"٪{l.Rate:N0} → نرخ نهایی {ResolvedRate(l):N0}" : l.Rate >= 100 ? $"نرخ مستقیم {l.Rate:N0}" : "کمتر از ۱۰۰ = درصد، ۱۰۰ به بالا = مبلغ")
+            : "";
+
+    protected override async Task OnInitializedAsync()
     {
-        public string ItemKey { get; set; } = "";
-        public string Title { get; set; } = "";
-        public string? Unit { get; set; }
-        public decimal? OnlineRate { get; set; }
-        public decimal SystemRate { get; set; }
-        public decimal? BuyRate { get; set; }
-        public decimal? SellRate { get; set; }
-        public decimal? AccountingRate { get; set; }
-        public DateTime? LastFetchAt { get; set; }
-        public DateTime? LastChangeAt { get; set; }
-        public string? SourceKey { get; set; }
-        public bool IsValid { get; set; }
+        _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        await ReloadPartiesAsync();
+        _goldRates = (await Db.QueryAsync<GoldRateBoardRow>(Schema, "GoldRateBoard", new { ItemType = "Gold", CompanyId = Session.ActiveCompanyId })).ToList();
+        _wallets = (await Db.QueryAsync<WalletRow>("currency", "WalletList", new { CompanyId = Session.ActiveCompanyId, FromDate = (DateTime?)null, ToDate = (DateTime?)null, OnlyNonZero = 0 })).ToList();
+        _banks = (await Db.QueryAsync<BankRow>("treasury", "BankList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        var settings = await Db.QueryFirstOrDefaultAsync<GoldShopSettingsRow>(Schema, "GoldShopSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+        if (settings is not null)
+        {
+            if (settings.DefaultTaxPercent > 0) _taxPct = settings.DefaultTaxPercent;
+            if (settings.LaborTaxPercent > 0) _laborTaxPct = settings.LaborTaxPercent;
+        }
+        AddLine();
+    }
+
+    private async Task ReloadPartiesAsync()
+    {
+        _parties = (await Db.QueryAsync<GoldPartyRow>(Schema, "GoldPartyList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            PartyType = _mode == "Sale" ? "Customer" : "Vendor",
+            SearchText = "",
+            SkipRows = 0,
+            TakeSize = 200
+        })).ToList();
+    }
+
+    private async Task OnModeChanged()
+    {
+        _partyId = 0;
+        await ReloadPartiesAsync();
+    }
+
+    private void AddLine() => _lines.Add(new EntryLine());
+
+    private void OnRowTypeChanged(EntryLine l, string v)
+    {
+        l.RowType = v;
+        l.GoldItemId = 0;
+        l.CurrencyCode = "";
+        l.Price = 0;
+        l.Rate = 0;
+    }
+
+    private void OnLineItemChanged(EntryLine l, int itemId)
+    {
+        l.GoldItemId = itemId;
+        var item = _items.FirstOrDefault(g => g.GoldItemId == itemId);
+        if (item is null) { l.ItemCode = null; l.Title = ""; l.Price = 0; return; }
+        l.ItemCode = item.ItemCode;
+        l.Title = item.Title;
+        var rate = _goldRates.FirstOrDefault(r => string.Equals(r.ItemKey, item.ItemCode, StringComparison.OrdinalIgnoreCase));
+        if (rate is not null && rate.SystemRate > 0) l.Price = rate.SystemRate;
+    }
+
+    private void OnLineCurrencyChanged(EntryLine l, string code)
+    {
+        l.CurrencyCode = code;
+        l.SystemRate = SystemRateFor(code);
+        if (l.SystemRate > 0) l.Rate = l.SystemRate;
+    }
+
+    private void OnPayCurrencyChanged()
+    {
+        var sys = SystemRateFor(_payCurrencyCode);
+        if (sys > 0) _payCurrencyRate = sys;
     }
 
     private async Task SaveAsync()
     {
         if (_busy) return;
-        if (_itemId == 0 || string.IsNullOrWhiteSpace(_customerName) || _weight <= 0 || _pricePerGram <= 0)
+        if (_partyId == 0) { Snackbar.Add("طرف حساب را انتخاب کنید.", Severity.Warning); return; }
+        if (_lines.Count == 0) { Snackbar.Add("حداقل یک ردیف فاکتور لازم است.", Severity.Warning); return; }
+        foreach (var l in _lines)
         {
-            Snackbar.Add("جنس، مشتری، وزن و قیمت معتبر الزامی است.", Severity.Warning);
-            return;
+            if (l.Qty <= 0) { Snackbar.Add("مقدار همهٔ ردیف‌ها باید بیشتر از صفر باشد.", Severity.Warning); return; }
+            if (l.RowType == "Gold" && (l.GoldItemId == 0 || l.Price <= 0)) { Snackbar.Add("جنس و قیمت ردیف طلا معتبر نیست.", Severity.Warning); return; }
+            if (l.RowType == "Currency" && (string.IsNullOrEmpty(l.CurrencyCode) || l.Rate <= 0)) { Snackbar.Add("ارز و نرخ ردیف ارز معتبر نیست.", Severity.Warning); return; }
         }
+        if (Remainder < -0.5m) { Snackbar.Add("مبلغ تسویه (نقدی+بانک+چک+ارز+طلا) از کل فاکتور بیشتر است.", Severity.Error); return; }
+        if (_payGoldGram > 0 && GoldPrice <= 0) { Snackbar.Add("تسویه با طلا نیاز به حداقل یک ردیف طلا دارد.", Severity.Warning); return; }
+        if (_payCurrencyQty > 0 && (string.IsNullOrEmpty(_payCurrencyCode) || _payCurrencyRate <= 0)) { Snackbar.Add("ارز و نرخ پرداخت معتبر نیست.", Severity.Warning); return; }
+        if (_payChequeAmount > 0 && (string.IsNullOrEmpty(_payChequeNumber) || _payChequeBankId <= 0)) { Snackbar.Add("شماره چک و بانک الزامی است.", Severity.Warning); return; }
 
         _busy = true;
         try
         {
-            var item = _items.First(g => g.GoldItemId == _itemId);
-            await Db.ExecuteAsync(Schema, "SaleInvoiceCreate", new
+            var linesJson = JsonSerializer.Serialize(_lines.Select(l => new
             {
-                ItemCode = item.ItemCode,
-                CustomerName = _customerName.Trim(),
+                RowType = l.RowType,
+                ItemCode = l.RowType == "Gold" ? l.ItemCode : (string?)null,
+                Title = string.IsNullOrWhiteSpace(l.Title) ? (l.RowType == "Gold" ? l.ItemCode : l.CurrencyCode) : l.Title,
+                Qty = l.Qty,
+                Price = l.RowType == "Gold" ? l.Price : 0,
+                Workmanship = l.Workmanship,
+                Profit = l.Profit,
+                TaxEnabled = l.TaxEnabled,
+                CurrencyCode = l.RowType == "Currency" ? l.CurrencyCode : (string?)null,
+                Rate = l.RowType == "Currency" ? l.Rate : 0
+            }));
+            var script = _mode == "Sale" ? "GoldInvoiceCreate" : "GoldPurchaseCreate";
+            var result = await Db.ExecuteReturningAsync<InvoiceResultRow>(Schema, script, new
+            {
+                LinesJson = linesJson,
+                PartyId = _partyId,
                 InvoiceDate = _date?.Date ?? DateTime.Today,
-                WeightGram = _weight,
-                PricePerGram = _pricePerGram,
-                Workmanship = _workmanship,
-                Profit = _profit,
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
+                PayCash = _payCash,
+                PayBank = _payBank,
+                PayCurrencyCode = string.IsNullOrEmpty(_payCurrencyCode) ? null : _payCurrencyCode,
+                PayCurrencyQty = _payCurrencyQty,
+                PayCurrencyRate = _payCurrencyRate,
+                PayGoldGram = _payGoldGram,
+                ChequeNumber = string.IsNullOrEmpty(_payChequeNumber) ? null : _payChequeNumber,
+                ChequeBankId = _payChequeBankId > 0 ? _payChequeBankId : (int?)null,
+                ChequeAmount = _payChequeAmount,
+                ChequeDueDate = _payChequeDueDate?.Date,
+                CreditType = _creditType
             });
-            Snackbar.Add("فاکتور فروش ثبت شد.", Severity.Success);
-            _customerName = "";
-            _weight = 0;
-            _pricePerGram = 0;
-            _workmanship = 0;
-            _profit = 0;
+            Snackbar.Add($"{(_mode == "Sale" ? "فاکتور فروش" : "فاکتور خرید")} {result?.InvoiceNumber} ثبت شد. کل: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
+            _lines.Clear();
+            AddLine();
+            _partyId = 0; _payCash = 0; _payBank = 0; _payCurrencyCode = ""; _payCurrencyQty = 0; _payCurrencyRate = 0; _payGoldGram = 0; _payChequeNumber = ""; _payChequeBankId = 0; _payChequeAmount = 0; _payChequeDueDate = null; _creditType = "Rial";
         }
         catch (Exception ex)
         {
@@ -173,5 +471,56 @@
         {
             _busy = false;
         }
+    }
+
+    private sealed class InvoiceResultRow
+    {
+        public int InvoiceId { get; set; }
+        public string InvoiceNumber { get; set; } = "";
+        public decimal Tax { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal BalanceRial { get; set; }
+        public int DocumentId { get; set; }
+    }
+
+    private sealed class GoldShopSettingsRow
+    {
+        public decimal DefaultTaxPercent { get; set; }
+        public decimal LaborTaxPercent { get; set; }
+    }
+
+    private sealed class BankRow
+    {
+        public int BankId { get; set; }
+        public string Title { get; set; } = "";
+    }
+
+    private sealed class GoldItemRow
+    {
+        public int GoldItemId { get; set; }
+        public string ItemCode { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? InventoryItemCode { get; set; }
+    }
+
+    private sealed class GoldPartyRow
+    {
+        public int PartyId { get; set; }
+        public string FullName { get; set; } = "";
+        public string PartyCode { get; set; } = "";
+    }
+
+    private sealed class GoldRateBoardRow
+    {
+        public string ItemKey { get; set; } = "";
+        public decimal SystemRate { get; set; }
+    }
+
+    private sealed class WalletRow
+    {
+        public string CurrencyCode { get; set; } = "";
+        public string CurrencyName { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal SystemRate { get; set; }
     }
 }

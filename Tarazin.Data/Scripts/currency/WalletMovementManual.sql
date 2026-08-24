@@ -15,10 +15,15 @@ IF @CurrencyCode IN (N'IRR', N'TOMAN')
 
 DECLARE @WQty DECIMAL(18,4) = 0, @WAvg DECIMAL(18,2) = NULL;
 SELECT @WQty = ISNULL(Quantity, 0), @WAvg = AvgBuyRate
-FROM [currency].[Wallets] WHERE CurrencyCode = @CurrencyCode;
+FROM [currency].[Wallets]
+WHERE CurrencyCode = @CurrencyCode
+  AND CompanyId = [central].[fn_MobileCompanyId]();
 
 IF @Direction = N'Out' AND @WQty < @Quantity
-    THROW 51183, N'موجودی ' + @CurrencyCode + N' برای خروج کافی نیست', 1;
+BEGIN
+    DECLARE @InsufficientMsg NVARCHAR(2048) = N'موجودی ' + @CurrencyCode + N' برای خروج کافی نیست';
+    THROW 51183, @InsufficientMsg, 1;
+END
 
 DECLARE @Type NVARCHAR(30) = ISNULL(NULLIF(@MovementType, N''),
     CASE WHEN @Direction = N'In' THEN N'In' ELSE N'Out' END);
@@ -27,11 +32,11 @@ DECLARE @AmountRial DECIMAL(18,2) = ROUND(@Quantity * @Rate, 0);
 BEGIN TRAN;
     INSERT INTO [currency].[CurrencyMovements]
         (MovementNumber, MovementDate, MovementTime, MovementType, Direction, CurrencyCode, Quantity, Rate, AmountRial,
-         CounterPartyName, FundType, FundId, SourceReference, Description, CreatedBy)
+         CounterPartyName, FundType, FundId, SourceReference, Description, CreatedBy, CompanyId)
     VALUES
         (N'', @MovementDate, @MovementTime, @Type, @Direction, @CurrencyCode, @Quantity, @Rate, @AmountRial,
          NULLIF(LTRIM(RTRIM(@PartyName)), N''), NULLIF(@FundType, N''), @FundId,
-         N'MANUAL:' + CONVERT(NVARCHAR(40), SYSUTCDATETIME(), 126), @Description, @CreatedBy);
+         N'MANUAL:' + CONVERT(NVARCHAR(40), SYSUTCDATETIME(), 126), @Description, @CreatedBy, [central].[fn_MobileCompanyId]());
 
     DECLARE @Mid BIGINT = SCOPE_IDENTITY();
     UPDATE [currency].[CurrencyMovements]
@@ -46,15 +51,18 @@ BEGIN TRAN;
         ELSE
             SET @NewAvg = ROUND((@WQty * @WAvg + @Quantity * @Rate) / (@WQty + @Quantity), 0);
 
-        IF EXISTS (SELECT 1 FROM [currency].[Wallets] WHERE CurrencyCode = @CurrencyCode)
+        IF EXISTS (SELECT 1 FROM [currency].[Wallets]
+               WHERE CurrencyCode = @CurrencyCode
+                 AND CompanyId = [central].[fn_MobileCompanyId]())
             UPDATE [currency].[Wallets]
             SET Quantity = Quantity + @Quantity, AvgBuyRate = @NewAvg,
                 InQty = InQty + @Quantity, LastMovementAt = SYSUTCDATETIME(),
                 UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
-            WHERE CurrencyCode = @CurrencyCode;
+            WHERE CurrencyCode = @CurrencyCode
+              AND CompanyId = [central].[fn_MobileCompanyId]();
         ELSE
-            INSERT INTO [currency].[Wallets] (CurrencyCode, Quantity, AvgBuyRate, OpeningQty, InQty, OutQty, UpdatedAt, UpdatedBy)
-            VALUES (@CurrencyCode, @Quantity, @NewAvg, 0, @Quantity, 0, SYSUTCDATETIME(), @CreatedBy);
+            INSERT INTO [currency].[Wallets] (CurrencyCode, Quantity, AvgBuyRate, OpeningQty, InQty, OutQty, UpdatedAt, UpdatedBy, CompanyId)
+            VALUES (@CurrencyCode, @Quantity, @NewAvg, 0, @Quantity, 0, SYSUTCDATETIME(), @CreatedBy, [central].[fn_MobileCompanyId]());
     END
     ELSE
     BEGIN
@@ -62,6 +70,7 @@ BEGIN TRAN;
         SET Quantity = Quantity - @Quantity,
             OutQty = OutQty + @Quantity, LastMovementAt = SYSUTCDATETIME(),
             UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
-        WHERE CurrencyCode = @CurrencyCode;
+        WHERE CurrencyCode = @CurrencyCode
+          AND CompanyId = [central].[fn_MobileCompanyId]();
     END
 COMMIT;

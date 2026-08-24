@@ -56,6 +56,9 @@ public static class TarazinPermissions
     public const string ChartSelect = "accounting.chart.select";     // انتخاب حساب
     public const string ChartFullTree = "accounting.chart.fulltree"; // مشاهده ساختار کامل حساب‌ها
 
+    // ── دسترسی‌های فروشگاه ───────────────────────────────────────────────
+    public const string StoreCategories = "store.categories";   // مدیریت دسته‌بندی کالا (فروشگاه)
+
     // ── دسترسی‌های «سند حسابداری» ────────────────────────────────────────
     // ویرایش/حذف سند و تغییر وضعیت آن (یادداشت → موقت → تأیید شده → تأیید نهایی).
     // توجه: داشتن دسترسی به‌تنهایی کافی نیست؛ وضعیت فعلی سند هم شرط است
@@ -303,6 +306,7 @@ public static class TarazinRoles
                 "فروشگاه کامل + ثبت فاکتور طلا + مشاهده نرخ.", false,
                 Full("store").Concat(new[]
                 {
+                    TarazinPermissions.StoreCategories,
                     TarazinPermissions.For("goldshop", TarazinActions.View),
                     TarazinPermissions.For("goldshop", TarazinActions.Entry),
                     TarazinPermissions.For("currency", TarazinActions.View),

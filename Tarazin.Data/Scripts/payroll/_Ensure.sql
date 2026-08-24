@@ -72,7 +72,8 @@ BEGIN
         EmployeeId   INT NOT NULL,
         EmployeeName NVARCHAR(200) NOT NULL,
         Amount       DECIMAL(18,2) NOT NULL DEFAULT 0,
-        CONSTRAINT FK_RunItems_Runs FOREIGN KEY (RunId) REFERENCES [payroll].[PayrollRuns](RunId)
+        CONSTRAINT FK_RunItems_Runs FOREIGN KEY (RunId) REFERENCES [payroll].[PayrollRuns](RunId),
+        CompanyId    INT NULL
     );
 END
 

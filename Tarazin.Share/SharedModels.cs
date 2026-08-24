@@ -170,10 +170,16 @@ public class UserRow
 }
 
 /// <summary>Tenant audit row with predecessor metadata; chain correctness is an open release gate.</summary>
+/// <remarks>
+/// <c>CompanyId == null</c> marks a system-level (central) operation — see
+/// docs/adr/ADR-004-auditlog-null-company.md; it must never be backfilled.
+/// <c>CompanyName</c> and <c>TotalRows</c> come from AuditSearch.sql.
+/// </remarks>
 public class AuditRow
 {
     public long AuditId { get; set; }
     public int? CompanyId { get; set; }
+    public string? CompanyName { get; set; }
     public string PrevHash { get; set; } = "";
     public string RowHash { get; set; } = "";
     public string SchemaName { get; set; } = "";
@@ -182,4 +188,5 @@ public class AuditRow
     public string? RequestId { get; set; }
     public string Outcome { get; set; } = "";
     public DateTime CreatedAt { get; set; }
+    public long TotalRows { get; set; }
 }

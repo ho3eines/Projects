@@ -3,6 +3,10 @@
 -- Schema: currency
 -- Endpoint: execute (startup) — idempotent
 -- =============================================
+-- داده‌های نمونهٔ tenant-owned برای هر شرکت فعال seed می‌شوند؛ جداول ارزیِ
+-- Global (Currencies/PriceRates/...) عمداً CompanyId ندارند و مشترک‌اند.
+DECLARE @SeedCompanyId INT = (
+    SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
 
 -- ── ارزهای پایه (PRD §34) + ریال/تومان (PRD §35) ────────────────────────
 IF NOT EXISTS (SELECT 1 FROM [currency].[Currencies])
@@ -314,20 +318,31 @@ BEGIN
 END
 
 -- ── کیف پول ارز نمونه (PRD §36) ────────────────────────────────────────
-IF NOT EXISTS (SELECT 1 FROM [currency].[Wallets])
-BEGIN
-    INSERT INTO [currency].[Wallets] (CurrencyCode, Quantity, AvgBuyRate, OpeningQty, OpeningAvgRate, InQty, OutQty, UpdatedAt)
-    VALUES
-        (N'USD', 10000, 614000, 10000, 614000, 0, 0, SYSUTCDATETIME()),
-        (N'EUR', 5000,  671000, 5000,  671000, 0, 0, SYSUTCDATETIME()),
-        (N'AED', 20000, 167000, 20000, 167000, 0, 0, SYSUTCDATETIME());
-END
+-- برای هر شرکت، فقط ارزهای نمونهٔ همان شرکت درج می‌شوند؛ اجرای دوباره
+-- موجودی یا نرخ متوسط خرید را بازنویسی نمی‌کند.
+INSERT INTO [currency].[Wallets]
+    (CurrencyCode, Quantity, AvgBuyRate, OpeningQty, OpeningAvgRate, InQty, OutQty, UpdatedAt, CompanyId)
+SELECT v.CurrencyCode, v.Quantity, v.AvgBuyRate, v.Quantity, v.AvgBuyRate, 0, 0, SYSUTCDATETIME(), c.CompanyId
+FROM [central].[Companies] c
+CROSS JOIN (VALUES
+    (N'USD', CONVERT(DECIMAL(18,4), 10000), CONVERT(DECIMAL(18,2), 614000)),
+    (N'EUR', CONVERT(DECIMAL(18,4), 5000),  CONVERT(DECIMAL(18,2), 671000)),
+    (N'AED', CONVERT(DECIMAL(18,4), 20000), CONVERT(DECIMAL(18,2), 167000))
+) v(CurrencyCode, Quantity, AvgBuyRate)
+WHERE c.IsDeleted = 0
+  AND NOT EXISTS
+      (SELECT 1 FROM [currency].[Wallets] w
+       WHERE w.CompanyId = c.CompanyId AND w.CurrencyCode = v.CurrencyCode);
 
 -- ── دارایی فیزیکی نمونه (PRD §50/§51) ──────────────────────────────────
-IF NOT EXISTS (SELECT 1 FROM [currency].[AssetHoldings])
-BEGIN
-    INSERT INTO [currency].[AssetHoldings] (ItemKey, Title, Quantity, CostRate, UpdatedAt)
-    VALUES
-        (N'XAU-18',       N'طلای ۱۸ عیار (گرم)',  100.000, 27000000, SYSUTCDATETIME()),
-        (N'SIKKEH-EMAMI', N'سکه امامی',           10.000,  60000000, SYSUTCDATETIME());
-END
+INSERT INTO [currency].[AssetHoldings] (ItemKey, Title, Quantity, CostRate, UpdatedAt, CompanyId)
+SELECT v.ItemKey, v.Title, v.Quantity, v.CostRate, SYSUTCDATETIME(), c.CompanyId
+FROM [central].[Companies] c
+CROSS JOIN (VALUES
+    (N'XAU-18', N'طلای ۱۸ عیار (گرم)', CONVERT(DECIMAL(18,4), 100), CONVERT(DECIMAL(18,2), 27000000)),
+    (N'SIKKEH-EMAMI', N'سکه امامی', CONVERT(DECIMAL(18,4), 10), CONVERT(DECIMAL(18,2), 60000000))
+) v(ItemKey, Title, Quantity, CostRate)
+WHERE c.IsDeleted = 0
+  AND NOT EXISTS
+      (SELECT 1 FROM [currency].[AssetHoldings] h
+       WHERE h.CompanyId = c.CompanyId AND h.ItemKey = v.ItemKey);

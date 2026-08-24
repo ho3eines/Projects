@@ -3,14 +3,27 @@
 -- Schema: central
 -- Endpoint: execute (startup)
 -- =============================================
-IF NOT EXISTS (SELECT 1 FROM [central].[Parties])
+-- Seed the demo parties for EVERY active company (multi-company).
+DECLARE party_cursor CURSOR LOCAL FAST_FORWARD FOR
+    SELECT CompanyId FROM [central].[Companies] WHERE IsDeleted=0 AND IsActive=1 ORDER BY CompanyId;
+DECLARE @PartySeedCompanyId INT;
+OPEN party_cursor;
+FETCH NEXT FROM party_cursor INTO @PartySeedCompanyId;
+WHILE @@FETCH_STATUS = 0
 BEGIN
-    INSERT INTO [central].[Parties] (PartyCode, PartyType, FullName, NationalId, Phone, Email, IsActive, CreatedBy)
-    VALUES
-        (N'CUS-001', N'Customer', N'شرکت بازرگانی آمل', N'10100456789', N'011-32123456', N'info@amol-trade.ir', 1, N'seed'),
-        (N'VEN-001', N'Vendor',   N'تأمین‌کننده طلا و جواهر تهران', N'10200765432', N'021-88776655', NULL, 1, N'seed'),
-        (N'EMP-001', N'Employee', N'علی محمدی', N'10300987654', N'09121112233', N'ali@tarazin.local', 1, N'seed');
+    IF NOT EXISTS (SELECT 1 FROM [central].[Parties] WHERE CompanyId = @PartySeedCompanyId)
+    BEGIN
+        INSERT INTO [central].[Parties] (CompanyId, PartyCode, PartyType, FullName, NationalId, Phone, Email, IsActive, CreatedBy)
+        VALUES
+            (@PartySeedCompanyId, N'CUS-001', N'Customer', N'شرکت بازرگانی آمل', N'10100456789', N'011-32123456', N'info@amol-trade.ir', 1, N'seed'),
+            (@PartySeedCompanyId, N'VEN-001', N'Vendor',   N'تأمین‌کننده طلا و جواهر تهران', N'10200765432', N'021-88776655', NULL, 1, N'seed'),
+            (@PartySeedCompanyId, N'EMP-001', N'Employee', N'علی محمدی', N'10300987654', N'09121112233', N'ali@tarazin.local', 1, N'seed');
+    END
+    FETCH NEXT FROM party_cursor INTO @PartySeedCompanyId;
 END
+CLOSE party_cursor;
+DEALLOCATE party_cursor;
+GO
 
 IF NOT EXISTS (SELECT 1 FROM [central].[News])
 BEGIN
@@ -48,12 +61,21 @@ BEGIN
 END
 GO
 
-IF NOT EXISTS (SELECT 1 FROM [central].[FiscalYears])
+-- Seed fiscal year 1405 for EVERY active company (multi-company).
+DECLARE fy_cursor CURSOR LOCAL FAST_FORWARD FOR
+    SELECT CompanyId FROM [central].[Companies] WHERE IsDeleted=0 AND IsActive=1 ORDER BY CompanyId;
+DECLARE @FySeedCompanyId INT;
+OPEN fy_cursor;
+FETCH NEXT FROM fy_cursor INTO @FySeedCompanyId;
+WHILE @@FETCH_STATUS = 0
 BEGIN
-    -- Seed default fiscal year 1405 for company 1
-    SET IDENTITY_INSERT [central].[FiscalYears] ON;
-    INSERT INTO [central].[FiscalYears] (FiscalYearId, CompanyId, YearName, StartDate, EndDate, IsActive, CreatedBy)
-    VALUES (1, 1, N'1405', '2026-03-21', '2027-03-20', 1, N'seed');
-    SET IDENTITY_INSERT [central].[FiscalYears] OFF;
+    IF NOT EXISTS (SELECT 1 FROM [central].[FiscalYears] WHERE CompanyId = @FySeedCompanyId AND YearName = N'1405')
+        INSERT INTO [central].[FiscalYears] (CompanyId, YearName, StartDate, EndDate, IsActive, CreatedBy)
+        VALUES (@FySeedCompanyId, N'1405', '2026-03-21', '2027-03-20', 1, N'seed');
+    FETCH NEXT FROM fy_cursor INTO @FySeedCompanyId;
 END
+CLOSE fy_cursor;
+DEALLOCATE fy_cursor;
+GO
+UPDATE [central].[Parties] SET CompanyId=1 WHERE CompanyId IS NULL;
 GO

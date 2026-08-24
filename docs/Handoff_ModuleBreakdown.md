@@ -28,8 +28,22 @@
   - `core/Setup.sql` – database schema creation and seed data.
 - **Schema‑scan enforcement**: `tools/cross-schema-scan.sh` validates that no module accesses a script outside its declared schema; CI fails on violation.
 
+## یکپارچه‌سازی طلافروشی با ارز، انبار، حسابداری و خزانه‌داری
+
+- مسیر `/goldshop/parties` مشتری و تأمین‌کننده را جداگانه نشان می‌دهد (Employee ها از لیست طلافروشی حذف‌اند) و ماندهٔ ریالی، طلا، ارز و لینک تفصیلی را نمایش می‌دهد؛ `GoldPartyDelete` ابتدا لینک `GoldPartyLinks` را پاک می‌کند تا ردیف یتیم نماند و سپس soft-delete می‌کند.
+- مسیر `/goldshop/settings/integration` تنظیم انبار اختصاصی، گروه تفصیلی مشتری/تأمین‌کننده (از `AccountGroupList` نوع Detil)، حساب فروش/موجودی/مالیات/صندوق/بانک (از درخت حساب‌ها با `AccountPickerField` و `TransactionalOnly=true`)، صندوق/بانک پیش‌فرض خزانه و درصد مالیات را نگهداری می‌کند.
+- **معماری حساب‌ها**: حساب‌های طلافروشی از **درخت `BaseCol/BaseMoein/BaseDetil`** انتخاب می‌شوند (`AccountId = NodeId`، `AccountCode = مسیر کامل`، مثلاً `2000000` تفصیلی مشتری) — نه جدول تخت `ChartOfAccounts` — تا با `DocumentInsert` و سندهای دستی حسابداری هم‌سو باشند. `GoldShopSettings` ستون‌های `AccountCode/Title` (و `InventoryWarehouseId`/`InventoryAccountGroupId`) را ذخیره می‌کند؛ `GoldShopSettingsUpsert/Get` و `GoldShopModels` به‌روز شده‌اند.
+- **اتصال حسابداری خودکار (۱۴۰۵/۰۶/۰۲)**: دیگر انتخاب دستی تفصیلی وجود ندارد. `AccountGroups.DefaultMoeinId` تعیین می‌کند هر گروه تفصیلی به کدام معین می‌رود (seed: مشتریان ← دارایی جاری 10/001، تأمین‌کنندگان ← بدهی‌های جاری 20/001، موجودی کالا ← دارایی جاری). `GoldPartyUpsert` هنگام ساخت مشتری/تأمین‌کننده، تفصیلی را با **کد ۷رقمی داخل بازهٔ گروه** (FromCode + شمارهٔ طرف‌حساب؛ مثلاً CUS-001 → `2000000`، CUS-00010 → `2000009`) می‌سازد یا بازیابی می‌کند و لینک می‌کند. `GoldItemUpsert` همین کار را برای کالاها در گروه موجودی انجام می‌دهد. صندوق/بانک سند هم به تفصیلی‌های استاندارد seed (صندوق اصلی `0000002` / بانک‌ها `0000001`) وصل می‌شوند.
+- **تنظیمات شرکت مالی (منبع واحد گروه‌ها)**: گروه‌های تفصیلی مشتری/تأمین‌کننده/موجودی دیگر در صفحهٔ طلافروشی تعریف نمی‌شوند؛ صفحهٔ جدید «تنظیمات شرکت» در ماژول حسابداری (`/accounting/settings`، جدول `accounting.CompanyAccountSettings` + اسکریپت‌های Get/Upsert) منبع واحد است و همهٔ ماژول‌ها (GoldPartyUpsert، GoldItemUpsert، seed طلافروشی) از آن می‌خوانند (با fallback به تنظیمات قدیمی). صفحهٔ اتصال طلافروشی فقط انبار، حساب‌های سند و تسویهٔ خزانه را نگه می‌دارد و به تنظیمات شرکت لینک می‌دهد؛ آیتم تکراری «مشتریان و تأمین‌کنندگان» از منوی طلافروشی حذف شد.
+- **یکپارچه‌سازی (۱۴۰۵/۰۶/۰۲)**: برنامه دیگر «انتخاب شرکت» ندارد — یک محیط واحد است. `AccountingContextService.ResolveAsync` بدون دیالوگ، اولین شرکت فعال را خودکار فعال می‌کند (و اگر هیچ شرکتی نباشد، فرم ایجاد شرکت نمایش داده می‌شود)؛ دیالوگ «انتخاب شرکت مالی» و `SelectCompanyAsync` از MainLayout حذف شد و چیپ بالای صفحه فقط سال مالی را نشان می‌دهد. در دیتابیس زنده فقط شرکت «تست» (CompanyId=3) فعال است و همهٔ داده‌ها (حسابداری، انبار/انبار طلا، خزانه، طلافروشی) در همان محیط یکپارچه با یک انبار کار می‌کنند.
+- `GoldInvoiceCreate`/`GoldPurchaseCreate` **چندردیفه** (JSON array) با مالیات ردیفی (تیک ۱۰٪)، نرخ ارز (٪ یا مبلغ)، تسویهٔ ترکیبی (نقدی/بانک/چک/ارز/طلا/نسیه)، دفتر طرف‌حساب، انبار، کیف پول ارز، خزانه و **سند حسابداری یاداشت متوازن**. چک در `treasury.Cheques` ثبت می‌شود (Direction=In/Out, Status=Pending) و در سند حسابداری بدهکار/بستانکار بانک منعکس می‌شود. جدول `goldshop.InvoiceLines` ردیف‌ها را ذخیره می‌کند.
+- جدول‌های `GoldShopSettings`، `GoldPartyLinks` و `GoldPartyLedger` و ستون‌های PartyId/PaymentStatus/CompanyId و ستون‌های AccountCode/Title/InventoryWarehouseId در startup به‌صورت idempotent ساخته می‌شوند.
+- **چندشرکتی‌سازی seedها**: `central._Seed` (طرف‌حساب‌ها و سال مالی ۱۴۰۵)، `accounting._Seed` (ترازنامه/گروه‌ها/TaxRules)، `inventory._Seed` (انبار/کالا) و `treasury._Seed` (بانک/صندوق/نرخ) همه با cursor روی **همهٔ شرکت‌های فعال** اجرا می‌شوند؛ یکتایی‌های سراسری `BaseDetil.DetilCode`، `AccountGroups (Type+Code)`، `Warehouses.WarehouseCode`، `Items.ItemCode`، `Banks/CashBoxes/CurrencyRates/DayCloses` به ایندکس‌های درون‌شرکتی (`UX_*` با CompanyId) تبدیل شده‌اند و `BaseDetilCreateAuto/NextCode` نیز CompanyId-aware هستند.
+- **تأیید زنده (۱۴۰۵/۰۶/۰۲)**: مشتری جدید «مشتری اتولینک تست» از UI ساخته شد → کد `CUS-00010` + **تفصیلی خودکار `2000009`** در گروه مشتریان (گروه 3) با لینک به دارایی جاری. فاکتور ۲ گرمی برای همان مشتری → سند `DocumentId=72` متوازن با `AccountCode=2000009` + ردیف دفتر مشتری + حرکت انبار Issue — بدون هیچ انتخاب دستی حساب. فاکتورهای قبلی (GINV-00007 با ۱۰ گرم و GINV-00008 ترکیبی طلا+USD) همچنان با تفصیلی `2000000` کار می‌کنند.
+
 ## 3. Tarazin.Ui
 - **Purpose**: Blazor‑based UI library (RCL) shared by Web and MAUI hosts.
+- **Coding rules**: development, MudBlazor 9.8.0 conventions, permissions, and copy‑paste UI patterns are documented in `.claude/skills/tarazin-development/SKILL.md` — read it before touching UI code.
 - **Important subfolders**:
   - `App.razor` – root component; sets up `MudThemeProvider`, global route table, and service collection.
   - `Layout/`  
@@ -106,10 +120,44 @@ Tarazin.Share → Tarazin.Data → Tarazin.Ui → (Tarazin.Web, Tarazin.Maui)
 
 ## 10. Documentation References
 - `docs/PROJECT.md` – overall project overview.  
-- `docs/adr/` – Architecture Decision Records (e.g., ADR‑001 “One‑Way Dependency”).  
+- `docs/adr/` – Architecture Decision Records (e.g., ADR‑001 “One‑Way Dependency”, ADR‑004 “AuditLog NULL CompanyId = system‑level, never backfill”).
 - `docs/CURRENCY_MODULE.md` – details on price‑feed integration and rate handling.  
+- `docs/BI_MODULE.md` – BI/reporting module internals (Stimulsoft render engine, license, fonts).
+- `.claude/skills/tarazin-development/SKILL.md` – **mandatory coding guide** (architecture, Data layer, MudBlazor 9.8.0 pitfalls, RBAC, copy‑paste patterns for tables/forms/menus/dialogs). Read before any change.
 - `skills/twg‑engineering‑work/SKILL.md` – CLI tooling for deeper code‑base exploration.
 
 ---  
 
-*This modular breakdown is saved as **Handoff_ModuleBreakdown.md** for quick reference and to avoid repeated deep‑dive reviews of the codebase.*
+## 11. Live Verification — ۱۴۰۵/۰۶/۰۲
+
+آخرین بررسی زنده روی Web با SQL Server واقعی و حساب `admin` در شرکت «تست» و سال مالی `1405` انجام شد. نتیجهٔ عملیات واقعی:
+
+| حوزه | مسیر/عملیات | نتیجه |
+|---|---|---|
+| حسابداری | اسناد روز، ثبت سند، گزارش‌ها | سالم؛ قبلاً در Preview و دیتابیس تأیید شده |
+| انبار | ثبت حرکت، کالا، ویرایش/حذف نرم | سالم؛ رکورد شرکت صحیح و حذف با `IsDeleted` تأیید شد |
+| خزانه | ثبت گردش نقدی، تنظیمات بانک/صندوق | سالم؛ ثبت با `CompanyId` صحیح تأیید شد |
+| حقوق | فهرست/CRUD کارمند، دوره و نهایی‌سازی | صفحات و CRUD سالم؛ نهایی‌سازی به‌صورت مخرب اجرا نشد |
+| طلافروشی | فهرست اجناس، CRUD کامل مشتری (ایجاد/ویرایش/حذف)، فرم فاکتور، صفحهٔ اتصال | سالم؛ CRUD مشتری لایو تأیید شد (حذف = soft-delete + پاک‌سازی لینک)، فاکتور فروش → سند حسابداری متوازن + دفتر مشتری + حرکت انبار، تنظیمات اتصال از درخت حساب‌ها ذخیره شد |
+| فروشگاه | تنظیمات، دسته‌ها و CRUD مشتری | سالم؛ ساخت مشتری و تب‌های تنظیمات تأیید شد |
+| ارز | کیف پول، تبدیل، ثبت حرکت دستی | صفحات سالم؛ خطای واقعی `THROW` با الحاق رشته و نقص tenant در مسیرهای نوشتن اصلاح شد |
+| BI | `/bi`، همهٔ تب‌ها، `/bi/reports` و Viewer | سالم؛ Viewer رندر شد، هشدار trial Stimulsoft مورد انتظار است |
+| Central | `/central/audit`، فیلتر سیستمی و صفحه‌بندی | سالم؛ ردیف‌های `CompanyId = NULL` جدا و صفحه‌بندی ۵۰تایی تأیید شد |
+
+### چندشرکتی‌سازی سراسری (۱۴۰۵/۰۶/۰۲)
+- قبلاً seedهای central/accounting/inventory/treasury فقط **اولین شرکت** را پر می‌کردند و شرکت‌های بعدی ترازنامه/گروه/انبار/بانک نداشتند؛ اکنون همه با cursor روی هر شرکت فعال seed می‌شوند.
+- یکتایی‌های سراسری جدول‌های حسابداری/انبار/خزانه به ایندکس‌های درون‌شرکتی تبدیل شدند تا seed چندشرکتی بدون خطا اجرا شود (مهاجرت‌ها در `_Ensure` مربوطه با `DROP ... UQ` + ساخت `UX_*` است).
+- روی دیتابیس زنده اجرا و تأیید شد: شرکت ۳ (تست) اکنون ۱۱ حساب، ۴ کل، ۵ معین، ۵ تفصیلی، ۲ گروه (مشتریان/تأمین‌کنندگان)، ۴ قانون مالیات، ۲ انبار، ۵ کالای طلا، بانک/صندوق/نرخ ارز و ۳ طرف‌حساب لینک‌شده به تفصیلی‌های حسابداری دارد.
+
+### کنترل چندشرکتی ارز
+- در دیتابیس `TarazinMaster` برای شرکت‌های ۱ و ۳ کیف‌پول‌های `USD/EUR/AED` و دارایی‌های `XAU-18/SIKKEH-EMAMI` مستقل وجود دارد.
+- یکتایی قدیمی سراسری با ایندکس‌های `UX_Wallets_Company_Currency` و `UX_AssetHoldings_Company_Item` جایگزین شده است.
+- تمام مسیرهای `WalletMovementManual`، `FxTransactionCreate`، `FxCombinedCreate` و `ConvertExecute` در خواندن/نوشتن موجودی به `central.fn_MobileCompanyId()` محدود هستند.
+- هیچ رکورد موقت تست ارزی یا خزانه‌ای در دیتابیس باقی نمانده است.
+
+### وضعیت محیط
+- startup زنجیرهٔ `Ensure → Seed → Backfill → MobileSecurity` بدون خطای SQL بالا آمد.
+- فید `TABLOTALA_FR` در محیط محلی timeout می‌شود؛ scheduler آن را به‌عنوان خطای منبع ثبت می‌کند و startup/سایر فیدها ادامه می‌یابند.
+- بیلد Web و Data با ۰ هشدار و ۰ خطا پاس شد. بیلد MAUI Android با ۰ هشدار و ۰ خطا پاس شد. بیلد MAUI Windows با ۰ خطا پاس شد؛ دو هشدار `MSB3277` ناشی از conflict وابستگی `Microsoft.AspNetCore.WebUtilities` در Stimulsoft 2024.3.2 باقی است و باید با ارتقای سازگار Stimulsoft یا تثبیت binding در CI بررسی شود. هشدار `TZN0001` مربوط به layout فیزیکی Build بود و assetها در `filtered.layout.resfiles` ثبت شده‌اند؛ publish/pack و تست دستگاهی Windows/Android هنوز باید در device lab تکرار شود.
+
+*This modular breakdown is saved as **Handoff_ModuleBreakdown.md** for quick reference and to avoid repeated deep‑dive reviews.*

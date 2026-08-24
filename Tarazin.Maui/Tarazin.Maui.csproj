@@ -113,20 +113,28 @@
           AfterTargets="Build"
           Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <PropertyGroup>
-      <_TarazinHostPage>$(OutDir)wwwroot\index.html</_TarazinHostPage>
-      <_TarazinMudCss>$(OutDir)wwwroot\_content\MudBlazor\MudBlazor.min.css</_TarazinMudCss>
-      <_TarazinUiCss>$(OutDir)wwwroot\_content\Tarazin.Ui\css\app.css</_TarazinUiCss>
+      <!-- Build places packaged web assets under MsixContent; publish places
+           them directly under wwwroot. Check both layouts instead of warning
+           on a valid Debug build. -->
+      <_TarazinAssetRoot Condition="Exists('$(OutDir)MsixContent\wwwroot\index.html')">$(OutDir)MsixContent\wwwroot</_TarazinAssetRoot>
+      <_TarazinAssetRoot Condition="'$(_TarazinAssetRoot)' == '' and Exists('$(OutDir)wwwroot\index.html')">$(OutDir)wwwroot</_TarazinAssetRoot>
+      <!-- The MAUI Windows build registers assets in filtered.layout.resfiles;
+           the final copy is produced by Pack/Publish, not Build. -->
+      <_TarazinAssetsRegistered Condition="Exists('$(BaseIntermediateOutputPath)filtered.layout.resfiles')">true</_TarazinAssetsRegistered>
+      <_TarazinHostPage>$(_TarazinAssetRoot)\index.html</_TarazinHostPage>
+      <_TarazinMudCss>$(_TarazinAssetRoot)\_content\MudBlazor\MudBlazor.min.css</_TarazinMudCss>
+      <_TarazinUiCss>$(_TarazinAssetRoot)\_content\Tarazin.Ui\css\app.css</_TarazinUiCss>
     </PropertyGroup>
 
-    <Warning Condition="!Exists('$(_TarazinHostPage)')"
-             Code="TZN0001"
-             Text="wwwroot\index.html در خروجی نیست ($(_TarazinHostPage)). برنامه باز می‌شود ولی WebView خطای ERR_CONNECTION_CLOSED روی 0.0.0.0 می‌دهد. راهنما: docs/WINDOWS_MAUI_LAUNCH.md" />
+    <!-- A plain Build intentionally keeps MAUI web assets in the packaging
+         manifest rather than copying them to bin. Publish/Pack is the stage
+         that materializes them; HostAssetDiagnostics validates them at runtime. -->
 
-    <Warning Condition="Exists('$(_TarazinHostPage)') And !Exists('$(_TarazinMudCss)')"
+    <Warning Condition="'$(_TarazinAssetRoot)' != '' And !Exists('$(_TarazinMudCss)')"
              Code="TZN0002"
              Text="دارایی‌های static web assets (MudBlazor) در خروجی نیستند ($(_TarazinMudCss)). رابط کاربری بدون استایل یا خالی بالا می‌آید. راهنما: docs/WINDOWS_MAUI_LAUNCH.md" />
 
-    <Warning Condition="Exists('$(_TarazinHostPage)') And !Exists('$(_TarazinUiCss)')"
+    <Warning Condition="'$(_TarazinAssetRoot)' != '' And !Exists('$(_TarazinUiCss)')"
              Code="TZN0003"
              Text="دارایی‌های static web assets (Tarazin.Ui) در خروجی نیستند ($(_TarazinUiCss)). راهنما: docs/WINDOWS_MAUI_LAUNCH.md" />
   </Target>

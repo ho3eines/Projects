@@ -38,6 +38,19 @@ public sealed class AccountingContextService
             new { UserId = _session.UserId, CompanyId = companyId }, ct);
 
     /// <summary>
+    /// سال مالیِ فعالِ نشست (با StartDate/EndDate) برای پیش‌فرضِ بازه‌های تاریخیِ
+    /// صفحات/گزارش‌ها («از تاریخ تا تاریخ» = کل بازهٔ سال مالی). اگر محیط فعال
+    /// نباشد null برمی‌گرداند.
+    /// </summary>
+    public async Task<FiscalYearRow?> GetActiveFiscalYearAsync(CancellationToken ct = default)
+    {
+        if (_session.ActiveCompanyId is not int companyId || _session.ActiveFiscalYearId is not int yearId)
+            return null;
+        var years = await GetAuthorizedFiscalYearsAsync(companyId, ct);
+        return years.FirstOrDefault(y => y.FiscalYearId == yearId);
+    }
+
+    /// <summary>
     /// تضمین وجود سال مالی جاری برای شرکت داده‌شده.
     /// در صورت نبود، سال مالی و سند افتتاحیه را به‌صورت اتمیک می‌سازد.
     /// همیشه ردیف سال مالی را برمی‌گرداند.
@@ -153,22 +166,15 @@ public sealed class AccountingContextService
 
     /// <summary>
     /// اطمینان از محیط فعال کاربر پس از ورود/بازیابی نشست.
-    /// خروجی نشان می‌دهد آیا محیط آماده است، نیاز به انتخاب دارد یا باید شرکت بسازد.
+    /// خروجی نشان می‌دهد آیا محیط آماده است یا باید شرکت بسازد.
+    ///
+    /// ⚠ یک‌پارچه‌سازی: برنامه به‌صورت یک محیط واحد کار می‌کند — بدون دیالوگ
+    /// «انتخاب شرکت». اگر کاربر محیط فعال معتبر ندارد، اولین شرکت در دسترس
+    /// به‌صورت خودکار فعال می‌شود (و در صورت نبود شرکت، فرم ایجاد شرکت نمایش داده می‌شود).
     /// </summary>
     public async Task<ContextState> ResolveAsync(CancellationToken ct = default)
     {
         var companies = (await GetAuthorizedCompaniesAsync(ct)).ToList();
-
-        // اگر دسترسی مستقیم ندارد ولی شرکت‌هایی در سیستم وجود دارند،
-        // به کاربر اجازهٔ انتخاب از کل شرکت‌ها بده (نه اجبار به ایجاد).
-        // این مشکل «کاربر دوم اشتباهی به ایجاد شرکت می‌رود» را حل می‌کند.
-        if (companies.Count == 0)
-        {
-            var all = (await GetAllCompaniesAsync(ct)).ToList();
-            if (all.Count > 0)
-                return ContextState.NeedsSelection(all);
-            return ContextState.MissingCompany();
-        }
 
         // اگر محیط فعال معتبر است همان را نگه دار.
         if (_session.ActiveCompanyId is int cid && _session.ActiveFiscalYearId is int fid)
@@ -183,17 +189,25 @@ public sealed class AccountingContextService
             }
         }
 
-        // اگر فقط یک شرکت وجود دارد، به‌صورت خودکار آن را فعال کن.
-        if (companies.Count == 1)
-        {
-            var single = companies[0];
-            var fy = await EnsureCurrentFiscalYearAsync(single.CompanyId, ct);
-            await SetActiveContextAsync(single, fy, ct);
-            return ContextState.Ready(single, fy, companies);
-        }
+        // شرکت‌های سیستم (حتی اگر هنوز به این کاربر تخصیص داده نشده باشند).
+        var allCompanies = (await GetAllCompaniesAsync(ct)).ToList();
+        var pool = companies.Count > 0 ? companies : allCompanies;
 
-        // چند شرکت وجود دارد ولی محیط فعال معتبر نیست → نیاز به انتخاب کاربر
-        return ContextState.NeedsSelection(companies);
+        // هیچ شرکتی در سیستم نیست → کاربر باید اولین شرکت را بسازد.
+        if (pool.Count == 0)
+            return ContextState.MissingCompany();
+
+        // یک‌پارچه: اولین شرکت به‌صورت خودکار فعال می‌شود (بدون دیالوگ انتخاب).
+        var single = pool[0];
+        if (companies.Count == 0)
+        {
+            // اگر هنوز به کاربر تخصیص داده نشده، تخصیص بده.
+            await _db.ExecuteAsync("central", "CompanyAssignToUser",
+                new { UserId = _session.UserId, CompanyId = single.CompanyId, CreatedBy = _session.UserName }, ct);
+        }
+        var fy = await EnsureCurrentFiscalYearAsync(single.CompanyId, ct);
+        await SetActiveContextAsync(single, fy, ct);
+        return ContextState.Ready(single, fy, allCompanies);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 @page "/goldshop/reports"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>گزارشات — طلافروشی</PageTitle>
@@ -98,7 +99,8 @@
                 ToDate = _to?.Date ?? DateTime.Today,
                 SearchText = "",
                 SkipRows = 0,
-                TakeSize = 200
+                TakeSize = 200,
+                CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
         catch (Exception ex)
@@ -119,7 +121,8 @@
             _prices = (await Db.QueryAsync<GoldPriceRow>(Schema, "GoldPriceSearch", new
             {
                 SkipRows = 0,
-                TakeSize = 200
+                TakeSize = 200,
+                CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
         catch (Exception ex)

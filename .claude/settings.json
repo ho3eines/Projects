@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Skill(dataviz)",
+      "Skill(update-config)",
+      "Skill(keybindings-help)",
+      "Skill(simplify)",
+      "Skill(fewer-permission-prompts)",
+      "Skill(loop)",
+      "Skill(claude-api)",
+      "Skill(run)",
+      "Skill(init)",
+      "Skill(security-review)",
+      "Skill(anthropic-skills:consolidate-memory)",
+      "Skill(anthropic-skills:docx)",
+      "Skill(anthropic-skills:explain-usage)",
+      "Skill(anthropic-skills:frontend-design)",
+      "Skill(anthropic-skills:pdf)",
+      "Skill(anthropic-skills:pdf-reading)",
+      "Skill(anthropic-skills:pptx)",
+      "Skill(anthropic-skills:schedule)",
+      "Skill(anthropic-skills:setup-cowork)",
+      "Skill(anthropic-skills:xlsx)",
+      "Skill(twg)",
+      "Skill(twg-agentic-search)",
+      "Skill(twg-bench-lite)",
+      "Skill(twg-confluence)",
+      "Skill(twg-context-discovery)",
+      "Skill(twg-engineering-work)",
+      "Skill(twg-jira)",
+      "Skill(twg-jira-resolve-merged-work)",
+      "Skill(twg-operational-health)",
+      "Skill(twg-responsibility-routing)",
+      "Skill(twg-status-rollups)"
+    ]
+  }
+}

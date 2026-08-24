@@ -1,5 +1,6 @@
 @page "/goldshop"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>فروش روز — طلافروشی</PageTitle>
@@ -74,7 +75,8 @@
                 ToDate = _to?.Date ?? DateTime.Today,
                 SearchText = _search ?? "",
                 SkipRows = 0,
-                TakeSize = 100
+                TakeSize = 100,
+                CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
         catch (Exception ex)

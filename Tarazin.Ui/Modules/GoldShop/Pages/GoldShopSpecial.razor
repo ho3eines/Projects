@@ -1,5 +1,6 @@
 @page "/goldshop/special"
 @inject DbService Db
+@inject UserSession Session
 @inject EntityCrudService EntityCrud
 @inject ISnackbar Snackbar
 
@@ -52,7 +53,8 @@
             _prices = (await Db.QueryAsync<GoldPriceRow>(Schema, "GoldPriceSearch", new
             {
                 SkipRows = 0,
-                TakeSize = 200
+                TakeSize = 200,
+                CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
         catch (Exception ex)

@@ -65,6 +65,23 @@ public class AccountGroupRow
     public string? UpdatedBy { get; set; }
 }
 
+/// <summary>تنظیمات سراسری حسابداری شرکت (گروه‌های تفصیلی مشترک بین ماژول‌ها).</summary>
+public class CompanyAccountSettingsRow
+{
+    public int CompanyId { get; set; }
+    public int? CustomerAccountGroupId { get; set; }
+    public string? CustomerAccountGroupTitle { get; set; }
+    public string? CustomerAccountGroupCode { get; set; }
+    public int? SupplierAccountGroupId { get; set; }
+    public string? SupplierAccountGroupTitle { get; set; }
+    public string? SupplierAccountGroupCode { get; set; }
+    public int? InventoryAccountGroupId { get; set; }
+    public string? InventoryAccountGroupTitle { get; set; }
+    public string? InventoryAccountGroupCode { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
 /// <summary>پیش‌نمایش شمارهٔ بعدی قابل تخصیص در یک گروه تفصیلی.</summary>
 public class DetilNextCodeRow
 {
