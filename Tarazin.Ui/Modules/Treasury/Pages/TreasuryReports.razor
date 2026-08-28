@@ -1,10 +1,19 @@
 @page "/treasury/reports"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject PdfReportService Pdf
 
 <PageTitle>گزارشات — خزانه‌داری</PageTitle>
 
-<PageHeader Title="گزارش گردش نقدی" Subtitle="دریافت‌ها و پرداخت‌ها در بازهٔ تاریخ." />
+<PageHeader Title="گزارش گردش نقدی" Subtitle="دریافت‌ها و پرداخت‌ها در بازهٔ تاریخ." Eyebrow="خزانه‌داری">
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync" Disabled="_loading"
+               StartIcon="@Icons.Material.Filled.Refresh">بروزرسانی</MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintAsync" Disabled="_loading || _rows.Count == 0"
+               StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+</PageHeader>
+
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="4">
@@ -23,7 +32,94 @@
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
+              Breakpoint="Breakpoint.Sm" RowsPerPage="25">
+        <HeaderContent>
+            <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh>
+            <MudTh>ارز</MudTh><MudTh>حساب</MudTh><MudTh>شرح</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
+            <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
+            <MudTd DataLabel="جهت">
+                <MudChip T="string" Size="Size.Small" Color="@(context.Direction == "In" ? Color.Success : Color.Error)">
+                    @(context.Direction == "In" ? "دریافت" : "پرداخت")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
+            <MudTd DataLabel="حساب">@context.AccountName</MudTd>
+            <MudTd DataLabel="شرح">@context.Description</MudTd>
+            <MudTd DataLabel="وضعیت">@context.Status</MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+        <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
+    </MudTable>
+
+    @if (_rows.Count > 0)
+    {
+        <MudText Typo="Typo.body2" Class="mt-4">
+            جمع دریافتی: <b>@_rows.Where(r => r.Direction == "In").Sum(r => r.Amount).ToString("N0")</b>
+            &nbsp;|&nbsp; جمع پرداختی: <b>@_rows.Where(r => r.Direction != "In").Sum(r => r.Amount).ToString("N0")</b>
+        </MudText>
+    }
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "treasury";
+
+    private List<CashFlowRow> _rows = new();
+    private DateTime? _from;
+    private DateTime? _to;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _from = DateTime.Today.AddMonths(-1);
+        _to = DateTime.Today;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _rows = (await Db.QueryAsync<CashFlowRow>(Schema, "CashFlowReport", new
+            {
+                FromDate = _from?.Date ?? DateTime.Today.AddMonths(-1),
+                ToDate = _to?.Date ?? DateTime.Today,
+                CompanyId = Session.ActiveCompanyId
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+
+    private async Task PrintAsync()
+    {
+        if (_rows.Count == 0) return;
+        await Dialog.ShowAsync<ReportPrintDialog>("چاپ گزارش گردش نقدی", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, "گزارش گردش نقدی" },
+            { x => x.Subtitle, "دریافت‌ها و پرداخت‌ها در بازهٔ تاریخ" },
+            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
+            { x => x.Body, TableBody },
+            { x => x.BuildPdf, BuildPdf },
+            { x => x.Wide, true }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private RenderFragment TableBody => @<MudTable Items="_rows" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
         <HeaderContent>
             <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh>
             <MudTh>ارز</MudTh><MudTh>حساب</MudTh><MudTh>شرح</MudTh><MudTh>وضعیت</MudTh>
@@ -38,37 +134,37 @@
             <MudTd DataLabel="شرح">@context.Description</MudTd>
             <MudTd DataLabel="وضعیت">@context.Status</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
-    </MudTable>
-</MudPaper>
+    </MudTable>;
 
-@code {
-    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
-    private const string Schema = "treasury";
-
-    private List<CashFlowRow> _rows = new();
-    private DateTime? _from;
-    private DateTime? _to;
-    private bool _loading;
-
-    private async Task LoadAsync()
+    private byte[] BuildPdf(string paperSize)
     {
-        _loading = true;
-        try
+        var columns = new List<TableReportColumn>
         {
-            _rows = (await Db.QueryAsync<CashFlowRow>(Schema, "CashFlowReport", new
-            {
-                FromDate = _from?.Date ?? DateTime.Today.AddMonths(-1),
-                ToDate = _to?.Date ?? DateTime.Today
-            })).ToList();
-        }
-        catch (Exception ex)
+            new() { Header = "تاریخ" },
+            new() { Header = "شماره" },
+            new() { Header = "جهت" },
+            new() { Header = "مبلغ", AlignRight = true },
+            new() { Header = "ارز" },
+            new() { Header = "حساب" },
+            new() { Header = "شرح" },
+            new() { Header = "وضعیت" }
+        };
+        var rows = _rows.Select(r => (IReadOnlyList<string>)new string[]
         {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _loading = false;
-        }
+            r.MovementDate.ToString("yyyy/MM/dd"),
+            r.MovementNumber,
+            r.Direction == "In" ? "دریافت" : "پرداخت",
+            r.Amount.ToString("N0"),
+            r.CurrencyCode,
+            r.AccountName,
+            r.Description,
+            r.Status
+        }).ToList();
+
+        var inflow = _rows.Where(r => r.Direction == "In").Sum(r => r.Amount);
+        var outflow = _rows.Where(r => r.Direction != "In").Sum(r => r.Amount);
+        return Pdf.BuildTablePdf("گزارش گردش نقدی", "دریافت‌ها و پرداخت‌ها در بازهٔ تاریخ",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows,
+            new[] { $"جمع دریافتی: {inflow:N0} ریال   |   جمع پرداختی: {outflow:N0} ریال" }, paperSize);
     }
 }

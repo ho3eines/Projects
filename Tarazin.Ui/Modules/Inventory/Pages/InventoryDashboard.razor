@@ -1,10 +1,11 @@
 @page "/inventory/dashboard"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
-<PageTitle>داشبورد — انبار آمل</PageTitle>
+<PageTitle>داشبورد — انبار</PageTitle>
 
-<PageHeader Title="نمای کلی انبار" Subtitle="حرکت‌ها، موجودی و رزرو." Eyebrow="انبار آمل" />
+<PageHeader Title="نمای کلی انبار" Subtitle="حرکت‌ها، موجودی و رزرو." Eyebrow="انبار" />
 
 @if (_loading)
 {
@@ -33,7 +34,8 @@ else
     {
         try
         {
-            _summary = await Db.QueryFirstOrDefaultAsync<InventoryDashboardRow>(Schema, "DashboardSummary")
+            _summary = await Db.QueryFirstOrDefaultAsync<InventoryDashboardRow>(Schema, "DashboardSummary",
+                       new { CompanyId = Session.ActiveCompanyId })
                        ?? new InventoryDashboardRow();
         }
         catch (Exception ex)

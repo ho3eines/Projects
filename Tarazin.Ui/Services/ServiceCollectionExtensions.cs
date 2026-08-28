@@ -30,6 +30,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<BiReportService>();   // چاپ و گزارش با Stimulsoft (BI)
         services.AddScoped<AccountPickerService>(); // انتخاب حساب (Account Picker)
 
+        // PDF سمت سرور (QuestPDF) — موتور مشترک وب + MAUI. ذخیره‌کننده (IPdfSaver)
+        // را هاست ثبت می‌کند (وب: WebPdfSaver، MAUI: MauiPdfSaver).
+        services.AddScoped<PdfReportService>();
+
         return services;
     }
 }

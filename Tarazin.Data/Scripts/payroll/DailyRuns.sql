@@ -14,5 +14,6 @@ SELECT
     r.CreatedBy,
     r.UpdatedBy
 FROM [payroll].[PayrollRuns] r
+WHERE (@CompanyId IS NULL OR r.CompanyId = @CompanyId)
 ORDER BY r.RunId DESC
 OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY;

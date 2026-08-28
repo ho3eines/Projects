@@ -60,7 +60,7 @@ BEGIN
              10,10,1,N'seed');
     END
     -- لینک خودکار طرف‌حساب‌ها: تفصیلی با کد طرف‌حساب در گروه تنظیمات ساخته/لینک می‌شود
-    IF NOT EXISTS (SELECT 1 FROM [goldshop].[GoldPartyLinks] WHERE CompanyId=@SeedCompanyId)
+    IF NOT EXISTS (SELECT 1 FROM [treasury].[PartyLinks] WHERE CompanyId=@SeedCompanyId)
     BEGIN
         DECLARE party_cursor CURSOR LOCAL FAST_FORWARD FOR
             SELECT PartyId, PartyCode, PartyType, FullName FROM [central].[Parties]

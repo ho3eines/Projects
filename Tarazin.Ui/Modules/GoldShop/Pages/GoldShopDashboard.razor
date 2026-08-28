@@ -1,6 +1,7 @@
 @page "/goldshop/dashboard"
 @inject DbService Db
 @inject ISnackbar Snackbar
+@inject UserSession Session
 
 <PageTitle>داشبورد — طلافروشی</PageTitle>
 
@@ -21,6 +22,9 @@ else
                   Icon="@Icons.Material.Filled.ShowChart" Accent="#0E4D4A" />
         <StatCard Label="قیمت طلای ۲۴" Value="@_summary.Gold24Price.ToString("N0")"
                   Icon="@Icons.Material.Filled.Diamond" Accent="#9C3B2E" />
+        <StatCard Label="چک‌های فاکتورها" Value="@_summary.PendingInvoiceCheques.ToString("N0")"
+                  Icon="@Icons.Material.Filled.RequestQuote" Accent="#1E4B73"
+                  Hint="مدیریت وصول/برگشت" Href="/treasury/cheques" />
     </MudGrid>
 }
 
@@ -33,7 +37,7 @@ else
     {
         try
         {
-            _summary = await Db.QueryFirstOrDefaultAsync<GoldShopDashboardRow>(Schema, "DashboardSummary")
+            _summary = await Db.QueryFirstOrDefaultAsync<GoldShopDashboardRow>(Schema, "DashboardSummary", new { CompanyId = Session.ActiveCompanyId })
                        ?? new GoldShopDashboardRow();
         }
         catch (Exception ex)

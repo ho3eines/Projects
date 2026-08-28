@@ -86,12 +86,12 @@ BEGIN
     END
 END
 
-IF EXISTS (SELECT 1 FROM [goldshop].[GoldPartyLinks] WHERE CompanyId=@CompanyId AND PartyId=@ActualPartyId)
-    UPDATE [goldshop].[GoldPartyLinks]
+IF EXISTS (SELECT 1 FROM [treasury].[PartyLinks] WHERE CompanyId=@CompanyId AND PartyId=@ActualPartyId)
+    UPDATE [treasury].[PartyLinks]
     SET PartyType=@PartyType, DetailLinkId=@AutoLinkId, DetailAccountCode=@AutoLinkCode, UpdatedAt=SYSUTCDATETIME(), UpdatedBy=@CreatedBy
     WHERE CompanyId=@CompanyId AND PartyId=@ActualPartyId;
 ELSE
-    INSERT INTO [goldshop].[GoldPartyLinks]
+    INSERT INTO [treasury].[PartyLinks]
         (CompanyId, PartyId, PartyType, DetailLinkId, DetailAccountCode, CreatedAt, CreatedBy)
     VALUES (@CompanyId, @ActualPartyId, @PartyType, @AutoLinkId, @AutoLinkCode, SYSUTCDATETIME(), @CreatedBy);
 COMMIT;

@@ -98,17 +98,17 @@ public sealed class EntityCrudService
         EntityEditorKind.GoldPrice =>
             _db.ExecuteAsync("goldshop", "GoldPriceDelete", new { PriceId = model.Id, CompanyId = _db.CurrentCompanyId }),
         EntityEditorKind.InventoryItem =>
-            _db.ExecuteAsync("inventory", "ItemDelete", new { ItemId = model.Id }),
+            _db.ExecuteAsync("inventory", "ItemDelete", new { ItemId = model.Id, CompanyId = _db.CurrentCompanyId }),
         EntityEditorKind.Warehouse =>
-            _db.ExecuteAsync("inventory", "WarehouseDelete", new { WarehouseId = model.Id }),
+            _db.ExecuteAsync("inventory", "WarehouseDelete", new { WarehouseId = model.Id, CompanyId = _db.CurrentCompanyId }),
         EntityEditorKind.Employee =>
-            _db.ExecuteAsync("payroll", "EmployeeDelete", new { EmployeeId = model.Id }),
+            _db.ExecuteAsync("payroll", "EmployeeDelete", new { EmployeeId = model.Id, CompanyId = _db.CurrentCompanyId }),
         EntityEditorKind.Product =>
             _db.ExecuteAsync("store", "ProductDelete", new { ProductId = model.Id }),
         EntityEditorKind.Customer =>
             _db.ExecuteAsync("store", "CustomerDelete", new { CustomerId = model.Id }),
         EntityEditorKind.CurrencyRate =>
-            _db.ExecuteAsync("treasury", "CurrencyRateDelete", new { RateId = model.Id }),
+            _db.ExecuteAsync("treasury", "CurrencyRateDelete", new { RateId = model.Id, CompanyId = _db.CurrentCompanyId }),
         _ => throw new ArgumentOutOfRangeException(nameof(model.Kind), model.Kind, "نوع رکورد برای حذف پشتیبانی نمی‌شود.")
     };
 }

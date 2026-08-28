@@ -1,0 +1,93 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="نام حساب" @bind-Value="_name" Required="true"
+                                  RequiredError="نام حساب الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="شماره حساب" @bind-Value="_no" Required="true"
+                                  RequiredError="شماره حساب الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Label="بانک" @bind-Value="_bankId" Variant="Variant.Outlined" Required="true"
+                               RequiredError="بانک الزامی است.">
+                        <MudSelectItem Value="@((int?)null)">— انتخاب بانک —</MudSelectItem>
+                        @foreach (var b in _banks)
+                        {
+                            <MudSelectItem Value="@((int?)b.BankId)">@b.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public BankAccountRow Model { get; set; } = new();
+
+    private List<BankRow> _banks = new();
+    private string _name = "";
+    private string _no = "";
+    private int? _bankId;
+    private bool _isActive = true;
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _name = Model.AccountName;
+        _no = Model.AccountNo;
+        _bankId = Model.BankId;
+        _isActive = Model.IsActive;
+        try
+        {
+            _banks = (await Db.QueryAsync<BankRow>("treasury", "BankList",
+                new { CompanyId = Session.ActiveCompanyId })).ToList();
+        }
+        catch { _banks = new List<BankRow>(); }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("treasury", "BankAccountUpsert", new
+            {
+                AccountId = Model.AccountId,
+                AccountName = _name.Trim(),
+                AccountNo = _no.Trim(),
+                BankId = _bankId,
+                IsActive = _isActive,
+                CompanyId = Session.ActiveCompanyId,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("حساب بانکی ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

@@ -5,6 +5,6 @@
 -- =============================================
 IF NOT EXISTS (SELECT 1 FROM [accounting].[PayrollPostings] WHERE RunId = @RunId)
 BEGIN
-    INSERT INTO [accounting].[PayrollPostings] (RunId, Period, EmployeeCount, NetTotal, PostingDate, CreatedAt)
-    VALUES (@RunId, @Period, @EmployeeCount, @NetTotal, CAST(SYSDATETIME() AS DATE), SYSUTCDATETIME());
+    INSERT INTO [accounting].[PayrollPostings] (RunId, Period, EmployeeCount, NetTotal, PostingDate, CreatedAt, CompanyId)
+    VALUES (@RunId, @Period, @EmployeeCount, @NetTotal, CAST(SYSDATETIME() AS DATE), SYSUTCDATETIME(), @CompanyId);
 END

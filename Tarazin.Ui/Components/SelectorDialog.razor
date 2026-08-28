@@ -1,0 +1,344 @@
+@typeparam T
+
+@* ─────────────────────────────────────────────────────────────
+   SelectorDialog<T> — دیالوگ انتخاب عمومی قابل استفاده مجدد
+   ─────────────────────────────────────────────────────────────
+   ویژگی‌ها:
+     • جستجوی debounce با فیلتر چندکلمه‌ای
+     • پیجینگ خودکار (RowsPerPage قابل تنظیم)
+     • پیمایش صفحه‌کلید (↑/↓/Enter/Escape)
+     • نمایش تعداد نتایج فیلترشده
+     • Loading state اختیاری
+     • Double-click برای تأیید سریع
+*@
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.List" />
+            <MudText Typo="Typo.h6">انتخاب @Title</MudText>
+            @if (_loading)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @* ─── فیلتر + خلاصه ─── *@
+        <MudGrid Spacing="2" Class="mb-2">
+            <MudItem xs="12" sm="8" md="9">
+                <MudTextField @ref="_searchRef"
+                              @bind-Value="_search"
+                              Label="@SearchPlaceholder"
+                              Variant="Variant.Outlined"
+                              Immediate="true"
+                              DebounceInterval="200"
+                              OnDebounceIntervalElapsed="FilterItems"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Clearable="true"
+                              OnClearButtonClick="ClearSearch"
+                              @onkeydown="OnSearchKeyDown" />
+            </MudItem>
+            <MudItem xs="12" sm="4" md="3" Class="d-flex align-center justify-end">
+                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined"
+                         Icon="@Icons.Material.Filled.FilterList">
+                    @_filtered.Count از @Items.Count
+                </MudChip>
+            </MudItem>
+        </MudGrid>
+
+        @* ─── جدول با پیجینگ ─── *@
+        <MudTable T="T" Items="_filtered" Hover="true" Dense="true" Striped="true"
+                  FixedHeader="true" Height="380px"
+                  @ref="_tableRef"
+                  SelectedItem="_selected"
+                  SelectedItemChanged="OnRowClicked"
+                  OnRowClick="OnRowClick"
+                  RowsPerPage="RowsPerPage"
+                  Virtualize="EnableVirtualization"
+                  Breakpoint="Breakpoint.None">
+            <HeaderContent>
+                @foreach (var col in Columns)
+                {
+                    <MudTh Style="cursor:pointer" @onclick="@(() => ToggleSort(col))">
+                        @col.Header
+                        @if (_sortColumn == col.Header)
+                        {
+                            <MudIcon Icon="@(_sortAsc ? Icons.Material.Filled.ArrowUpward : Icons.Material.Filled.ArrowDownward)"
+                                     Size="Size.Small" Class="ml-1" />
+                        }
+                    </MudTh>
+                }
+            </HeaderContent>
+            <RowTemplate>
+                @foreach (var col in Columns)
+                {
+                    <MudTd>@col.Render(context)</MudTd>
+                }
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" HorizontalAlignment="HorizontalAlignment.End" />
+            </PagerContent>
+            <NoRecordsContent>
+                @if (_loading)
+                {
+                    <div class="pa-4 d-flex justify-center">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                    </div>
+                }
+                else
+                {
+                    <MudText Color="Color.Secondary" Class="pa-4">موردی یافت نشد.</MudText>
+                }
+            </NoRecordsContent>
+        </MudTable>
+
+        @* ─── خلاصه انتخاب ─── *@
+        @if (_selected is not null)
+        {
+            <MudPaper Elevation="0" Outlined="true" Class="pa-3 mt-2">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">انتخاب‌شده:</MudText>
+                </div>
+                <MudText Typo="Typo.body1"><b>@RenderSelectedText()</b></MudText>
+            </MudPaper>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">انصراف (Esc)</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Check"
+                   OnClick="Confirm" Disabled="_selected is null">
+            تأیید (Enter)
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    // ─── پارامترها ───
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>لیست کل آیتم‌ها</summary>
+    [Parameter, EditorRequired] public List<T> Items { get; set; } = new();
+
+    /// <summary>عنوان دیالوگ (مثلاً «کالا»، «مشتری»، «ارز»)</summary>
+    [Parameter] public string Title { get; set; } = "مورد";
+
+    /// <summary>متن placeholder فیلد جستجو</summary>
+    [Parameter] public string SearchPlaceholder { get; set; } = "جستجو...";
+
+    /// <summary>ستون‌های جدول</summary>
+    [Parameter, EditorRequired] public List<SelectorColumn<T>> Columns { get; set; } = new();
+
+    /// <summary>فانکشن استخراج متن اصلی برای نمایش در خلاصه انتخاب</summary>
+    [Parameter] public Func<T, string>? DisplayText { get; set; }
+
+    /// <summary>فانکشن استخراج رشته‌های قابل جستجو برای هر آیتم</summary>
+    [Parameter] public Func<T, string[]>? SearchFields { get; set; }
+
+    /// <summary>فیلتر سفارشی</summary>
+    [Parameter] public Func<T, string, bool>? CustomFilter { get; set; }
+
+    /// <summary>تعداد ردیف در هر صفحه (پیش‌فرض: ۱۰)</summary>
+    [Parameter] public int RowsPerPage { get; set; } = 10;
+
+    /// <summary>فعال‌سازی Virtualization برای لیست‌های بزرگ</summary>
+    [Parameter] public bool EnableVirtualization { get; set; } = false;
+
+    /// <summary>آیا در حال بارگذاری داده از سرور است؟</summary>
+    [Parameter] public bool IsLoading { get; set; }
+
+    /// <summary>داک‌بلاک برای کلیک دوتایی (اختیاری)</summary>
+    [Parameter] public EventCallback<T> OnDoubleClick { get; set; }
+
+    // ─── متغیرهای داخلی ───
+    private MudTextField<string>? _searchRef;
+    private MudTable<T>? _tableRef;
+    private string _search = "";
+    private List<T> _allFiltered = new();   // نتیجهٔ جستجو (همه)
+    private List<T> _filtered = new();       // نتیجهٔ فعلی (بعد از مرتب‌سازی)
+    private T? _selected;
+    private bool _loading;
+    private string? _sortColumn;
+    private bool _sortAsc = true;
+
+    protected override void OnInitialized()
+    {
+        _loading = IsLoading;
+        ApplyFilter();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (_loading != IsLoading)
+        {
+            _loading = IsLoading;
+            if (!_loading) ApplyFilter();
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+        {
+            _allFiltered = new List<T>(Items);
+        }
+        else if (CustomFilter is not null)
+        {
+            _allFiltered = Items.Where(x => CustomFilter(x, _search)).ToList();
+        }
+        else
+        {
+            var terms = _search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            _allFiltered = Items.Where(item =>
+            {
+                var fields = SearchFields is not null
+                    ? SearchFields(item)
+                    : Columns.Select(c => c.Render(item) ?? "").ToArray();
+                var combined = string.Join(" ", fields);
+                return terms.All(t => combined.Contains(t, StringComparison.OrdinalIgnoreCase));
+            }).ToList();
+        }
+
+        // مرتب‌سازی
+        ApplySorting();
+
+        // انتخاب اولین آیتم اگر انتخاب فعلی در لیست جدید نیست
+        if (_filtered.Count > 0 && (_selected is null || !_filtered.Contains(_selected)))
+            _selected = _filtered[0];
+
+        StateHasChanged();
+    }
+
+    private void FilterItems()
+    {
+        ApplyFilter();
+    }
+
+    private void ClearSearch()
+    {
+        _search = "";
+        _sortColumn = null;
+        ApplyFilter();
+    }
+
+    private void ToggleSort(SelectorColumn<T> col)
+    {
+        if (_sortColumn == col.Header)
+            _sortAsc = !_sortAsc;
+        else
+        {
+            _sortColumn = col.Header;
+            _sortAsc = true;
+        }
+        ApplySorting();
+        StateHasChanged();
+    }
+
+    private void ApplySorting()
+    {
+        if (_sortColumn is null)
+        {
+            _filtered = new List<T>(_allFiltered);
+            return;
+        }
+
+        var col = Columns.FirstOrDefault(c => c.Header == _sortColumn);
+        if (col is null) { _filtered = new List<T>(_allFiltered); return; }
+
+        _filtered = _sortAsc
+            ? _allFiltered.OrderBy(x => col.Render(x) ?? "").ToList()
+            : _allFiltered.OrderByDescending(x => col.Render(x) ?? "").ToList();
+    }
+
+    private void OnRowClicked(T item)
+    {
+        _selected = item;
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<T> args)
+    {
+        _selected = args.Item;
+    }
+
+    // ─── پیمایش صفحه‌کلید ───
+    private void OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (_filtered.Count == 0) return;
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                MoveSelection(1);
+                break;
+            case "ArrowUp":
+                MoveSelection(-1);
+                break;
+            case "Enter":
+                if (_selected is not null)
+                    Confirm();
+                break;
+            case "Escape":
+                Cancel();
+                break;
+        }
+    }
+
+    private void MoveSelection(int delta)
+    {
+        if (_filtered.Count == 0) return;
+
+        var idx = _selected is null ? -1 : _filtered.IndexOf(_selected);
+        idx += delta;
+        idx = Math.Clamp(idx, 0, _filtered.Count - 1);
+        _selected = _filtered[idx];
+        StateHasChanged();
+    }
+
+    private string RenderSelectedText()
+    {
+        if (_selected is null) return "";
+        return DisplayText is not null
+            ? DisplayText(_selected)
+            : Columns.Count > 0
+                ? Columns[0].Render(_selected) ?? ""
+                : _selected.ToString() ?? "";
+    }
+
+    private void Confirm()
+    {
+        if (_selected is null) return;
+        MudDialog.Close(DialogResult.Ok(new SelectorResult<T>
+        {
+            Item = _selected,
+            Index = _filtered.IndexOf(_selected)
+        }));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    // ─── مدل نتیجه ───
+    public sealed class SelectorResult<TItem>
+    {
+        public TItem Item { get; set; } = default!;
+        public int Index { get; set; }
+    }
+}
+
+@* ─── مدل ستون ─── *@
+@code {
+    public sealed class SelectorColumn<TItem>
+    {
+        public string Header { get; set; } = "";
+        public Func<TItem, string?> Render { get; set; } = _ => "";
+
+        public SelectorColumn() { }
+        public SelectorColumn(string header, Func<TItem, string?> render)
+        {
+            Header = header;
+            Render = render;
+        }
+    }
+}

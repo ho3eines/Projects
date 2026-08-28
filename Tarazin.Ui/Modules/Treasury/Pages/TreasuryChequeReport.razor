@@ -1,0 +1,192 @@
+@page "/treasury/cheque-report"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>گزارش چک‌ها — خزانه‌داری</PageTitle>
+
+<PageHeader Title="چک‌های در جریان و سررسیدشده"
+            Subtitle="همهٔ چک‌های باز (در انتظار / در جریان وصول) به‌همراه هشدار سررسید — قرمز = سررسید گذشته، نارنجی = تا ۷ روز آینده."
+            Eyebrow="خزانه‌داری">
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync" Disabled="_loading"
+               StartIcon="@Icons.Material.Filled.Refresh">
+        بروزرسانی
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintAsync" Disabled="_loading || _rows.Count == 0"
+               StartIcon="@Icons.Material.Filled.Print">
+        چاپ / PDF
+    </MudButton>
+</PageHeader>
+
+<MudGrid Class="mb-4">
+    <StatCard Label="چک‌های باز" Value="@_rows.Count.ToString("N0")"
+              Icon="@Icons.Material.Filled.ReceiptLong" Accent="#1E4B73" />
+    <StatCard Label="سررسیدشده" Value="@OverdueCount.ToString("N0")"
+              Icon="@Icons.Material.Filled.NotificationImportant" Accent="#C62828"
+              Hint="سررسید گذشته" />
+    <StatCard Label="سررسید نزدیک (۷ روز)" Value="@DueSoonCount.ToString("N0")"
+              Icon="@Icons.Material.Filled.Schedule" Accent="#EF6C00"
+              Hint="تا ۷ روز آینده" />
+    <StatCard Label="جمع سررسیدشده" Value="@OverdueAmount.ToString("N0")"
+              Icon="@Icons.Material.Filled.WarningAmber" Accent="#9C3B2E"
+              Hint="ریال" />
+</MudGrid>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="string" Label="جهت" @bind-Value="_direction" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("all")">همه</MudSelectItem>
+                <MudSelectItem Value="@("In")">دریافتی</MudSelectItem>
+                <MudSelectItem Value="@("Out")">پرداختی</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="string" Label="هشدار سررسید" @bind-Value="_alert" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("All")">همه</MudSelectItem>
+                <MudSelectItem Value="@("Problem")">فقط سررسیدشده و نزدیک</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
+                اجرای گزارش
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
+              Breakpoint="Breakpoint.Sm" RowsPerPage="25">
+        <HeaderContent>
+            <MudTh>شماره چک</MudTh><MudTh>بانک</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh>
+            <MudTh>سررسید</MudTh><MudTh>مانده تا سررسید</MudTh><MudTh>وضعیت</MudTh><MudTh>هشدار</MudTh><MudTh>منبع</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="شماره">@context.ChequeNumber</MudTd>
+            <MudTd DataLabel="بانک">@context.BankName</MudTd>
+            <MudTd DataLabel="جهت">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Direction == "In" ? Color.Success : Color.Error)">
+                    @(context.Direction == "In" ? "دریافتی" : "پرداختی")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="سررسید">@(context.DueDate?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
+            <MudTd DataLabel="مانده تا سررسید">@DueLabel(context.DaysToDue)</MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip T="string" Size="Size.Small" Color="StatusChipColor(context.Status)">
+                    @StatusLabel(context.Status)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="هشدار">
+                <MudChip T="string" Size="Size.Small" Color="AlertChipColor(context.AlertLevel)">
+                    @AlertLabel(context.AlertLevel)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="منبع">@SourceLabel(context.SourceReference)</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary">چک باز یا سررسیدشده‌ای در این فیلتر نیست.</MudText>
+        </NoRecordsContent>
+        <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "treasury";
+
+    private List<ChequeDueRow> _rows = new();
+    private bool _loading = true;
+    private string _direction = "all";
+    private string _alert = "All";
+
+    private int OverdueCount => _rows.Count(r => r.AlertLevel == "Overdue");
+    private int DueSoonCount => _rows.Count(r => r.AlertLevel == "DueSoon");
+    private decimal OverdueAmount => _rows.Where(r => r.AlertLevel == "Overdue").Sum(r => r.Amount);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task PrintAsync()
+    {
+        if (_rows.Count == 0)
+            return;
+
+        // چاپ با قالب HTML رسمی (هدر لوگو + فوتر شماره صفحه با @page CSS).
+        await Dialog.ShowAsync<ChequeDuePrintDialog>("چاپ گزارش چک‌ها",
+            new DialogParameters<ChequeDuePrintDialog>
+            {
+                { x => x.Rows, _rows }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _rows = (await Db.QueryAsync<ChequeDueRow>(Schema, "ChequeDueReport", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                Direction = _direction == "all" ? null : _direction,
+                AlertFilter = _alert
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string DueLabel(int days) => days switch
+    {
+        0 => "امروز",
+        _ => days > 0 ? $"{days} روز مانده" : $"{Math.Abs(days)} روز گذشته"
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Pending" => "در انتظار",
+        "Collecting" => "در جریان وصول",
+        _ => status
+    };
+
+    private static Color StatusChipColor(string status) => status switch
+    {
+        "Pending" => Color.Default,
+        "Collecting" => Color.Primary,
+        _ => Color.Default
+    };
+
+    private static string AlertLabel(string level) => level switch
+    {
+        "Overdue" => "سررسیدشده",
+        "DueSoon" => "سررسید نزدیک",
+        _ => "در مهلت"
+    };
+
+    private static Color AlertChipColor(string level) => level switch
+    {
+        "Overdue" => Color.Error,
+        "DueSoon" => Color.Warning,
+        _ => Color.Success
+    };
+
+    private static string SourceLabel(string? source) => source switch
+    {
+        null => "دستی",
+        var s when s.StartsWith("GoldInvoice:") => "فاکتور طلافروشی",
+        var s when s.StartsWith("Cheque:") => "وصول چک",
+        _ => source
+    };
+}

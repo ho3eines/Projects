@@ -99,6 +99,7 @@ public class PayrollRunRow
     public int EmployeeCount { get; set; }
     public decimal NetTotal { get; set; }
     public string Status { get; set; } = "";
+    public int? CompanyId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
@@ -128,6 +129,15 @@ public class OrderRow
     public decimal TotalAmount { get; set; }
     public string CurrencyCode { get; set; } = "IRR";
     public string Status { get; set; } = "";
+    public string PaymentStatus { get; set; } = "Unpaid";
+    public decimal BalanceRial { get; set; }
+    public decimal PayCash { get; set; }
+    public decimal PayBank { get; set; }
+    public string? ChequeNumber { get; set; }
+    public int? ChequeBankId { get; set; }
+    public decimal ChequeAmount { get; set; }
+    public DateTime? ChequeDueDate { get; set; }
+    public int? DocumentId { get; set; }
     public DateTime OrderDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }

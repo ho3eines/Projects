@@ -60,10 +60,14 @@
         @RenderBoard("Global")
     </MudTabPanel>
     <MudTabPanel Text="مقایسهٔ منابع (§59)">
-        <MudPaper Elevation="1" Class="pa-4">
-            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-                داده‌های API رسمی کنار هم — بازار ایران (IR) | بازار جهانی (FR) | نرخ سیستم.
-            </MudText>
+        <MudCard Elevation="1" Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">مقایسهٔ منابع</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">داده‌های API رسمی کنار هم — بازار ایران (IR) | بازار جهانی (FR) | نرخ سیستم.</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
             <MudTable Items="_comparison" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>عنوان</MudTh><MudTh>TabloTala IR</MudTh><MudTh>TabloTala FR</MudTh><MudTh>سایر</MudTh><MudTh>نرخ سیستم</MudTh>
@@ -89,7 +93,8 @@
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
             </MudTable>
-        </MudPaper>
+            </MudCardContent>
+        </MudCard>
     </MudTabPanel>
 </MudTabs>
 
@@ -130,10 +135,27 @@
         }
     }
 
+    private static readonly Dictionary<string, string> BoardTitles = new()
+    {
+        ["Currency"] = "نرخ ارز",
+        ["Gold"] = "قیمت طلا",
+        ["Coin"] = "قیمت سکه",
+        ["Metal"] = "قیمت فلزات",
+        ["FxParity"] = "برابری ارزها با دلار",
+        ["Global"] = "بازار جهانی"
+    };
+
     private RenderFragment RenderBoard(string itemType) => __builder =>
     {
         var rows = _rows.Where(r => r.ItemType == itemType).ToList();
-        <MudPaper Elevation="1" Class="pa-4">
+        <MudCard Elevation="1" Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">@(BoardTitles.TryGetValue(itemType, out var t) ? t : itemType)</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@rows.Count قلم — نرخ سیستم، خرید/فروش و منبع هر قلم</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
             <MudTable Items="rows" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>عنوان</MudTh>
@@ -191,7 +213,8 @@
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">آیتمی نیست.</MudText></NoRecordsContent>
             </MudTable>
-        </MudPaper>;
+            </MudCardContent>
+        </MudCard>;
     };
 
     private async Task OpenRateEditorAsync(PriceRateRow rate)

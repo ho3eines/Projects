@@ -1,0 +1,120 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد کالا" @bind-Value="_model.ItemCode" Variant="Variant.Outlined"
+                                  HelperText="خالی = خودکار" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="عنوان" @bind-Value="_model.ItemTitle" Required="true"
+                                  RequiredError="عنوان کالا الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" Label="گروه کالا" @bind-Value="_groupId" Variant="Variant.Outlined" Clearable="true">
+                        <MudSelectItem Value="0">— بدون گروه —</MudSelectItem>
+                        @foreach (var g in Groups)
+                        {
+                            <MudSelectItem Value="g.GroupId">@g.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" Label="واحد کالا" @bind-Value="_unitId" Variant="Variant.Outlined" Clearable="true">
+                        <MudSelectItem Value="0">— بدون واحد —</MudSelectItem>
+                        @foreach (var u in Units)
+                        {
+                            <MudSelectItem Value="u.UnitId">@u.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="دسته‌بندی (متن آزاد)" @bind-Value="_model.Category" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="واحد (متن آزاد)" @bind-Value="_model.Unit" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudNumericField T="decimal" Label="قیمت واحد (پایه)" @bind-Value="_model.UnitPrice"
+                                     Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public ItemRow Model { get; set; } = default!;
+    [Parameter] public List<ItemGroupRow> Groups { get; set; } = new();
+    [Parameter] public List<UnitRow> Units { get; set; } = new();
+
+    private ItemRow _model = new();
+    private int _groupId;
+    private int _unitId;
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _model = new ItemRow
+            {
+                ItemId = Model.ItemId,
+                ItemCode = Model.ItemCode,
+                ItemTitle = Model.ItemTitle,
+                Category = Model.Category,
+                Unit = Model.Unit,
+                UnitPrice = Model.UnitPrice,
+                IsActive = Model.IsActive
+            };
+            _groupId = Model.GroupId ?? 0;
+            _unitId = Model.UnitId ?? 0;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("inventory", "ItemUpsert", new
+            {
+                ItemId = _model.ItemId,
+                ItemCode = _model.ItemCode.Trim(),
+                ItemTitle = _model.ItemTitle.Trim(),
+                Category = string.IsNullOrWhiteSpace(_model.Category) ? null : _model.Category.Trim(),
+                Unit = string.IsNullOrWhiteSpace(_model.Unit) ? "عدد" : _model.Unit.Trim(),
+                GroupId = _groupId == 0 ? (int?)null : _groupId,
+                UnitId = _unitId == 0 ? (int?)null : _unitId,
+                UnitPrice = _model.UnitPrice,
+                IsActive = _model.IsActive,
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

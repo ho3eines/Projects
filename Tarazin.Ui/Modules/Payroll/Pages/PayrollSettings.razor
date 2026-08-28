@@ -1,80 +1,346 @@
 @page "/payroll/settings"
 @inject DbService Db
-@inject EntityCrudService EntityCrud
+@inject IDialogService Dialog
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — حقوق و دستمزد</PageTitle>
 
-<PageHeader Title="امکانات و جداول پایه" Subtitle="مدیریت کارمندان.">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
-               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromEmployee()))">
-        کارمند جدید
-    </MudButton>
+<PageHeader Title="امکانات و جداول پایه" Subtitle="کارمندان، حکم‌ها، الگوهای اقلام و اتصال حسابداری." Eyebrow="حقوق و دستمزد">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAllAsync"
+               StartIcon="@Icons.Material.Filled.Refresh" Disabled="_loading">بروزرسانی</MudButton>
 </PageHeader>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_employees" Hover="true" Dense="true" Striped="true" Loading="_loading">
-        <HeaderContent>
-            <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>دپارتمان</MudTh><MudTh>حقوق پایه</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="کد">@context.EmployeeCode</MudTd>
-            <MudTd DataLabel="نام">@context.FullName</MudTd>
-            <MudTd DataLabel="دپارتمان">@context.Department</MudTd>
-            <MudTd DataLabel="حقوق پایه">@context.BaseSalary.ToString("N0")</MudTd>
-            <MudTd DataLabel="وضعیت">
-                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                    @(context.IsActive ? "فعال" : "غیرفعال")
-                </MudChip>
-            </MudTd>
-            <MudTd DataLabel="عملیات">
-                <MudTooltip Text="ویرایش کارمند">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromEmployee(context)))" />
-                </MudTooltip>
-                <MudTooltip Text="حذف">
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromEmployee(context)))" />
-                </MudTooltip>
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">کارمندی ثبت نشده است.</MudText></NoRecordsContent>
-    </MudTable>
-</MudPaper>
+<MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged">
+    @* ── تب ۱: کارمندان ── *@
+    <MudTabPanel Text="کارمندان" Icon="@Icons.Material.Filled.Groups">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                           OnClick="OpenNewEmployeeAsync">کارمند جدید</MudButton>
+            </div>
+            <MudTable Items="_employees" Loading="_loading" Hover="true" Dense="true" Striped="true"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>دپارتمان</MudTh>
+                    <MudTh>حقوق پایه</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.EmployeeCode</MudTd>
+                    <MudTd DataLabel="نام">@context.FullName</MudTd>
+                    <MudTd DataLabel="دپارتمان">@context.Department</MudTd>
+                    <MudTd DataLabel="حقوق پایه">@context.BaseSalary.ToString("N0")</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEditEmployeeAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteEmployeeAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">کارمندی ثبت نشده است.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50 })" /></PagerContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    @* ── تب ۲: حکم‌ها ── *@
+    <MudTabPanel Text="حکم‌های اداری" Icon="@Icons.Material.Filled.Gavel">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenNewOrderAsync">حکم جدید</MudButton>
+            </div>
+            <MudTable Items="_orders" Loading="_loading" Hover="true" Dense="true" Striped="true"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
+                <HeaderContent>
+                    <MudTh>کارمند</MudTh><MudTh>نوع قرارداد</MudTh><MudTh>حقوق پایه</MudTh>
+                    <MudTh>مسکن</MudTh><MudTh>خوراک</MudTh><MudTh>حمل</MudTh>
+                    <MudTh>بیمه %</MudTh><MudTh>معافیت</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کارمند">@context.EmployeeName</MudTd>
+                    <MudTd DataLabel="نوع">@ContractTypeText(context.ContractType)</MudTd>
+                    <MudTd DataLabel="پایه">@context.BaseSalary.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مسکن">@context.HousingAllowance.ToString("N0")</MudTd>
+                    <MudTd DataLabel="خوراک">@context.FoodAllowance.ToString("N0")</MudTd>
+                    <MudTd DataLabel="حمل">@context.TransportAllowance.ToString("N0")</MudTd>
+                    <MudTd DataLabel="بیمه">@context.InsurancePct.ToString("0.#")%</MudTd>
+                    <MudTd DataLabel="معافیت">@context.TaxExemptCount</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEditOrderAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteOrderAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">حکمی ثبت نشده است.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50 })" /></PagerContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    @* ── تب ۳: الگوهای اقلام ── *@
+    <MudTabPanel Text="الگوهای اقلام حقوق" Icon="@Icons.Material.Filled.ListAlt">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenNewTemplateAsync">الگوی جدید</MudButton>
+            </div>
+            <MudTable Items="_templates" Loading="_loading" Hover="true" Dense="true" Striped="true"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh><MudTh>دسته</MudTh><MudTh>نوع مبلغ</MudTh>
+                    <MudTh>مقدار</MudTh><MudTh>ترتیب</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="دسته">
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(context.Category == Earning ? Color.Success : Color.Error)">
+                            @(context.Category == Earning ? "اضافات" : "کسورات")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="نوع">@((context.IsPercent ? "درصد" : "ثابت"))</MudTd>
+                    <MudTd DataLabel="مقدار">
+                        @if (context.IsPercent) { @($"{context.Percentage:0.#}%") }
+                        else { @(context.FixedAmount?.ToString("N0") ?? "—") }
+                    </MudTd>
+                    <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEditTemplateAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteTemplateAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">الگویی ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    @* ── تب ۴: اتصال حسابداری/خزانه ── *@
+    <MudTabPanel Text="اتصال حسابداری" Icon="@Icons.Material.Filled.Link">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">تنظیمات ارسال سند حسابداری</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد حساب تفصیلی «حقوق پرداختی»" @bind-Value="_settings.PayableAccountCode"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد حساب تفصیلی «بیمه پرداختی»" @bind-Value="_settings.InsuranceAccountCode"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد حساب تفصیلی «مالیات پرداختی»" @bind-Value="_settings.TaxAccountCode"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد حساب بانکی پرداخت حقوق" @bind-Value="_settings.BankAccountCode"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="پیشوند شماره سند حسابداری" @bind-Value="_settings.DocumentPrefix"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSettingsAsync"
+                               StartIcon="@Icons.Material.Filled.Save" Disabled="_loading">ذخیره تنظیمات</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
 
 @code {
+    private const string Earning = "Earning";
     private const string Schema = "payroll";
+
     private List<EmployeeRow> _employees = new();
+    private List<EmploymentOrderRow> _orders = new();
+    private List<SalaryTemplateRow> _templates = new();
+    private PayrollSettingsRow _settings = new();
     private bool _loading = true;
+    private int _activeTab;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private Task OnTabChanged(int index)
+    {
+        _activeTab = index;
+        return Task.CompletedTask;
+    }
 
-    private async Task LoadAsync()
+    protected override async Task OnInitializedAsync() => await LoadAllAsync();
+
+    private async Task LoadAllAsync()
     {
         _loading = true;
         try
         {
-            _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList")).ToList();
+            var company = new { CompanyId = Session.ActiveCompanyId };
+            _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList", company)).ToList();
+            _orders = (await Db.QueryAsync<EmploymentOrderRow>(Schema, "EmploymentOrderList", company)).ToList();
+            _templates = (await Db.QueryAsync<SalaryTemplateRow>(Schema, "SalaryTemplateList", company)).ToList();
+            _settings = await Db.QueryFirstOrDefaultAsync<PayrollSettingsRow>(Schema, "PayrollSettingsGet", company) ?? new PayrollSettingsRow();
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _loading = false;
-        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
     }
 
-    private async Task OpenEditorAsync(EntityEditorModel model)
+    // ── کارمندان ──
+
+    private async Task OpenNewEmployeeAsync()
     {
-        if (await EntityCrud.ShowEditorAsync(model))
-            await LoadAsync();
+        if (await EntityCrud.ShowEditorAsync(EntityEditorModel.FromEmployee()))
+            await LoadAllAsync();
     }
 
-    private async Task DeleteAsync(EntityEditorModel model)
+    private async Task OpenEditEmployeeAsync(EmployeeRow emp)
     {
-        if (await EntityCrud.ConfirmDeleteAsync(model))
-            await LoadAsync();
+        if (await EntityCrud.ShowEditorAsync(EntityEditorModel.FromEmployee(emp)))
+            await LoadAllAsync();
     }
+
+    private async Task DeleteEmployeeAsync(EmployeeRow emp)
+    {
+        if (await EntityCrud.ConfirmDeleteAsync(EntityEditorModel.FromEmployee(emp)))
+            await LoadAllAsync();
+    }
+
+    // ── حکم‌ها ──
+
+    private async Task OpenNewOrderAsync()
+    {
+        if (_employees.Count == 0)
+        {
+            Snackbar.Add("ابتدا یک کارمند اضافه کنید.", Severity.Warning);
+            return;
+        }
+        // انتخاب کارمند با دیالوگ ساده
+        var picked = _employees.First(); // بهتر: دیالوگ انتخاب
+        var dlg = await Dialog.ShowAsync<EmploymentOrderDialog>("حکم جدید",
+            new DialogParameters { ["Employee"] = picked, ["Model"] = null },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAllAsync();
+    }
+
+    private async Task OpenEditOrderAsync(EmploymentOrderRow order)
+    {
+        var emp = _employees.FirstOrDefault(e => e.EmployeeId == order.EmployeeId);
+        if (emp is null) return;
+        var dlg = await Dialog.ShowAsync<EmploymentOrderDialog>("ویرایش حکم",
+            new DialogParameters { ["Employee"] = emp, ["Model"] = order },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAllAsync();
+    }
+
+    private async Task DeleteOrderAsync(EmploymentOrderRow order)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف حکم «{order.EmployeeName}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "EmploymentOrderDelete", new { OrderId = order.OrderId, CompanyId = Session.ActiveCompanyId });
+            Snackbar.Add("حکم حذف شد.", Severity.Success);
+            await LoadAllAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    // ── الگوها ──
+
+    private async Task OpenNewTemplateAsync()
+    {
+        var dlg = await Dialog.ShowAsync<SalaryTemplateDialog>("الگوی جدید",
+            new DialogParameters { ["Model"] = null },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAllAsync();
+    }
+
+    private async Task OpenEditTemplateAsync(SalaryTemplateRow template)
+    {
+        var dlg = await Dialog.ShowAsync<SalaryTemplateDialog>("ویرایش الگو",
+            new DialogParameters { ["Model"] = template },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAllAsync();
+    }
+
+    private async Task DeleteTemplateAsync(SalaryTemplateRow template)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف الگوی «{template.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "SalaryTemplateDelete", new { TemplateId = template.TemplateId, CompanyId = Session.ActiveCompanyId });
+            Snackbar.Add("الگو حذف شد.", Severity.Success);
+            await LoadAllAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    // ── اتصال حسابداری ──
+
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            await Db.ExecuteAsync(Schema, "PayrollSettingsUpsert", new
+            {
+                _settings.PayableAccountCode,
+                _settings.InsuranceAccountCode,
+                _settings.TaxAccountCode,
+                _settings.BankAccountCode,
+                _settings.DocumentPrefix,
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("تنظیمات ذخیره شد.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private static string ContractTypeText(string type) => type switch
+    {
+        "Permanent" => "دائم",
+        "Fixed" => "موقت",
+        "PartTime" => "نیمه‌وقت",
+        "Intern" => "کارآموز",
+        _ => type
+    };
+
+    [Inject] private EntityCrudService EntityCrud { get; set; } = default!;
 }

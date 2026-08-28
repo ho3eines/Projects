@@ -1,5 +1,6 @@
 @page "/payroll/entry"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>فیش حقوق — حقوق و دستمزد</PageTitle>
@@ -52,7 +53,8 @@
         _runs = (await Db.QueryAsync<PayrollRunRow>(Schema, "DailyRuns", new
         {
             SkipRows = 0,
-            TakeSize = 100
+            TakeSize = 100,
+            CompanyId = Session.ActiveCompanyId
         })).ToList();
     }
 
@@ -67,7 +69,7 @@
         _loading = true;
         try
         {
-            _slips = (await Db.QueryAsync<PaySlipRow>(Schema, "PaySlipReport", new { RunId = _runId })).ToList();
+            _slips = (await Db.QueryAsync<PaySlipRow>(Schema, "PaySlipReport", new { RunId = _runId, CompanyId = Session.ActiveCompanyId })).ToList();
         }
         catch (Exception ex)
         {

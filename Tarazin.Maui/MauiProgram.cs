@@ -107,6 +107,9 @@ public static class MauiProgram
         // Shared business services and existing direct-SQL operations.
         builder.Services.AddTarazinUiServices();
 
+        // ذخیرهٔ PDF به‌صورت بومی (بدون html2pdf در WebView) — QuestPDF روی دستگاه اجرا می‌شود.
+        builder.Services.AddSingleton<IPdfSaver, MauiPdfSaver>();
+
         var app = builder.Build();
         StartupCrashLog.Write("BuildApp completed");
         return app;

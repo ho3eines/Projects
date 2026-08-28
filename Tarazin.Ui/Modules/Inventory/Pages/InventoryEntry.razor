@@ -3,9 +3,9 @@
 @inject UserSession Session
 @inject ISnackbar Snackbar
 
-<PageTitle>حرکت جدید — انبار آمل</PageTitle>
+<PageTitle>حرکت جدید — انبار</PageTitle>
 
-<PageHeader Title="ثبت حرکت انبار" Subtitle="رسید / حواله / تعدیل موجودی." />
+<PageHeader Title="ثبت حرکت انبار" Subtitle="رسید / حواله / تعدیل — با انبارک و قیمت‌گذاری خودکار (میانگین موزون، FIFO یا LIFO)." />
 <MudPaper Elevation="1" Class="pa-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="4">
@@ -13,36 +13,49 @@
                 <MudSelectItem Value="0">— انتخاب کالا —</MudSelectItem>
                 @foreach (var it in _items)
                 {
-                    <MudSelectItem Value="@it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                    <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined">
+            <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined"
+                       @bind-Value:after="OnWarehouseChanged">
                 <MudSelectItem Value="0">— انتخاب انبار —</MudSelectItem>
                 @foreach (var w in _warehouses)
                 {
-                    <MudSelectItem Value="@w.WarehouseId">@w.Title</MudSelectItem>
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="انبارک (اختیاری)" @bind-Value="_subWarehouseId" Variant="Variant.Outlined"
+                       Disabled="_warehouseId == 0" Clearable="true">
+                <MudSelectItem Value="0">— بدون انبارک —</MudSelectItem>
+                @foreach (var s in _subWarehouses)
+                {
+                    <MudSelectItem Value="s.SubWarehouseId">@s.Title</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
             <MudSelect T="string" Label="نوع حرکت" @bind-Value="_type" Variant="Variant.Outlined">
-                <MudSelectItem Value="@("Receipt")">رسید</MudSelectItem>
-                <MudSelectItem Value="@("Issue")">حواله</MudSelectItem>
-                <MudSelectItem Value="@("Adjustment")">تعدیل</MudSelectItem>
+                <MudSelectItem Value="@((string)"Receipt")">رسید</MudSelectItem>
+                <MudSelectItem Value="@((string)"Issue")">حواله</MudSelectItem>
+                <MudSelectItem Value="@((string)"Adjustment")">تعدیل</MudSelectItem>
             </MudSelect>
         </MudItem>
-        <MudItem xs="12" sm="6" md="3">
+        <MudItem xs="12" sm="6" md="4">
             <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="3">
+        <MudItem xs="12" sm="6" md="4">
             <MudNumericField T="decimal" Label="تعداد" @bind-Value="_qty" Variant="Variant.Outlined" Min="0" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="قیمت واحد" @bind-Value="_unitPrice" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="decimal" Label="قیمت واحد (رسید)" @bind-Value="_unitPrice" Format="#,##0.##"
+                             Variant="Variant.Outlined" Min="0"
+                             HelperText="@(_costingMethod == "WeightedAverage" ? "میانگین موزون" : _costingMethod == "FIFO" ? "اولین خرید (FIFO)" : "آخرین خرید (LIFO)")" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="3">
+        <MudItem xs="12" sm="6" md="8">
             <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12">
@@ -60,19 +73,45 @@
 
     private List<ItemRow> _items = new();
     private List<WarehouseRow> _warehouses = new();
+    private List<SubWarehouseRow> _subWarehouses = new();
     private int _itemId;
     private int _warehouseId;
+    private int _subWarehouseId;
     private string _type = "Receipt";
     private DateTime? _date = DateTime.Today;
     private decimal _qty = 1;
     private decimal _unitPrice;
     private string _description = "";
+    private string _costingMethod = "WeightedAverage";
     private bool _busy;
 
     protected override async Task OnInitializedAsync()
     {
-        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        var settings = await Db.QueryFirstOrDefaultAsync<InventorySettingsRow>(Schema, "InventorySettingsGet",
+            new { CompanyId = Session.ActiveCompanyId });
+        _costingMethod = settings?.CostingMethod ?? "WeightedAverage";
+        if (settings?.DefaultWarehouseId is int dw && dw > 0)
+            _warehouseId = dw;
+        if (settings?.DefaultSubWarehouseId is int ds && ds > 0)
+            _subWarehouseId = ds;
+        await LoadSubWarehousesAsync();
+    }
+
+    private async Task OnWarehouseChanged()
+    {
+        _subWarehouseId = 0;
+        await LoadSubWarehousesAsync();
+    }
+
+    private async Task LoadSubWarehousesAsync()
+    {
+        _subWarehouses = (await Db.QueryAsync<SubWarehouseRow>(Schema, "SubWarehouseList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            WarehouseId = _warehouseId == 0 ? (int?)null : _warehouseId
+        })).ToList();
     }
 
     private async Task SaveAsync()
@@ -90,16 +129,16 @@
             await Db.ExecuteAsync(Schema, "MovementInsert", new
             {
                 ItemId = _itemId,
-                // ItemCode عمداً ارسال نمی‌شود: اسکریپت خودش آن را با
-                // DECLARE @ItemCode از روی ItemId می‌خواند. ارسال هم‌نامِ آن
-                // باعث خطای SQL «Msg 134/۲۱۴» و شکست کل ثبت می‌شد.
                 WarehouseId = _warehouseId,
+                SubWarehouseId = _subWarehouseId == 0 ? (int?)null : _subWarehouseId,
                 MovementType = _type,
                 Qty = _qty,
                 UnitPrice = _unitPrice,
                 MovementDate = _date?.Date ?? DateTime.Today,
                 Description = _description,
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
             Snackbar.Add("حرکت ثبت شد.", Severity.Success);
             _qty = 1;

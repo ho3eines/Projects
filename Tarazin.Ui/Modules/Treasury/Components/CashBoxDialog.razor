@@ -1,0 +1,62 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد صندوق" @bind-Value="Model.CashBoxCode" Required="true"
+                                  RequiredError="کد صندوق الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="عنوان" @bind-Value="Model.Title" Required="true"
+                                  RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="Model.IsActive" Color="Color.Success">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public CashBoxRow Model { get; set; } = new();
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("treasury", "CashBoxUpsert", new
+            {
+                CashBoxId = Model.CashBoxId,
+                CashBoxCode = Model.CashBoxCode.Trim(),
+                Title = Model.Title.Trim(),
+                IsActive = Model.IsActive,
+                CompanyId = Session.ActiveCompanyId,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("صندوق ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

@@ -1,0 +1,113 @@
+@inject DbService Db
+@inject ISnackbar Snackbar
+@inject UserSession Session
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudSelect T="int" Label="کارمند" @bind-Value="_employeeId" Variant="Variant.Outlined" Required="true">
+                    <MudSelectItem Value="0">— انتخاب کارمند —</MudSelectItem>
+                    @foreach (var e in Employees)
+                    {
+                        <MudSelectItem Value="e.EmployeeId">@e.FullName (‎@e.EmployeeCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTimePicker Label="ورود" Culture="FaCulture" @bind-Time="_checkIn" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTimePicker Label="خروج" Culture="FaCulture" @bind-Time="_checkOut" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField Label="توضیحات" @bind-Value="_notes" Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+            ساعت استاندارد روزانه ۸ ساعت است؛ مازاد بر آن به‌صورت خودکار اضافه‌کار محاسبه
+            و هنگام باز کردن دورهٔ حقوق با ضریب ۱٫۴ وارد فیش می‌شود.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "payroll";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public List<EmployeeRow> Employees { get; set; } = new();
+    [Parameter] public AttendanceLogRow? Log { get; set; }
+
+    private int _employeeId;
+    private DateTime? _date = DateTime.Today;
+    private TimeSpan? _checkIn;
+    private TimeSpan? _checkOut;
+    private string _notes = "";
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        if (Log is not null)
+        {
+            _employeeId = Log.EmployeeId;
+            _date = Log.AttendanceDate;
+            _checkIn = Log.CheckIn;
+            _checkOut = Log.CheckOut;
+            _notes = Log.Notes ?? "";
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_employeeId <= 0)
+        {
+            Snackbar.Add("کارمند را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+        if (_checkIn is null || _checkOut is null)
+        {
+            Snackbar.Add("ورود و خروج را وارد کنید.", Severity.Warning);
+            return;
+        }
+        if (_checkOut <= _checkIn)
+        {
+            Snackbar.Add("خروج باید بعد از ورود باشد.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "AttendanceUpsert", new
+            {
+                EmployeeId = _employeeId,
+                CompanyId = Session.ActiveCompanyId,
+                AttendanceDate = _date ?? DateTime.Today,
+                CheckIn = _checkIn,
+                CheckOut = _checkOut,
+                Notes = string.IsNullOrWhiteSpace(_notes) ? null : _notes,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("حضورغیاب ثبت شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در ثبت: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

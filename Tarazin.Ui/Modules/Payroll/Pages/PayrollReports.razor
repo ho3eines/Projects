@@ -1,6 +1,12 @@
 @page "/payroll/reports"
+@using Stimulsoft.Report
+@using Stimulsoft.Report.Blazor
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
+@inject BiReportService ReportService
+@inject IDialogService Dialog
+@inject PdfReportService Pdf
 
 <PageTitle>گزارشات — حقوق و دستمزد</PageTitle>
 
@@ -8,11 +14,16 @@
 <MudTabs>
     <MudTabPanel Text="دوره‌های حقوق">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh"
-                       OnClick="LoadRunsAsync" Class="mb-4">
-                بارگذاری دوره‌ها
-            </MudButton>
-            <MudTable Items="_runs" Loading="_loadingRuns" Hover="true" Dense="true" Striped="true">
+            <div class="d-flex justify-space-between align-center flex-wrap mb-4" style="gap:8px">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadRunsAsync">
+                    بارگذاری دوره‌ها
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintRunsAsync"
+                           Disabled="_loadingRuns || _runs.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+            </div>
+            <MudTable Items="_runs" Loading="_loadingRuns" Hover="true" Dense="true" Striped="true"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>دوره</MudTh><MudTh>تعداد کارمند</MudTh><MudTh>خالص کل</MudTh><MudTh>وضعیت</MudTh><MudTh>تاریخ</MudTh>
                 </HeaderContent>
@@ -26,6 +37,7 @@
                     <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
             <MudText Typo="Typo.body2" Class="mt-4">
                 جمع خالص دوره‌های نمایش‌داده‌شده: <b>@_runs.Sum(r => r.NetTotal).ToString("N0")</b>
@@ -45,10 +57,17 @@
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6" md="4">
+                <MudItem xs="12" sm="6" md="2">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Search" OnClick="LoadSlipsAsync" Disabled="_loadingSlips">
                         نمایش فیش‌ها
+                    </MudButton>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="6">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Print" OnClick="PrintSlipsAsync"
+                               Disabled="_busyPrint || _runId == 0">
+                        چاپ فیش حقوق (Stimulsoft)
                     </MudButton>
                 </MudItem>
             </MudGrid>
@@ -69,6 +88,30 @@
                     جمع خالص: <b>@_slips.Sum(s => s.NetPay).ToString("N0")</b>
                 </MudText>
             }
+
+            @if (_busyPrint)
+            {
+                <MudPaper Elevation="1" Class="pa-8 text-center mt-4">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                    <MudText Typo="Typo.body2" Class="mt-3">در حال ساخت فیش حقوق…</MudText>
+                </MudPaper>
+            }
+
+            @if (!_busyPrint && _printError is not null)
+            {
+                <MudPaper Elevation="1" Class="pa-4 mt-4">
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+                        ساخت فیش حقوق ناموفق بود: @_printError
+                    </MudAlert>
+                </MudPaper>
+            }
+
+            @if (!_busyPrint && _printReport is not null)
+            {
+                <MudPaper Elevation="1" Class="mt-4">
+                    <StiBlazorViewer Report="@_printReport" Width="100%" Height="720px" />
+                </MudPaper>
+            }
         </MudPaper>
     </MudTabPanel>
 </MudTabs>
@@ -81,6 +124,9 @@
     private int _runId;
     private bool _loadingRuns;
     private bool _loadingSlips;
+    private StiReport? _printReport;
+    private bool _busyPrint;
+    private string? _printError;
 
     protected override async Task OnInitializedAsync() => await LoadRunsAsync();
 
@@ -92,7 +138,8 @@
             _runs = (await Db.QueryAsync<PayrollRunRow>(Schema, "PayrollRunSearch", new
             {
                 SkipRows = 0,
-                TakeSize = 200
+                TakeSize = 200,
+                CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
         catch (Exception ex)
@@ -116,7 +163,7 @@
         _loadingSlips = true;
         try
         {
-            _slips = (await Db.QueryAsync<PaySlipRow>(Schema, "PaySlipReport", new { RunId = _runId })).ToList();
+            _slips = (await Db.QueryAsync<PaySlipRow>(Schema, "PaySlipReport", new { RunId = _runId, CompanyId = Session.ActiveCompanyId })).ToList();
         }
         catch (Exception ex)
         {
@@ -126,5 +173,79 @@
         {
             _loadingSlips = false;
         }
+    }
+
+    private async Task PrintSlipsAsync()
+    {
+        if (_busyPrint) return;
+        if (_runId == 0)
+        {
+            Snackbar.Add("ابتدا یک دوره انتخاب کنید.", Severity.Warning);
+            return;
+        }
+
+        _busyPrint = true;
+        _printError = null;
+        try
+        {
+            _printReport = await ReportService.BuildPaySlipReportAsync(_runId);
+            Snackbar.Add("فیش حقوق ساخته شد — برای چاپ/PDF از دکمه‌های Viewer استفاده کنید.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _printReport = null;
+            _printError = ex.Message;
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busyPrint = false;
+        }
+    }
+
+    // ── چاپ دوره‌های حقوق (QuestPDF — طبق اسکیل tarazin-reporting) ──
+
+    private async Task PrintRunsAsync()
+    {
+        if (_runs.Count == 0) return;
+        await Dialog.ShowAsync<ReportPrintDialog>("چاپ دوره‌های حقوق", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, "دوره‌های حقوق" },
+            { x => x.Subtitle, "دوره‌های حقوق و خالص پرداختی هر دوره" },
+            { x => x.RangeText, $"تهیه شده در {DateTime.Now:yyyy/MM/dd HH:mm}" },
+            { x => x.Body, RunsTableBody },
+            { x => x.BuildPdf, BuildRunsPdf }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private RenderFragment RunsTableBody => @<MudTable Items="_runs" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>دوره</MudTh><MudTh>تعداد کارمند</MudTh><MudTh>خالص کل</MudTh><MudTh>وضعیت</MudTh><MudTh>تاریخ</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="دوره">@context.Period</MudTd>
+            <MudTd DataLabel="تعداد کارمند">@context.EmployeeCount</MudTd>
+            <MudTd DataLabel="خالص کل">@context.NetTotal.ToString("N0")</MudTd>
+            <MudTd DataLabel="وضعیت">@(context.Status == "Finalized" ? "نهایی‌شده" : context.Status)</MudTd>
+            <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private byte[] BuildRunsPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "دوره" }, new() { Header = "تعداد کارمند", AlignRight = true },
+            new() { Header = "خالص کل", AlignRight = true }, new() { Header = "وضعیت" }, new() { Header = "تاریخ" }
+        };
+        var rows = _runs.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.Period, r.EmployeeCount.ToString(), r.NetTotal.ToString("N0"),
+            r.Status == "Finalized" ? "نهایی‌شده" : r.Status, r.CreatedAt.ToString("yyyy/MM/dd")
+        }).ToList();
+
+        return Pdf.BuildTablePdf("دوره‌های حقوق", "دوره‌های حقوق و خالص پرداختی هر دوره",
+            $"تهیه شده در {DateTime.Now:yyyy/MM/dd HH:mm}", columns, rows,
+            new[] { $"جمع خالص دوره‌ها: {_runs.Sum(r => r.NetTotal):N0} ریال" }, paperSize);
     }
 }

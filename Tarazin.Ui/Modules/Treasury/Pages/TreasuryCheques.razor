@@ -1,0 +1,257 @@
+@page "/treasury/cheques"
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>چک‌ها — خزانه‌داری</PageTitle>
+
+<PageHeader Title="چک‌های دریافتی و پرداختی"
+            Subtitle="ثبت چک، پیگیری چرخهٔ کامل (در انتظار ← در جریان ← وصول/برگشتی) — وصول چک دریافتی به‌صورت خودکار حرکت خزانه و سند حسابداری می‌سازد."
+            Eyebrow="خزانه‌داری" />
+
+<MudPaper Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="3">
+            <MudSelect T="string" Label="جهت" @bind-Value="_direction" Variant="Variant.Outlined" @bind-Value:after="LoadAsync">
+                <MudSelectItem Value="@("")">همه</MudSelectItem>
+                <MudSelectItem Value="@("In")">دریافتی</MudSelectItem>
+                <MudSelectItem Value="@("Out")">پرداختی</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudSelect T="string" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined" @bind-Value:after="LoadAsync">
+                <MudSelectItem Value="@("")">همه</MudSelectItem>
+                <MudSelectItem Value="@("Pending")">در انتظار</MudSelectItem>
+                <MudSelectItem Value="@("Collecting")">در جریان وصول</MudSelectItem>
+                <MudSelectItem Value="@("Passed")">وصول شده</MudSelectItem>
+                <MudSelectItem Value="@("Returned")">برگشتی</MudSelectItem>
+                <MudSelectItem Value="@("Cancelled")">لغو شده</MudSelectItem>
+                <MudSelectItem Value="@("Voided")">باطل شده</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="2">
+            <MudTextField Label="جستجو (شماره چک یا منبع)" @bind-Value="_search" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="1" Class="d-flex align-center">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                       FullWidth="true" OnClick="LoadAsync">
+                جستجو
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="3" Class="d-flex align-center justify-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenNewAsync">
+                ثبت چک
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
+              Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>شماره چک</MudTh><MudTh>بانک</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh><MudTh>سررسید</MudTh>
+            <MudTh>وضعیت</MudTh><MudTh>وصول/برگشت</MudTh><MudTh>منبع</MudTh><MudTh>عملیات</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="شماره">@context.ChequeNumber</MudTd>
+            <MudTd DataLabel="بانک">@context.BankName</MudTd>
+            <MudTd DataLabel="جهت">
+                <MudChip T="string" Size="Size.Small" Color="StatusChipColor(context.Status)">
+                    @(context.Direction == "In" ? "دریافتی" : "پرداختی")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="سررسید">@(context.DueDate?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
+            <MudTd DataLabel="وضعیت">
+                <MudChip T="string" Size="Size.Small" Color="StatusChipColor(context.Status)">@StatusLabel(context.Status)</MudChip>
+            </MudTd>
+            <MudTd DataLabel="وصول/برگشت">
+                @if (context.CollectedAt is not null)
+                {
+                    <MudText Typo="Typo.caption">وصول: @context.CollectedAt.Value.ToLocalTime().ToString("yyyy/MM/dd")</MudText>
+                }
+                @if (context.ReturnedAt is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Error">برگشت: @context.ReturnedAt.Value.ToLocalTime().ToString("yyyy/MM/dd")</MudText>
+                    @if (!string.IsNullOrEmpty(context.ReturnReason))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">دلیل: @context.ReturnReason</MudText>
+                    }
+                }
+            </MudTd>
+            <MudTd DataLabel="منبع">@SourceLabel(context.SourceReference)</MudTd>
+            <MudTd DataLabel="عملیات">
+                @if (context.Status == "Pending")
+                {
+                    <MudTooltip Text="در جریان وصول">
+                        <MudIconButton Icon="@Icons.Material.Filled.HourglassTop" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => ChangeStatusAsync(context, "Collecting"))" />
+                    </MudTooltip>
+                    <MudTooltip Text="وصول شده">
+                        <MudIconButton Icon="@Icons.Material.Filled.DoneAll" Color="Color.Success" Size="Size.Small"
+                                       OnClick="@(() => CollectAsync(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="برگشتی">
+                        <MudIconButton Icon="@Icons.Material.Filled.Replay" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => ReturnAsync(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="لغو">
+                        <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Default" Size="Size.Small"
+                                       OnClick="@(() => ChangeStatusAsync(context, "Cancelled"))" />
+                    </MudTooltip>
+                }
+                else if (context.Status == "Collecting")
+                {
+                    <MudTooltip Text="وصول شده">
+                        <MudIconButton Icon="@Icons.Material.Filled.DoneAll" Color="Color.Success" Size="Size.Small"
+                                       OnClick="@(() => CollectAsync(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="برگشتی">
+                        <MudIconButton Icon="@Icons.Material.Filled.Replay" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => ReturnAsync(context))" />
+                    </MudTooltip>
+                }
+                else if (context.Status == "Passed" && context.Direction == "In")
+                {
+                    <MudTooltip Text="برگشت (اثر مالی معکوس)">
+                        <MudIconButton Icon="@Icons.Material.Filled.Replay" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => ReturnAsync(context))" />
+                    </MudTooltip>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Color="Color.Secondary">چکی ثبت نشده است.</MudText></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private const string Schema = "treasury";
+    private List<ChequeRow> _rows = new();
+    private List<BankRow> _banks = new();
+    private List<BankAccountRow> _bankAccounts = new();
+    private bool _loading;
+    private string _direction = "";
+    private string _status = "";
+    private string _search = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _banks = (await Db.QueryAsync<BankRow>(Schema, "BankList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _bankAccounts = (await Db.QueryAsync<BankAccountRow>(Schema, "BankAccountList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var all = (await Db.QueryAsync<ChequeRow>(Schema, "ChequeList", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                Direction = string.IsNullOrEmpty(_direction) ? null : _direction,
+                Status = string.IsNullOrEmpty(_status) ? null : _status
+            })).ToList();
+
+            _rows = string.IsNullOrWhiteSpace(_search)
+                ? all
+                : all.Where(c => c.ChequeNumber.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                 || (c.SourceReference ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenNewAsync()
+    {
+        var dlg = await Dialog.ShowAsync<ChequeDialog>("ثبت چک",
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task ChangeStatusAsync(ChequeRow row, string status)
+    {
+        try
+        {
+            await Db.ExecuteAsync(Schema, "ChequeStatusChange", new
+            {
+                ChequeId = row.ChequeId,
+                Status = status,
+                CompanyId = Session.ActiveCompanyId,
+                UpdatedBy = Session.UserName,
+                Reason = (string?)null,
+                CollectAccountId = (int?)null,
+                FiscalYearId = Session.ActiveFiscalYearId
+            });
+            Snackbar.Add($"وضعیت چک «{row.ChequeNumber}» به «{StatusLabel(status)}» تغییر کرد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    /// <summary>وصول چک دریافتی: انتخاب حساب بانکی مقصد و ساخت حرکت خزانه + سند.</summary>
+    private async Task CollectAsync(ChequeRow row)
+    {
+        if (row.Direction != "In")
+        {
+            // چک پرداختی: فقط وضعیت عوض می‌شود (طرف مقابل وصول کرده).
+            await ChangeStatusAsync(row, "Passed");
+            return;
+        }
+
+        var parameters = new DialogParameters<ChequeCollectDialog>
+        {
+            { x => x.Cheque, row },
+            { x => x.BankAccounts, _bankAccounts }
+        };
+        var dlg = await Dialog.ShowAsync<ChequeCollectDialog>($"وصول چک {row.ChequeNumber}", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task ReturnAsync(ChequeRow row)
+    {
+        var parameters = new DialogParameters<ChequeReturnDialog>
+        {
+            { x => x.Cheque, row }
+        };
+        var dlg = await Dialog.ShowAsync<ChequeReturnDialog>($"برگشت چک {row.ChequeNumber}", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Pending" => "در انتظار",
+        "Collecting" => "در جریان وصول",
+        "Passed" => "وصول شده",
+        "Returned" => "برگشتی",
+        "Cancelled" => "لغو شده",
+        "Voided" => "باطل شده",
+        _ => status
+    };
+
+    private static Color StatusChipColor(string status) => status switch
+    {
+        "Pending" => Color.Default,
+        "Collecting" => Color.Primary,
+        "Passed" => Color.Success,
+        "Returned" => Color.Error,
+        "Cancelled" or "Voided" => Color.Secondary,
+        _ => Color.Default
+    };
+
+    private static string SourceLabel(string? source) => source switch
+    {
+        null => "دستی",
+        var s when s.StartsWith("GoldInvoice:") => "فاکتور طلافروشی",
+        var s when s.StartsWith("Cheque:") => "وصول چک",
+        _ => source
+    };
+}

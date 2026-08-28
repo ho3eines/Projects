@@ -1,0 +1,119 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(Model is null ? "الگوی جدید" : "ویرایش الگو")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField Label="عنوان الگو (مثلاً حق مسکن، بیمه، وام)" @bind-Value="_model.Title"
+                                  Required="true" RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="دسته‌بندی" @bind-Value="_model.Category" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Earning")">اضافات (مزایا)</MudSelectItem>
+                        <MudSelectItem Value="@("Deduction")">کسورات</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success">فعال</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" Value="_model.IsPercent" ValueChanged="OnIsPercentChanged"
+                               Color="Color.Primary">درصد از حقوق پایه</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    @if (_model.IsPercent)
+                    {
+                        <MudNumericField T="decimal?" Label="درصد (%)" @bind-Value="_model.Percentage"
+                                         Min="0" Max="50" Variant="Variant.Outlined" />
+                    }
+                    else
+                    {
+                        <MudNumericField T="decimal?" Label="مبلغ ثابت (ریال)" @bind-Value="_model.FixedAmount"
+                                         Min="0" Format="N0" Variant="Variant.Outlined" />
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_model.SortOrder"
+                                     Min="0" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy || !_isValid">
+            @(_busy ? "در حال ذخیره…" : "ذخیره")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public SalaryTemplateRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private SalaryTemplateRow _model = new();
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _model = new SalaryTemplateRow
+            {
+                TemplateId = Model.TemplateId,
+                Title = Model.Title,
+                Category = Model.Category,
+                IsPercent = Model.IsPercent,
+                Percentage = Model.Percentage,
+                FixedAmount = Model.FixedAmount,
+                SortOrder = Model.SortOrder,
+                IsActive = Model.IsActive
+            };
+        }
+    }
+
+    private void OnIsPercentChanged(bool val)
+    {
+        _model.IsPercent = val;
+        if (val) { _model.FixedAmount = null; _model.Percentage = _model.Percentage ?? 7.0m; }
+        else { _model.Percentage = null; _model.FixedAmount = _model.FixedAmount ?? 0; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("payroll", "SalaryTemplateUpsert", new
+            {
+                TemplateId = _model.TemplateId,
+                Title = _model.Title.Trim(),
+                Category = _model.Category,
+                IsPercent = _model.IsPercent,
+                Percentage = _model.Percentage,
+                FixedAmount = _model.FixedAmount,
+                SortOrder = _model.SortOrder,
+                IsActive = _model.IsActive,
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("الگو ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

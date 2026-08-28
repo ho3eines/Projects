@@ -17,4 +17,5 @@ FROM [treasury].[CashMovements] m
 LEFT JOIN [treasury].[BankAccounts] a ON a.AccountId = m.AccountId
 LEFT JOIN [treasury].[CashBoxes] c ON c.CashBoxId = m.CashBoxId
 WHERE m.MovementDate BETWEEN @FromDate AND @ToDate
+  AND (@CompanyId IS NULL OR m.CompanyId = @CompanyId)
 ORDER BY m.MovementDate, m.MovementId;

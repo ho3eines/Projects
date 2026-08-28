@@ -1,0 +1,69 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Replay" Class="mr-2" Color="Color.Error" />
+            برگشت چک @Cheque.ChequeNumber
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+            چک به مبلغ <b>@Cheque.Amount.ToString("N0")</b> ریال برگشت می‌خورد و وضعیت آن «برگشتی» می‌شود.
+        </MudAlert>
+        @if (Cheque.Status == "Passed")
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">
+                این چک قبلاً <b>وصول شده</b> و حرکت خزانه + سند حسابداری ساخته است. با برگشت، اثر مالی وصول به‌صورت خودکار <b>معکوس</b> می‌شود (حرکت باطل، موجودی بانک و سند برگشت می‌خورد).
+            </MudAlert>
+        }
+        <MudTextField Label="دلیل برگشت" @bind-Value="_reason" Variant="Variant.Outlined" MaxLength="500"
+                      Lines="3" HelperText="مثلاً: موجودی ناکافی، مغایرت امضا، تاریخ گذشته" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Replay"
+                   OnClick="SaveAsync" Disabled="_busy">تأیید برگشت</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public ChequeRow Cheque { get; set; } = default!;
+
+    private string _reason = "";
+    private bool _busy;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (string.IsNullOrWhiteSpace(_reason))
+        {
+            Snackbar.Add("دلیل برگشت را وارد کنید.", Severity.Warning);
+            return;
+        }
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("treasury", "ChequeStatusChange", new
+            {
+                ChequeId = Cheque.ChequeId,
+                Status = "Returned",
+                CompanyId = Session.ActiveCompanyId,
+                UpdatedBy = Session.UserName,
+                Reason = _reason.Trim(),
+                CollectAccountId = (int?)null,
+                FiscalYearId = Session.ActiveFiscalYearId
+            });
+            Snackbar.Add($"چک «{Cheque.ChequeNumber}» برگشت خورد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

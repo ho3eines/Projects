@@ -25,8 +25,18 @@ BEGIN
         UpdatedAt         DATETIME2 NULL,
         CreatedBy         NVARCHAR(100) NULL,
         UpdatedBy         NVARCHAR(100) NULL,
-        IsDeleted         BIT NOT NULL DEFAULT 0
+        IsDeleted         BIT NOT NULL DEFAULT 0,
+        SourceReference   NVARCHAR(100) NULL   -- idempotency key (Cheque:12, Invoice:5)
     );
+END
+
+-- Existing databases: add SourceReference if missing (idempotent).
+IF OBJECT_ID(N'accounting.Documents', N'U') IS NOT NULL
+   AND NOT EXISTS (
+       SELECT 1 FROM sys.columns
+       WHERE object_id = OBJECT_ID(N'accounting.Documents') AND name = N'SourceReference')
+BEGIN
+    ALTER TABLE [accounting].[Documents] ADD SourceReference NVARCHAR(100) NULL;
 END
 
 -- Journal lines (double-entry): the debit/credit detail behind each document.
@@ -921,4 +931,10 @@ BEGIN
     FROM [goldshop].[GoldShopSettings]
     WHERE CustomerAccountGroupId IS NOT NULL OR SupplierAccountGroupId IS NOT NULL OR InventoryAccountGroupId IS NOT NULL;
 END
+GO
+-- ─────────────────────────────────────────────────────────────
+-- Migrations: PayrollPostings — CompanyId for multi-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'accounting.PayrollPostings', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[PayrollPostings] ADD CompanyId INT NULL;
 GO

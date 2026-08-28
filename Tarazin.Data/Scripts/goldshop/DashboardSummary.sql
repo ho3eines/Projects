@@ -8,4 +8,8 @@ SELECT
     (SELECT ISNULL(SUM(TotalAmount), 0) FROM [goldshop].[SaleInvoices] WHERE InvoiceDate = CAST(SYSDATETIME() AS DATE) AND CompanyId = @CompanyId) AS TodayAmount,
     (SELECT COUNT(*) FROM [goldshop].[GoldPrices] WHERE IsDeleted = 0 AND CompanyId = @CompanyId) AS PriceCount,
     (SELECT TOP 1 PricePerGram FROM [goldshop].[GoldPrices]
-     WHERE ItemCode = N'XAU-24' AND IsDeleted = 0 AND CompanyId = @CompanyId ORDER BY UpdatedAt DESC) AS Gold24Price;
+     WHERE ItemCode = N'XAU-24' AND IsDeleted = 0 AND CompanyId = @CompanyId ORDER BY UpdatedAt DESC) AS Gold24Price,
+    -- چک‌های تسویهٔ فاکتورهای طلافروشی (GoldInvoice:<id>) که هنوز در انتظار/در جریان‌اند
+    (SELECT COUNT(*) FROM [treasury].[Cheques]
+     WHERE SourceReference LIKE N'GoldInvoice:%' AND CompanyId = @CompanyId
+       AND Status IN (N'Pending', N'Collecting')) AS PendingInvoiceCheques;

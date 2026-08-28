@@ -1,0 +1,319 @@
+@inject DbService Db
+@inject UserSession Session
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Receipt" Class="mr-3" /> جزئیات فاکتور @InvoiceNumber
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="3">
+            <!-- اطلاعات پایه -->
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">شماره فاکتور</MudText>
+                <MudText Typo="Typo.body1"><b>@InvoiceNumber</b></MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">تاریخ</MudText>
+                <MudText Typo="Typo.body1">@InvoiceDate.ToString("yyyy/MM/dd")</MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">مشتری / تأمین‌کننده</MudText>
+                <MudText Typo="Typo.body1"><b>@CustomerName</b></MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">وضعیت</MudText>
+                @if (Status == "Final")
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small">نهایی</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">پیش‌نویس</MudChip>
+                }
+            </MudItem>
+
+            <MudItem xs="12"><MudDivider Class="my-2" /></MudItem>
+
+            <!-- اطلاعات کالا -->
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">کد کالا</MudText>
+                <MudText Typo="Typo.body1">@ItemCode</MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">عنوان کالا</MudText>
+                <MudText Typo="Typo.body1">@ItemTitle</MudText>
+            </MudItem>
+
+            <MudItem xs="12"><MudDivider Class="my-2" /></MudItem>
+
+            <!-- اطلاعات مالی -->
+            <MudItem xs="12" sm="4">
+                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(13,110,253,.06);border-radius:8px">
+                    <MudText Typo="Typo.caption" Color="Color.Primary">وزن</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Primary">@WeightGram.ToString("N3") <small>گرم</small></MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(25,135,84,.08);border-radius:8px">
+                    <MudText Typo="Typo.caption" Color="Color.Success">اجرت + سود</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Success">@((Workmanship + Profit).ToString("N0")) <small>ریال</small></MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(255,193,7,.10);border-radius:8px">
+                    <MudText Typo="Typo.caption" Color="Color.Warning">مالیات</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Warning">@Tax.ToString("N0") <small>ریال</small></MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudPaper Elevation="0" Class="pa-4 text-center" Style="background: rgba(33,150,243,.08);border-radius:8px">
+                    <MudText Typo="Typo.h5" Color="Color.Primary"><b>@TotalAmount.ToString("N0") ریال</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">جمع کل فاکتور</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12"><MudDivider Class="my-2" /></MudItem>
+
+            <!-- اطلاعات سند حسابداری -->
+            @if (_docInfo is not null)
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h6" Class="mb-2">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Class="mr-1" /> سند حسابداری
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">شماره سند</MudText>
+                    <MudText Typo="Typo.body1"><b>@(_docInfo.DocumentNumber)</b></MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">تاریخ سند</MudText>
+                    <MudText Typo="Typo.body1">@(_docInfo.DocumentDate.ToString("yyyy/MM/dd"))</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">شرح</MudText>
+                    <MudText Typo="Typo.body1">@(_docInfo.Description ?? "—")</MudText>
+                </MudItem>
+                @if (_docLines.Count > 0)
+                {
+                    <MudItem xs="12">
+                        <MudTable Items="_docLines" Dense="true" Hover="true" Striped="true">
+                            <HeaderContent>
+                                <MudTh>حساب</MudTh>
+                                <MudTh>بدهکار</MudTh>
+                                <MudTh>بستانکار</MudTh>
+                                <MudTh>شرح</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="حساب">@context.AccountCode</MudTd>
+                                <MudTd DataLabel="بدهکар">@(context.Debit > 0 ? context.Debit.ToString("N0") : "")</MudTd>
+                                <MudTd DataLabel="بستانکار">@(context.Credit > 0 ? context.Credit.ToString("N0") : "")</MudTd>
+                                <MudTd DataLabel="شرح">@context.LineDescription</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudItem>
+                }
+            }
+            else
+            {
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" Dense="true">سند حسابداری برای این فاکتور ثبت نشده است.</MudAlert>
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="PrintAsync" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Print">چاپ فاکتور</MudButton>
+        <MudButton OnClick="Close" Variant="Variant.Outlined">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public int InvoiceId { get; set; }
+    [Parameter] public string InvoiceNumber { get; set; } = "";
+    [Parameter] public DateTime InvoiceDate { get; set; }
+    [Parameter] public string CustomerName { get; set; } = "";
+    [Parameter] public string ItemCode { get; set; } = "";
+    [Parameter] public string ItemTitle { get; set; } = "";
+    [Parameter] public decimal WeightGram { get; set; }
+    [Parameter] public decimal Workmanship { get; set; }
+    [Parameter] public decimal Profit { get; set; }
+    [Parameter] public decimal Tax { get; set; }
+    [Parameter] public decimal TotalAmount { get; set; }
+    [Parameter] public string Status { get; set; } = "";
+
+    private DocHeaderRow? _docInfo;
+    private List<DocLineRow> _docLines = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocumentAsync();
+    }
+
+    private async Task LoadDocumentAsync()
+    {
+        try
+        {
+            // Find accounting document linked to this invoice by description in DocumentLines
+            var docs = (await Db.QueryAsync<DocHeaderRow>("accounting", "DocumentSearchByRef", new
+            {
+                Reference = InvoiceNumber,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
+            })).ToList();
+
+            _docInfo = docs.FirstOrDefault();
+
+            if (_docInfo is not null)
+            {
+                _docLines = (await Db.QueryAsync<DocLineRow>("accounting", "DocumentLines", new
+                {
+                    DocumentId = _docInfo.DocumentId,
+                    CompanyId = Session.ActiveCompanyId,
+                    FiscalYearId = Session.ActiveFiscalYearId
+                })).ToList();
+            }
+        }
+        catch { /* silent — doc may not exist yet */ }
+    }
+
+    /// <summary>
+    /// باز کردن دیالوگ چاپ: دادهٔ چاپ (سرصفحه + ردیف‌ها + تسویه) را از
+    /// GoldInvoicePrint.sql می‌خواند و به مدل چاپ تبدیل می‌کند.
+    /// </summary>
+    private async Task PrintAsync()
+    {
+        try
+        {
+            var rows = (await Db.QueryAsync<InvoicePrintRow>("goldshop", "GoldInvoicePrint", new
+            {
+                InvoiceId,
+                CompanyId = Session.ActiveCompanyId
+            })).ToList();
+
+            if (rows.Count == 0)
+            {
+                Snackbar.Add("داده‌ای برای چاپ یافت نشد.", Severity.Warning);
+                return;
+            }
+
+            var first = rows[0];
+            var model = new GoldInvoicePrintModel
+            {
+                InvoiceType = first.InvoiceType,
+                InvoiceNumber = first.InvoiceNumber,
+                InvoiceDate = first.InvoiceDate,
+                PartyName = first.PartyName,
+                DetailCode = first.DetailCode,
+                TotalBase = first.TotalBase,
+                TotalTax = first.TotalTax,
+                TotalAmount = first.TotalAmount,
+                BalanceRial = first.BalanceRial,
+                TaxPct = first.TaxPct,
+                LaborTaxPct = first.LaborTaxPct,
+                DocumentId = first.DocumentId,
+                PayCash = first.PayCash,
+                PayBank = first.PayBank,
+                PayGoldGram = first.PayGoldGram,
+                GoldPrice = first.GoldPrice,
+                PayCurrencyQty = first.PayCurrencyQty,
+                PayCurrencyCode = first.PayCurrencyCode,
+                PayCurrencyRate = first.PayCurrencyRate,
+                PayChequeAmount = first.PayChequeAmount,
+                ChequeNumber = first.ChequeNumber,
+                ChequeBankName = first.ChequeBankName,
+                ChequeDueDate = first.ChequeDueDate,
+                Lines = rows.Select(r => new GoldInvoicePrintLine
+                {
+                    RowType = r.RowType,
+                    Title = r.Title ?? "",
+                    CurrencyCode = r.CurrencyCode,
+                    Qty = r.Qty,
+                    Price = r.RowType == "Gold" ? r.Price : 0,
+                    ResolvedRate = r.Rate,
+                    Workmanship = r.Workmanship,
+                    Profit = r.Profit,
+                    TaxEnabled = r.TaxEnabled
+                }).ToList()
+            };
+
+            // چاپ با قالب HTML رسمی (هدر لوگو + فوتر شماره صفحه با @page CSS).
+            await DialogService.ShowAsync<GoldInvoicePrintDialog>("چاپ فاکتور",
+                new DialogParameters<GoldInvoicePrintDialog>
+                {
+                    { x => x.Model, model }
+                },
+                new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+
+    // Simple models for the dialog
+
+    private sealed class InvoicePrintRow
+    {
+        public string InvoiceType { get; set; } = "Sale";
+        public string InvoiceNumber { get; set; } = "";
+        public DateTime InvoiceDate { get; set; }
+        public string PartyName { get; set; } = "";
+        public string? DetailCode { get; set; }
+        public string RowType { get; set; } = "Gold";
+        public string? Title { get; set; }
+        public string? CurrencyCode { get; set; }
+        public decimal Qty { get; set; }
+        public decimal Price { get; set; }
+        public decimal Rate { get; set; }
+        public decimal Workmanship { get; set; }
+        public decimal Profit { get; set; }
+        public bool TaxEnabled { get; set; }
+        public decimal TotalBase { get; set; }
+        public decimal TotalTax { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal BalanceRial { get; set; }
+        public decimal TaxPct { get; set; } = 10;
+        public decimal LaborTaxPct { get; set; } = 10;
+        public int DocumentId { get; set; }
+        public decimal PayCash { get; set; }
+        public decimal PayBank { get; set; }
+        public decimal PayGoldGram { get; set; }
+        public decimal GoldPrice { get; set; }
+        public decimal PayCurrencyQty { get; set; }
+        public string? PayCurrencyCode { get; set; }
+        public decimal PayCurrencyRate { get; set; }
+        public decimal PayChequeAmount { get; set; }
+        public string? ChequeNumber { get; set; }
+        public string? ChequeBankName { get; set; }
+        public DateTime? ChequeDueDate { get; set; }
+    }
+
+    // Simple models for the dialog
+    private class DocHeaderRow
+    {
+        public int DocumentId { get; set; }
+        public string DocumentNumber { get; set; } = "";
+        public DateTime DocumentDate { get; set; }
+        public string? Description { get; set; }
+        public string? Reference { get; set; }
+    }
+
+    private class DocLineRow
+    {
+        public string AccountCode { get; set; } = "";
+        public decimal Debit { get; set; }
+        public decimal Credit { get; set; }
+        public string? LineDescription { get; set; }
+    }
+}

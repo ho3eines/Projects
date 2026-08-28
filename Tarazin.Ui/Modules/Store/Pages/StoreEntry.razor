@@ -2,18 +2,21 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@using Tarazin.Models
 
 <PageTitle>ثبت سفارش — فروشگاه اینترنتی</PageTitle>
 
-<PageHeader Title="ثبت سفارش" Subtitle="انتخاب مشتری ← افزودن به سبد ← ثبت سفارش." />
+<PageHeader Title="ثبت سفارش" Subtitle="انتخاب مشتری ← افزودن به سبد ← تسویه (نقدی/بانک/چک/نسیه) ← ثبت سفارش. با ثبت، سند حسابداری (یاداشت)، دفتر مشتری، خزانه و انبار هم‌زمان به‌روز می‌شوند." />
+
 <MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-3">۱) انتخاب مشتری و کالا</MudText>
     <MudGrid>
         <MudItem xs="12" sm="6" md="4">
             <MudSelect T="int" Label="مشتری" Value="_customerId" ValueChanged="OnCustomerChanged" Variant="Variant.Outlined">
                 <MudSelectItem Value="0">— انتخاب مشتری —</MudSelectItem>
                 @foreach (var c in _customers)
                 {
-                    <MudSelectItem Value="c.CustomerId">@c.FullName</MudSelectItem>
+                    <MudSelectItem Value="c.CustomerId">@c.FullName @(c.Balance != 0 ? $"({(c.Balance > 0 ? "بدهکار" : "بستانکار")} {Math.Abs(c.Balance):N0})" : "")</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
@@ -39,7 +42,7 @@
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudText Typo="Typo.subtitle1" Class="mb-3">سبد خرید — @(_customerId == 0 ? "مشتری را انتخاب کنید" : CustomerName)</MudText>
+    <MudText Typo="Typo.subtitle1" Class="mb-3">۲) سبد خرید — @(_customerId == 0 ? "مشتری را انتخاب کنید" : CustomerName)</MudText>
     <MudTable Items="_cart" Hover="true" Dense="true" Striped="true" Loading="_loadingCart">
         <HeaderContent>
             <MudTh>کالا</MudTh><MudTh>تعداد</MudTh><MudTh>قیمت</MudTh><MudTh>جمع</MudTh>
@@ -52,30 +55,80 @@
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">سبد خالی است.</MudText></NoRecordsContent>
     </MudTable>
-
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ShoppingCart"
-               OnClick="PlaceOrderAsync" Disabled="_busy" Class="mt-4">
-        ثبت سفارش
-    </MudButton>
+    <MudText Typo="Typo.subtitle1" Class="mt-3">جمع کل: <b>@CartTotal.ToString("N0")</b> ریال</MudText>
 </MudPaper>
 
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-3">۳) تسویه (نقدی / بانک / چک — باقیمانده = نسیه)</MudText>
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="نقدی" @bind-Value="_payCash" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" Label="بانک" @bind-Value="_payBank" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="4" md="2">
+            <MudNumericField T="decimal" Label="مبلغ چک" @bind-Value="_payChequeAmount" Variant="Variant.Outlined" Min="0" />
+        </MudItem>
+        <MudItem xs="12" sm="4" md="2">
+            <MudTextField T="string" Label="شماره چک" @bind-Value="_payChequeNumber" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="4" md="2">
+            <MudSelect T="int" Label="بانک چک" @bind-Value="_payChequeBankId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— بانک —</MudSelectItem>
+                @foreach (var b in _banks) { <MudSelectItem Value="b.BankId">@b.Title</MudSelectItem> }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="سررسید چک" Culture="FaCulture" @bind-Date="_payChequeDueDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField T="string" Label="تاریخ سفارش" Value="OrderDateText" Variant="Variant.Outlined" Disabled="true" />
+        </MudItem>
+    </MudGrid>
+    <MudAlert Severity="@(Remainder < 0 ? Severity.Error : Severity.Info)" Dense="true" Class="mt-3" Variant="Variant.Text">
+        کل: @CartTotal.ToString("N0") — تسویه: @TotalPayments.ToString("N0") — <b>نسیه: @Remainder.ToString("N0")</b> ریال
+    </MudAlert>
+</MudPaper>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ShoppingCart"
+           OnClick="PlaceOrderAsync" Disabled="_busy || _cart.Count == 0" Class="mb-4">
+    ثبت سفارش و صدور سند
+</MudButton>
+
 @code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
     private const string Schema = "store";
 
     private List<CustomerRow> _customers = new();
     private List<ProductRow> _products = new();
     private List<CartItemRow> _cart = new();
+    private List<BankRow> _banks = new();
     private int _customerId;
     private int _productId;
     private decimal _qty = 1;
     private bool _loadingCart;
     private bool _busy;
+    private DateTime? _orderDate = DateTime.Today;
+
+    private decimal _payCash;
+    private decimal _payBank;
+    private decimal _payChequeAmount;
+    private string _payChequeNumber = "";
+    private int _payChequeBankId;
+    private DateTime? _payChequeDueDate;
+
     private string CustomerName => _customers.FirstOrDefault(c => c.CustomerId == _customerId)?.FullName ?? "";
+    private string OrderDateText => _orderDate?.ToString("yyyy/MM/dd") ?? "";
+    private decimal CartTotal => _cart.Sum(x => x.LineTotal);
+    private decimal TotalPayments => _payCash + _payBank + _payChequeAmount;
+    private decimal Remainder => CartTotal - TotalPayments;
 
     protected override async Task OnInitializedAsync()
     {
-        _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList")).ToList();
+        _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
+        _banks = (await Db.QueryAsync<BankRow>("treasury", "BankList", new { CompanyId = Session.ActiveCompanyId })).ToList();
     }
 
     private async Task OnCustomerChanged(int id)
@@ -130,18 +183,38 @@
             Snackbar.Add("سبد خالی است.", Severity.Warning);
             return;
         }
+        if (Remainder < -0.5m)
+        {
+            Snackbar.Add("مبلغ تسویه (نقدی+بانک+چک) از کل سفارش بیشتر است.", Severity.Error);
+            return;
+        }
+        if (_payChequeAmount > 0 && (string.IsNullOrEmpty(_payChequeNumber) || _payChequeBankId <= 0))
+        {
+            Snackbar.Add("شماره چک و بانک چک الزامی است.", Severity.Warning);
+            return;
+        }
 
         _busy = true;
         try
         {
-            await Db.ExecuteAsync(Schema, "OrderPlace", new
+            var result = await Db.ExecuteReturningAsync<OrderResultRow>(Schema, "OrderPlace", new
             {
-                // CustomerName/CreatedBy ارسال نمی‌شوند: اسکریپت CustomerName را
-                // خودش DECLARE و از جدول مشتریان می‌خواند (ارسال هم‌نام = خطای SQL).
-                CustomerId = _customerId
+                CustomerId = _customerId,
+                OrderDate = _orderDate?.Date ?? DateTime.Today,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
+                CreatedBy = Session.UserName,
+                PayCash = _payCash,
+                PayBank = _payBank,
+                ChequeNumber = string.IsNullOrEmpty(_payChequeNumber) ? null : _payChequeNumber,
+                ChequeBankId = _payChequeBankId > 0 ? _payChequeBankId : (int?)null,
+                ChequeAmount = _payChequeAmount,
+                ChequeDueDate = _payChequeDueDate?.Date
             });
-            Snackbar.Add("سفارش ثبت شد.", Severity.Success);
+            Snackbar.Add($"سفارش {result?.OrderNumber} ثبت شد. کل: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
             _cart = new();
+            _payCash = 0; _payBank = 0; _payChequeAmount = 0; _payChequeNumber = ""; _payChequeBankId = 0; _payChequeDueDate = null;
+            _customerId = 0;
         }
         catch (Exception ex)
         {

@@ -135,6 +135,30 @@
         </MudItem>
     </MudGrid>
 
+    <MudPaper Elevation="0" Class="pa-3 mb-3" Style="background:rgba(25,118,210,0.04);border:1px dashed rgba(25,118,210,0.35)">
+        <MudText Typo="Typo.caption" Color="Color.Primary" Class="mb-2">
+            ثبت در سال مالی بسته — فقط با مجوز «ثبت در سال بسته» و درج دلیل (در ممیزی ثبت می‌شود)
+        </MudText>
+        <div class="d-flex flex-wrap align-center" style="gap:12px">
+            <MudSwitch T="bool" @bind-Value="_overrideClosedYear"
+                       Disabled="@(!CanOverrideClosedYear)"
+                       Color="Color.Error"
+                       Label="ثبت در سال بسته (با مجوز)" />
+            <MudTextField T="string" Label="دلیل ثبت در سال بسته (الزامی)"
+                          @bind-Value="_overrideReason"
+                          Placeholder="مثلاً: اصلاح سند پایان دورهٔ قبل"
+                          Variant="Variant.Outlined"
+                          Disabled="@(!_overrideClosedYear)"
+                          Class="flex-grow-1" />
+        </div>
+        @if (!CanOverrideClosedYear)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                شما مجوز «ثبت در سال بسته» را ندارید — در سال بسته نمی‌توانید سند ثبت کنید.
+            </MudText>
+        }
+    </MudPaper>
+
     <div class="d-flex flex-wrap" style="gap:8px">
         <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine" StartIcon="@Icons.Material.Filled.Add">
             + ردیف
@@ -158,6 +182,11 @@
     private string _counterParty = "";
     private string _status = AccountingDocumentStatus.Draft;
     private bool _busy;
+    private bool _overrideClosedYear;
+    private string _overrideReason = "";
+
+    private bool CanOverrideClosedYear =>
+        Session.IsAdmin || Session.HasPermission(TarazinPermissions.AccountingClosedYear);
 
     private AccountDetailBalance _accountDetailBalance= new AccountDetailBalance();
 
@@ -407,8 +436,13 @@
                 Status = _status,
                 CreatedBy = Session.UserName,
                 CompanyId = Session.ActiveCompanyId,
-                FiscalYearId = Session.ActiveFiscalYearId
+                FiscalYearId = Session.ActiveFiscalYearId,
+                OverrideClosedYear = _overrideClosedYear && CanOverrideClosedYear,
+                OverrideReason = _overrideReason
             });
+
+            _overrideClosedYear = false;
+            _overrideReason = "";
 
             Snackbar.Add("سند با موفقیت ثبت شد.", Severity.Success);
             _lines.Clear();

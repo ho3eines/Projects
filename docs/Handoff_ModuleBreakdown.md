@@ -41,6 +41,16 @@
 - **چندشرکتی‌سازی seedها**: `central._Seed` (طرف‌حساب‌ها و سال مالی ۱۴۰۵)، `accounting._Seed` (ترازنامه/گروه‌ها/TaxRules)، `inventory._Seed` (انبار/کالا) و `treasury._Seed` (بانک/صندوق/نرخ) همه با cursor روی **همهٔ شرکت‌های فعال** اجرا می‌شوند؛ یکتایی‌های سراسری `BaseDetil.DetilCode`، `AccountGroups (Type+Code)`، `Warehouses.WarehouseCode`، `Items.ItemCode`، `Banks/CashBoxes/CurrencyRates/DayCloses` به ایندکس‌های درون‌شرکتی (`UX_*` با CompanyId) تبدیل شده‌اند و `BaseDetilCreateAuto/NextCode` نیز CompanyId-aware هستند.
 - **تأیید زنده (۱۴۰۵/۰۶/۰۲)**: مشتری جدید «مشتری اتولینک تست» از UI ساخته شد → کد `CUS-00010` + **تفصیلی خودکار `2000009`** در گروه مشتریان (گروه 3) با لینک به دارایی جاری. فاکتور ۲ گرمی برای همان مشتری → سند `DocumentId=72` متوازن با `AccountCode=2000009` + ردیف دفتر مشتری + حرکت انبار Issue — بدون هیچ انتخاب دستی حساب. فاکتورهای قبلی (GINV-00007 با ۱۰ گرم و GINV-00008 ترکیبی طلا+USD) همچنان با تفصیلی `2000000` کار می‌کنند.
 
+## یکپارچه‌سازی فروشگاه با حسابداری، خزانه و انبار (۱۴۰۵/۰۶/۰۶)
+
+- **قبل از این تغییر** فروشگاه فقط سفارش می‌ساخت و رویداد `OrderPlaced` را در `store.Outbox` می‌نوشت؛ هیچ دیسپچری آن را مصرف نمی‌کرد و پرداخت/سند/دفتر وجود نداشت — «سفارش → انبار» هم ناتمام بود.
+- `OrderPlace.sql` بازنویسی شد و دقیقاً الگوی `GoldInvoiceCreate` را اجرا می‌کند (همه در یک تراکنش): کنترل موجودی → سفارش (`Status='Invoiced'` + `PaymentStatus` Paid/Partial/Unpaid + `BalanceRial` + ستون‌های تسویه) → خروج FIFO انبار (لایه‌ها + `Movements` Issue + کاهش `StockQty` + آزادسازی رزروها) → **دفتر مشتری** (`store.OrderLedger`: بدهکار کل، بستانکار تسویه) → **خزانه** (نقد/بانک در `CashMovements` + چک در `Cheques` با `SourceReference='StoreOrder:{id}'`) → **سند حسابداری یاداشت** (`Status='Note'`، `DocumentType='Sale'`، بدهکار: نسیه/صندوق/بانک/چک، بستانکار: فروش، `SourceReference='StoreOrder:{id}'`). خروجی: `OrderId/OrderNumber/TotalAmount/BalanceRial/DocumentId`.
+- **تنظیمات فروشگاه** (`store.StoreSettings` + Get/Upsert): انبار، حساب فروش/صندوق/بانک (از درخت حساب‌ها با `AccountPickerField`)، صندوق/حساب بانکی پیش‌فرض خزانه — تب «اتصال حسابداری» در `/store/settings`.
+- **مشتریان فروشگاه → طرف حساب یکپارچه**: `store.Customers.PartyId` به `central.Parties` لینک شد؛ `CustomerUpsert` هنگام ساخت/ویرایش مشتری، `central.Parties` (کد `CUS-xxxxx`) + لینک حسابداری خودکار (`treasury.PartyLinks` با تفصیلی از گروه `CompanyAccountSettings.CustomerAccountGroupId` — کد ۷رقمی داخل بازهٔ گروه) می‌سازد. `_Ensure` مشتریان قدیمی بدون لینک را backfill می‌کند. `CustomerList` ماندهٔ دفتر (بدهکار/بستانکار) را هم برمی‌گرداند.
+- **UI**: `StoreEntry` بخش تسویه (نقدی/بانک/چک/نسیه با تراز صفر) گرفت؛ `StoreHome` ستون‌های نسیه/تسویه/سند + دیالوگ «جزئیات سفارش» (اقلام + دفتر مشتری + مانده)؛ اسکریپت‌های `OrderItemsByOrder`، `OrderLedgerList`، `OrderLedgerBalance` و مدل‌های `OrderResultRow`، `OrderLedgerRow`، `StoreSettingsRow`، `OrderItemRow` اضافه شدند.
+- **تأیید زنده (۱۴۰۵/۰۶/۰۶)**: از UI سفارش ORD-00004 (سارا رضایی، سکه طلا ۶۲٬۰۰۰٬۰۰۰ با تسویهٔ نقد ۴۲٬۰۰۰٬۰۰۰ + چک CHQ-UI-0002 به مبلغ ۲۰٬۰۰۰٬۰۰۰) ثبت شد → سند ۸۹ **متوازن** (صندوق ۴۲M + بانک ۲۰M ← فروش ۶۲M)، ردیف دفتر مشتری ۶۲M/۶۲M، حرکت خزانه CSH-00027، چک Pending و حوالهٔ انبار SIKKEH ۸۵→۸۴. دیالوگ جزئیات و تب اتصال حسابداری از UI تأیید شد.
+- نکته: دادهٔ فروشگاه seed قدیمی روی شرکت حذف‌شدهٔ ۱ بود و به شرکت فعال ۳ منتقل شد (مشتریان/محصولات/لینک‌ها).
+
 ## 3. Tarazin.Ui
 - **Purpose**: Blazor‑based UI library (RCL) shared by Web and MAUI hosts.
 - **Coding rules**: development, MudBlazor 9.8.0 conventions, permissions, and copy‑paste UI patterns are documented in `.claude/skills/tarazin-development/SKILL.md` — read it before touching UI code.
@@ -111,10 +121,12 @@ Tarazin.Share → Tarazin.Data → Tarazin.Ui → (Tarazin.Web, Tarazin.Maui)
 - Deploy **Web** output to IIS or any HTTP‑capable server.  
 - Deploy **MAUI** binaries directly to the target device; sign Android/iOS builds with the provided keystore.
 
+> **⚠️ Golden build rule:** after **any change in `Tarazin.Ui`** (any `.razor` page/component, service, or the shared `PdfReportService`), always run `dotnet build Tarazin.Web/Tarazin.Web.csproj`. `dotnet test` or a solo `Tarazin.Ui` build only refreshes `Tarazin.Ui/bin` — it does **not** refresh the `Tarazin.Web/bin` copy, and a dev server started with `--no-build` will keep serving the stale code (the recurring “columns RTL but header not” bug). Confirmed by `tools/check-stale-build.sh` before any dev-server restart. The one-shot gate `bash tools/run-checks.sh` runs this whole chain (cross-schema scan → PDF tests → Web build → stale guard) in sequence.
+
 ## 9. Testing & Validation Process
 1. **Schema validation** – Execute `tools/cross-schema-scan.sh`; CI fails if exit code ≠ 0.  
-2. **Unit testing** – Place xUnit test projects under each main project’s `Tests/` folder; run `dotnet test`.  
-3. **Smoke testing** – After building, run the Web app (`dotnet run --project Tarazin.Web`) and manually navigate each module page to verify data loading and permission checks.  
+2. **Unit testing** – Place xUnit test projects under each main project’s `Tests/` folder; run `dotnet test`. `Tarazin.Tests` (xUnit, references `Tarazin.Ui`) guards the shared PDF engine (`PdfReportService`) with regression checks on page size/orientation (`MediaBox`: invoice portrait, cheque report landscape for A4/A5), pagination of long invoices, and RTL right-alignment of cells — `dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo` must stay green on every build (fails if the portrait/landscape or right-alignment bug returns).  
+3. **Smoke testing** – The mandatory post-change order is: (1) `dotnet test Tarazin.Tests` → (2) `dotnet build Tarazin.Web` → (3) `tools/check-stale-build.sh` (must be exit 0) → (4) restart the dev server. Run `tools/check-stale-build.sh` **before restarting the dev server** — it verifies the `Tarazin.Ui.dll` copy in `Tarazin.Web/bin` is not older than `Tarazin.Ui/bin` (and that `Tarazin.Ui` itself is not older than its sources), preventing the recurring “server serves old code” bug when the server is started with `--no-build`. Then run the Web app (`dotnet run --project Tarazin.Web`) and manually navigate each module page to verify data loading and permission checks.  
 4. **MAUI verification** – Launch the published executable; confirm login flow, navigation, and that UI renders correctly on each target platform.  
 5. **Audit‑log check** – Insert a test operation and verify an entry appears in the `AuditLog` table with correct user & script metadata.
 
@@ -139,7 +151,7 @@ Tarazin.Share → Tarazin.Data → Tarazin.Ui → (Tarazin.Web, Tarazin.Maui)
 | خزانه | ثبت گردش نقدی، تنظیمات بانک/صندوق | سالم؛ ثبت با `CompanyId` صحیح تأیید شد |
 | حقوق | فهرست/CRUD کارمند، دوره و نهایی‌سازی | صفحات و CRUD سالم؛ نهایی‌سازی به‌صورت مخرب اجرا نشد |
 | طلافروشی | فهرست اجناس، CRUD کامل مشتری (ایجاد/ویرایش/حذف)، فرم فاکتور، صفحهٔ اتصال | سالم؛ CRUD مشتری لایو تأیید شد (حذف = soft-delete + پاک‌سازی لینک)، فاکتور فروش → سند حسابداری متوازن + دفتر مشتری + حرکت انبار، تنظیمات اتصال از درخت حساب‌ها ذخیره شد |
-| فروشگاه | تنظیمات، دسته‌ها و CRUD مشتری | سالم؛ ساخت مشتری و تب‌های تنظیمات تأیید شد |
+| فروشگاه | تنظیمات، دسته‌ها و CRUD مشتری + **یکپارچه‌سازی کامل (۱۴۰۵/۰۶/۰۶)** | سالم؛ ساخت مشتری و تب‌های تنظیمات تأیید شد؛ سفارش → سند حسابداری (یاداشت) + دفتر مشتری + خزانه (نقد/بانک/چک) + حوالهٔ انبار به‌صورت لایو تأیید شد (ORD-00004: سند ۸۹ متوازن، چک CHQ-UI-0002، حوالهٔ SIKKEH) |
 | ارز | کیف پول، تبدیل، ثبت حرکت دستی | صفحات سالم؛ خطای واقعی `THROW` با الحاق رشته و نقص tenant در مسیرهای نوشتن اصلاح شد |
 | BI | `/bi`، همهٔ تب‌ها، `/bi/reports` و Viewer | سالم؛ Viewer رندر شد، هشدار trial Stimulsoft مورد انتظار است |
 | Central | `/central/audit`، فیلتر سیستمی و صفحه‌بندی | سالم؛ ردیف‌های `CompanyId = NULL` جدا و صفحه‌بندی ۵۰تایی تأیید شد |

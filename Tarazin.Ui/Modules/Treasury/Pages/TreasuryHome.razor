@@ -1,5 +1,6 @@
 @page "/treasury"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>گردش روز — خزانه‌داری</PageTitle>
@@ -80,7 +81,8 @@
                 SearchText = _search ?? "",
                 Direction = (string?)null,
                 SkipRows = 0,
-                TakeSize = 100
+                TakeSize = 100,
+                CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
         catch (Exception ex)

@@ -72,7 +72,7 @@ public static class TarazinDbInitializer
         catch (Exception ex)
         {
             Interlocked.Exchange(ref _initialized, 0);
-            throw new SafeDataException(DbService.Describe(ex));
+            throw new SafeDataException(DbService.Describe(ex), ex);
         }
     }
 

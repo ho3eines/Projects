@@ -26,7 +26,14 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudTextField Label="مشتری/فروشنده" @bind-Value="_partyName" Variant="Variant.Outlined" />
+            <MudSelect T="int" Label="طرف حساب (مشتری/فروشنده)" @bind-Value="_partyId" Variant="Variant.Outlined"
+                       HelperText="از تعریف‌های مشترک خزانه/طلا" Clearable="true">
+                <MudSelectItem Value="0">— بدون طرف حساب —</MudSelectItem>
+                @foreach (var p in _parties)
+                {
+                    <MudSelectItem Value="p.PartyId">@(p.PartyType == "Vendor" ? "تأمین‌کننده" : "مشتری"): @p.FullName</MudSelectItem>
+                }
+            </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />
@@ -113,11 +120,12 @@
 
     private List<PriceRateRow> _currencies = new();
     private List<FundRow> _funds = new();
+    private List<TreasuryPartyRow> _parties = new();
     private List<WalletRow> _wallets = new();
 
     private string _type = "Buy";
     private string _currencyCode = "";
-    private string _partyName = "";
+    private int _partyId;
 
     private string QuantityHelperText =>
         string.IsNullOrEmpty(_currencyCode)
@@ -145,7 +153,19 @@
             ItemKey = (string?)null
         })).ToList();
 
-        _funds = (await Db.QueryAsync<FundRow>(Schema, "FundList")).ToList();
+        _funds = (await Db.QueryAsync<FundRow>(Schema, "FundList", new
+        {
+            CompanyId = Session.ActiveCompanyId
+        })).ToList();
+
+        _parties = (await Db.QueryAsync<TreasuryPartyRow>("treasury", "PartyList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            PartyType = (string?)null,
+            SearchText = "",
+            SkipRows = 0,
+            TakeSize = 500
+        })).ToList();
 
         _wallets = (await Db.QueryAsync<WalletRow>(Schema, "WalletList", new
         {
@@ -212,10 +232,12 @@
         _busy = true;
         try
         {
+            var party = _parties.FirstOrDefault(p => p.PartyId == _partyId);
             await Db.ExecuteAsync(Schema, "FxTransactionCreate", new
             {
                 TransactionType = _type,
-                PartyName = _partyName.Trim(),
+                PartyName = party?.FullName ?? "",
+                PartyId = _partyId == 0 ? (int?)null : _partyId,
                 TransactionDate = _date?.Date ?? DateTime.Today,
                 TransactionTime = _time ?? DateTime.Now.TimeOfDay,
                 CurrencyCode = _currencyCode,
@@ -225,7 +247,9 @@
                 FundId = _fundId == 0 ? (int?)null : _fundId,
                 AmountRial = _amountRial,
                 Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
             });
 
             Snackbar.Add($"معاملهٔ {(_type == "Buy" ? "خرید" : "فروش")} {_currencyCode} ثبت شد؛ سند حسابداری و گردش خزانه به‌روزرسانی شد.", Severity.Success);
@@ -233,7 +257,7 @@
             _quantity = 0;
             _rate = 0;
             _amountRial = 0;
-            _partyName = "";
+            _partyId = 0;
             _description = "";
 
             // به‌روزرسانی موجودی‌ها

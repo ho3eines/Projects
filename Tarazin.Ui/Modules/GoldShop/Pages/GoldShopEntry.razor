@@ -3,10 +3,18 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>فاکتور طلافروشی</PageTitle>
 
-<PageHeader Title="ثبت فاکتور طلافروشی (فروش / خرید)" Subtitle="فاکتور چندردیفهٔ طلا و ارز؛ نرخ ارز: کمتر از ۱۰۰ = درصد بالای نرخ سیستم، ۱۰۰ به بالا = مبلغ. تیک مالیات ۱۰٪ اضافه می‌کند. تسویهٔ ترکیبی (نقدی/بانک/ارز/طلا/چک/نسیه) با تراز صفر و اتصال خودکار به انبار، دفتر طرف حساب، کیف پول، خزانه و سند حسابداری (یاداشت)." />
+<PageHeader Title="@(_editId > 0 ? "ویرایش فاکتور طلافروشی" : "ثبت فاکتور طلافروشی (فروش / خرید)")" Subtitle="فاکتور چندردیفهٔ طلا و ارز؛ نرخ ارز: کمتر از ۱۰۰ = درصد بالای نرخ سیستم، ۱۰۰ به بالا = مبلغ. تیک مالیات ۱۰٪ اضافه می‌کند. تسویهٔ ترکیبی (نقدی/بانک/ارز/طلا/چک/نسیه) با تراز صفر و اتصال خودکار به انبار، دفتر طرف حساب، کیف پول، خزانه و سند حسابداری (یاداشت)." />
+
+@if (_editId > 0)
+{
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+        در حال ویرایش فاکتور <b>@_editNumber</b> — با ثبت، فاکتور قبلی و همهٔ عوارض آن (سند، انبار، کیف پول، چک) برگردانده و دوباره ساخته می‌شود.
+    </MudAlert>
+}
 
 <!-- ۱) مشخصات فاکتور -->
 <MudCard Elevation="1" Class="mb-4">
@@ -270,6 +278,12 @@
         public decimal SystemRate { get; set; }
     }
 
+    [SupplyParameterFromQuery(Name = "edit")]
+    public int? EditId { get; set; }
+
+    private int _editId;
+    private string _editNumber = "";
+
     private List<EntryLine> _lines = new();
     private List<GoldItemRow> _items = new();
     private List<GoldPartyRow> _parties = new();
@@ -338,8 +352,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _editId = EditId ?? 0;
         _items = (await Db.QueryAsync<GoldItemRow>(Schema, "GoldItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
-        await ReloadPartiesAsync();
         _goldRates = (await Db.QueryAsync<GoldRateBoardRow>(Schema, "GoldRateBoard", new { ItemType = "Gold", CompanyId = Session.ActiveCompanyId })).ToList();
         _wallets = (await Db.QueryAsync<WalletRow>("currency", "WalletList", new { CompanyId = Session.ActiveCompanyId, FromDate = (DateTime?)null, ToDate = (DateTime?)null, OnlyNonZero = 0 })).ToList();
         _banks = (await Db.QueryAsync<BankRow>("treasury", "BankList", new { CompanyId = Session.ActiveCompanyId })).ToList();
@@ -349,7 +363,15 @@
             if (settings.DefaultTaxPercent > 0) _taxPct = settings.DefaultTaxPercent;
             if (settings.LaborTaxPercent > 0) _laborTaxPct = settings.LaborTaxPercent;
         }
-        AddLine();
+        if (_editId > 0)
+        {
+            await LoadForEditAsync(_editId);
+        }
+        else
+        {
+            await ReloadPartiesAsync();
+            AddLine();
+        }
     }
 
     private async Task ReloadPartiesAsync()
@@ -405,6 +427,177 @@
         if (sys > 0) _payCurrencyRate = sys;
     }
 
+    // ==================== ویرایش فاکتور ====================
+
+    private async Task LoadForEditAsync(int invoiceId)
+    {
+        try
+        {
+            var header = await Db.QueryFirstOrDefaultAsync<InvoiceHeaderRow>(Schema, "GoldInvoiceHeader", new
+            {
+                InvoiceId = invoiceId,
+                CompanyId = Session.ActiveCompanyId
+            });
+            if (header is null)
+            {
+                Snackbar.Add("فاکتور یافت نشد.", Severity.Error);
+                return;
+            }
+
+            _mode = header.InvoiceType == "Purchase" ? "Purchase" : "Sale";
+            _editNumber = header.InvoiceNumber;
+            _partyId = header.PartyId ?? 0;
+            _date = header.InvoiceDate;
+            await ReloadPartiesAsync();
+
+            var lines = (await Db.QueryAsync<InvoiceLineRow>(Schema, "GoldInvoiceLines", new
+            {
+                InvoiceId = invoiceId,
+                CompanyId = Session.ActiveCompanyId
+            })).ToList();
+
+            _lines = new List<EntryLine>();
+            foreach (var l in lines)
+            {
+                var el = new EntryLine
+                {
+                    RowType = l.RowType == "Currency" ? "Currency" : "Gold",
+                    ItemCode = l.ItemCode,
+                    Title = l.Title ?? "",
+                    Qty = l.Qty,
+                    Price = l.Price,
+                    Workmanship = l.Workmanship,
+                    Profit = l.Profit,
+                    Rate = l.Rate,
+                    CurrencyCode = l.CurrencyCode ?? "",
+                    TaxEnabled = l.TaxEnabled
+                };
+                if (el.RowType == "Gold")
+                {
+                    var item = _items.FirstOrDefault(g => string.Equals(g.ItemCode, el.ItemCode, StringComparison.OrdinalIgnoreCase));
+                    el.GoldItemId = item?.GoldItemId ?? 0;
+                    el.SystemRate = el.Price;
+                }
+                else
+                {
+                    el.SystemRate = SystemRateFor(el.CurrencyCode);
+                }
+                _lines.Add(el);
+            }
+            if (_lines.Count == 0) AddLine();
+
+            await LoadSettlementsAsync(invoiceId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task LoadSettlementsAsync(int invoiceId)
+    {
+        var cashList = new List<CashSettleRow>();
+        var chequeList = new List<ChequeSettleRow>();
+        var fxList = new List<FxSettleRow>();
+        decimal goldGram = 0;
+
+        await Db.QueryMultipleAsync(Schema, "GoldInvoiceSettlements", new
+        {
+            InvoiceId = invoiceId,
+            CompanyId = Session.ActiveCompanyId
+        }, async grid =>
+        {
+            cashList = (await grid.ReadAsync<CashSettleRow>()).ToList();
+            chequeList = (await grid.ReadAsync<ChequeSettleRow>()).ToList();
+            fxList = (await grid.ReadAsync<FxSettleRow>()).ToList();
+            goldGram = (await grid.ReadAsync<GoldSettleRow>()).FirstOrDefault()?.CreditGoldGram ?? 0;
+        });
+
+        var cash = cashList.FirstOrDefault(c => c.SettlementType == "Cash");
+        var bank = cashList.FirstOrDefault(c => c.SettlementType == "Bank");
+        _payCash = cash?.Amount ?? 0;
+        _payBank = bank?.Amount ?? 0;
+
+        var chq = chequeList.FirstOrDefault();
+        if (chq is not null)
+        {
+            _payChequeNumber = chq.ChequeNumber ?? "";
+            _payChequeBankId = chq.BankId ?? 0;
+            _payChequeAmount = chq.Amount;
+            _payChequeDueDate = chq.DueDate;
+        }
+
+        var fx = fxList.FirstOrDefault();
+        if (fx is not null)
+        {
+            _payCurrencyCode = fx.CurrencyCode ?? "";
+            _payCurrencyQty = fx.Quantity;
+            _payCurrencyRate = fx.Rate;
+        }
+
+        _payGoldGram = goldGram;
+    }
+
+    private sealed class InvoiceHeaderRow
+    {
+        public int InvoiceId { get; set; }
+        public string InvoiceNumber { get; set; } = "";
+        public DateTime InvoiceDate { get; set; }
+        public int? PartyId { get; set; }
+        public string? PartyName { get; set; }
+        public string Status { get; set; } = "";
+        public decimal TotalAmount { get; set; }
+        public string? PaymentStatus { get; set; }
+        public string InvoiceType { get; set; } = "Sale";
+    }
+
+    private sealed class InvoiceLineRow
+    {
+        public long LineId { get; set; }
+        public string RowType { get; set; } = "Gold";
+        public string? ItemCode { get; set; }
+        public string? Title { get; set; }
+        public decimal Qty { get; set; }
+        public decimal Price { get; set; }
+        public decimal Rate { get; set; }
+        public decimal Workmanship { get; set; }
+        public decimal Profit { get; set; }
+        public bool TaxEnabled { get; set; }
+        public decimal LineBase { get; set; }
+        public decimal LineTax { get; set; }
+        public decimal LineTotal { get; set; }
+        public string? CurrencyCode { get; set; }
+    }
+
+    private sealed class CashSettleRow
+    {
+        public string SettlementType { get; set; } = "";
+        public decimal Amount { get; set; }
+        public int? CashBoxId { get; set; }
+        public int? AccountId { get; set; }
+    }
+
+    private sealed class ChequeSettleRow
+    {
+        public string? ChequeNumber { get; set; }
+        public int? BankId { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime? DueDate { get; set; }
+        public string? Status { get; set; }
+    }
+
+    private sealed class FxSettleRow
+    {
+        public string? CurrencyCode { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal Rate { get; set; }
+    }
+
+    private sealed class GoldSettleRow
+    {
+        public decimal CreditGoldGram { get; set; }
+    }
+
     private async Task SaveAsync()
     {
         if (_busy) return;
@@ -438,7 +631,7 @@
                 Rate = l.RowType == "Currency" ? l.Rate : 0
             }));
             var script = _mode == "Sale" ? "GoldInvoiceCreate" : "GoldPurchaseCreate";
-            var result = await Db.ExecuteReturningAsync<InvoiceResultRow>(Schema, script, new
+            var parameters = new
             {
                 LinesJson = linesJson,
                 PartyId = _partyId,
@@ -457,11 +650,28 @@
                 ChequeAmount = _payChequeAmount,
                 ChequeDueDate = _payChequeDueDate?.Date,
                 CreditType = _creditType
-            });
-            Snackbar.Add($"{(_mode == "Sale" ? "فاکتور فروش" : "فاکتور خرید")} {result?.InvoiceNumber} ثبت شد. کل: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
-            _lines.Clear();
-            AddLine();
-            _partyId = 0; _payCash = 0; _payBank = 0; _payCurrencyCode = ""; _payCurrencyQty = 0; _payCurrencyRate = 0; _payGoldGram = 0; _payChequeNumber = ""; _payChequeBankId = 0; _payChequeAmount = 0; _payChequeDueDate = null; _creditType = "Rial";
+            };
+            InvoiceResultRow? result;
+            if (_editId > 0)
+            {
+                // ویرایش: اول برگرداندن کامل فاکتور قبلی و عوارض آن، بعد ثبت مجدد
+                await Db.ExecuteAsync(Schema, "GoldInvoiceReverse", new
+                {
+                    InvoiceId = _editId,
+                    CompanyId = Session.ActiveCompanyId
+                });
+                result = await Db.ExecuteReturningAsync<InvoiceResultRow>(Schema, script, parameters);
+                Snackbar.Add($"فاکتور {result?.InvoiceNumber} ویرایش و ثبت شد. کل: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
+                Nav.NavigateTo("/goldshop");
+            }
+            else
+            {
+                result = await Db.ExecuteReturningAsync<InvoiceResultRow>(Schema, script, parameters);
+                Snackbar.Add($"{(_mode == "Sale" ? "فاکتور فروش" : "فاکتور خرید")} {result?.InvoiceNumber} ثبت شد. کل: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
+                _lines.Clear();
+                AddLine();
+                _partyId = 0; _payCash = 0; _payBank = 0; _payCurrencyCode = ""; _payCurrencyQty = 0; _payCurrencyRate = 0; _payGoldGram = 0; _payChequeNumber = ""; _payChequeBankId = 0; _payChequeAmount = 0; _payChequeDueDate = null; _creditType = "Rial";
+            }
         }
         catch (Exception ex)
         {

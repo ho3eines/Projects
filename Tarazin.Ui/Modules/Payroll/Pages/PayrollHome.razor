@@ -4,33 +4,44 @@
 
 <PageTitle>دوره‌های حقوق — حقوق و دستمزد</PageTitle>
 
-<PageHeader Title="دوره‌های حقوق" Subtitle="آخرین دوره‌های محاسبه و نهایی‌شده." />
+<PageHeader Title="دوره‌های حقوق" Subtitle="همهٔ دوره‌های محاسبه‌شده با وضعیت و لینک به ماه جاری." Eyebrow="حقوق و دستمزد">
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync"
+               StartIcon="@Icons.Material.Filled.Refresh" Disabled="_loading">بروزرسانی</MudButton>
+</PageHeader>
+
 <MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
+              Breakpoint="Breakpoint.Sm" RowsPerPage="25">
         <HeaderContent>
-            <MudTh>دوره</MudTh><MudTh>تعداد کارمند</MudTh><MudTh>خالص کل</MudTh><MudTh>وضعیت</MudTh><MudTh>تاریخ</MudTh>
+            <MudTh>دوره</MudTh><MudTh>تعداد کارمند</MudTh><MudTh>خالص کل</MudTh>
+            <MudTh>وضعیت</MudTh><MudTh>تاریخ</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="دوره">@context.Period</MudTd>
             <MudTd DataLabel="تعداد کارمند">@context.EmployeeCount</MudTd>
             <MudTd DataLabel="خالص کل">@context.NetTotal.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Finalized" ? Color.Success : Color.Default)">@context.Status</MudChip>
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
+                    @StatusText(context.Status)
+                </MudChip>
             </MudTd>
             <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></NoRecordsContent>
+        <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 </MudPaper>
 
 @code {
     private const string Schema = "payroll";
-
     private List<PayrollRunRow> _rows = new();
     private bool _loading = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loading = true;
         try
         {
             _rows = (await Db.QueryAsync<PayrollRunRow>(Schema, "DailyRuns", new
@@ -39,13 +50,25 @@
                 TakeSize = 100
             })).ToList();
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _loading = false;
-        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
     }
+
+    private static string StatusText(string? status) => status switch
+    {
+        "Draft" => "پیش‌نویس",
+        "Finalized" => "نهایی‌شده",
+        "Closed" => "بسته‌شده",
+        "Reopened" => "بازگشایی‌شده",
+        _ => status ?? "—"
+    };
+
+    private static Color StatusColor(string? status) => status switch
+    {
+        "Draft" => Color.Warning,
+        "Finalized" => Color.Success,
+        "Closed" => Color.Error,
+        "Reopened" => Color.Info,
+        _ => Color.Default
+    };
 }

@@ -21,6 +21,15 @@
          کل سولوشن روی net8.0). سازگار با هر دو هاست (وب + MAUI WebView).
          لایسنس: docs/BI_MODULE.md -->
 	  <PackageReference Include="Stimulsoft.Reports.Blazor" Version="2024.3.2" />
+    <!-- PDF سمت سرور (QuestPDF) — جایگزین سبک html2pdf برای MAUI؛ در هاست وب همان‌جا روی سرور اجرا می‌شود. -->
+    <PackageReference Include="QuestPDF" Version="2024.12.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- فونت Vazirmatn به‌صورت embedded تا در همهٔ پلتفرم‌ها (وب + MAUI اندروید/iOS/ویندوز) در دسترس باشد.
+         QuestPDF برخلاف مرورگر به CDN دسترسی ندارد. -->
+    <EmbeddedResource Include="wwwroot\fonts\Vazirmatn-Regular.ttf" LogicalName="Tarazin.Ui.fonts.Vazirmatn-Regular.ttf" />
+    <EmbeddedResource Include="wwwroot\fonts\Vazirmatn-Bold.ttf" LogicalName="Tarazin.Ui.fonts.Vazirmatn-Bold.ttf" />
   </ItemGroup>
 
   <ItemGroup>

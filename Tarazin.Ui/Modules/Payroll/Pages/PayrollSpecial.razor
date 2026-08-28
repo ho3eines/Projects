@@ -2,31 +2,139 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
 
-<PageTitle>نهایی‌کردن دوره — حقوق و دستمزد</PageTitle>
+<PageTitle>ماه جاری — حقوق و دستمزد</PageTitle>
 
-<PageHeader Title="محاسبه و نهایی‌کردن دوره" Subtitle="یک دورهٔ جدید حقوق ساخته و نهایی می‌کند." />
-<MudPaper Elevation="1" Class="pa-4">
-    <MudGrid>
+<PageHeader Title="مدیریت ماه جاری" Subtitle="باز کردن دوره، محاسبه خودکار از حکم، نهایی‌کردن، بستن و بازگشایی." Eyebrow="حقوق و دستمزد">
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync"
+               StartIcon="@Icons.Material.Filled.Refresh" Disabled="_loading">بروزرسانی</MudButton>
+</PageHeader>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid Spacing="2" Class="mb-4">
         <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="دوره (مثلاً 1405-05)" @bind-Value="_period" Variant="Variant.Outlined" />
+            <MudTextField Label="دوره (سال-ماه شمسی)" @bind-Value="_period" Variant="Variant.Outlined"
+                          HelperText="مثلاً 1405-05" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
-                       StartIcon="@Icons.Material.Filled.Calculate" OnClick="FinalizeAsync" Disabled="_busy">
-                نهایی‌کردن دوره
+        <MudItem xs="12" sm="6" md="8" Class="d-flex align-center flex-wrap" Style="gap:8px">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow"
+                       OnClick="OpenPeriodAsync" Disabled="_busy || IsPeriodFinalizedOrClosed">
+                @(IsPeriodDraft ? "بروزرسانی اقلام از حکم" : "باز کردن دوره")
             </MudButton>
+            @if (IsPeriodDraft)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.DoneAll"
+                           OnClick="FinalizeAsync" Disabled="_busy">
+                    نهایی‌کردن دوره
+                </MudButton>
+            }
+            @if (_summary?.Status == "Finalized")
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AccountBalance"
+                           OnClick="PostAsync" Disabled="_busy">
+                    ارسال به حسابداری
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Lock"
+                           OnClick="CloseAsync" Disabled="_busy">
+                    بستن قطعی
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Replay"
+                           OnClick="ReopenAsync" Disabled="_busy">
+                    بازگشایی
+                </MudButton>
+            }
+            @if (_summary?.Status == "Reopened")
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.DoneAll"
+                           OnClick="FinalizeAsync" Disabled="_busy">
+                    نهایی‌کردن مجدد
+                </MudButton>
+            }
         </MudItem>
     </MudGrid>
+
+    @if (_summary is not null && _summary.RunId > 0)
+    {
+        <MudGrid Spacing="2">
+            <MudItem xs="6" sm="3">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">وضعیت دوره</MudText>
+                    <MudChip T="string" Size="Size.Medium" Color="@StatusColor(_summary.Status)" Class="mt-1">
+                        @StatusText(_summary.Status)
+                    </MudChip>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">تعداد اقلام ثبت‌شده</MudText>
+                    <MudText Typo="Typo.h5">@_summary.SalaryItemCount</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">تعداد کارمندان</MudText>
+                    <MudText Typo="Typo.h5">@_summary.EmployeeCount</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">جمع خالص</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Primary">@_summary.NetTotal.ToString("N0")</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        @if (_summary.EmployeesWithoutOrder > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-3" Variant="Variant.Outlined">
+                <b>@_summary.EmployeesWithoutOrder کارمند</b> فاقد حکم اداری فعال هستند.
+                <MudLink Href="/payroll/settings" Class="ms-2">رفتن به تنظیمات → حکم‌ها</MudLink>
+            </MudAlert>
+        }
+    }
+    else if (!string.IsNullOrWhiteSpace(_period))
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+            دورهٔ «@_period» هنوز ایجاد نشده است. روی «باز کردن دوره» کلیک کنید تا اقلام خودکار از حکم‌ها پر شود.
+        </MudAlert>
+    }
 </MudPaper>
 
 @code {
     private const string Schema = "payroll";
+    private const string ShamsiNow = "1405-06"; // TODO: از PersianDate
 
-    private string _period = DateTime.Now.ToString("yyyy-MM");
+    private string _period = "";
+    private MonthlyOpenSummaryRow? _summary;
+    private bool _loading = true;
     private bool _busy;
 
-    private async Task FinalizeAsync()
+    private bool IsPeriodDraft => _summary?.Status == "Draft";
+    private bool IsPeriodFinalizedOrClosed => _summary?.Status is "Finalized" or "Closed";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _period = SuggestPeriod();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _summary = await Db.QueryFirstOrDefaultAsync<MonthlyOpenSummaryRow>(Schema, "MonthlyOpenSummary", new
+            {
+                Period = _period,
+                CompanyId = Session.ActiveCompanyId
+            });
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenPeriodAsync()
     {
         if (_busy) return;
         if (string.IsNullOrWhiteSpace(_period))
@@ -38,20 +146,134 @@
         _busy = true;
         try
         {
+            var (from, to) = PersianDate.RangeOfPeriod(_period);
+            await Db.ExecuteAsync(Schema, "PayrollOpenPeriod", new
+            {
+                Period = _period.Trim(),
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FromDate = from,
+                ToDate = to
+            });
+            Snackbar.Add($"دورهٔ {_period} باز شد و اقلام از حکم‌ها پر شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task FinalizeAsync()
+    {
+        if (_busy) return;
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید نهایی‌کردن",
+            $"آیا از نهایی‌کردن دورهٔ {_period} مطمئن هستید؟ بعد از نهایی‌کردن، اقلام قفل می‌شوند.",
+            yesText: "نهایی‌کن", cancelText: "انصراف");
+        if (confirmed is not true) return;
+
+        _busy = true;
+        try
+        {
             await Db.ExecuteAsync(Schema, "PayrollFinalize", new
             {
                 Period = _period.Trim(),
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
             });
             Snackbar.Add($"دورهٔ {_period} نهایی شد.", Severity.Success);
+            await LoadAsync();
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
     }
+
+    private async Task PostAsync()
+    {
+        if (_busy || _summary is null) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "PayrollPostToAccounting", new
+            {
+                RunId = _summary.RunId,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("درخواست ثبت سند حسابداری و خزانه در صف یکپارچه‌سازی قرار گرفت.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task CloseAsync()
+    {
+        if (_busy) return;
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید بستن قطعی",
+            $"آیا از بستن قطعی دورهٔ {_period} مطمئن هستید؟ این عملیات غیرقابل برگشت است.",
+            yesText: "بستن قطعی", cancelText: "انصراف");
+        if (confirmed is not true) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "PayrollClosePeriod", new
+            {
+                RunId = _summary?.RunId ?? 0,
+                UpdatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add($"دورهٔ {_period} بسته شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task ReopenAsync()
+    {
+        if (_busy) return;
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید بازگشایی",
+            $"آیا از بازگشایی دورهٔ {_period} مطمئن هستید؟ اقلام دوباره قابل ویرایش می‌شوند.",
+            yesText: "بازگشایی", cancelText: "انصراف");
+        if (confirmed is not true) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "PayrollReopenPeriod", new
+            {
+                RunId = _summary?.RunId ?? 0,
+                UpdatedBy = Session.UserName
+            });
+            Snackbar.Add($"دورهٔ {_period} بازگشایی شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private static string SuggestPeriod()
+    {
+        // ماه شمسی واقعی (نه تقریب میلادی منهای ۶۲۱)
+        return $"{PersianDate.CurrentYear}-{PersianDate.CurrentMonth:00}";
+    }
+
+    private static string StatusText(string? status) => status switch
+    {
+        "Draft" => "پیش‌نویس",
+        "Finalized" => "نهایی‌شده",
+        "Closed" => "بسته‌شده",
+        "Reopened" => "بازگشایی‌شده",
+        _ => "—"
+    };
+
+    private static Color StatusColor(string? status) => status switch
+    {
+        "Draft" => Color.Warning,
+        "Finalized" => Color.Success,
+        "Closed" => Color.Error,
+        "Reopened" => Color.Info,
+        _ => Color.Default
+    };
 }

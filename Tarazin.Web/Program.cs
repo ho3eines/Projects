@@ -101,6 +101,9 @@ builder.Services.AddScoped<MobileConnectionService>();
 // از سیستم خارج نشود. فقط مخصوص هاست وب است؛ MAUI به آن نیازی ندارد.
 builder.Services.AddScoped<ISessionStore, ProtectedSessionStore>();
 
+// ذخیرهٔ PDF ساخته‌شده توسط PdfReportService — دانلود بلاب در مرورگر.
+builder.Services.AddScoped<IPdfSaver, WebPdfSaver>();
+
 
 
 var app = builder.Build();
@@ -117,6 +120,7 @@ using (var scope = app.Services.CreateScope())
     {
         await TarazinDbInitializer.EnsureInitializedAsync(scope.ServiceProvider);
         scope.ServiceProvider.GetRequiredService<PriceFeedScheduler>().Start();
+        scope.ServiceProvider.GetRequiredService<PayrollOutboxDispatcher>().Start();
 
         // Do not emit SQL destinations, physical file paths, or provider details.
         logger.LogInformation("Database initialization completed");
@@ -125,6 +129,13 @@ using (var scope = app.Services.CreateScope())
     {
         logger.LogError("Database initialization failed ({ErrorType}): {SafeMessage}",
             ex.GetType().Name, DbService.Describe(ex));
+
+        // Debug aid: full exception chain, gated behind an explicit env var.
+        if (Environment.GetEnvironmentVariable("TARAZIN_DEBUG_INIT") == "1")
+        {
+            for (var e = ex; e is not null; e = e.InnerException)
+                logger.LogError("  init>> {ErrorType}: {Message}", e.GetType().Name, e.Message);
+        }
 
         if (Environment.GetEnvironmentVariable("TARAZIN_FAIL_FAST") == "1")
             throw;

@@ -1,11 +1,13 @@
 @page "/treasury/settings"
 @inject DbService Db
+@inject UserSession Session
 @inject EntityCrudService EntityCrud
+@inject IDialogService Dialog
 @inject ISnackbar Snackbar
 
 <PageTitle>امکانات — خزانه‌داری</PageTitle>
 
-<PageHeader Title="امکانات و جداول پایه" Subtitle="نرخ ارز، بانک‌ها و صندوق‌ها." />
+<PageHeader Title="امکانات و جداول پایه" Subtitle="نرخ ارز، بانک‌ها، حساب‌های بانکی، صندوق‌ها و اتصال حسابداری." />
 <MudTabs>
     <MudTabPanel Text="نرخ ارز">
         <MudPaper Elevation="1" Class="pa-4">
@@ -42,32 +44,145 @@
 
     <MudTabPanel Text="بانک‌ها">
         <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => OpenBankAsync(new BankRow()))">
+                    بانک جدید
+                </MudButton>
+            </div>
             <MudTable Items="_banks" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
-                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.BankCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenBankAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteBankAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">بانکی نیست.</MudText></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
 
+    <MudTabPanel Text="حساب‌های بانکی">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => OpenBankAccountAsync(new BankAccountRow()))">
+                    حساب بانکی جدید
+                </MudButton>
+            </div>
+            <MudTable Items="_bankAccounts" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>نام حساب</MudTh><MudTh>شماره</MudTh><MudTh>بانک</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="نام">@context.AccountName</MudTd>
+                    <MudTd DataLabel="شماره">@context.AccountNo</MudTd>
+                    <MudTd DataLabel="بانک">@context.BankName</MudTd>
+                    <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenBankAccountAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteBankAccountAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">حساب بانکی تعریف نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
     <MudTabPanel Text="صندوق‌ها">
         <MudPaper Elevation="1" Class="pa-4">
+            <div class="d-flex justify-end mb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => OpenCashBoxAsync(new CashBoxRow()))">
+                    صندوق جدید
+                </MudButton>
+            </div>
             <MudTable Items="_cashBoxes" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
-                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>مانده</MudTh>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.CashBoxCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                     <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "فعال" : "غیرفعال")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenCashBoxAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteCashBoxAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">صندوقی نیست.</MudText></NoRecordsContent>
             </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="اتصال حسابداری">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3">
+                با فعال‌سازی، هر دریافت/پرداخت در خزانه یک سند حسابداری (سند یاداشت) می‌سازد:
+                بدهکار/بستانکار صندوق یا بانک در برابر طرف‌حساب (یا حساب مقابل جهت).
+            </MudAlert>
+            <MudForm @ref="_form" @bind-IsValid="_valid">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب صندوق (سند حسابداری)</MudText>
+                        <AccountPickerField Value="_cashAccount" ValueChanged="OnCashAccountAsync" ButtonLabel="انتخاب حساب صندوق" EmptyText="حساب صندوق انتخاب نشده است." PickerOptions="@_moeinOptions" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب بانکی (سند حسابداری)</MudText>
+                        <AccountPickerField Value="_bankChartAccount" ValueChanged="OnBankChartAccountAsync" ButtonLabel="انتخاب حساب بانک" EmptyText="حساب بانک انتخاب نشده است." PickerOptions="@_moeinOptions" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب مقابل دریافت (بدون طرف حساب)</MudText>
+                        <AccountPickerField Value="_receiveContra" ValueChanged="OnReceiveContraAsync" ButtonLabel="انتخاب حساب دریافت" EmptyText="حساب مقابل دریافت انتخاب نشده است." PickerOptions="@_moeinOptions" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب مقابل پرداخت (بدون طرف حساب)</MudText>
+                        <AccountPickerField Value="_payContra" ValueChanged="OnPayContraAsync" ButtonLabel="انتخاب حساب پرداخت" EmptyText="حساب مقابل پرداخت انتخاب نشده است." PickerOptions="@_moeinOptions" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="int?" Label="صندوق پیش‌فرض" @bind-Value="_defaultCashBox" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">— بدون صندوق —</MudSelectItem>@foreach(var c in _cashBoxes){<MudSelectItem Value="@((int?)c.CashBoxId)">@c.Title</MudSelectItem>}</MudSelect></MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="int?" Label="حساب بانکی پیش‌فرض" @bind-Value="_defaultBankAccount" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">— بدون بانک —</MudSelectItem>@foreach(var b in _bankAccounts){<MudSelectItem Value="@((int?)b.AccountId)">@b.AccountName — @b.AccountNo</MudSelectItem>}</MudSelect></MudItem>
+                    <MudItem xs="12"><MudSwitch T="bool" @bind-Value="_enabled" Color="Color.Success">فعال‌سازی یکپارچه‌سازی حسابداری</MudSwitch></MudItem>
+                </MudGrid>
+            </MudForm>
+            <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSettingsAsync" Disabled="_busy">ذخیره تنظیمات اتصال</MudButton>
         </MudPaper>
     </MudTabPanel>
 </MudTabs>
@@ -76,8 +191,18 @@
     private const string Schema = "treasury";
     private List<CurrencyRateRow> _rates = new();
     private List<BankRow> _banks = new();
+    private List<BankAccountRow> _bankAccounts = new();
     private List<CashBoxRow> _cashBoxes = new();
     private bool _loading = true;
+
+    // تنظیمات اتصال حسابداری
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+    private bool _enabled = true;
+    private int? _defaultCashBox, _defaultBankAccount;
+    private AccountPickerResult? _cashAccount, _bankChartAccount, _receiveContra, _payContra;
+    private static readonly AccountPickerOptions _moeinOptions = new() { Title = "انتخاب حساب (کل/معین/تفصیلی)", AllowedType = AccountPickerType.Moein, TransactionalOnly = true };
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -86,13 +211,28 @@
         _loading = true;
         try
         {
+            var companyId = Session.ActiveCompanyId;
             _rates = (await Db.QueryAsync<CurrencyRateRow>(Schema, "CurrencyRateSearch", new
             {
+                CompanyId = companyId,
                 SkipRows = 0,
                 TakeSize = 200
             })).ToList();
-            _banks = (await Db.QueryAsync<BankRow>(Schema, "BankList")).ToList();
-            _cashBoxes = (await Db.QueryAsync<CashBoxRow>(Schema, "CashBoxList")).ToList();
+            _banks = (await Db.QueryAsync<BankRow>(Schema, "BankList", new { CompanyId = companyId })).ToList();
+            _bankAccounts = (await Db.QueryAsync<BankAccountRow>(Schema, "BankAccountList", new { CompanyId = companyId })).ToList();
+            _cashBoxes = (await Db.QueryAsync<CashBoxRow>(Schema, "CashBoxList", new { CompanyId = companyId })).ToList();
+
+            var s = await Db.QueryFirstOrDefaultAsync<TreasurySettingsRow>(Schema, "TreasurySettingsGet", new { CompanyId = companyId });
+            if (s is not null)
+            {
+                _enabled = s.IsEnabled;
+                _defaultCashBox = s.DefaultCashBoxId;
+                _defaultBankAccount = s.DefaultBankAccountId;
+                if (s.CashAccountId is int cid && cid > 0) _cashAccount = new AccountPickerResult { Id = cid, AccountCode = s.CashAccountCode ?? "", Title = s.CashAccountTitle ?? "", NodeType = "BaseMoein" };
+                if (s.BankChartAccountId is int bid && bid > 0) _bankChartAccount = new AccountPickerResult { Id = bid, AccountCode = s.BankChartAccountCode ?? "", Title = s.BankChartAccountTitle ?? "", NodeType = "BaseMoein" };
+                if (s.ReceiveContraAccountId is int rid && rid > 0) _receiveContra = new AccountPickerResult { Id = rid, AccountCode = s.ReceiveContraAccountCode ?? "", Title = s.ReceiveContraAccountTitle ?? "", NodeType = "BaseMoein" };
+                if (s.PayContraAccountId is int pid && pid > 0) _payContra = new AccountPickerResult { Id = pid, AccountCode = s.PayContraAccountCode ?? "", Title = s.PayContraAccountTitle ?? "", NodeType = "BaseMoein" };
+            }
         }
         catch (Exception ex)
         {
@@ -114,5 +254,101 @@
     {
         if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
+    }
+
+    private async Task OpenBankAsync(BankRow row)
+    {
+        var dlg = await Dialog.ShowAsync<BankDialog>(row.BankId == 0 ? "بانک جدید" : $"ویرایش بانک — {row.Title}",
+            new DialogParameters<BankDialog> { { x => x.Model, row } },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteBankAsync(BankRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync("تأیید حذف", $"آیا از حذف بانک «{row.Title}» مطمئن هستید؟", yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "BankDelete", new { row.BankId, CompanyId = Session.ActiveCompanyId, UpdatedBy = Session.UserName });
+            Snackbar.Add("بانک حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task OpenBankAccountAsync(BankAccountRow row)
+    {
+        var dlg = await Dialog.ShowAsync<BankAccountDialog>(row.AccountId == 0 ? "حساب بانکی جدید" : $"ویرایش حساب بانکی — {row.AccountName}",
+            new DialogParameters<BankAccountDialog> { { x => x.Model, row } },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteBankAccountAsync(BankAccountRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync("تأیید حذف", $"آیا از حذف حساب بانکی «{row.AccountName}» مطمئن هستید؟", yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "BankAccountDelete", new { row.AccountId, CompanyId = Session.ActiveCompanyId, UpdatedBy = Session.UserName });
+            Snackbar.Add("حساب بانکی حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task OpenCashBoxAsync(CashBoxRow row)
+    {
+        var dlg = await Dialog.ShowAsync<CashBoxDialog>(row.CashBoxId == 0 ? "صندوق جدید" : $"ویرایش صندوق — {row.Title}",
+            new DialogParameters<CashBoxDialog> { { x => x.Model, row } },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await dlg.Result) is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteCashBoxAsync(CashBoxRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync("تأیید حذف", $"آیا از حذف صندوق «{row.Title}» مطمئن هستید؟", yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "CashBoxDelete", new { row.CashBoxId, CompanyId = Session.ActiveCompanyId, UpdatedBy = Session.UserName });
+            Snackbar.Add("صندوق حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private Task OnCashAccountAsync(AccountPickerResult? v) { _cashAccount = v; return Task.CompletedTask; }
+    private Task OnBankChartAccountAsync(AccountPickerResult? v) { _bankChartAccount = v; return Task.CompletedTask; }
+    private Task OnReceiveContraAsync(AccountPickerResult? v) { _receiveContra = v; return Task.CompletedTask; }
+    private Task OnPayContraAsync(AccountPickerResult? v) { _payContra = v; return Task.CompletedTask; }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (_form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync(Schema, "TreasurySettingsUpsert", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                CashAccountId = _cashAccount?.Id, CashAccountCode = _cashAccount?.AccountCode, CashAccountTitle = _cashAccount?.Title,
+                BankChartAccountId = _bankChartAccount?.Id, BankChartAccountCode = _bankChartAccount?.AccountCode, BankChartAccountTitle = _bankChartAccount?.Title,
+                ReceiveContraAccountId = _receiveContra?.Id, ReceiveContraAccountCode = _receiveContra?.AccountCode, ReceiveContraAccountTitle = _receiveContra?.Title,
+                PayContraAccountId = _payContra?.Id, PayContraAccountCode = _payContra?.AccountCode, PayContraAccountTitle = _payContra?.Title,
+                CustomerAccountGroupId = (int?)null, SupplierAccountGroupId = (int?)null,
+                DefaultCashBoxId = _defaultCashBox, DefaultBankAccountId = _defaultBankAccount,
+                IsEnabled = _enabled, UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("تنظیمات اتصال ذخیره شد.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
     }
 }

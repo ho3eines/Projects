@@ -1,6 +1,7 @@
 @page "/"
 @inject UserSession Session
 @inject ScriptCatalog Catalog
+@inject DbService Db
 @inject NavigationManager Nav
 @implements IDisposable
 
@@ -40,6 +41,37 @@
     </div>
 </section>
 
+@if (Session.IsAuthenticated && _chequeAlert is not null)
+{
+    @if (_chequeAlert.OverdueCount > 0)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4"
+                  Icon="@Icons.Material.Filled.NotificationImportant">
+            <b>@_chequeAlert.OverdueCount چک سررسیدشده</b> در انتظار پیگیری است.
+            <MudLink Href="/treasury/cheque-report" Underline="Underline.Always" Class="ms-2" Style="color:inherit">
+                مشاهده گزارش سررسید
+            </MudLink>
+        </MudAlert>
+    }
+    else if (_chequeAlert.DueSoonCount > 0)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4"
+                  Icon="@Icons.Material.Filled.Schedule">
+            <b>@_chequeAlert.DueSoonCount چک</b> تا ۷ روز آینده سررسید می‌شود.
+            <MudLink Href="/treasury/cheque-report" Underline="Underline.Always" Class="ms-2" Style="color:inherit">
+                مشاهده گزارش سررسید
+            </MudLink>
+        </MudAlert>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mb-4" Dense="true"
+                  Icon="@Icons.Material.Filled.DoneAll">
+            هیچ چکی سررسید نشده است.
+        </MudAlert>
+    }
+}
+
 <MudText Typo="Typo.subtitle2" Class="tz-section-label">ماژول‌ها</MudText>
 
 <div class="tz-modgrid">
@@ -68,6 +100,8 @@
 </footer>
 
 @code {
+    private ChequeAlertSummaryRow? _chequeAlert;
+
     protected override void OnInitialized()
     {
         // صفحهٔ خانه هیچ دسترسی اجباری ندارد و هنگام رفرش با نشست خالی رندر می‌شود؛
@@ -75,7 +109,38 @@
         Session.Changed += OnSessionChanged;
     }
 
-    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAlertAsync();
+    }
+
+    private async Task LoadAlertAsync()
+    {
+        if (!Session.IsAuthenticated)
+            return;
+
+        try
+        {
+            _chequeAlert = await Db.QueryFirstOrDefaultAsync<ChequeAlertSummaryRow>("treasury", "ChequeAlertSummary",
+                               new { CompanyId = Session.ActiveCompanyId })
+                           ?? new ChequeAlertSummaryRow();
+        }
+        catch
+        {
+            // هشدار داشبورد اختیاری است؛ خطای آن نباید صفحهٔ خانه را خراب کند.
+            _chequeAlert = new ChequeAlertSummaryRow();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSessionChanged()
+    {
+        if (Session.IsAuthenticated && _chequeAlert is null)
+            _ = LoadAlertAsync();
+        else
+            InvokeAsync(StateHasChanged);
+    }
 
     public void Dispose() => Session.Changed -= OnSessionChanged;
 

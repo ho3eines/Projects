@@ -6,12 +6,16 @@
 @inject AccountPickerService Picker
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject PdfReportService Pdf
 
 <PageTitle>گزارشات — حسابداری</PageTitle>
 
 <PageHeader Title="گزارشات حسابداری"
             Subtitle="دفتر روزنامه، دفتر کل، تراز آزمایشی و مرور مرحله‌ای کل تا سند."
-            Eyebrow="حسابداری" />
+            Eyebrow="حسابداری">
+    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintAsync" Disabled="_loading || !CanPrintCurrent"
+               StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+</PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid Spacing="2">
@@ -1088,4 +1092,273 @@ else
         AccountingDocumentStatus.Draft => Color.Warning,
         _ => Color.Default
     };
+
+    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+
+    /// <summary>آیا جدول فعلی داده‌ای برای چاپ دارد؟</summary>
+    private bool CanPrintCurrent => _detailSummary is not null
+        ? _detailTransactions.Count > 0
+        : _report switch
+        {
+            "daily" => _dailyBook.Count > 0,
+            "ledger" => _ledger.Count > 0,
+            "trial" => _trial.Count > 0,
+            "hierarchy" => _hierarchy.Count > 0,
+            "detail" => _detilDrill.Count > 0,
+            _ => false
+        };
+
+    private async Task PrintAsync()
+    {
+        if (_loading || !CanPrintCurrent)
+        {
+            if (!CanPrintCurrent)
+                Snackbar.Add("داده‌ای برای چاپ نیست.", Severity.Warning);
+            return;
+        }
+
+        string title, subtitle;
+        RenderFragment body;
+        Func<string, byte[]> pdf;
+
+        if (_detailSummary is not null)
+        {
+            title = "گردش تفصیلی";
+            subtitle = $"{_detailSummary.DetilCode} — {_detailSummary.DetilTitle} (کل: {_detailSummary.ColTitle} | معین: {_detailSummary.MoeinTitle})";
+            body = DetailTableBody;
+            pdf = BuildDetailPdf;
+        }
+        else
+        {
+            switch (_report)
+            {
+                case "daily":
+                    title = "دفتر روزنامه"; subtitle = "روزنامهٔ کل در بازهٔ تاریخ";
+                    body = DailyTableBody; pdf = BuildDailyPdf;
+                    break;
+                case "ledger":
+                    title = "دفتر کل"; subtitle = "ماندهٔ حساب‌های کل در بازهٔ تاریخ";
+                    body = LedgerTableBody; pdf = BuildLedgerPdf;
+                    break;
+                case "trial":
+                    title = "تراز آزمایشی"; subtitle = "ماندهٔ همهٔ حساب‌ها در بازهٔ تاریخ";
+                    body = TrialTableBody; pdf = BuildTrialPdf;
+                    break;
+                case "detail":
+                    title = "مرور گردش تفصیلی"; subtitle = "سلسله‌مراتب تفصیلی در بازهٔ تاریخ";
+                    body = DrillTableBody; pdf = BuildDrillPdf;
+                    break;
+                default:
+                    title = "مرور کل تا سند"; subtitle = "سلسله‌مراتب حساب‌ها در بازهٔ تاریخ";
+                    body = HierarchyTableBody; pdf = BuildHierarchyPdf;
+                    break;
+            }
+        }
+
+        await DialogService.ShowAsync<ReportPrintDialog>("چاپ گزارش حسابداری", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Subtitle, subtitle },
+            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
+            { x => x.Body, body },
+            { x => x.BuildPdf, pdf },
+            { x => x.Wide, true }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private RenderFragment HierarchyTableBody => @<MudTable Items="_hierarchy" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>کد حساب</MudTh><MudTh>عنوان حساب</MudTh><MudTh>زیرمجموعه</MudTh><MudTh>ماهیت</MudTh>
+            <MudTh>جمع بدهکار</MudTh><MudTh>جمع بستانکار</MudTh><MudTh>مانده</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.AccountCode</MudTd>
+            <MudTd DataLabel="عنوان">@context.Title</MudTd>
+            <MudTd DataLabel="زیرمجموعه">@(context.ChildCount > 0 ? context.ChildCount + " مورد" : (context.NodeType == "BaseDetil" ? "گردش" : "—"))</MudTd>
+            <MudTd DataLabel="ماهیت">@NatureTitle(context.AccountNature)</MudTd>
+            <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd>
+            <MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+            <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment DrillTableBody => @<MudTable Items="_detilDrill" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>کد حساب</MudTh><MudTh>عنوان حساب</MudTh><MudTh>زیرمجموعه</MudTh><MudTh>ماهیت</MudTh>
+            <MudTh>جمع بدهکار</MudTh><MudTh>جمع بستانکار</MudTh><MudTh>مانده</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.AccountCode</MudTd>
+            <MudTd DataLabel="عنوان">@context.Title</MudTd>
+            <MudTd DataLabel="زیرمجموعه">@(context.ChildCount > 0 ? context.ChildCount + " مورد" : (context.NodeType == "BaseDetil" ? "گردش" : "—"))</MudTd>
+            <MudTd DataLabel="ماهیت">@NatureTitle(context.AccountNature)</MudTd>
+            <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd>
+            <MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+            <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment DailyTableBody => @<MudTable Items="_dailyBook" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>تاریخ</MudTh><MudTh>سند</MudTh><MudTh>حساب</MudTh><MudTh>شرح ردیف</MudTh>
+            <MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="تاریخ">@DateText(context.DocumentDate)</MudTd>
+            <MudTd DataLabel="سند">@DocumentNumber(context.DocumentId, context.DocumentNumber)</MudTd>
+            <MudTd DataLabel="حساب">@context.AccountCode — @context.AccountTitle</MudTd>
+            <MudTd DataLabel="شرح">@(context.Description ?? "")</MudTd>
+            <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd><MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+            <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+            <MudTd DataLabel="وضعیت">@AccountingDocumentStatus.Title(context.Status)</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment LedgerTableBody => @<MudTable Items="_ledger" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>کد کامل حساب</MudTh><MudTh>حساب</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.AccountCode</MudTd>
+            <MudTd DataLabel="حساب">@context.AccountTitle</MudTd>
+            <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd>
+            <MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+            <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment TrialTableBody => @<MudTable Items="_trial" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>حساب</MudTh><MudTh>ماهیت</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.AccountCode</MudTd>
+            <MudTd DataLabel="حساب">@context.AccountTitle</MudTd>
+            <MudTd DataLabel="ماهیت">@NatureTitle(context.AccountType)</MudTd>
+            <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd>
+            <MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+            <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment DetailTableBody => @<MudTable Items="_detailTransactions" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>تاریخ</MudTh><MudTh>شماره سند</MudTh><MudTh>شرح / طرف حساب سند</MudTh><MudTh>شرح ردیف</MudTh>
+            <MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="تاریخ">@DateText(context.DocumentDate)</MudTd>
+            <MudTd DataLabel="سند">@DocumentNumber(context.DocumentId, context.DocumentNumber)</MudTd>
+            <MudTd DataLabel="شرح سند">@(context.DocumentDescription ?? "")</MudTd><MudTd DataLabel="شرح ردیف">@(context.LineDescription ?? "")</MudTd>
+            <MudTd DataLabel="بدهکار">@Money(context.Debit)</MudTd><MudTd DataLabel="بستانکار">@Money(context.Credit)</MudTd>
+            <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
+            <MudTd DataLabel="وضعیت">@AccountingDocumentStatus.Title(context.Status)</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private byte[] BuildHierarchyPdf(string paperSize) => BuildHierarchyPdfCore(_hierarchy, paperSize);
+
+    private byte[] BuildDrillPdf(string paperSize) => BuildHierarchyPdfCore(_detilDrill, paperSize);
+
+    private byte[] BuildHierarchyPdfCore(List<AccountingHierarchyRow> rows, string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "کد حساب" }, new() { Header = "عنوان حساب" }, new() { Header = "زیرمجموعه" },
+            new() { Header = "ماهیت" }, new() { Header = "جمع بدهکار", AlignRight = true },
+            new() { Header = "جمع بستانکار", AlignRight = true }, new() { Header = "مانده", AlignRight = true }
+        };
+        var data = rows.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.AccountCode, r.Title,
+            r.ChildCount > 0 ? r.ChildCount.ToString() : (r.NodeType == "BaseDetil" ? "گردش" : "—"),
+            NatureTitle(r.AccountNature), Money(r.Debit), Money(r.Credit), BalanceText(r.Balance)
+        }).ToList();
+
+        return Pdf.BuildTablePdf("مرور کل تا سند", "سلسله‌مراتب حساب‌ها در بازهٔ تاریخ",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, data, null, paperSize);
+    }
+
+    private byte[] BuildDailyPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "تاریخ" }, new() { Header = "سند" }, new() { Header = "حساب" },
+            new() { Header = "شرح ردیف" }, new() { Header = "بدهکار", AlignRight = true },
+            new() { Header = "بستانکار", AlignRight = true }, new() { Header = "مانده", AlignRight = true },
+            new() { Header = "وضعیت" }
+        };
+        var rows = _dailyBook.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            DateText(r.DocumentDate), DocumentNumber(r.DocumentId, r.DocumentNumber),
+            $"{r.AccountCode} — {r.AccountTitle}", r.Description ?? "",
+            Money(r.Debit), Money(r.Credit), BalanceText(r.Balance), AccountingDocumentStatus.Title(r.Status)
+        }).ToList();
+
+        return Pdf.BuildTablePdf("دفتر روزنامه", "روزنامهٔ کل در بازهٔ تاریخ",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+    }
+
+    private byte[] BuildLedgerPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "کد کامل حساب" }, new() { Header = "حساب" },
+            new() { Header = "بدهکار", AlignRight = true }, new() { Header = "بستانکار", AlignRight = true },
+            new() { Header = "مانده", AlignRight = true }
+        };
+        var rows = _ledger.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.AccountCode, r.AccountTitle, Money(r.Debit), Money(r.Credit), BalanceText(r.Balance)
+        }).ToList();
+
+        return Pdf.BuildTablePdf("دفتر کل", "ماندهٔ حساب‌های کل در بازهٔ تاریخ",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+    }
+
+    private byte[] BuildTrialPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "کد" }, new() { Header = "حساب" }, new() { Header = "ماهیت" },
+            new() { Header = "بدهکار", AlignRight = true }, new() { Header = "بستانکار", AlignRight = true },
+            new() { Header = "مانده", AlignRight = true }
+        };
+        var rows = _trial.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.AccountCode, r.AccountTitle, NatureTitle(r.AccountType),
+            Money(r.Debit), Money(r.Credit), BalanceText(r.Balance)
+        }).ToList();
+
+        return Pdf.BuildTablePdf("تراز آزمایشی", "ماندهٔ همهٔ حساب‌ها در بازهٔ تاریخ",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+    }
+
+    private byte[] BuildDetailPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "تاریخ" }, new() { Header = "شماره سند" }, new() { Header = "شرح / طرف حساب سند" },
+            new() { Header = "شرح ردیف" }, new() { Header = "بدهکار", AlignRight = true },
+            new() { Header = "بستانکار", AlignRight = true }, new() { Header = "مانده", AlignRight = true },
+            new() { Header = "وضعیت" }
+        };
+        var rows = _detailTransactions.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            DateText(r.DocumentDate), DocumentNumber(r.DocumentId, r.DocumentNumber),
+            r.DocumentDescription ?? "", r.LineDescription ?? "",
+            Money(r.Debit), Money(r.Credit), BalanceText(r.Balance), AccountingDocumentStatus.Title(r.Status)
+        }).ToList();
+
+        var summary = new List<string>
+        {
+            $"مانده اول: {BalanceText(_detailSummary?.OpeningBalance ?? 0)}",
+            $"جمع بدهکار: {Money(_detailSummary?.Debit ?? 0)}   |   جمع بستانکار: {Money(_detailSummary?.Credit ?? 0)}",
+            $"مانده نهایی: {BalanceText(_detailSummary?.FinalBalance ?? 0)}"
+        };
+
+        return Pdf.BuildTablePdf("گردش تفصیلی",
+            $"{_detailSummary?.DetilCode} — {_detailSummary?.DetilTitle} (کل: {_detailSummary?.ColTitle} | معین: {_detailSummary?.MoeinTitle})",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, summary, paperSize);
+    }
 }

@@ -115,10 +115,13 @@ BEGIN
     END
     DECLARE @InvItemId INT=(SELECT ItemId FROM [inventory].[Items] WHERE CompanyId=@CompanyId AND ItemCode=@GLCode AND IsDeleted=0);
     INSERT INTO [inventory].[Movements]
-        (MovementNumber,MovementType,ItemId,WarehouseId,Qty,UnitPrice,MovementDate,Description,Status,CreatedBy,CompanyId)
-    VALUES (N'',N'Receipt',@InvItemId,@WarehouseId,@GLQty,@GLPrice,@InvoiceDate,N'رسید بابت '+@InvoiceNumber,N'Posted',@CreatedBy,@CompanyId);
+        (MovementNumber,MovementType,ItemId,WarehouseId,SubWarehouseId,Qty,UnitPrice,CostPrice,MovementDate,Description,Status,CreatedBy,CompanyId)
+    VALUES (N'',N'Receipt',@InvItemId,@WarehouseId,NULL,@GLQty,@GLPrice,@GLPrice,@InvoiceDate,N'رسید بابت '+@InvoiceNumber,N'Posted',@CreatedBy,@CompanyId);
     DECLARE @MvId INT=SCOPE_IDENTITY();
     UPDATE [inventory].[Movements] SET MovementNumber=N'MV-'+RIGHT(N'00000'+CAST(@MvId AS NVARCHAR(10)),5) WHERE MovementId=@MvId;
+    -- لایهٔ جدید موجودی (هماهنگ با ماژول انبار)
+    INSERT INTO [inventory].[StockLayers] (ItemId,WarehouseId,SubWarehouseId,ReceiptMovementId,QtyRemaining,UnitCost,ReceivedDate,CompanyId)
+    VALUES (@InvItemId,@WarehouseId,NULL,@MvId,@GLQty,@GLPrice,@InvoiceDate,@CompanyId);
     UPDATE [inventory].[Items] SET StockQty=StockQty+@GLQty,UpdatedAt=SYSUTCDATETIME() WHERE ItemId=@InvItemId AND CompanyId=@CompanyId;
     FETCH NEXT FROM curGold INTO @GL,@GLQty,@GLPrice,@GLTitle;
 END
@@ -173,9 +176,27 @@ BEGIN
     DECLARE @InvItemId2 INT=(SELECT ItemId FROM [inventory].[Items] WHERE CompanyId=@CompanyId AND ItemCode=@GLCode2 AND IsDeleted=0);
     IF @InvItemId2 IS NULL OR (SELECT StockQty FROM [inventory].[Items] WHERE ItemId=@InvItemId2 AND CompanyId=@CompanyId) < @PayGoldGram
         THROW 51075, N'موجودی انبار برای پرداخت طلا کافی نیست.', 1;
+    -- مصرف لایه‌های موجودی (FIFO) — هماهنگ با ماژول انبار
+    DECLARE @RemQty2 DECIMAL(18,4)=@PayGoldGram, @TotCost2 DECIMAL(18,2)=0, @LyId2 INT, @LyCost2 DECIMAL(18,2), @LyRem2 DECIMAL(18,4);
+    DECLARE curLayers2 CURSOR LOCAL FAST_FORWARD FOR
+        SELECT LayerId,UnitCost,QtyRemaining FROM [inventory].[StockLayers]
+        WHERE ItemId=@InvItemId2 AND WarehouseId=@WarehouseId AND QtyRemaining>0 AND CompanyId=@CompanyId
+        ORDER BY ReceivedDate,LayerId;
+    OPEN curLayers2;
+    FETCH NEXT FROM curLayers2 INTO @LyId2,@LyCost2,@LyRem2;
+    WHILE @@FETCH_STATUS=0 AND @RemQty2>0
+    BEGIN
+        IF @LyRem2>=@RemQty2
+        BEGIN SET @TotCost2=@TotCost2+@RemQty2*@LyCost2; UPDATE [inventory].[StockLayers] SET QtyRemaining=QtyRemaining-@RemQty2 WHERE LayerId=@LyId2; SET @RemQty2=0; END
+        ELSE
+        BEGIN SET @TotCost2=@TotCost2+@LyRem2*@LyCost2; SET @RemQty2=@RemQty2-@LyRem2; UPDATE [inventory].[StockLayers] SET QtyRemaining=0 WHERE LayerId=@LyId2; END
+        FETCH NEXT FROM curLayers2 INTO @LyId2,@LyCost2,@LyRem2;
+    END
+    CLOSE curLayers2; DEALLOCATE curLayers2;
+    DECLARE @PayIssueCost DECIMAL(18,2)=CASE WHEN @PayGoldGram>0 THEN ROUND(@TotCost2/@PayGoldGram,2) ELSE 0 END;
     INSERT INTO [inventory].[Movements]
-        (MovementNumber,MovementType,ItemId,WarehouseId,Qty,UnitPrice,MovementDate,Description,Status,CreatedBy,CompanyId)
-    VALUES (N'',N'Issue',@InvItemId2,@WarehouseId,@PayGoldGram,@GoldPrice,@InvoiceDate,N'پرداخت طلا بابت تسویه '+@InvoiceNumber,N'Posted',@CreatedBy,@CompanyId);
+        (MovementNumber,MovementType,ItemId,WarehouseId,SubWarehouseId,Qty,UnitPrice,CostPrice,MovementDate,Description,Status,CreatedBy,CompanyId)
+    VALUES (N'',N'Issue',@InvItemId2,@WarehouseId,NULL,@PayGoldGram,@PayIssueCost,@PayIssueCost,@InvoiceDate,N'پرداخت طلا بابت تسویه '+@InvoiceNumber,N'Posted',@CreatedBy,@CompanyId);
     DECLARE @MvId2 INT=SCOPE_IDENTITY();
     UPDATE [inventory].[Movements] SET MovementNumber=N'MV-'+RIGHT(N'00000'+CAST(@MvId2 AS NVARCHAR(10)),5) WHERE MovementId=@MvId2;
     UPDATE [inventory].[Items] SET StockQty=StockQty-@PayGoldGram,UpdatedAt=SYSUTCDATETIME() WHERE ItemId=@InvItemId2 AND CompanyId=@CompanyId;
@@ -213,8 +234,8 @@ BEGIN
 END
 
 -- ── سند حسابداری خرید (سند یاداشت — Status='Note') ─
-DECLARE @PartyAccountId INT=(SELECT DetailLinkId FROM [goldshop].[GoldPartyLinks] WHERE CompanyId=@CompanyId AND PartyId=@PartyId);
-DECLARE @PartyCode NVARCHAR(50)=(SELECT DetailAccountCode FROM [goldshop].[GoldPartyLinks] WHERE CompanyId=@CompanyId AND PartyId=@PartyId);
+DECLARE @PartyAccountId INT=(SELECT DetailLinkId FROM [treasury].[PartyLinks] WHERE CompanyId=@CompanyId AND PartyId=@PartyId);
+DECLARE @PartyCode NVARCHAR(50)=(SELECT DetailAccountCode FROM [treasury].[PartyLinks] WHERE CompanyId=@CompanyId AND PartyId=@PartyId);
 DECLARE @CashId INT,@CashCode NVARCHAR(4000),@CashTitle NVARCHAR(200);
 DECLARE @BankId INT,@BankCode NVARCHAR(4000),@BankTitle NVARCHAR(200);
 DECLARE @InvId INT,@InvCode NVARCHAR(4000),@InvTitle NVARCHAR(200);

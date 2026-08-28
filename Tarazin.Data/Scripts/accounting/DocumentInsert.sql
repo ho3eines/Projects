@@ -52,14 +52,43 @@ DECLARE @CounterParty NVARCHAR(200) = NULLIF(@CounterPartyName, N'');
 -- Opening and Closing Document Business Rules
 -- =============================================
 
--- سال مالی بسته: هیچ سند عادی جدیدی پذیرفته نمی‌شود.
+-- سال مالی بسته: هیچ سند عادی جدیدی پذیرفته نمی‌شود، مگر با مجوز
+-- «ثبت در سال بسته» (accounting.closedyear — توسط UI کنترل می‌شود) و درج دلیل
+-- که در ممیزی (central.AuditLog) ثبت می‌شود.
 -- (سند Opening/Closing فقط از مسیر سیستمی DocumentOpeningEnsure /
 --  DocumentClosingGenerate می‌آید و این مسیر را دور می‌زند.)
+DECLARE @YearIsClosed BIT = 0;
 IF @DocumentType NOT IN (N'Opening', N'Closing')
    AND EXISTS (SELECT 1 FROM [central].[FiscalYears]
                WHERE FiscalYearId = @FiscalYearId AND CompanyId = @CompanyId
                  AND ISNULL([Status], N'Open') = N'Closed')
-    THROW 51006, N'سال مالی بسته شده است؛ امکان ثبت سند جدید وجود ندارد.', 1;
+    SET @YearIsClosed = 1;
+
+IF @YearIsClosed = 1
+BEGIN
+    -- @OverrideReason پارامتر ورودی است؛ مقدار trimmed آن را در متغیر داخلی نگه می‌داریم
+    -- (DECLARE همنام با پارامتر ممنوع است — خطای 134).
+    DECLARE @Reason NVARCHAR(500) = LTRIM(RTRIM(ISNULL(@OverrideReason, N'')));
+    IF ISNULL(@OverrideClosedYear, 0) = 1 AND LEN(@Reason) > 0
+    BEGIN
+        -- ثبت ممیزی: ثبت سند در سال بسته با مجوز + دلیل (زنجیرهٔ هش مثل AuditService).
+        DECLARE @AuditPrevHash NVARCHAR(64) = (SELECT TOP 1 RowHash FROM [central].[AuditLog]
+                                               WHERE CompanyId = @CompanyId ORDER BY AuditId DESC);
+        IF @AuditPrevHash IS NULL
+            SET @AuditPrevHash = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256', 'genesis'), 2);
+        DECLARE @AuditPayload NVARCHAR(MAX) =
+            N'{"SchemaName":"accounting","ScriptName":"DocumentInsert","CompanyId":' + CONVERT(NVARCHAR(20), @CompanyId) +
+            N',"Outcome":"Success","Reason":"' + REPLACE(REPLACE(@Reason, CHAR(92), CHAR(92)+CHAR(92)), CHAR(34), CHAR(92)+CHAR(34)) + N'"}';
+        DECLARE @AuditRowHash NVARCHAR(64) = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256', @AuditPayload), 2);
+        INSERT INTO [central].[AuditLog]
+            (CompanyId, PrevHash, RowHash, SchemaName, ScriptName, UserTokenId, Parameters, Outcome, Error, CreatedAt)
+        VALUES
+            (@CompanyId, @AuditPrevHash, @AuditRowHash, N'accounting', N'DocumentInsert', @CreatedBy,
+             @Reason, N'Success', N'ثبت سند در سال مالی بسته با مجوز', SYSUTCDATETIME());
+    END
+    ELSE
+        THROW 51006, N'سال مالی بسته شده است. ثبت سند جدید در سال بسته نیازمند مجوز «ثبت در سال بسته» و درج دلیل است.', 1;
+END
 
 IF @DocumentType = N'Opening'
 BEGIN

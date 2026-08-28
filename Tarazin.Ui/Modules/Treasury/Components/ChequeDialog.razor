@@ -1,0 +1,95 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="شماره چک" @bind-Value="_number" Required="true"
+                                  RequiredError="شماره چک الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Label="بانک" @bind-Value="_bankId" Variant="Variant.Outlined" Required="true"
+                               RequiredError="بانک الزامی است.">
+                        <MudSelectItem Value="@((int?)null)">— انتخاب بانک —</MudSelectItem>
+                        @foreach (var b in _banks)
+                        {
+                            <MudSelectItem Value="@((int?)b.BankId)">@b.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="جهت" @bind-Value="_direction" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("In")">دریافتی</MudSelectItem>
+                        <MudSelectItem Value="@("Out")">پرداختی</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="مبلغ" @bind-Value="_amount" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="سررسید" Culture="FaCulture" @bind-Date="_dueDate" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    private List<BankRow> _banks = new();
+    private string _number = "";
+    private int? _bankId;
+    private string _direction = "In";
+    private decimal _amount;
+    private DateTime? _dueDate = DateTime.Today;
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _banks = (await Db.QueryAsync<BankRow>("treasury", "BankList",
+                new { CompanyId = Session.ActiveCompanyId })).ToList();
+        }
+        catch { _banks = new List<BankRow>(); }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("treasury", "ChequeInsert", new
+            {
+                ChequeNumber = _number.Trim(),
+                BankId = _bankId,
+                Amount = _amount,
+                DueDate = _dueDate?.Date,
+                Direction = _direction,
+                CompanyId = Session.ActiveCompanyId,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add("چک ثبت شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

@@ -13,5 +13,6 @@ SELECT
     r.UpdatedAt
 FROM [treasury].[CurrencyRates] r
 WHERE r.IsDeleted = 0
+  AND (@CompanyId IS NULL OR r.CompanyId = @CompanyId)
 ORDER BY r.CurrencyCode
 OFFSET @SkipRows ROWS FETCH NEXT @TakeSize ROWS ONLY;

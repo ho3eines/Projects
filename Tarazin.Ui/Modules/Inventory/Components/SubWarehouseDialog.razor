@@ -1,0 +1,103 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudSelect T="int" Label="انبار اصلی" @bind-Value="_warehouseId" Variant="Variant.Outlined"
+                               Required="true" RequiredError="انبار اصلی الزامی است.">
+                        <MudSelectItem Value="0">— انتخاب انبار —</MudSelectItem>
+                        @foreach (var w in Warehouses)
+                        {
+                            <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد انبارک" @bind-Value="_model.SubWarehouseCode" Variant="Variant.Outlined"
+                                  HelperText="خالی = خودکار" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="عنوان" @bind-Value="_model.Title" Required="true"
+                                  RequiredError="عنوان انبارک الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="موقعیت" @bind-Value="_model.Location" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public SubWarehouseRow Model { get; set; } = default!;
+    [Parameter] public List<WarehouseRow> Warehouses { get; set; } = new();
+
+    private SubWarehouseRow _model = new();
+    private int _warehouseId;
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _model = new SubWarehouseRow
+            {
+                SubWarehouseId = Model.SubWarehouseId,
+                WarehouseId = Model.WarehouseId,
+                SubWarehouseCode = Model.SubWarehouseCode,
+                Title = Model.Title,
+                Location = Model.Location,
+                IsActive = Model.IsActive
+            };
+            _warehouseId = Model.WarehouseId;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+        if (_warehouseId == 0)
+        {
+            Snackbar.Add("انبار اصلی را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("inventory", "SubWarehouseUpsert", new
+            {
+                SubWarehouseId = _model.SubWarehouseId,
+                WarehouseId = _warehouseId,
+                SubWarehouseCode = _model.SubWarehouseCode.Trim(),
+                Title = _model.Title.Trim(),
+                Location = string.IsNullOrWhiteSpace(_model.Location) ? null : _model.Location.Trim(),
+                IsActive = _model.IsActive,
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

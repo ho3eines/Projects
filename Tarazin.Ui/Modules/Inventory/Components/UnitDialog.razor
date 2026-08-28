@@ -1,0 +1,76 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد واحد" @bind-Value="_model.UnitCode" Variant="Variant.Outlined"
+                                  HelperText="خالی = خودکار" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="عنوان" @bind-Value="_model.Title" Required="true"
+                                  RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public UnitRow Model { get; set; } = default!;
+
+    private UnitRow _model = new();
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+            _model = new UnitRow
+            {
+                UnitId = Model.UnitId,
+                UnitCode = Model.UnitCode,
+                Title = Model.Title,
+                IsActive = Model.IsActive
+            };
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("inventory", "UnitUpsert", new
+            {
+                UnitId = _model.UnitId,
+                UnitCode = _model.UnitCode.Trim(),
+                Title = _model.Title.Trim(),
+                IsActive = _model.IsActive,
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

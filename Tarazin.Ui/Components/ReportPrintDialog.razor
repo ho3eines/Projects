@@ -1,0 +1,164 @@
+@inject IJSRuntime JS
+@inject IPdfSaver PdfSaver
+@inject PdfReportService Pdf
+
+@* دیالوگ مشترک چاپ هر گزارش جدولی — طبق .claude/skills/tarazin-reporting/SKILL.md:
+   - Title/Subtitle/RangeText: سرصفحهٔ گزارش
+   - Body: RenderFragment جدول (از صفحه)
+   - Summary: RenderFragment جمع‌بندی (اختیاری)
+   - BuildPdf: Func<string, byte[]> که با PdfReportService.BuildTablePdf PDF می‌سازد
+   - Wide: جدول عریض → برگهٔ landscape
+   حالت‌ها: عادی (پیش‌نمایش روی صفحه) / پیش‌نمایش چاپ (شبیه‌سازی برگهٔ A4/A5) *@
+
+<MudDialog Class="@(_preview ? "gp-print-dialog gp-previewing" : "gp-print-dialog")">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+            <MudText Typo="Typo.h6">چاپ — @Title</MudText>
+            @if (_preview)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary">پیش‌نمایش چاپ</MudChip>
+            }
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_preview)
+        {
+            @* ── حالت پیش‌نمایش: شبیه‌سازی برگهٔ A4/A5 با هدر/فوتر رسمی ── *@
+            <div class="gp-preview-stage">
+                <div class="gp-preview-sheet @(Wide ? "gp-preview-sheet--landscape" : "") @(_paperSize == "A5" ? "gp-preview-sheet--a5" : "")">
+                    @* هدر رسمی (شبیه‌سازی) *@
+                    <div class="gp-print-header">
+                        <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+                        <div>
+                            <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                                ترازین — سامانه یکپارچه مدیریت کسب‌وکار
+                            </div>
+                            <div style="font-size:9pt;color:#666">
+                                @Title@(string.IsNullOrWhiteSpace(Subtitle) ? "" : $" — {Subtitle}")
+                            </div>
+                        </div>
+                    </div>
+
+                    @* بدنهٔ برگه *@
+                    <div class="gp-preview-sheet__body">
+                        @if (!string.IsNullOrWhiteSpace(RangeText))
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">بازه: @RangeText</MudText>
+                        }
+                        @Body
+                        @if (Summary is not null)
+                        {
+                            <div class="mt-3">@Summary</div>
+                        }
+                    </div>
+
+                    @* فوتر رسمی (شبیه‌سازی) *@
+                    <div class="gp-print-footer">
+                        <span>ترازین — سامانه یکپارچه مدیریت کسب‌وکار</span>
+                        <span class="gp-page-no">صفحه ۱ از ۱</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            @* ── حالت عادی: بدنهٔ چاپی (هدر/فوتر رسمی فقط در چاپ تکرار می‌شوند) ── *@
+            <div class="@(Wide ? "cq-print-area" : "gp-print-area") @(_paperSize == "A5" ? (Wide ? "cq-print-area--a5" : "gp-print-area--a5") : "")">
+                @* هدر رسمی (فقط در چاپ) *@
+                <div class="gp-print-header print-only">
+                    <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+                    <div>
+                        <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                            ترازین — سامانه یکپارچه مدیریت کسب‌وکار
+                        </div>
+                        <div style="font-size:9pt;color:#666">
+                            @Title@(string.IsNullOrWhiteSpace(Subtitle) ? "" : $" — {Subtitle}")
+                        </div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(RangeText))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">بازه: @RangeText</MudText>
+                }
+                @Body
+                @if (Summary is not null)
+                {
+                    <div class="mt-3">@Summary</div>
+                }
+
+                @* فوتر رسمی (فقط در چاپ) *@
+                <div class="gp-print-footer print-only">
+                    <span>ترازین — سامانه یکپارچه مدیریت کسب‌وکار</span>
+                    <span>@Title</span>
+                </div>
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudSelect T="string" Label="اندازهٔ کاغذ" Value="@_paperSize" ValueChanged="OnSizeChanged"
+                   Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
+                   Style="min-width:130px" Class="mr-1">
+            <MudSelectItem Value="@("A4")">A4</MudSelectItem>
+            <MudSelectItem Value="@("A5")">A5</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TogglePreview"
+                   StartIcon="@(_preview ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)">
+            @(_preview ? "خروج از پیش‌نمایش" : "پیش‌نمایش چاپ")
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync"
+                   StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync"
+                   StartIcon="@Icons.Material.Filled.FileDownload" Disabled="@(_downloading || BuildPdf is null)">
+            @(_downloading ? "در حال ساخت PDF…" : "دانلود PDF")
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" OnClick="Close" StartIcon="@Icons.Material.Filled.Close">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? RangeText { get; set; }
+    [Parameter, EditorRequired] public RenderFragment Body { get; set; } = default!;
+    [Parameter] public RenderFragment? Summary { get; set; }
+    [Parameter] public Func<string, byte[]>? BuildPdf { get; set; }
+    [Parameter] public bool Wide { get; set; }
+
+    private bool _preview;
+    private string _paperSize = "A4";
+    private bool _downloading;
+
+    private void TogglePreview() => _preview = !_preview;
+
+    private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+
+    /// <summary>
+    /// ساخت PDF با QuestPDF (سمت سرور در وب / بومی در MAUI) و دانلود بدون
+    /// دیالوگ پرینتر — نام فایل با PdfFileNames (تاریخ شمسی + پاک‌سازی).
+    /// </summary>
+    private async Task DownloadPdfAsync()
+    {
+        if (BuildPdf is null) return;
+        _downloading = true;
+        try
+        {
+            var bytes = BuildPdf(_paperSize);
+            var fileName = $"{PdfFileNames.Sanitize(Title)}-{PdfFileNames.ShamsiDate(DateTime.Now)}-{_paperSize}.pdf";
+            await PdfSaver.SaveAsync(fileName, bytes);
+        }
+        finally
+        {
+            _downloading = false;
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+
+    private void Close() => MudDialog.Close();
+}

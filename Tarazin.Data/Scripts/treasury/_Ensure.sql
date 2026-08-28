@@ -350,6 +350,16 @@ GO
 IF COL_LENGTH(N'treasury.Cheques', N'CompanyId') IS NULL
     ALTER TABLE [treasury].[Cheques] ADD CompanyId INT NULL;
 GO
+-- Cheque lifecycle timestamps + return reason (collected/returned management)
+IF COL_LENGTH(N'treasury.Cheques', N'CollectedAt') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD CollectedAt DATETIME2 NULL;
+GO
+IF COL_LENGTH(N'treasury.Cheques', N'ReturnedAt') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD ReturnedAt DATETIME2 NULL;
+GO
+IF COL_LENGTH(N'treasury.Cheques', N'ReturnReason') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD ReturnReason NVARCHAR(500) NULL;
+GO
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Cheques_Company')
     ALTER TABLE [treasury].[Cheques] WITH CHECK ADD CONSTRAINT FK_Cheques_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
 GO
@@ -385,6 +395,76 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_DayCloses_Company' AND object_id = OBJECT_ID(N'[treasury].[DayCloses]'))
     CREATE INDEX IX_DayCloses_Company ON [treasury].[DayCloses](CompanyId) WHERE CompanyId IS NOT NULL;
 GO
+
+-- ─────────────────────────────────────────────────────────────
+-- TreasurySettings — تنظیمات اتصال خزانه به حسابداری (مثل GoldShopSettings)
+-- حساب‌های سند حسابداری دریافت/پرداخت + گروه تفصیلی مشتری/تأمین‌کننده
+-- ─────────────────────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'treasury' AND t.name = N'TreasurySettings')
+BEGIN
+    CREATE TABLE [treasury].[TreasurySettings] (
+        CompanyId              INT NOT NULL PRIMARY KEY,
+        CashAccountId          INT NULL,
+        CashAccountCode        NVARCHAR(4000) NULL,
+        CashAccountTitle       NVARCHAR(200) NULL,
+        BankChartAccountId     INT NULL,
+        BankChartAccountCode   NVARCHAR(4000) NULL,
+        BankChartAccountTitle  NVARCHAR(200) NULL,
+        ReceiveContraAccountId   INT NULL,
+        ReceiveContraAccountCode NVARCHAR(4000) NULL,
+        ReceiveContraAccountTitle NVARCHAR(200) NULL,
+        PayContraAccountId       INT NULL,
+        PayContraAccountCode     NVARCHAR(4000) NULL,
+        PayContraAccountTitle    NVARCHAR(200) NULL,
+        CustomerAccountGroupId INT NULL,
+        SupplierAccountGroupId INT NULL,
+        DefaultCashBoxId       INT NULL,
+        DefaultBankAccountId   INT NULL,
+        IsEnabled              BIT NOT NULL DEFAULT 1,
+        UpdatedAt              DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedBy              NVARCHAR(100) NULL,
+        CONSTRAINT FK_TreasurySettings_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+
+-- ─────────────────────────────────────────────────────────────
+-- PartyLinks — لینک حسابداری مشترک طرف حساب (مشتری/تأمین‌کننده)
+-- صاحب واحد: خزانه‌داری؛ طلافروشی هم از همین جدول می‌خواند/می‌نویسد تا
+-- تعریف مشتریان «یک‌پارچه» باشد (یک‌بار تعریف، همه‌جا استفاده).
+-- ─────────────────────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'treasury' AND t.name = N'PartyLinks')
+BEGIN
+    CREATE TABLE [treasury].[PartyLinks] (
+        CompanyId         INT NOT NULL,
+        PartyId           INT NOT NULL,
+        PartyType         NVARCHAR(30) NOT NULL,      -- Customer | Vendor
+        DetailLinkId      INT NULL,                   -- DetilId در حسابداری
+        DetailAccountCode NVARCHAR(50) NULL,
+        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CreatedBy         NVARCHAR(100) NULL,
+        UpdatedAt         DATETIME2 NULL,
+        UpdatedBy         NVARCHAR(100) NULL,
+        CONSTRAINT PK_TreasuryPartyLinks PRIMARY KEY (CompanyId, PartyId),
+        CONSTRAINT FK_TreasuryPartyLinks_Party FOREIGN KEY (PartyId) REFERENCES [central].[Parties](PartyId)
+    );
+END
+
+-- مهاجرت: کپی ردیف‌های لینک قدیمی طلافروشی به جدول یکپارچه (idempotent)
+IF OBJECT_ID(N'goldshop.GoldPartyLinks', N'U') IS NOT NULL
+BEGIN
+    INSERT INTO [treasury].[PartyLinks]
+        (CompanyId, PartyId, PartyType, DetailLinkId, DetailAccountCode, CreatedAt, CreatedBy)
+    SELECT g.CompanyId, g.PartyId, g.PartyType, g.DetailLinkId, g.DetailAccountCode, g.CreatedAt, g.CreatedBy
+    FROM [goldshop].[GoldPartyLinks] g
+    WHERE NOT EXISTS (SELECT 1 FROM [treasury].[PartyLinks] t
+                      WHERE t.CompanyId = g.CompanyId AND t.PartyId = g.PartyId);
+END
 
 -- ─────────────────────────────────────────────────────────────
 -- مهاجرت یکتایی کدها از «سراسری» به «درون‌شرکتی» در خزانه‌داری

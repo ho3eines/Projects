@@ -349,3 +349,148 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CartItems_Company' AND object_id = OBJECT_ID(N'[store].[CartItems]'))
     CREATE INDEX IX_CartItems_Company ON [store].[CartItems](CompanyId) WHERE CompanyId IS NOT NULL;
 GO
+
+-- =============================================
+-- یکپارچه‌سازی فروشگاه با حسابداری/خزانه/انبار (الگوی طلافروشی)
+-- 1) OrderLedger — دفتر بدهکار/بستانکار مشتری (کیف پول ریالی)
+-- 2) StoreSettings — لینک‌های حسابداری/خزانه/انبار برای سند خودکار
+-- 3) ستون‌های تسویه و سند روی Orders
+-- 4) PartyId روی Customers + backfill خودکار مشتریان قدیمی
+-- =============================================
+
+-- ── OrderLedger: دفتر طرف‌حساب مشتری فروشگاه ──
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'OrderLedger')
+BEGIN
+    CREATE TABLE [store].[OrderLedger] (
+        LedgerId    INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId   INT NOT NULL,
+        CustomerId  INT NOT NULL,
+        OrderId     INT NOT NULL,
+        EntryDate   DATE NOT NULL,
+        EntryType   NVARCHAR(30) NOT NULL,       -- OrderSale | Payment | ...
+        DebitRial   DECIMAL(18,2) NOT NULL DEFAULT 0,
+        CreditRial  DECIMAL(18,2) NOT NULL DEFAULT 0,
+        Description NVARCHAR(500) NULL,
+        CreatedBy   NVARCHAR(100) NULL,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_OrderLedger_Customer ON [store].[OrderLedger](CompanyId, CustomerId, EntryDate);
+    CREATE INDEX IX_OrderLedger_Order   ON [store].[OrderLedger](OrderId);
+END
+
+-- ── StoreSettings: لینک‌های حسابداری/خزانه/انبار ──
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'StoreSettings')
+BEGIN
+    CREATE TABLE [store].[StoreSettings] (
+        CompanyId             INT NOT NULL PRIMARY KEY,
+        InventoryWarehouseId  INT NULL,
+        SalesAccountId        INT NULL,
+        SalesAccountCode      NVARCHAR(30) NULL,
+        SalesAccountTitle     NVARCHAR(200) NULL,
+        InventoryAccountId    INT NULL,
+        InventoryAccountCode  NVARCHAR(30) NULL,
+        InventoryAccountTitle NVARCHAR(200) NULL,
+        CashAccountId         INT NULL,
+        CashAccountCode       NVARCHAR(30) NULL,
+        CashAccountTitle      NVARCHAR(200) NULL,
+        BankChartAccountId    INT NULL,
+        BankChartAccountCode  NVARCHAR(30) NULL,
+        BankChartAccountTitle NVARCHAR(200) NULL,
+        CashBoxId             INT NULL,
+        BankAccountId         INT NULL,
+        IsEnabled             BIT NOT NULL DEFAULT 1,
+        UpdatedAt             DATETIME2 NULL,
+        UpdatedBy             NVARCHAR(100) NULL
+    );
+END
+
+-- ── ستون‌های تسویه/سند روی Orders ──
+IF COL_LENGTH(N'store.Orders', N'PaymentStatus') IS NULL
+    ALTER TABLE [store].[Orders] ADD PaymentStatus NVARCHAR(30) NOT NULL CONSTRAINT DF_Orders_PaymentStatus DEFAULT N'Unpaid';
+IF COL_LENGTH(N'store.Orders', N'DocumentId') IS NULL
+    ALTER TABLE [store].[Orders] ADD DocumentId INT NULL;
+IF COL_LENGTH(N'store.Orders', N'BalanceRial') IS NULL
+    ALTER TABLE [store].[Orders] ADD BalanceRial DECIMAL(18,2) NOT NULL CONSTRAINT DF_Orders_BalanceRial DEFAULT 0;
+IF COL_LENGTH(N'store.Orders', N'PayCash') IS NULL
+    ALTER TABLE [store].[Orders] ADD PayCash DECIMAL(18,2) NOT NULL CONSTRAINT DF_Orders_PayCash DEFAULT 0;
+IF COL_LENGTH(N'store.Orders', N'PayBank') IS NULL
+    ALTER TABLE [store].[Orders] ADD PayBank DECIMAL(18,2) NOT NULL CONSTRAINT DF_Orders_PayBank DEFAULT 0;
+IF COL_LENGTH(N'store.Orders', N'ChequeNumber') IS NULL
+    ALTER TABLE [store].[Orders] ADD ChequeNumber NVARCHAR(50) NULL;
+IF COL_LENGTH(N'store.Orders', N'ChequeBankId') IS NULL
+    ALTER TABLE [store].[Orders] ADD ChequeBankId INT NULL;
+IF COL_LENGTH(N'store.Orders', N'ChequeAmount') IS NULL
+    ALTER TABLE [store].[Orders] ADD ChequeAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_Orders_ChequeAmount DEFAULT 0;
+IF COL_LENGTH(N'store.Orders', N'ChequeDueDate') IS NULL
+    ALTER TABLE [store].[Orders] ADD ChequeDueDate DATE NULL;
+GO
+
+-- ── PartyId روی Customers (لینک به central.Parties) ──
+IF COL_LENGTH(N'store.Customers', N'PartyId') IS NULL
+    ALTER TABLE [store].[Customers] ADD PartyId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Customers_Party')
+    ALTER TABLE [store].[Customers] WITH CHECK ADD CONSTRAINT FK_Customers_Party FOREIGN KEY (PartyId) REFERENCES [central].[Parties](PartyId);
+GO
+
+-- ── Backfill: مشتریان قدیمی بدون PartyId → ساخت central.Parties + لینک حسابداری ──
+-- (همان منطق خودکار طلافروشی: گروه تفصیلی از CompanyAccountSettings، کد = CUS-xxxxx)
+IF EXISTS (SELECT 1 FROM [store].[Customers] WHERE PartyId IS NULL)
+BEGIN
+    DECLARE @BackfillCompanyId INT, @BackfillCustomerId INT, @BackfillCode NVARCHAR(50), @BackfillFullName NVARCHAR(200),
+            @BackfillPartyId INT, @BackfillGrpId INT, @BackfillMoeinId INT, @BackfillNature NVARCHAR(10),
+            @BackfillGrpFrom NVARCHAR(7), @BackfillNumPart INT, @BackfillDetilCode NVARCHAR(7),
+            @BackfillExistingDetilId INT;
+    DECLARE curBackfill CURSOR LOCAL FAST_FORWARD FOR
+        SELECT CustomerId, CompanyId, CustomerCode, FullName FROM [store].[Customers] WHERE PartyId IS NULL;
+    OPEN curBackfill;
+    FETCH NEXT FROM curBackfill INTO @BackfillCustomerId, @BackfillCompanyId, @BackfillCode, @BackfillFullName;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        IF @BackfillCode IS NULL OR @BackfillCode = N''
+            SET @BackfillCode = N'CUS-' + RIGHT(N'00000' + CAST(@BackfillCustomerId AS NVARCHAR(10)), 5);
+        INSERT INTO [central].[Parties]
+            (CompanyId, PartyCode, PartyType, FullName, Phone, Email, IsActive, CreatedAt, CreatedBy)
+        VALUES (@BackfillCompanyId, @BackfillCode, N'Customer', @BackfillFullName, NULL, NULL, 1, SYSUTCDATETIME(), N'system');
+        SET @BackfillPartyId = CAST(SCOPE_IDENTITY() AS INT);
+        UPDATE [store].[Customers] SET PartyId = @BackfillPartyId WHERE CustomerId = @BackfillCustomerId;
+        -- لینک حسابداری خودکار (اگر گروه تفصیلی مشتری در تنظیمات شرکت موجود باشد)
+        SET @BackfillGrpId = (SELECT CustomerAccountGroupId FROM [accounting].[CompanyAccountSettings] WHERE CompanyId = @BackfillCompanyId);
+        SET @BackfillMoeinId = (SELECT DefaultMoeinId FROM [accounting].[AccountGroups] WHERE AccountGroupId = @BackfillGrpId AND CompanyId = @BackfillCompanyId AND IsDeleted = 0 AND IsActive = 1);
+        SET @BackfillNature = (SELECT DefaultNature FROM [accounting].[AccountGroups] WHERE AccountGroupId = @BackfillGrpId AND CompanyId = @BackfillCompanyId);
+        SET @BackfillGrpFrom = (SELECT FromCode FROM [accounting].[AccountGroups] WHERE AccountGroupId = @BackfillGrpId AND CompanyId = @BackfillCompanyId);
+        SET @BackfillNumPart = TRY_CONVERT(INT, RIGHT(@BackfillCode, 5));
+        SET @BackfillDetilCode = CASE WHEN @BackfillNumPart IS NOT NULL AND @BackfillGrpFrom IS NOT NULL
+            THEN RIGHT(N'0000000' + CONVERT(NVARCHAR(7), CONVERT(INT, @BackfillGrpFrom) + @BackfillNumPart - 1), 7)
+            ELSE @BackfillGrpFrom END;
+        IF @BackfillGrpId IS NOT NULL AND @BackfillMoeinId IS NOT NULL AND @BackfillDetilCode IS NOT NULL
+        BEGIN
+            SET @BackfillExistingDetilId = (SELECT TOP 1 d.DetilId FROM [accounting].[BaseDetil] d
+                WHERE d.CompanyId = @BackfillCompanyId AND d.DetilCode = @BackfillDetilCode AND d.IsDeleted = 0);
+            IF @BackfillExistingDetilId IS NULL
+            BEGIN
+                INSERT INTO [accounting].[BaseDetil]
+                    (DetilCode, Title, [Description], AccountGroupId, AccountNature, IsActive, CreatedAt, CreatedBy, CompanyId)
+                VALUES (@BackfillDetilCode, @BackfillFullName, N'تفصیلی خودکار فروشگاه',
+                        @BackfillGrpId, ISNULL(@BackfillNature, N'Both'), 1, SYSUTCDATETIME(), N'system', @BackfillCompanyId);
+                SET @BackfillExistingDetilId = CAST(SCOPE_IDENTITY() AS INT);
+                INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, [Description], IsActive, CreatedAt, CreatedBy, CompanyId)
+                VALUES (@BackfillExistingDetilId, @BackfillMoeinId, N'لینک خودکار ' + @BackfillDetilCode, 1, SYSUTCDATETIME(), N'system', @BackfillCompanyId);
+            END
+            IF NOT EXISTS (SELECT 1 FROM [treasury].[PartyLi
+ks] WHERE CompanyId = @BackfillCompanyId AND PartyId = @BackfillPartyId)
+                INSERT INTO [treasury].[PartyLinks]
+                    (CompanyId, PartyId, PartyType, DetailLinkId, DetailAccountCode, CreatedAt, CreatedBy)
+                VALUES (@BackfillCompanyId, @BackfillPartyId, N'Customer', @BackfillExistingDetilId, @BackfillDetilCode, SYSUTCDATETIME(), N'system');
+        END
+        FETCH NEXT FROM curBackfill INTO @BackfillCustomerId, @BackfillCompanyId, @BackfillCode, @BackfillFullName;
+    END
+    CLOSE curBackfill; DEALLOCATE curBackfill;
+END
+GO

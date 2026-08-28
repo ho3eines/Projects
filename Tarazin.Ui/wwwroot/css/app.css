@@ -314,6 +314,36 @@ body {
     color: var(--mud-palette-text-secondary);
 }
 
+/* کارت آمار لینک‌دار — کل کارت قابل کلیک و با hover واضح */
+.tz-stat-link {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    color: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tz-stat-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.10);
+}
+
+.tz-stat-link:hover .tz-stat {
+    border-color: var(--tz-accent, var(--tz-ink));
+}
+
+.tz-stat__arrow {
+    margin-inline-start: auto;
+    color: var(--mud-palette-text-secondary);
+    opacity: 0.55;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.tz-stat-link:hover .tz-stat__arrow {
+    opacity: 1;
+    transform: translateX(-3px);
+}
+
 /* ── Home ────────────────────────────────────────────────── */
 .tz-hero {
     display: grid;
@@ -855,4 +885,327 @@ body {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   چاپ رسمی — قوانین @page + هدر/فوتر تکرارشونده (لوگو + شماره صفحه)
+   این قوانین فقط روی خروجی چاپ/PDF مرورگر اثر دارند (window.print).
+   کلاس‌های gp-print-* (فاکتور طلا) و cq-print-* (گزارش چک‌ها) هر دو
+   از همین الگو استفاده می‌کنند.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── صفحه‌های چاپ نام‌دار ──
+   هر چاپ‌گر (print-area) با ویژگی page: به یکی از این صفحات وصل می‌شود:
+   - پیش‌فرض (A4 portrait) → فاکتور طلا
+   - gp-a5 (A5 portrait) → فاکتور طلا در اندازهٔ A5
+   - cq-landscape (A4 landscape) → گزارش چک‌ها
+   - cq-a5-landscape (A5 landscape) → گزارش چک‌ها در اندازهٔ A5  */
+
+/* A4 portrait — پیش‌فرض (فاکتور) */
+@page {
+    size: A4;
+    margin: 24mm 10mm 20mm 10mm;
+}
+
+/* A5 portrait (فاکتور) */
+@page gp-a5 {
+    size: A5;
+    margin: 18mm 8mm 16mm 8mm;
+}
+
+/* A4 landscape (گزارش چک‌ها) */
+@page cq-landscape {
+    size: A4 landscape;
+    margin: 24mm 10mm 20mm 10mm;
+}
+
+/* A5 landscape (گزارش چک‌ها) */
+@page cq-a5-landscape {
+    size: A5 landscape;
+    margin: 18mm 8mm 16mm 8mm;
+}
+
+/* شماره صفحه در مرورگرهای دارای پشتیبانی margin-box (@bottom-center) */
+@page {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #555;
+    }
+}
+
+@page gp-a5 {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #555;
+    }
+}
+
+@page cq-landscape {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #555;
+    }
+}
+
+@page cq-a5-landscape {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #555;
+    }
+}
+
+/* اتصال چاپ‌گرها به صفحهٔ نام‌دار (فقط در چاپ اثر دارد) */
+.gp-print-area--a5 {
+    page: gp-a5;
+}
+.cq-print-area {
+    page: cq-landscape;
+}
+.cq-print-area--a5 {
+    page: cq-a5-landscape;
+}
+
+/* فقط ناحیهٔ چاپ در خروجی دیده شود */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .gp-print-area, .gp-print-area *,
+    .cq-print-area, .cq-print-area * {
+        visibility: visible;
+    }
+
+    /* ── رها کردن ناحیهٔ چاپ از قیدهای مودال MudBlazor ──
+       چون ناحیهٔ چاپ داخل MudDialog است (overlay + .mud-dialog + .mud-dialog-content)،
+       و .mud-dialog transform دارد، در حالت چاپ این transform و overflow:auto
+       ناحیهٔ مطلق‌شده را درون باکس دیالوگ می‌فشارند و محتوای چندصفحه‌ای و
+       هدر/فوتر position:fixed را می‌بُرند. این قوانین در چاپ آن‌ها را خنثی می‌کنند
+       تا ناحیهٔ چاپ روی تمام عرض/ارتفاع صفحهٔ A4 پخش شود. */
+    .mud-dialog-container,
+    .mud-focus-trap,
+    .mud-focus-trap-child-container,
+    .mud-dialog,
+    .mud-dialog-content {
+        position: static !important;
+        transform: none !important;
+        overflow: visible !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+    .mud-overlay {
+        display: none !important;
+    }
+
+    .gp-print-area,
+    .cq-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        width: auto;
+    }
+
+    /* هدر رسمی: با position:fixed روی همهٔ صفحات تکرار می‌شود */
+    .gp-print-header,
+    .cq-print-header {
+        position: fixed;
+        top: -20mm;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 4px;
+        border-bottom: 2px solid #1a237e;
+    }
+    .gp-print-header img,
+    .cq-print-header img {
+        height: 30px;
+    }
+
+    /* فوتر رسمی: با position:fixed روی همهٔ صفحات تکرار می‌شود */
+    .gp-print-footer,
+    .cq-print-footer {
+        position: fixed;
+        bottom: -16mm;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 8.5pt;
+        color: #777;
+        border-top: 1px solid #ccc;
+        padding-top: 3px;
+    }
+
+    /* A5: حاشیهٔ کوچک‌تر → هدر/فوتر بالاتر می‌نشینند (درون margin صفحه) */
+    .gp-print-area--a5 .gp-print-header {
+        top: -13mm;
+    }
+    .gp-print-area--a5 .gp-print-footer {
+        bottom: -11mm;
+    }
+    .cq-print-area--a5 .cq-print-header {
+        top: -13mm;
+    }
+    .cq-print-area--a5 .cq-print-footer {
+        bottom: -11mm;
+    }
+
+    /* جلوگیری از شکستن ردیف‌ها/کارت‌ها بین دو صفحه */
+    .gp-page-break,
+    .cq-page-break {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* ظاهر چاپی دیالوگ بدون سایه/حاشیه */
+    .gp-print-area .mud-dialog,
+    .cq-print-area .mud-dialog {
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    /* عناصر فقط-چاپی */
+    .print-only {
+        display: flex !important;
+    }
+}
+
+/* در صفحه (غیرچاپ): هدر/فوتر رسمی دیده نشود */
+.print-only {
+    display: none !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   پیش‌نمایش چاپ — شبیه‌سازی برگهٔ A4 قبل از ارسال به پرینتر
+   (state پیش‌نمایش داخل دیالوگ‌های چاپ: gp-print-dialog.gp-previewing)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* وقتی دیالوگ در حالت پیش‌نمایش است: هدر/فوتر رسمی روی صفحه هم دیده شوند
+   (فقط در حالت عادی؛ داخل برگهٔ پیش‌نمایش هدر/فوتر شبیه‌سازی‌شدهٔ خودش را دارد) */
+.gp-print-dialog.gp-previewing .print-only,
+.cq-print-dialog.gp-previewing .print-only {
+    display: flex !important;
+}
+
+/* داخل برگهٔ پیش‌نمایش، هدر/فوتر رسمی بدنه (print-only) دیده نشود —
+   چون برگه هدر/فوتر شبیه‌سازی‌شدهٔ خودش را دارد.
+   (specificity بالاتر از قاعدهٔ .gp-previewing .print-only تا برنده شود) */
+.gp-print-dialog.gp-previewing .gp-preview-sheet__body .print-only,
+.cq-print-dialog.gp-previewing .gp-preview-sheet__body .print-only {
+    display: none !important;
+}
+
+/* پس‌زمینهٔ پیش‌نمایش (مثل نمایانگر مرورگرها: خاکستری + برگهٔ سفید) */
+.gp-preview-stage {
+    background: #525659;
+    border-radius: 8px;
+    padding: 20px 12px;
+    overflow: auto;
+    max-height: 62vh;
+}
+
+/* برگهٔ A4 شبیه‌سازی‌شده (ابعاد دقیقاً هم‌اندازهٔ کاغذ واقعی تا PDF تمام‌صفحه باشد) */
+.gp-preview-sheet {
+    width: 210mm;
+    min-height: 297mm;
+    max-width: 100%;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+    border-radius: 2px;
+    padding: 22mm 10mm 18mm 10mm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.gp-preview-sheet--landscape {
+    width: 297mm;
+    min-height: 210mm;
+}
+
+/* A5 پرتره (فاکتور) */
+.gp-preview-sheet--a5 {
+    width: 148mm;
+    min-height: 210mm;
+}
+
+/* A5 landscape (گزارش چک‌ها) */
+.gp-preview-sheet--landscape.gp-preview-sheet--a5 {
+    width: 210mm;
+    min-height: 148mm;
+}
+
+/* هدر رسمی داخل برگهٔ پیش‌نمایش */
+.gp-preview-sheet .gp-print-header {
+    position: static;
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #1a237e;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.gp-preview-sheet .gp-print-header img {
+    height: 30px;
+}
+
+/* بدنهٔ برگه */
+.gp-preview-sheet__body {
+    flex: 1;
+}
+
+/* فوتر رسمی داخل برگهٔ پیش‌نمایش */
+.gp-preview-sheet .gp-print-footer {
+    position: static;
+    margin-top: 14px;
+    padding-top: 6px;
+    border-top: 1px solid #ccc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8.5pt;
+    color: #777;
+}
+
+/* برچسب «صفحه N از M» داخل فوتر پیش‌نمایش */
+.gp-preview-sheet .gp-print-footer .gp-page-no {
+    font-weight: 700;
+    color: #1a237e;
+}
+
+/* در حالت پیش‌نمایش، جدول‌ها بدون سایه/کادر اضافی دیالوگ دیده شوند */
+.gp-print-dialog.gp-previewing .gp-print-area .mud-dialog,
+.cq-print-dialog.gp-previewing .cq-print-area .mud-dialog {
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* در حالت پیش‌نمایش، هدر/فوتر داخل بدنهٔ برگه (که از RenderBody می‌آیند) مخفی شوند
+   تا با هدر/فوتر رسمی خود برگه تداخل نکنند — فقط هدر/فوتر بالای برگه دیده شوند */
+.gp-preview-sheet__body .gp-print-header,
+.gp-preview-sheet__body .cq-print-header,
+.gp-preview-sheet__body .gp-print-footer,
+.gp-preview-sheet__body .cq-print-footer {
+    display: none !important;
 }

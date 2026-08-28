@@ -3,5 +3,5 @@
 -- Schema: treasury
 -- Execute. ثبت چک دریافتی/پرداختی.
 -- =============================================
-INSERT INTO [treasury].[Cheques] (ChequeNumber, BankId, Amount, DueDate, Direction, Status, CreatedAt)
-VALUES (@ChequeNumber, @BankId, @Amount, @DueDate, @Direction, N'Pending', SYSUTCDATETIME());
+INSERT INTO [treasury].[Cheques] (ChequeNumber, BankId, Amount, DueDate, Direction, Status, CreatedAt, CreatedBy, CompanyId)
+VALUES (@ChequeNumber, @BankId, @Amount, @DueDate, @Direction, N'Pending', SYSUTCDATETIME(), @CreatedBy, @CompanyId);

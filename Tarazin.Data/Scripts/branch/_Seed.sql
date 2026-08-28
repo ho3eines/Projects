@@ -14,7 +14,11 @@ BEGIN
 END
 
 
-IF NOT EXISTS (SELECT 1 FROM [branch].[Branches] WHERE CompanyId = @SeedCompanyId)
+-- BranchCode is a GLOBAL unique key, so guard on the code itself, not just
+-- the company. Deleted companies can leave orphan BR-001 rows behind; the
+-- global check keeps the seed idempotent across restarts.
+IF NOT EXISTS (SELECT 1 FROM [branch].[Branches] WHERE BranchCode = N'BR-001')
+   AND NOT EXISTS (SELECT 1 FROM [branch].[Branches] WHERE CompanyId = @SeedCompanyId)
 BEGIN
     INSERT INTO [branch].[Branches] (BranchCode, Title, Location, IsActive, CreatedAt, CompanyId)
     VALUES (N'BR-001', N'دفتر مرکزی', N'', 1, SYSUTCDATETIME(), @SeedCompanyId);

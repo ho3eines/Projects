@@ -1,0 +1,76 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="نوع طرف حساب" @bind-Value="Model.PartyType" Required="true" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Customer")">مشتری</MudSelectItem>
+                        <MudSelectItem Value="@("Vendor")">تأمین‌کننده</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد" @bind-Value="Model.PartyCode" HelperText="در صورت خالی‌بودن خودکار ساخته می‌شود." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="نام کامل" @bind-Value="Model.FullName" Required="true" RequiredError="نام الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد ملی / شناسه ملی" @bind-Value="Model.NationalId" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="تلفن" @bind-Value="Model.Phone" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="ایمیل" @bind-Value="Model.Email" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-1">
+                        تفصیلی حسابداری به‌صورت خودکار با همین کد در گروه تنظیمات شرکت ساخته و لینک می‌شود؛
+                        طرف حساب بین خزانه‌داری، طلافروشی و ارز مشترک است.
+                    </MudAlert>
+                </MudItem>
+                <MudItem xs="12"><MudSwitch T="bool" @bind-Value="Model.IsActive" Color="Color.Success">فعال</MudSwitch></MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">انصراف</MudButton>
+        <MudButton OnClick="SaveAsync" Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public TreasuryPartyEditModel Model { get; set; } = new();
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid || string.IsNullOrWhiteSpace(Model.FullName)) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteReturningAsync<int>("treasury", "PartyUpsert", new
+            {
+                Model.PartyId, Model.PartyCode, Model.PartyType, FullName = Model.FullName.Trim(),
+                Model.NationalId, Model.Phone, Model.Email,
+                DetailLinkId = Model.DetailLinkId, DetailAccountCode = Model.DetailAccountCode,
+                Model.IsActive, CompanyId = Session.ActiveCompanyId, CreatedBy = Session.UserName
+            });
+            Snackbar.Add("طرف حساب ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

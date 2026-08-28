@@ -13,7 +13,11 @@ BEGIN
 END
 
 
-IF NOT EXISTS (SELECT 1 FROM [store].[Customers] WHERE CompanyId = @SeedCompanyId)
+-- CustomerCode/ProductCode/OrderNumber are GLOBAL unique keys, so guard on the
+-- codes themselves, not just the company. Deleted companies can leave orphan
+-- rows behind; global checks keep the seed idempotent across restarts.
+IF NOT EXISTS (SELECT 1 FROM [store].[Customers] WHERE CustomerCode IN (N'CST-001', N'CST-002'))
+   AND NOT EXISTS (SELECT 1 FROM [store].[Customers] WHERE CompanyId = @SeedCompanyId)
 BEGIN
     INSERT INTO [store].[Customers] (CustomerCode, FullName, Phone, Email, IsActive, CreatedAt, CompanyId)
     VALUES
@@ -21,7 +25,8 @@ BEGIN
         (N'CST-002', N'حسین نوری',  N'09351112233', N'hossein@example.ir', 1, SYSUTCDATETIME(), @SeedCompanyId);
 END
 
-IF NOT EXISTS (SELECT 1 FROM [store].[Products] WHERE CompanyId = @SeedCompanyId)
+IF NOT EXISTS (SELECT 1 FROM [store].[Products] WHERE ProductCode IN (N'P-GOLD24', N'P-GOLD18', N'P-CHAIN'))
+   AND NOT EXISTS (SELECT 1 FROM [store].[Products] WHERE CompanyId = @SeedCompanyId)
 BEGIN
     INSERT INTO [store].[Products] (ProductCode, Title, ItemCode, Price, IsActive, CreatedAt, CompanyId)
     VALUES
@@ -30,7 +35,8 @@ BEGIN
         (N'P-CHAIN',  N'زنجیر طلا طرح دار',        N'CHAIN-01', 45000000, 1, SYSUTCDATETIME(), @SeedCompanyId);
 END
 
-IF NOT EXISTS (SELECT 1 FROM [store].[Orders] WHERE CompanyId = @SeedCompanyId)
+IF NOT EXISTS (SELECT 1 FROM [store].[Orders] WHERE OrderNumber = N'ORD-00001')
+   AND NOT EXISTS (SELECT 1 FROM [store].[Orders] WHERE CompanyId = @SeedCompanyId)
 BEGIN
     INSERT INTO [store].[Orders] (OrderNumber, CustomerId, CustomerName, OrderDate, ItemCount, TotalAmount, CurrencyCode, Status, CreatedAt, CompanyId)
     VALUES (N'ORD-00001', 1, N'سارا رضایی', CAST(SYSDATETIME() AS DATE), 1, 62000000, N'IRR', N'Placed', SYSUTCDATETIME(), @SeedCompanyId);

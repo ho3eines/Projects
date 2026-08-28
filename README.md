@@ -160,6 +160,8 @@ Tarazin.slnx
 * `tools/cross-schema-scan.sh` — بدون ارجاع بین‌اسکیمه‌ای غیرمجاز
 * ورود: نام کاربری bootstrap و password تزریق‌شده از secret store → `/diag` برای عیب‌یابی امن اتصال
 
+> **⚠️ قانون طلایی بیلد:** بعد از **هر تغییر در `Tarazin.Ui`** (رو `Tarazin.Ui` یا `Tarazin.Share`/`Tarazin.Data` اگر کد قرار است با `--no-build` اجرا شود) حتماً `dotnet build Tarazin.Web/Tarazin.Web.csproj` را بزن. `dotnet test` یا بیلدِ تکیِ `Tarazin.Ui` فقط `Tarazin.Ui/bin` را به‌روز می‌کند؛ کپیِ `Tarazin.Web/bin` **تازه نمی‌شود** و سرورِ `dotnet run --no-build` همان کد کهنه را سرو می‌کند (باگ «ستون‌ها درست شد ولی هدر نه»). تست/بیلد قبلی را پشت‌سرهم بگیر: `bash tools/run-checks.sh` (تست PDF + گارد `tools/check-stale-build.sh` + اسکن اسکیمه)
+
 ---
 
 *ساخته شده با MudBlazor 9.8.0 — RTL فارسی — یک UI، دو هاست — ترازین.*

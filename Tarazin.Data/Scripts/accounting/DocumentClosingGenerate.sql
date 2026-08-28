@@ -90,9 +90,10 @@ SELECT
     AccountId,
     AccountCode,
     Title,
-    -- معکوس مانده: اگر مانده بدهکار است (بدهکار > بستانکار)، آن را بستانکار کن.
-    CASE WHEN TotalDebit > TotalCredit THEN 0 ELSE TotalDebit - TotalCredit END AS Debit,
-    CASE WHEN TotalCredit > TotalDebit THEN 0 ELSE TotalCredit - TotalDebit END AS Credit
+    -- معکوس مانده: اگر مانده خالص بستانکار است (بستانکار > بدهکار)، ردیف معکوس
+    -- باید بدهکار شود (بستن سمت بستانکار)؛ و اگر مانده خالص بدهکار است، بستانکار شود.
+    CASE WHEN TotalCredit > TotalDebit THEN TotalCredit - TotalDebit ELSE 0 END AS Debit,
+    CASE WHEN TotalDebit > TotalCredit THEN TotalDebit - TotalCredit ELSE 0 END AS Credit
 FROM Balances;
 
 -- اگر هیچ ردیفی نبود (سال کاملاً توازن دارد / فعالیتی نبوده) سند اختتامیه
@@ -169,6 +170,73 @@ BEGIN TRAN;
         UpdatedAt = SYSUTCDATETIME(),
         UpdatedBy = @CreatedBy
     WHERE FiscalYearId = @FiscalYearId AND CompanyId = @CompanyId;
+
+    -- ════════════════════════════════════════════════════════════════
+    -- انتقال خودکار مانده‌ها به سال مالی بعد (سند افتتاحیهٔ سال جدید)
+    -- ════════════════════════════════════════════════════════════════
+    -- سال بعد = اولین سال مالیِ همان شرکت با تاریخ شروع بزرگ‌تر از پایان سال جاری.
+    -- اگر سال بعد وجود داشته باشد، سند افتتاحیهٔ آن با مانده‌های طبیعی حساب‌ها
+    -- (برعکس سند اختتامیه) ساخته/به‌روز می‌شود تا سال جدید با ماندهٔ واقعی شروع شود.
+    DECLARE @NextFiscalYearId INT = (
+        SELECT TOP 1 fy.FiscalYearId
+        FROM [central].[FiscalYears] fy
+        WHERE fy.CompanyId = @CompanyId AND fy.IsDeleted = 0
+          AND fy.StartDate > @FyEnd
+        ORDER BY fy.StartDate);
+
+    IF @NextFiscalYearId IS NOT NULL AND EXISTS (SELECT 1 FROM #ClosingLines)
+    BEGIN
+        DECLARE @NextFyStart DATE = (SELECT StartDate FROM [central].[FiscalYears] WHERE FiscalYearId = @NextFiscalYearId);
+        DECLARE @NextOpeningId INT = (
+            SELECT TOP 1 d.DocumentId FROM [accounting].[Documents] d
+            WHERE d.CompanyId = @CompanyId AND d.FiscalYearId = @NextFiscalYearId
+              AND d.DocumentType = N'Opening' AND d.IsDeleted = 0);
+
+        IF @NextOpeningId IS NULL
+        BEGIN
+            -- آزادسازی شمارهٔ 1 برای سند افتتاحیه (مثل DocumentOpeningEnsure)
+            IF EXISTS (SELECT 1 FROM [accounting].[Documents]
+                       WHERE CompanyId = @CompanyId AND FiscalYearId = @NextFiscalYearId
+                         AND DocumentNumber = N'00000001' AND ISNULL(DocumentType, N'') <> N'Opening' AND IsDeleted = 0)
+            BEGIN
+                DECLARE @ShiftSql NVARCHAR(MAX) = N'
+                    UPDATE [accounting].[Documents]
+                    SET DocumentNumber = CAST(TRY_CONVERT(INT, DocumentNumber) - 1000000 AS NVARCHAR(20))
+                    WHERE CompanyId = @CompanyId AND FiscalYearId = @NextFiscalYearId
+                      AND TRY_CONVERT(INT, DocumentNumber) IS NOT NULL AND IsDeleted = 0;
+                    UPDATE [accounting].[Documents]
+                    SET DocumentNumber = RIGHT(''00000000'' + CAST(TRY_CONVERT(INT, DocumentNumber) + 1000001 AS NVARCHAR(10)), 8)
+                    WHERE CompanyId = @CompanyId AND FiscalYearId = @NextFiscalYearId
+                      AND TRY_CONVERT(INT, DocumentNumber) < 0 AND IsDeleted = 0;';
+                EXEC sp_executesql @ShiftSql, N'@CompanyId INT, @NextFiscalYearId INT', @CompanyId, @NextFiscalYearId;
+            END
+            INSERT INTO [accounting].[Documents]
+                (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount,
+                 CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted, CompanyId, FiscalYearId)
+            VALUES
+                (N'00000001', @NextFyStart, N'Opening', N'سند افتتاحیه سیستم', 0, N'IRR', N'Draft',
+                 SYSUTCDATETIME(), @CreatedBy, 0, @CompanyId, @NextFiscalYearId);
+            SET @NextOpeningId = SCOPE_IDENTITY();
+        END
+        ELSE
+        BEGIN
+            -- به‌روزرسانی سند افتتاحیهٔ موجود: ردیف‌های قبلی پاک و با ماندهٔ جدید پر می‌شود.
+            DELETE FROM [accounting].[DocumentLines] WHERE DocumentId = @NextOpeningId;
+            UPDATE [accounting].[Documents]
+            SET DocumentDate = @NextFyStart, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
+            WHERE DocumentId = @NextOpeningId;
+        END
+
+        -- ردیف‌های افتتاحیه = برعکس اختتامیه (ماندهٔ طبیعی حساب: بدهکار → بدهکار).
+        DECLARE @OpeningTotal DECIMAL(18,2) = (SELECT ISNULL(SUM(Credit), 0) FROM #ClosingLines);
+        INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+        SELECT @NextOpeningId, AccountId, AccountCode, Title, N'مانده انتقالی از سال مالی قبلی (سند افتتاحیه)', Credit, Debit
+        FROM #ClosingLines;
+
+        UPDATE [accounting].[Documents]
+        SET TotalAmount = @OpeningTotal, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
+        WHERE DocumentId = @NextOpeningId;
+    END
 
 COMMIT;
 

@@ -24,6 +24,7 @@ public class GoldShopDashboardRow
     public decimal TodayAmount { get; set; }
     public int PriceCount { get; set; }
     public decimal Gold24Price { get; set; }
+    public int PendingInvoiceCheques { get; set; }
 }
 
 public class GoldItemRow
@@ -94,6 +95,51 @@ public class GoldShopSettingsRow
     public decimal LaborTaxPercent { get; set; }
     public bool IsEnabled { get; set; }
     public DateTime? UpdatedAt { get; set; }
+}
+
+/// <summary>مدل چاپ فاکتور خرید/فروش طلا — ورودی ساخت گزارش Stimulsoft.</summary>
+public class GoldInvoicePrintModel
+{
+    public string InvoiceType { get; set; } = "Sale";
+    public string InvoiceNumber { get; set; } = "";
+    public DateTime InvoiceDate { get; set; } = DateTime.Today;
+    public string PartyName { get; set; } = "";
+    public string? DetailCode { get; set; }
+    public decimal TotalBase { get; set; }
+    public decimal TotalTax { get; set; }
+    public decimal TotalAmount { get; set; }
+    public decimal BalanceRial { get; set; }
+    public decimal TaxPct { get; set; } = 10;
+    public decimal LaborTaxPct { get; set; } = 10;
+    public int DocumentId { get; set; }
+    public List<GoldInvoicePrintLine> Lines { get; set; } = new();
+
+    // تسویه
+    public decimal PayCash { get; set; }
+    public decimal PayBank { get; set; }
+    public decimal PayGoldGram { get; set; }
+    public decimal GoldPrice { get; set; }
+    public decimal PayCurrencyQty { get; set; }
+    public string? PayCurrencyCode { get; set; }
+    public decimal PayCurrencyRate { get; set; }
+    public decimal PayChequeAmount { get; set; }
+    public string? ChequeNumber { get; set; }
+    public string? ChequeBankName { get; set; }
+    public DateTime? ChequeDueDate { get; set; }
+}
+
+/// <summary>ردیف چاپی فاکتور (طلا یا ارز).</summary>
+public class GoldInvoicePrintLine
+{
+    public string RowType { get; set; } = "Gold";
+    public string Title { get; set; } = "";
+    public string? CurrencyCode { get; set; }
+    public decimal Qty { get; set; }
+    public decimal Price { get; set; }
+    public decimal ResolvedRate { get; set; }
+    public decimal Workmanship { get; set; }
+    public decimal Profit { get; set; }
+    public bool TaxEnabled { get; set; }
 }
 
 public class GoldPartyEditModel

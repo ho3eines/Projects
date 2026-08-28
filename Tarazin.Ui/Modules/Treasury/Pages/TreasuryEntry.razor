@@ -5,7 +5,7 @@
 
 <PageTitle>دریافت / پرداخت — خزانه‌داری</PageTitle>
 
-<PageHeader Title="ثبت دریافت / پرداخت" Subtitle="حرکت نقدی صندوق یا بانک." Eyebrow="خزانه‌داری" />
+<PageHeader Title="ثبت دریافت / پرداخت" Subtitle="حرکت نقدی صندوق یا بانک؛ در صورت فعال‌بودن اتصال حسابداری، سند حسابداری هم ساخته می‌شود." Eyebrow="خزانه‌داری" />
 
 <MudPaper Elevation="1" Class="pa-4">
     <MudGrid>
@@ -26,11 +26,20 @@
                 <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
                 @foreach (var c in _cashBoxes)
                 {
-                    <MudSelectItem Value="@c.CashBoxId">صندوق: @c.Title</MudSelectItem>
+                    <MudSelectItem Value="c.CashBoxId">صندوق: @c.Title</MudSelectItem>
                 }
                 @foreach (var b in _bankAccounts)
                 {
-                    <MudSelectItem Value="@b.AccountId">بانک: @b.AccountName</MudSelectItem>
+                    <MudSelectItem Value="b.AccountId">بانک: @b.AccountName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="طرف حساب (اختیاری)" @bind-Value="_partyId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— بدون طرف حساب —</MudSelectItem>
+                @foreach (var p in _parties)
+                {
+                    <MudSelectItem Value="p.PartyId">@(p.PartyType == "Vendor" ? "تأمین‌کننده" : "مشتری"): @p.FullName</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
@@ -55,18 +64,28 @@
 
     private List<CashBoxRow> _cashBoxes = new();
     private List<BankAccountRow> _bankAccounts = new();
+    private List<TreasuryPartyRow> _parties = new();
     private string _direction = "In";
     private DateTime? _date = DateTime.Today;
     private decimal _amount;
     private int _accountId;
+    private int _partyId;
     private string _description = "";
     private string _reference = "";
     private bool _busy;
 
     protected override async Task OnInitializedAsync()
     {
-        _cashBoxes = (await Db.QueryAsync<CashBoxRow>(Schema, "CashBoxList")).ToList();
-        _bankAccounts = (await Db.QueryAsync<BankAccountRow>(Schema, "BankAccountList")).ToList();
+        _cashBoxes = (await Db.QueryAsync<CashBoxRow>(Schema, "CashBoxList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _bankAccounts = (await Db.QueryAsync<BankAccountRow>(Schema, "BankAccountList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _parties = (await Db.QueryAsync<TreasuryPartyRow>(Schema, "PartyList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            PartyType = (string?)null,
+            SearchText = "",
+            SkipRows = 0,
+            TakeSize = 200
+        })).ToList();
     }
 
     private async Task SaveAsync()
@@ -92,12 +111,16 @@
                 MovementDate = _date?.Date ?? DateTime.Today,
                 Description = _description,
                 SourceReference = _reference,
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
+                PartyId = _partyId == 0 ? (int?)null : _partyId
             });
             Snackbar.Add("حرکت نقدی ثبت شد.", Severity.Success);
             _amount = 0;
             _description = "";
             _reference = "";
+            _partyId = 0;
         }
         catch (Exception ex)
         {

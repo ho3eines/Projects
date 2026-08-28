@@ -1,35 +1,84 @@
 @page "/inventory/reports"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject PdfReportService Pdf
 
-<PageTitle>گزارشات — انبار آمل</PageTitle>
+<PageTitle>گزارشات — انبار</PageTitle>
 
-<PageHeader Title="گزارشات انبار" Subtitle="موجودی کالا (مانده) و کارتکس کالا." />
+<PageHeader Title="گزارشات انبار" Subtitle="موجودی کالا (به تفکیک انبار/انبارک) و کارتکس کالا با ماندهٔ جاری." Eyebrow="انبار" />
 <MudTabs>
     <MudTabPanel Text="موجودی کالا">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadBalancesAsync" Class="mb-4">
-                بارگذاری موجودی
-            </MudButton>
-            <MudTable Items="_balances" Loading="_loadingBalances" Hover="true" Dense="true" Striped="true">
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="int" Label="انبار" @bind-Value="_whFilter" Variant="Variant.Outlined"
+                               @bind-Value:after="OnFilterWarehouseChanged" Clearable="true">
+                        <MudSelectItem Value="0">همهٔ انبارها</MudSelectItem>
+                        @foreach (var w in _warehouses)
+                        {
+                            <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="int" Label="انبارک" @bind-Value="_subFilter" Variant="Variant.Outlined"
+                               Disabled="_whFilter == 0" Clearable="true">
+                        <MudSelectItem Value="0">همهٔ انبارک‌ها</MudSelectItem>
+                        @foreach (var s in _subFilters)
+                        {
+                            <MudSelectItem Value="s.SubWarehouseId">@s.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSwitch T="bool" @bind-Value="_onlyNonZero" Color="Color.Success">فقط کالاهای دارای موجودی</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                               OnClick="LoadBalancesAsync" Disabled="_loadingBalances">
+                        بارگذاری موجودی
+                    </MudButton>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="2">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Print" OnClick="PrintBalancesAsync"
+                               Disabled="_loadingBalances || _balances.Count == 0">
+                        چاپ / PDF
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudTable Items="_balances" Loading="_loadingBalances" Hover="true" Dense="true" Striped="true"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>کالا</MudTh><MudTh>واحد</MudTh>
+                    <MudTh>انبار</MudTh><MudTh>انبارک</MudTh>
                     <MudTh>موجودی</MudTh><MudTh>قیمت</MudTh><MudTh>ارزش</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.ItemCode</MudTd>
                     <MudTd DataLabel="کالا">@context.ItemTitle</MudTd>
                     <MudTd DataLabel="واحد">@context.Unit</MudTd>
+                    <MudTd DataLabel="انبار">@(context.WarehouseName ?? "—")</MudTd>
+                    <MudTd DataLabel="انبارک">@(context.SubWarehouseName ?? "—")</MudTd>
                     <MudTd DataLabel="موجودی">@context.StockQty.ToString("N0")</MudTd>
                     <MudTd DataLabel="قیمت">@context.UnitPrice.ToString("N0")</MudTd>
                     <MudTd DataLabel="ارزش">@context.StockValue.ToString("N0")</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
+            @if (_balances.Count > 0)
+            {
+                <MudText Typo="Typo.body2" Class="mt-4">
+                    جمع ارزش موجودی: <b>@_balances.Sum(b => b.StockValue).ToString("N0")</b>
+                </MudText>
+            }
         </MudPaper>
     </MudTabPanel>
 
-    <MudTabPanel Text="کارتکس کالا">
+    <MudTabPanel Text="کاردکس کالا">
         <MudPaper Elevation="1" Class="pa-4">
             <MudGrid Class="mb-4">
                 <MudItem xs="12" sm="6" md="4">
@@ -42,30 +91,69 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="int" Label="انبار" @bind-Value="_cardWarehouseId" Variant="Variant.Outlined"
+                               @bind-Value:after="OnCardWarehouseChanged" Clearable="true">
+                        <MudSelectItem Value="0">همهٔ انبارها</MudSelectItem>
+                        @foreach (var w in _warehouses)
+                        {
+                            <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="int" Label="انبارک" @bind-Value="_cardSubWarehouseId" Variant="Variant.Outlined"
+                               Disabled="_cardWarehouseId == 0" Clearable="true">
+                        <MudSelectItem Value="0">همهٔ انبارک‌ها</MudSelectItem>
+                        @foreach (var s in _cardSubFilters)
+                        {
+                            <MudSelectItem Value="s.SubWarehouseId">@s.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
                     <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="4">
                     <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
                 </MudItem>
-                <MudItem xs="12">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadCardAsync">اجرا</MudButton>
+                <MudItem xs="12" sm="6" md="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                               OnClick="LoadCardAsync" Disabled="_loadingCard">اجرا</MudButton>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="2">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Print" OnClick="PrintCardAsync"
+                               Disabled="_loadingCard || _card.Count == 0">
+                        چاپ / PDF
+                    </MudButton>
                 </MudItem>
             </MudGrid>
-            <MudTable Items="_card" Loading="_loadingCard" Hover="true" Dense="true" Striped="true">
+            @if (_card.Count > 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                    ماندهٔ ابتدای دوره: @_card[0].OpeningQty.ToString("N0") واحد — ارزش @_card[0].OpeningValue.ToString("N0")
+                </MudText>
+            }
+            <MudTable Items="_card" Loading="_loadingCard" Hover="true" Dense="true" Striped="true"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh>
-                    <MudTh>تعداد</MudTh><MudTh>قیمت</MudTh><MudTh>ارزش</MudTh><MudTh>شرح</MudTh>
+                    <MudTh>دریافت</MudTh><MudTh>صدور</MudTh><MudTh>قیمت</MudTh>
+                    <MudTh>مانده تعداد</MudTh><MudTh>مانده ارزش</MudTh><MudTh>شرح</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
                     <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
                     <MudTd DataLabel="نوع">@context.MovementType</MudTd>
-                    <MudTd DataLabel="تعداد">@context.Qty.ToString("N0")</MudTd>
-                    <MudTd DataLabel="قیمت">@context.UnitPrice.ToString("N0")</MudTd>
-                    <MudTd DataLabel="ارزش">@context.TotalValue.ToString("N0")</MudTd>
+                    <MudTd DataLabel="دریافت">@(context.InQty > 0 ? context.InQty.ToString("N0") : "—")</MudTd>
+                    <MudTd DataLabel="صدور">@(context.OutQty > 0 ? context.OutQty.ToString("N0") : "—")</MudTd>
+                    <MudTd DataLabel="قیمت">@context.CostPrice.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مانده تعداد">@context.BalanceQty.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مانده ارزش">@context.BalanceValue.ToString("N0")</MudTd>
                     <MudTd DataLabel="شرح">@context.Description</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">کارتکسی نیست.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -78,7 +166,15 @@
     private List<StockBalanceRow> _balances = new();
     private List<StockCardRow> _card = new();
     private List<ItemRow> _items = new();
+    private List<WarehouseRow> _warehouses = new();
+    private List<SubWarehouseRow> _subFilters = new();
+    private List<SubWarehouseRow> _cardSubFilters = new();
     private int _cardItemId;
+    private int _whFilter;
+    private int _subFilter;
+    private int _cardWarehouseId;
+    private int _cardSubWarehouseId;
+    private bool _onlyNonZero = true;
     private DateTime? _from = DateTime.Today.AddMonths(-1);
     private DateTime? _to = DateTime.Today;
     private bool _loadingBalances;
@@ -86,7 +182,28 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+    }
+
+    private async Task OnFilterWarehouseChanged()
+    {
+        _subFilter = 0;
+        _subFilters = _whFilter == 0 ? new() : (await Db.QueryAsync<SubWarehouseRow>(Schema, "SubWarehouseList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            WarehouseId = _whFilter
+        })).ToList();
+    }
+
+    private async Task OnCardWarehouseChanged()
+    {
+        _cardSubWarehouseId = 0;
+        _cardSubFilters = _cardWarehouseId == 0 ? new() : (await Db.QueryAsync<SubWarehouseRow>(Schema, "SubWarehouseList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            WarehouseId = _cardWarehouseId
+        })).ToList();
     }
 
     private async Task LoadBalancesAsync()
@@ -94,7 +211,13 @@
         _loadingBalances = true;
         try
         {
-            _balances = (await Db.QueryAsync<StockBalanceRow>(Schema, "StockBalanceReport")).ToList();
+            _balances = (await Db.QueryAsync<StockBalanceRow>(Schema, "StockBalanceReport", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                WarehouseId = _whFilter == 0 ? (int?)null : _whFilter,
+                SubWarehouseId = _subFilter == 0 ? (int?)null : _subFilter,
+                OnlyNonZero = _onlyNonZero ? 1 : 0
+            })).ToList();
         }
         catch (Exception ex)
         {
@@ -121,7 +244,9 @@
             {
                 ItemId = _cardItemId,
                 FromDate = _from?.Date ?? DateTime.Today.AddMonths(-1),
-                ToDate = _to?.Date ?? DateTime.Today
+                ToDate = _to?.Date ?? DateTime.Today,
+                WarehouseId = _cardWarehouseId == 0 ? (int?)null : _cardWarehouseId,
+                SubWarehouseId = _cardSubWarehouseId == 0 ? (int?)null : _cardSubWarehouseId
             })).ToList();
         }
         catch (Exception ex)
@@ -132,5 +257,127 @@
         {
             _loadingCard = false;
         }
+    }
+
+    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+
+    private async Task PrintBalancesAsync()
+    {
+        if (_balances.Count == 0) return;
+        await Dialog.ShowAsync<ReportPrintDialog>("چاپ موجودی کالا", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, "موجودی کالا" },
+            { x => x.Subtitle, "موجودی به تفکیک انبار/انبارک" },
+            { x => x.RangeText, $"تهیه شده در {DateTime.Now:yyyy/MM/dd HH:mm}" },
+            { x => x.Body, BalancesTableBody },
+            { x => x.BuildPdf, BuildBalancesPdf },
+            { x => x.Wide, true }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task PrintCardAsync()
+    {
+        if (_card.Count == 0) return;
+        var item = _items.FirstOrDefault(i => i.ItemId == _cardItemId);
+        var title = item is null ? "کاردکس کالا" : $"کاردکس {item.ItemCode} — {item.ItemTitle}";
+        await Dialog.ShowAsync<ReportPrintDialog>("چاپ کاردکس کالا", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Subtitle, "گردش دریافت/صدور و ماندهٔ جاری" },
+            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
+            { x => x.Body, CardTableBody },
+            { x => x.BuildPdf, BuildCardPdf },
+            { x => x.Wide, true }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private RenderFragment BalancesTableBody => @<MudTable Items="_balances" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>کد</MudTh><MudTh>کالا</MudTh><MudTh>واحد</MudTh>
+            <MudTh>انبار</MudTh><MudTh>انبارک</MudTh>
+            <MudTh>موجودی</MudTh><MudTh>قیمت</MudTh><MudTh>ارزش</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="کد">@context.ItemCode</MudTd>
+            <MudTd DataLabel="کالا">@context.ItemTitle</MudTd>
+            <MudTd DataLabel="واحد">@context.Unit</MudTd>
+            <MudTd DataLabel="انبار">@(context.WarehouseName ?? "—")</MudTd>
+            <MudTd DataLabel="انبارک">@(context.SubWarehouseName ?? "—")</MudTd>
+            <MudTd DataLabel="موجودی">@context.StockQty.ToString("N0")</MudTd>
+            <MudTd DataLabel="قیمت">@context.UnitPrice.ToString("N0")</MudTd>
+            <MudTd DataLabel="ارزش">@context.StockValue.ToString("N0")</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment CardTableBody => @<MudTable Items="_card" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh>
+            <MudTh>دریافت</MudTh><MudTh>صدور</MudTh><MudTh>قیمت</MudTh>
+            <MudTh>مانده تعداد</MudTh><MudTh>مانده ارزش</MudTh><MudTh>شرح</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
+            <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
+            <MudTd DataLabel="نوع">@context.MovementType</MudTd>
+            <MudTd DataLabel="دریافت">@(context.InQty > 0 ? context.InQty.ToString("N0") : "—")</MudTd>
+            <MudTd DataLabel="صدور">@(context.OutQty > 0 ? context.OutQty.ToString("N0") : "—")</MudTd>
+            <MudTd DataLabel="قیمت">@context.CostPrice.ToString("N0")</MudTd>
+            <MudTd DataLabel="مانده تعداد">@context.BalanceQty.ToString("N0")</MudTd>
+            <MudTd DataLabel="مانده ارزش">@context.BalanceValue.ToString("N0")</MudTd>
+            <MudTd DataLabel="شرح">@context.Description</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private byte[] BuildBalancesPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "کد" },
+            new() { Header = "کالا" },
+            new() { Header = "واحد" },
+            new() { Header = "انبار" },
+            new() { Header = "انبارک" },
+            new() { Header = "موجودی", AlignRight = true },
+            new() { Header = "قیمت", AlignRight = true },
+            new() { Header = "ارزش", AlignRight = true }
+        };
+        var rows = _balances.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.ItemCode, r.ItemTitle, r.Unit, r.WarehouseName ?? "—", r.SubWarehouseName ?? "—",
+            r.StockQty.ToString("N0"), r.UnitPrice.ToString("N0"), r.StockValue.ToString("N0")
+        }).ToList();
+
+        return Pdf.BuildTablePdf("موجودی کالا", "موجودی به تفکیک انبار/انبارک",
+            $"تهیه شده در {DateTime.Now:yyyy/MM/dd HH:mm}", columns, rows,
+            new[] { $"جمع ارزش: {_balances.Sum(b => b.StockValue):N0} ریال" }, paperSize);
+    }
+
+    private byte[] BuildCardPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "تاریخ" },
+            new() { Header = "شماره" },
+            new() { Header = "نوع" },
+            new() { Header = "دریافت", AlignRight = true },
+            new() { Header = "صدور", AlignRight = true },
+            new() { Header = "قیمت", AlignRight = true },
+            new() { Header = "مانده تعداد", AlignRight = true },
+            new() { Header = "مانده ارزش", AlignRight = true },
+            new() { Header = "شرح" }
+        };
+        var rows = _card.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.MovementDate.ToString("yyyy/MM/dd"), r.MovementNumber, r.MovementType,
+            r.InQty > 0 ? r.InQty.ToString("N0") : "—", r.OutQty > 0 ? r.OutQty.ToString("N0") : "—",
+            r.CostPrice.ToString("N0"), r.BalanceQty.ToString("N0"), r.BalanceValue.ToString("N0"), r.Description
+        }).ToList();
+
+        var summary = new List<string>();
+        if (_card.Count > 0)
+            summary.Add($"ماندهٔ ابتدای دوره: {_card[0].OpeningQty:N0} واحد — ارزش {_card[0].OpeningValue:N0}");
+
+        return Pdf.BuildTablePdf("کاردکس کالا", "گردش دریافت/صدور و ماندهٔ جاری",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, summary, paperSize);
     }
 }

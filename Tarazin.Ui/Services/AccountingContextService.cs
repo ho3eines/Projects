@@ -231,6 +231,32 @@ public sealed class AccountingContextService
     /// <summary>بستن سال مالی فعال (ایجاد/به‌روزرسانی سند اختتامیه + بستن سال).</summary>
     public async Task<long> CloseFiscalYearAsync(int companyId, int fiscalYearId, CancellationToken ct = default)
     {
+        // انتقال خودکار مانده‌ها به سال بعد: ابتدا تضمین می‌کنیم سال مالیِ بعد
+        // (نام شمسی + یک) وجود دارد — تاریخ‌ها با PersianCalendar در C# محاسبه
+        // می‌شوند (SQL Server تقویم شمسی ندارد). سپس DocumentClosingGenerate
+        // سند اختتامیهٔ سال جاری را می‌سازد و مانده‌ها را به سند افتتاحیهٔ سال بعد
+        // منتقل می‌کند.
+        var years = await GetAuthorizedFiscalYearsAsync(companyId, ct);
+        var closing = years.FirstOrDefault(y => y.FiscalYearId == fiscalYearId);
+        if (closing is null)
+            throw new InvalidOperationException("سال مالی موردنظر برای بستن یافت نشد.");
+
+        if (int.TryParse(closing.YearName, out var closingYearNumber))
+        {
+            var nextYearNumber = closingYearNumber + 1;
+            await _db.QueryFirstOrDefaultAsync<FiscalYearRow>(
+                "central", "FiscalYearEnsure",
+                new
+                {
+                    CompanyId = companyId,
+                    YearName = PersianDate.YearName(nextYearNumber),
+                    StartDate = PersianDate.StartOfYear(nextYearNumber),
+                    EndDate = PersianDate.EndOfYear(nextYearNumber),
+                    UserId = _session.UserId,
+                    CreatedBy = _session.UserName
+                }, ct);
+        }
+
         await _db.ExecuteAsync("accounting", "DocumentClosingGenerate",
             new
             {

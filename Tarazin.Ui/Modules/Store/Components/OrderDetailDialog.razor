@@ -1,0 +1,91 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+@implements IDisposable
+@using Tarazin.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1" Class="mb-2">
+            سفارش <b>@OrderNumber</b> — @CustomerName — @OrderDate.ToString("yyyy/MM/dd")
+        </MudText>
+        <MudGrid Spacing="1" Class="mb-2">
+            <MudItem xs="6" sm="3"><MudText Typo="Typo.body2" Color="Color.Secondary">کل: <b>@TotalAmount.ToString("N0")</b></MudText></MudItem>
+            <MudItem xs="6" sm="3"><MudText Typo="Typo.body2" Color="Color.Secondary">تسویه: <b>@Payments.ToString("N0")</b></MudText></MudItem>
+            <MudItem xs="6" sm="3"><MudText Typo="Typo.body2" Color="@(BalanceRial > 0 ? Color.Error : Color.Default)">نسیه: <b>@BalanceRial.ToString("N0")</b></MudText></MudItem>
+            <MudItem xs="6" sm="3"><MudText Typo="Typo.body2" Color="Color.Secondary">سند حسابداری: <b>@(DocumentId is int did && did > 0 ? did.ToString() : "—")</b></MudText></MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-1">اقلام سفارش</MudText>
+        <MudTable Items="_items" Dense="true" Hover="true" Striped="true" Loading="_loading">
+            <HeaderContent>
+                <MudTh>کالا</MudTh><MudTh>تعداد</MudTh><MudTh>قیمت واحد</MudTh><MudTh>جمع</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="کالا">@context.ProductTitle</MudTd>
+                <MudTd DataLabel="تعداد">@context.Qty</MudTd>
+                <MudTd DataLabel="قیمت واحد">@context.UnitPrice.ToString("N0")</MudTd>
+                <MudTd DataLabel="جمع">@((context.Qty * context.UnitPrice).ToString("N0"))</MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Color="Color.Secondary">اقلامی نیست.</MudText></NoRecordsContent>
+        </MudTable>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">دفتر مشتری (کیف پول ریالی)</MudText>
+        <MudTable Items="_ledger" Dense="true" Hover="true" Striped="true" Loading="_loading">
+            <HeaderContent>
+                <MudTh>تاریخ</MudTh><MudTh>شرح</MudTh><MudTh>بدهکار</MudTh><MudTh>بستانکار</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="تاریخ">@context.EntryDate.ToString("yyyy/MM/dd")</MudTd>
+                <MudTd DataLabel="شرح">@context.Description</MudTd>
+                <MudTd DataLabel="بدهکار">@context.DebitRial.ToString("N0")</MudTd>
+                <MudTd DataLabel="بستانکار">@context.CreditRial.ToString("N0")</MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
+        </MudTable>
+        <MudText Typo="Typo.subtitle2" Class="mt-2">ماندهٔ مشتری: <b>@CustomerBalance.ToString("N0")</b> ریال</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="CloseAsync">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+    [Parameter] public int OrderId { get; set; }
+    [Parameter] public int CustomerId { get; set; }
+    [Parameter] public string OrderNumber { get; set; } = "";
+    [Parameter] public string CustomerName { get; set; } = "";
+    [Parameter] public DateTime OrderDate { get; set; }
+    [Parameter] public decimal TotalAmount { get; set; }
+    [Parameter] public decimal BalanceRial { get; set; }
+    [Parameter] public int? DocumentId { get; set; }
+
+    private decimal Payments => TotalAmount - BalanceRial;
+    private decimal CustomerBalance { get; set; }
+    private List<OrderItemRow> _items = new();
+    private List<OrderLedgerRow> _ledger = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _items = (await Db.QueryAsync<OrderItemRow>("store", "OrderItemsByOrder", new { OrderId })).ToList();
+            _ledger = (await Db.QueryAsync<OrderLedgerRow>("store", "OrderLedgerList", new { CompanyId = Session.ActiveCompanyId, CustomerId = (int?)null, OrderId })).ToList();
+            var bal = await Db.QueryFirstOrDefaultAsync<LedgerBalanceRow>("store", "OrderLedgerBalance", new { CompanyId = Session.ActiveCompanyId, CustomerId });
+            CustomerBalance = bal?.Balance ?? 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CloseAsync() => MudDialog?.Close();
+    public void Dispose() { }
+}

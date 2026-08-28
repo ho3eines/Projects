@@ -1,0 +1,101 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+@* CompanyId از Session.ActiveCompanyId گرفته می‌شود — نیازی به inject جداگانه نیست *@
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        کارمند: <b>@Employee.FullName</b> — دوره: <b>@Period</b>
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="عنوان قلم (مثلاً حق مسکن، بیمه، وام)" @bind-Value="_model.Title" Required="true"
+                                  RequiredError="عنوان قلم الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudNumericField T="decimal" Label="مبلغ (ریال)" @bind-Value="_model.Amount"
+                                     Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_model.IsDeduction" Color="Color.Error">
+                        دستمزد/کسور (کسر از خالص)
+                    </MudSwitch>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                        اگر روشن باشد از تسهیم‌ها کسر می‌شود (مانند بیمه، مالیات ثابت، وام)؛
+                        اگر خاموش باشد به تسهیم‌ها اضافه می‌شود (حقوق پایه، حق مسکن و بن).
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public EmployeeRow Employee { get; set; } = default!;
+    [Parameter, EditorRequired] public string Period { get; set; } = "";
+    [Parameter] public SalaryItemRow? Model { get; set; }
+
+    private SalaryItemRow _model = new();
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        // کپی برای ویرایش لغوشده روی ردیفِ ارجاعیِ لیست اثر نگذارد.
+        if (Model is not null)
+        {
+            _model = new SalaryItemRow
+            {
+                SalaryItemId = Model.SalaryItemId,
+                Title = Model.Title,
+                Amount = Model.Amount,
+                IsDeduction = Model.IsDeduction
+            };
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+        if (_model.Amount <= 0)
+        {
+            Snackbar.Add("مبلغ باید بزرگ‌تر از صفر باشد.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("payroll", "SalaryItemUpsert", new
+            {
+                SalaryItemId = _model.SalaryItemId,
+                EmployeeId = Employee.EmployeeId,
+                Period = Period,
+                Title = _model.Title.Trim(),
+                Amount = _model.Amount,
+                IsDeduction = _model.IsDeduction,
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("قلم حقوق ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

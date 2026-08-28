@@ -1,0 +1,222 @@
+@page "/payroll/salaryitems"
+@using Tarazin.Data.Services
+@inject DbService Db
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject UserSession Session
+@inject PayrollCalculationService Calculator
+
+<PageTitle>اقلام حقوق — حقوق و دستمزد</PageTitle>
+
+<PageHeader Title="اقلام حقوق (مزایا و کسورات)"
+            Subtitle="برای یک کارمند در یک دوره، اقلام تسهیم و کسور را ثبت کنید."
+            Eyebrow="حقوق و دستمزد" />
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="کارمند" @bind-Value="_employeeId" Variant="Variant.Outlined"
+                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person">
+                <MudSelectItem Value="0">— انتخاب کارمند —</MudSelectItem>
+                @foreach (var e in _employees)
+                {
+                    <MudSelectItem Value="e.EmployeeId">@e.FullName (‎@e.EmployeeCode)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField Label="دوره (مثلاً 1405-05)" @bind-Value="_period" Variant="Variant.Outlined"
+                          HelperText="خالی = دورهٔ پیشنهادی (سال-ماه شمسی)" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="int" Label="تعداد تحت تکفل (برای مالیات)" @bind-Value="_dependents"
+                             Min="0" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
+                بارگذاری اقلام
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_selectedEmployee is not null)
+{
+    <MudPaper Elevation="1" Class="pa-4">
+        <div class="d-flex justify-space-between align-center mb-4">
+            <MudText Typo="Typo.h6">اقلام «‎@_selectedEmployee.FullName» — دورهٔ @_period</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenNewAsync">
+                قلم جدید
+            </MudButton>
+        </div>
+
+        <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
+            <HeaderContent>
+                <MudTh>عنوان</MudTh><MudTh>نوع</MudTh><MudTh>مبلغ</MudTh><MudTh>عملیات</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                <MudTd DataLabel="نوع">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(context.IsDeduction ? Color.Error : Color.Success)">
+                        @(context.IsDeduction ? "کسور" : "تسهیم")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+                <MudTd DataLabel="عملیات">
+                    <MudTooltip Text="ویرایش">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenEditAsync(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="حذف">
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteAsync(context))" />
+                    </MudTooltip>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Color="Color.Secondary">برای این کارمند و دوره اقلامی ثبت نشده است.</MudText></NoRecordsContent>
+        </MudTable>
+
+        @if (_items.Count > 0)
+        {
+            <MudPaper Elevation="1" Class="mt-4 pa-4">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.subtitle2">تسهیم‌ها</MudText>
+                        <MudText Typo="Typo.h6" Class="accent-green">@_result.Earnings.ToString("N0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.subtitle2">کسورات</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Error">@_result.Deductions.ToString("N0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.subtitle2">مالیات بر درآمد</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Warning">@_result.IncomeTax.ToString("N0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.subtitle2">خالص پرداختی</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Primary">@_result.NetPay.ToString("N0")</MudText>
+                    </MudItem>
+                </MudGrid>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                    محاسبهٔ پیش‌نمایش بر پایهٔ ناخالص (@_result.GrossIncome.ToString("N0")) و تعداد
+                    تحت‌تکفل @_dependents انجام شده است.
+                </MudText>
+            </MudPaper>
+        }
+    </MudPaper>
+}
+
+@code {
+    private const string Schema = "payroll";
+
+    private List<EmployeeRow> _employees = new();
+    private List<SalaryItemRow> _items = new();
+    private EmployeeRow? _selectedEmployee;
+    private PayrollCalculationResult _result;
+
+    private int _employeeId;
+    private string _period = "";
+    private int _dependents;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync() => await LoadEmployeesAsync();
+
+    private async Task LoadEmployeesAsync()
+    {
+        _loading = true;
+        try
+        {
+            _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+            _period = string.IsNullOrWhiteSpace(_period) ? SuggestPeriod() : _period;
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _selectedEmployee = _employees.FirstOrDefault(e => e.EmployeeId == _employeeId);
+        if (_selectedEmployee is null)
+        {
+            Snackbar.Add("یک کارمند را انتخاب کنید.", Severity.Warning);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_period))
+            _period = SuggestPeriod();
+
+        _loading = true;
+        try
+        {
+            _items = (await Db.QueryAsync<SalaryItemRow>(Schema, "SalaryItemList", new
+            {
+                EmployeeId = _employeeId,
+                Period = _period
+            })).ToList();
+            _result = Calculator.Compute(_items, _dependents);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenNewAsync()
+    {
+        if (_selectedEmployee is null) return;
+        var item = await Dialog.ShowAsync<SalaryItemDialog>("قلم حقوق جدید", new DialogParameters
+        {
+            ["Employee"] = _selectedEmployee,
+            ["Period"] = _period,
+            ["Model"] = null
+        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await item.Result) is { Canceled: false })
+            await ReloadItemsAsync();
+    }
+
+    private async Task OpenEditAsync(SalaryItemRow row)
+    {
+        if (_selectedEmployee is null) return;
+        var item = await Dialog.ShowAsync<SalaryItemDialog>("ویرایش قلم حقوق", new DialogParameters
+        {
+            ["Employee"] = _selectedEmployee,
+            ["Period"] = _period,
+            ["Model"] = row
+        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        if ((await item.Result) is { Canceled: false })
+            await ReloadItemsAsync();
+    }
+
+    private async Task DeleteAsync(SalaryItemRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف قلم «{row.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "SalaryItemDelete", new { SalaryItemId = row.SalaryItemId, CompanyId = Session.ActiveCompanyId });
+            Snackbar.Add("قلم حذف شد.", Severity.Success);
+            await ReloadItemsAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ReloadItemsAsync()
+    {
+        _items = (await Db.QueryAsync<SalaryItemRow>(Schema, "SalaryItemList", new
+        {
+            EmployeeId = _employeeId,
+            Period = _period
+        })).ToList();
+        _result = Calculator.Compute(_items, _dependents);
+        StateHasChanged();
+    }
+
+    /// <summary>پیشنهاد دورهٔ شمسی به شکل yyyy-MM (با تقویم شمسی دقیق).</summary>
+    private static string SuggestPeriod()
+    {
+        return $"{PersianDate.CurrentYear}-{PersianDate.CurrentMonth:00}";
+    }
+}

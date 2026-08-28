@@ -2,6 +2,8 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject PdfReportService Pdf
 
 <PageTitle>گزارشات — ارز و معاملات ارزی</PageTitle>
 
@@ -28,7 +30,12 @@
 <MudTabs>
     <MudTabPanel Text="معاملات ارز">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudTable Items="_transactions" Hover="true" Dense="true" Striped="true" Loading="_loading">
+            <div class="d-flex justify-end mb-3">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintTransactionsAsync"
+                           Disabled="_loading || _transactions.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+            </div>
+            <MudTable Items="_transactions" Hover="true" Dense="true" Striped="true" Loading="_loading"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh><MudTh>طرف حساب</MudTh>
                     <MudTh>مبلغ ریالی</MudTh><MudTh>سند حسابداری</MudTh><MudTh>پاها</MudTh><MudTh>وضعیت</MudTh>
@@ -44,13 +51,23 @@
                     <MudTd DataLabel="وضعیت">@context.Status</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">معامله‌ای نیست.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
+            @if (_transactions.Count > 0)
+            {
+                <MudText Typo="Typo.body2" Class="mt-4">جمع مبلغ ریالی: <b>@_transactions.Sum(t => t.TotalRial).ToString("N0")</b></MudText>
+            }
         </MudPaper>
     </MudTabPanel>
 
     <MudTabPanel Text="گردش ارز">
         <MudPaper Elevation="1" Class="pa-4">
-            <MudTable Items="_movements" Hover="true" Dense="true" Striped="true" Loading="_loading">
+            <div class="d-flex justify-end mb-3">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintMovementsAsync"
+                           Disabled="_loading || _movements.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+            </div>
+            <MudTable Items="_movements" Hover="true" Dense="true" Striped="true" Loading="_loading"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>جهت</MudTh><MudTh>ارز</MudTh><MudTh>مقدار</MudTh>
                     <MudTh>نرخ</MudTh><MudTh>معادل ریالی</MudTh><MudTh>طرف حساب</MudTh><MudTh>شرح</MudTh>
@@ -67,6 +84,7 @@
                     <MudTd DataLabel="شرح">@context.Description</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">گردشی نیست.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -143,7 +161,12 @@
         }
 
         <MudPaper Elevation="1" Class="pa-4">
-            <MudTable Items="_history" Hover="true" Dense="true" Striped="true" Loading="_loading">
+            <div class="d-flex justify-end mb-3">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintHistoryAsync"
+                           Disabled="_loading || _history.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+            </div>
+            <MudTable Items="_history" Hover="true" Dense="true" Striped="true" Loading="_loading"
+                      Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>تاریخ و ساعت</MudTh><MudTh>آیتم</MudTh><MudTh>نوع نرخ</MudTh><MudTh>نرخ قبلی</MudTh>
                     <MudTh>نرخ جدید</MudTh><MudTh>نوع تغییر</MudTh><MudTh>منبع</MudTh><MudTh>کاربر</MudTh><MudTh>دلیل</MudTh>
@@ -160,6 +183,7 @@
                     <MudTd DataLabel="دلیل">@context.Reason</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">تاریخچه‌ای نیست.</MudText></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -312,4 +336,158 @@
         "Transaction" => "معامله",
         _ => type
     };
+
+    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+
+    private async Task PrintTransactionsAsync()
+    {
+        if (_transactions.Count == 0) return;
+        await Dialog.ShowAsync<ReportPrintDialog>("چاپ معاملات ارز", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, "گزارش معاملات ارز" },
+            { x => x.Subtitle, "خرید/فروش/تبدیل/ترکیبی" },
+            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
+            { x => x.Body, TransactionsTableBody },
+            { x => x.BuildPdf, BuildTransactionsPdf },
+            { x => x.Wide, true }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task PrintMovementsAsync()
+    {
+        if (_movements.Count == 0) return;
+        await Dialog.ShowAsync<ReportPrintDialog>("چاپ گردش ارز", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, "گردش ارز" },
+            { x => x.Subtitle, "حرکت‌های کیف پول ارز" },
+            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
+            { x => x.Body, MovementsTableBody },
+            { x => x.BuildPdf, BuildMovementsPdf },
+            { x => x.Wide, true }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task PrintHistoryAsync()
+    {
+        if (_history.Count == 0) return;
+        await Dialog.ShowAsync<ReportPrintDialog>("چاپ تاریخچهٔ نرخ", new DialogParameters<ReportPrintDialog>
+        {
+            { x => x.Title, $"تاریخچهٔ نرخ — {_historyItemKey}" },
+            { x => x.Subtitle, "تغییرات نرخ‌ها با جزئیات" },
+            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
+            { x => x.Body, HistoryTableBody },
+            { x => x.BuildPdf, BuildHistoryPdf },
+            { x => x.Wide, true }
+        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private RenderFragment TransactionsTableBody => @<MudTable Items="_transactions" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh><MudTh>طرف حساب</MudTh>
+            <MudTh>مبلغ ریالی</MudTh><MudTh>سند حسابداری</MudTh><MudTh>پاها</MudTh><MudTh>وضعیت</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="تاریخ">@context.TransactionDate.ToString("yyyy/MM/dd") @context.TransactionTime</MudTd>
+            <MudTd DataLabel="شماره">@context.TransactionNumber</MudTd>
+            <MudTd DataLabel="نوع">@TransactionTypeText(context.TransactionType)</MudTd>
+            <MudTd DataLabel="طرف">@context.PartyName</MudTd>
+            <MudTd DataLabel="مبلغ"><b>@context.TotalRial.ToString("N0")</b></MudTd>
+            <MudTd DataLabel="سند">@context.DocumentNumber</MudTd>
+            <MudTd DataLabel="پاها">@context.LegCount</MudTd>
+            <MudTd DataLabel="وضعیت">@context.Status</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment MovementsTableBody => @<MudTable Items="_movements" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>جهت</MudTh><MudTh>ارز</MudTh><MudTh>مقدار</MudTh>
+            <MudTh>نرخ</MudTh><MudTh>معادل ریالی</MudTh><MudTh>طرف حساب</MudTh><MudTh>شرح</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd") @context.MovementTime</MudTd>
+            <MudTd DataLabel="نوع">@MovementTypeText(context.MovementType)</MudTd>
+            <MudTd DataLabel="جهت">@(context.Direction == "In" ? "ورود" : "خروج")</MudTd>
+            <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
+            <MudTd DataLabel="مقدار">@context.Quantity.ToString("N2")</MudTd>
+            <MudTd DataLabel="نرخ">@context.Rate.ToString("N0")</MudTd>
+            <MudTd DataLabel="معادل">@context.AmountRial.ToString("N0")</MudTd>
+            <MudTd DataLabel="طرف">@context.CounterPartyName</MudTd>
+            <MudTd DataLabel="شرح">@context.Description</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private RenderFragment HistoryTableBody => @<MudTable Items="_history" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+        <HeaderContent>
+            <MudTh>تاریخ و ساعت</MudTh><MudTh>آیتم</MudTh><MudTh>نوع نرخ</MudTh><MudTh>نرخ قبلی</MudTh>
+            <MudTh>نرخ جدید</MudTh><MudTh>نوع تغییر</MudTh><MudTh>منبع</MudTh><MudTh>کاربر</MudTh><MudTh>دلیل</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="زمان">@context.ChangedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</MudTd>
+            <MudTd DataLabel="آیتم">@context.ItemKey</MudTd>
+            <MudTd DataLabel="نوع">@RateKindText(context.RateKind)</MudTd>
+            <MudTd DataLabel="قبلی">@(context.PrevValue?.ToString("N0") ?? "—")</MudTd>
+            <MudTd DataLabel="جدید"><b>@context.NewValue.ToString("N0")</b></MudTd>
+            <MudTd DataLabel="تغییر">@ChangeTypeText(context.ChangeType)</MudTd>
+            <MudTd DataLabel="منبع">@context.SourceKey</MudTd>
+            <MudTd DataLabel="کاربر">@context.ChangedBy</MudTd>
+            <MudTd DataLabel="دلیل">@context.Reason</MudTd>
+        </RowTemplate>
+    </MudTable>;
+
+    private byte[] BuildTransactionsPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "تاریخ" }, new() { Header = "شماره" }, new() { Header = "نوع" },
+            new() { Header = "طرف حساب" }, new() { Header = "مبلغ ریالی", AlignRight = true },
+            new() { Header = "سند حسابداری" }, new() { Header = "پاها", AlignRight = true }, new() { Header = "وضعیت" }
+        };
+        var rows = _transactions.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.TransactionDate.ToString("yyyy/MM/dd"), r.TransactionNumber, TransactionTypeText(r.TransactionType),
+            r.PartyName, r.TotalRial.ToString("N0"), r.DocumentNumber, r.LegCount.ToString(), r.Status
+        }).ToList();
+
+        return Pdf.BuildTablePdf("گزارش معاملات ارز", "خرید/فروش/تبدیل/ترکیبی",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows,
+            new[] { $"جمع مبلغ ریالی: {_transactions.Sum(t => t.TotalRial):N0}" }, paperSize);
+    }
+
+    private byte[] BuildMovementsPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "تاریخ" }, new() { Header = "نوع" }, new() { Header = "جهت" },
+            new() { Header = "ارز" }, new() { Header = "مقدار", AlignRight = true }, new() { Header = "نرخ", AlignRight = true },
+            new() { Header = "معادل ریالی", AlignRight = true }, new() { Header = "طرف حساب" }, new() { Header = "شرح" }
+        };
+        var rows = _movements.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.MovementDate.ToString("yyyy/MM/dd"), MovementTypeText(r.MovementType), r.Direction == "In" ? "ورود" : "خروج",
+            r.CurrencyCode, r.Quantity.ToString("N2"), r.Rate.ToString("N0"), r.AmountRial.ToString("N0"),
+            r.CounterPartyName, r.Description
+        }).ToList();
+
+        return Pdf.BuildTablePdf("گردش ارز", "حرکت‌های کیف پول ارز",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+    }
+
+    private byte[] BuildHistoryPdf(string paperSize)
+    {
+        var columns = new List<TableReportColumn>
+        {
+            new() { Header = "تاریخ و ساعت" }, new() { Header = "آیتم" }, new() { Header = "نوع نرخ" },
+            new() { Header = "نرخ قبلی", AlignRight = true }, new() { Header = "نرخ جدید", AlignRight = true },
+            new() { Header = "نوع تغییر" }, new() { Header = "منبع" }, new() { Header = "کاربر" }, new() { Header = "دلیل" }
+        };
+        var rows = _history.Select(r => (IReadOnlyList<string>)new string[]
+        {
+            r.ChangedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss"), r.ItemKey, RateKindText(r.RateKind),
+            r.PrevValue?.ToString("N0") ?? "—", r.NewValue.ToString("N0"), ChangeTypeText(r.ChangeType),
+            r.SourceKey, r.ChangedBy, r.Reason
+        }).ToList();
+
+        return Pdf.BuildTablePdf($"تاریخچهٔ نرخ — {_historyItemKey}", "تغییرات نرخ‌ها با جزئیات",
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+    }
 }

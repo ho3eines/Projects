@@ -2,17 +2,20 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Nav
 
 <PageTitle>فروش روز — طلافروشی</PageTitle>
 
 <PageHeader Title="فروش روز" Subtitle="فاکتورهای فروش طلا — از تاریخ / تا تاریخ." />
+
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="3">
-            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
             <MudTextField Label="جستجو (شماره فاکتور یا مشتری)" @bind-Value="_search" Variant="Variant.Outlined" />
@@ -27,13 +30,20 @@
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true">
+    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
+              RowsPerPage="_pageSize" RowsPerPageChanged="v => _pageSize = v"
+              CurrentPage="_page" CurrentPageChanged="v => _page = v">
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new int[]{10,25,50,100}" />
+        </PagerContent>
         <HeaderContent>
             <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>مشتری</MudTh><MudTh>کالا</MudTh>
-            <MudTh>وزن (گرم)</MudTh><MudTh>اجرت</MudTh><MudTh>سود</MudTh><MudTh>مالیات</MudTh><MudTh>جمع</MudTh>
+            <MudTh>وزن (گرم)</MudTh><MudTh>اجرت</MudTh><MudTh>سود</MudTh><MudTh>مالیات</MudTh><MudTh>جمع</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="شماره">@context.InvoiceNumber</MudTd>
+            <MudTd DataLabel="شماره">
+                <MudLink Href="#" Style="cursor:pointer" OnClick="() => OpenDetailAsync(context)">@context.InvoiceNumber</MudLink>
+            </MudTd>
             <MudTd DataLabel="تاریخ">@context.InvoiceDate.ToString("yyyy/MM/dd")</MudTd>
             <MudTd DataLabel="مشتری">@context.CustomerName</MudTd>
             <MudTd DataLabel="کالا">@context.ItemCode — @context.ItemTitle</MudTd>
@@ -42,6 +52,20 @@
             <MudTd DataLabel="سود">@context.Profit.ToString("N0")</MudTd>
             <MudTd DataLabel="مالیات">@context.Tax.ToString("N0")</MudTd>
             <MudTd DataLabel="جمع">@context.TotalAmount.ToString("N0")</MudTd>
+            <MudTd DataLabel="وضعیت">
+                @if (context.Status == "Final")
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small">نهایی</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">پیش‌نویس</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="عملیات">
+                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Primary" OnClick="() => OpenDetailAsync(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Secondary" OnClick="() => EditInvoiceAsync(context)" />
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></NoRecordsContent>
     </MudTable>
@@ -56,6 +80,8 @@
     private string _search = "";
     private DateTime? _from;
     private DateTime? _to;
+    private int _page;
+    private int _pageSize = 25;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,8 +100,8 @@
                 FromDate = _from?.Date ?? DateTime.Today,
                 ToDate = _to?.Date ?? DateTime.Today,
                 SearchText = _search ?? "",
-                SkipRows = 0,
-                TakeSize = 100,
+                SkipRows = _page * _pageSize,
+                TakeSize = _pageSize,
                 CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
@@ -88,4 +114,28 @@
             _loading = false;
         }
     }
+
+    private async Task OpenDetailAsync(DailySaleRow row)
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters<GoldInvoiceDetailDialog>
+        {
+            { x => x.InvoiceId, row.InvoiceId },
+            { x => x.InvoiceNumber, row.InvoiceNumber },
+            { x => x.InvoiceDate, row.InvoiceDate },
+            { x => x.CustomerName, row.CustomerName },
+            { x => x.ItemCode, row.ItemCode },
+            { x => x.ItemTitle, row.ItemTitle },
+            { x => x.WeightGram, row.WeightGram },
+            { x => x.Workmanship, row.Workmanship },
+            { x => x.Profit, row.Profit },
+            { x => x.Tax, row.Tax },
+            { x => x.TotalAmount, row.TotalAmount },
+            { x => x.Status, row.Status }
+        };
+        await DialogService.ShowAsync<GoldInvoiceDetailDialog>("جزئیات فاکتور", parameters, options);
+    }
+
+    private void EditInvoiceAsync(DailySaleRow row)
+        => Nav.NavigateTo($"/goldshop/entry?edit={row.InvoiceId}");
 }

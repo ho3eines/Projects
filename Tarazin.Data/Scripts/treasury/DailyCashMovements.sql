@@ -19,6 +19,7 @@ FROM [treasury].[CashMovements] m
 LEFT JOIN [treasury].[BankAccounts] a ON a.AccountId = m.AccountId
 LEFT JOIN [treasury].[CashBoxes] c ON c.CashBoxId = m.CashBoxId
 WHERE m.MovementDate BETWEEN @FromDate AND @ToDate
+  AND (@CompanyId IS NULL OR m.CompanyId = @CompanyId)
   AND (@SearchText = N'' OR m.MovementNumber LIKE N'%' + @SearchText + N'%'
        OR m.Description LIKE N'%' + @SearchText + N'%')
   AND (@Direction IS NULL OR m.Direction = @Direction)

@@ -1,0 +1,232 @@
+@inject IJSRuntime JS
+@inject PdfReportService Pdf
+@inject IPdfSaver PdfSaver
+@using Tarazin.Models
+
+@* دیالوگ چاپ گزارش چک‌ها — قالب HTML با قوانین رسمی چاپ:
+   - حالت عادی: پیش‌نمایش روی صفحه (MudBlazor ریسپانسیو) + دکمهٔ «چاپ / PDF»
+   - حالت پیش‌نمایش چاپ: شبیه‌سازی برگهٔ A4 landscape با هدر/فوتر رسمی قبل از ارسال به پرینتر
+   - در خروجی چاپ/PDF هدر رسمی (لوگو + عنوان) و فوتر رسمی (شماره صفحه) تکرار می‌شوند. *@
+
+<MudDialog Class="@(_preview ? "cq-print-dialog gp-previewing" : "cq-print-dialog")">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+            <MudText Typo="Typo.h6">چاپ گزارش چک‌ها</MudText>
+            @if (_preview)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary">پیش‌نمایش چاپ</MudChip>
+            }
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_preview)
+        {
+            @* ── حالت پیش‌نمایش: شبیه‌سازی برگهٔ A4/A5 landscape با هدر/فوتر رسمی ── *@
+            <div class="gp-preview-stage">
+                <div class="gp-preview-sheet gp-preview-sheet--landscape @(_paperSize == "A5" ? "gp-preview-sheet--a5" : "")">
+                    @* هدر رسمی (شبیه‌سازی) *@
+                    <div class="cq-print-header">
+                        <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+                        <div>
+                            <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                                ترازین — سامانه یکپارچه مدیریت کسب‌وکار
+                            </div>
+                            <div style="font-size:9pt;color:#666">
+                                گزارش چک‌های در جریان و سررسیدشده — تهیه شده در @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+                            </div>
+                        </div>
+                    </div>
+
+                    @* بدنهٔ برگه *@
+                    <div class="gp-preview-sheet__body">
+                        @RenderBody()
+                    </div>
+
+                    @* فوتر رسمی (شبیه‌سازی) *@
+                    <div class="cq-print-footer">
+                        <span>ترازین — سامانه یکپارچه مدیریت کسب‌وکار</span>
+                        <span class="gp-page-no">صفحه ۱ از ۱</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="cq-print-area @(_paperSize == "A5" ? "cq-print-area--a5" : "")">
+                @RenderBody()
+
+                @* ── فوتر رسمی (در چاپ روی همهٔ صفحات تکرار می‌شود) ── *@
+                <div class="cq-print-footer print-only">
+                    <span>ترازین — سامانه یکپارچه مدیریت کسب‌وکار</span>
+                    <span>گزارش چک‌های در جریان و سررسیدشده</span>
+                </div>
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudSelect T="string" Label="اندازهٔ کاغذ" Value="@_paperSize" ValueChanged="OnSizeChanged"
+                   Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
+                   Style="min-width:130px" Class="mr-1">
+            <MudSelectItem Value="@("A4")">A4</MudSelectItem>
+            <MudSelectItem Value="@("A5")">A5</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TogglePreview"
+                   StartIcon="@(_preview ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)">
+            @(_preview ? "خروج از پیش‌نمایش" : "پیش‌نمایش چاپ")
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync"
+                   StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync"
+                   StartIcon="@Icons.Material.Filled.FileDownload" Disabled="@_downloading">
+            @(_downloading ? "در حال ساخت PDF…" : "دانلود PDF")
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" OnClick="Close" StartIcon="@Icons.Material.Filled.Close">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public List<ChequeDueRow> Rows { get; set; } = new();
+
+    private bool _preview;
+    private string _paperSize = "A4";
+    private bool _downloading;
+
+    private void TogglePreview() => _preview = !_preview;
+
+    private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+
+    /// <summary>
+    /// ساخت PDF با QuestPDF (سمت سرور در وب / بومی در MAUI) و دانلود بدون
+    /// دیالوگ پرینتر — جایگزین html2pdf که روی موبایل سنگین بود.
+    /// </summary>
+    private async Task DownloadPdfAsync()
+    {
+        _downloading = true;
+        try
+        {
+            var fileName = PdfFileNames.ChequeReport(DateTime.Now, _paperSize);
+            var bytes = Pdf.BuildChequeReportPdf(Rows, _paperSize);
+            await PdfSaver.SaveAsync(fileName, bytes);
+        }
+        finally
+        {
+            _downloading = false;
+        }
+    }
+
+    private int OverdueCount => Rows.Count(r => r.AlertLevel == "Overdue");
+    private int DueSoonCount => Rows.Count(r => r.AlertLevel == "DueSoon");
+    private decimal OverdueAmount => Rows.Where(r => r.AlertLevel == "Overdue").Sum(r => r.Amount);
+
+    private static string DueLabel(int days) => days switch
+    {
+        0 => "امروز",
+        _ => days > 0 ? $"{days} روز مانده" : $"{Math.Abs(days)} روز گذشته"
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Pending" => "در انتظار",
+        "Collecting" => "در جریان وصول",
+        _ => status
+    };
+
+    private static string AlertLabel(string level) => level switch
+    {
+        "Overdue" => "سررسیدشده",
+        "DueSoon" => "سررسید نزدیک",
+        _ => "در مهلت"
+    };
+
+    private static Color AlertChipColor(string level) => level switch
+    {
+        "Overdue" => Color.Error,
+        "DueSoon" => Color.Warning,
+        _ => Color.Success
+    };
+
+    private static string SourceLabel(string? source) => source switch
+    {
+        null => "دستی",
+        var s when s.StartsWith("GoldInvoice:") => "فاکتور طلافروشی",
+        var s when s.StartsWith("Cheque:") => "وصول چک",
+        _ => source
+    };
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+
+    private void Close() => MudDialog.Close();
+
+    /// <summary>بدنهٔ مشترک گزارش (هدر + خلاصه + جدول چک‌ها) — هم در حالت عادی و هم در پیش‌نمایش.</summary>
+    private RenderFragment RenderBody() => @<text>
+            @* ── هدر رسمی (در چاپ روی همهٔ صفحات تکرار می‌شود) ── *@
+            <div class="cq-print-header print-only">
+                <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+                <div>
+                    <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                        ترازین — سامانه یکپارچه مدیریت کسب‌وکار
+                    </div>
+                    <div style="font-size:9pt;color:#666">
+                        گزارش چک‌های در جریان و سررسیدشده — تهیه شده در @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+                    </div>
+                </div>
+            </div>
+
+            @* ── خلاصه ── *@
+            <MudPaper Elevation="0" Class="pa-3 mb-3 cq-page-break" Style="border:1px solid #e0e0e0;border-radius:10px">
+                <MudGrid Spacing="2">
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">چک‌های باز</MudText>
+                        <MudText Typo="Typo.h6">@Rows.Count.ToString("N0")</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">سررسیدشده</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Error">@OverdueCount.ToString("N0")</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">سررسید نزدیک</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Warning">@DueSoonCount.ToString("N0")</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">جمع سررسیدشده</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Error">@OverdueAmount.ToString("N0")</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            @* ── جدول چک‌ها ── *@
+            <MudPaper Elevation="0" Style="border:1px solid #e0e0e0;border-radius:10px;overflow:hidden">
+                <MudTable Items="Rows" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="cq-table">
+                    <HeaderContent>
+                        <MudTh>شماره چک</MudTh><MudTh>بانک</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh>
+                        <MudTh>سررسید</MudTh><MudTh>مانده تا سررسید</MudTh><MudTh>وضعیت</MudTh><MudTh>هشدار</MudTh><MudTh>منبع</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="شماره">@context.ChequeNumber</MudTd>
+                        <MudTd DataLabel="بانک">@context.BankName</MudTd>
+                        <MudTd DataLabel="جهت">
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(context.Direction == "In" ? Color.Success : Color.Error)">
+                                @(context.Direction == "In" ? "دریافتی" : "پرداختی")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+                        <MudTd DataLabel="سررسید">@(context.DueDate?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
+                        <MudTd DataLabel="مانده تا سررسید">@DueLabel(context.DaysToDue)</MudTd>
+                        <MudTd DataLabel="وضعیت">@StatusLabel(context.Status)</MudTd>
+                        <MudTd DataLabel="هشدار">
+                            <MudChip T="string" Size="Size.Small" Color="@AlertChipColor(context.AlertLevel)">
+                                @AlertLabel(context.AlertLevel)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="منبع">@SourceLabel(context.SourceReference)</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+    </text>;
+}

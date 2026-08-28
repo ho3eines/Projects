@@ -340,6 +340,8 @@ _denyMessage = !Session.IsAuthenticated
 
 ## ۱۰. گزارش‌ها و چاپ (Stimulsoft)
 
+> **⚠️ اسکیل جداگانهٔ گزارش‌سازی:** برای ساخت/ویرایش هر صفحهٔ گزارش، دیالوگ چاپ یا خروجی PDF، اول `.claude/skills/tarazin-reporting/SKILL.md` را بخوان — «یک روال واحد» برای همهٔ گزارش‌ها: اسکلت صفحه + `ReportPrintDialog` + `PdfReportService.BuildTablePdf` + `PdfFileNames`.
+
 - **فقط از `BiReportService`:** `BuildAsync(BiReportDefinition)` (دادهٔ واقعی از اسکریپت) یا `BuildDemoReport()` (تست، بدون دیتابیس).
 - نمایش با `StiBlazorViewer` (صفحهٔ `/bi/reports`). صفحهٔ تست: `/dev/bireport`.
 - **لایسنس:** بدون کلید، واترمارک trial؛ بعد از انقضا، Viewer مودال «Your trial has expired» می‌دهد (خروجی PNG/PDF کار می‌کند). لایسنس با `TARAZIN_STIMULSOFT_LICENSE_PATH` در `Program.cs` ثبت می‌شود.
@@ -364,6 +366,9 @@ _denyMessage = !Session.IsAuthenticated
 
 ## ۱۲. بیلد و تست
 
+> **⚠️ قانون طلایی بیلد:** بعد از **هر تغییر در `Tarazin.Ui`** (صفحهٔ Razor، کامپوننت، سرویس، تم، …) حتماً `dotnet build Tarazin.Web/Tarazin.Web.csproj` را بزن.
+> `dotnet test` یا بیلدِ تکیِ `Tarazin.Ui` فقط `Tarazin.Ui/bin` را به‌روز می‌کند؛ کپیِ `Tarazin.Web/bin` **تازه نمی‌شود** و سروری که با `dotnet run --no-build` بالا می‌آید، همان کد کهنه را سرو می‌کند (باگ «ستون‌ها درست شد ولی هدر نه`). — **اسکریپت یک‌جا زنجیرهٔ کامل:** `bash tools/run-checks.sh` (تست + بیلد وب + گارد stale).
+
 ```bash
 # بیلد کامل وب (هشدارها/خطاها را ببین)
 dotnet build Tarazin.Web/Tarazin.Web.csproj --nologo
@@ -378,13 +383,27 @@ dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-android --nologo
 # بیلد MAUI ویندوز:
 dotnet build Tarazin.Maui/Tarazin.Maui.csproj -f net8.0-windows10.0.19041.0 --nologo
 
+# ⚠️ تست واحد (اجباری قبل از هر بیلد/PR) — گاردهای بازگشت‌پذیر روی خروجی PDF:
+#   - ابعاد/جهتٔ صفحه (MediaBox): فاکتور پرتره، گزارش چک‌ها landscape (A4/A5)
+#   - صفحه‌بندی فاکتورهای بلند (تعداد صفحات)
+#   - راست‌به‌چپ بودن سلول‌ها (گاردِ منبع AlignRight — بازگشت به چپ‌چین نمی‌شود)
+dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo
+
+# ⚠️ گارد ضد «سرور با کد قدیمی» — قبل از ریاستارت dev server حتماً اجرا کن:
+#   اگر Tarazin.Ui بیلد شده ولی Tarazin.Web نه، سرورِ `--no-build` کپیِ کهنهٔ DLL را لود می‌کند
+#   و تغییرات (مثل فیکس RTL) در عمل اعمال نمی‌شود. خروجی 1 یعنی: اول Tarazin.Web را بیلد کن.
+bash tools/check-stale-build.sh   # 0 = امن برای ریاستارت | 1 = stale — اول rebuild کن
+
 # اجرای dev server (پورت‌های پیش‌فرض 65220 https / 65221 http):
 dotnet run --project Tarazin.Web
 ```
 
+- **تست‌ها:** `dotnet test Tarazin.Tests/Tarazin.Tests.csproj` — پروژهٔ `Tarazin.Tests` (xUnit) به `Tarazin.Ui` ارجاع می‌دهد و `PdfReportService` را با دادهٔ واقعی اجرا می‌کند (SkiaSharp/QuestPDF روی win-‌x64 و linux-x64 کار می‌کند). اگر هرگانه‌ی MediaBox/صفحه‌بندی/RTL قرمز شد، باگ صفحهٔ PDF برگشته؛ قبل از ادامه درستش کن.
+
 - **قفل DLL:** اگر dev server در حال اجراست، بیلد عادی با MSB3021/3027 خطا می‌دهد (فایل‌های قفل). از `-o /tmp/out` استفاده کن یا سرور را ریاستارت کن.
 - **هشدارها:** پروژه هدف «بدون هشدار» دارد — MUD0002/CS0618 را جدی بگیر (رفتار خراب)، CS8669/CS8618/CS8602 را هم پاک کن.
-- **پیش‌نمایش زنده:** بعد از تغییر، dev server را ریاستارت کن تا بیلد جدید لود شود.
+- **پیش‌نمایش زنده:** بعد از تغییر، dev server را ریاستارت کن تا بیلد جدید لود شود — **قبل از ریاستارت `bash tools/check-stale-build.sh` را اجرا کن** (گارد ضد باگ «سرور با کد قدیمی»: اگر کپی `Tarazin.Web/bin/Tarazin.Ui.dll` قدیمی‌تر از `Tarazin.Ui/bin` بود، اول `dotnet build Tarazin.Web` را بزن؛ وگرنه سرورِ `--no-build` همان کد کهنه را سرو می‌کند).
+- **ترتیب استاندارد بعد از تغییر در `Tarazin.Ui`:** (۱) `dotnet test Tarazin.Tests` → (۲) `dotnet build Tarazin.Web` → (۳) `bash tools/check-stale-build.sh` (باید 0 بدهد) → (۴) ریاستارت dev server. این چهار قدم در بلاک بالا هم آمده است.
 
 ---
 

@@ -69,6 +69,7 @@ public static class TarazinPermissions
     public const string DocumentConfirm = "accounting.document.confirm";   // سند موقت → تأیید شده
     public const string DocumentFinalize = "accounting.document.finalize"; // تأیید شده → تأیید نهایی
     public const string DocumentRevert = "accounting.document.revert";     // برگشت وضعیت سند
+    public const string AccountingClosedYear = "accounting.closedyear";    // ثبت سند در سال مالی بسته (با مجوز + دلیل در ممیزی)
 
     /// <summary>کلید ماژول‌های کسب‌وکار (همان اسکیمه‌ها).</summary>
     public static readonly string[] Modules =
@@ -171,6 +172,7 @@ public static class TarazinPermissions
         list.Add(new PermissionDef(DocumentConfirm, "حسابداری — تأیید سند موقت", "accounting"));
         list.Add(new PermissionDef(DocumentFinalize, "حسابداری — تأیید نهایی سند", "accounting"));
         list.Add(new PermissionDef(DocumentRevert, "حسابداری — برگشت وضعیت سند", "accounting"));
+        list.Add(new PermissionDef(AccountingClosedYear, "حسابداری — ثبت سند در سال مالی بسته (با مجوز)", "accounting"));
 
         return list;
     }
@@ -252,6 +254,9 @@ public static class TarazinRoles
             new("Accountant", "حسابدار",
                 "حسابداری کامل + مشاهده و گزارش سایر بخش‌ها + ممیزی.", false,
                 Full("accounting").Concat(FullChart()).Concat(FullDocument()).Concat(new[]
+                {
+                    TarazinPermissions.AccountingClosedYear,
+                }).Concat(new[]
                 {
                     TarazinPermissions.For("treasury", TarazinActions.View),
                     TarazinPermissions.For("treasury", TarazinActions.Reports),

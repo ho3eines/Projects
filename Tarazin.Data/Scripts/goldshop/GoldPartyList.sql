@@ -8,7 +8,7 @@ SELECT p.PartyId, p.PartyCode, p.PartyType, p.FullName, p.NationalId, p.Phone, p
        link.DetailAccountCode
 FROM [central].[Parties] p
 LEFT JOIN [goldshop].[GoldPartyLedger] l ON l.PartyId = p.PartyId AND l.CompanyId = @CompanyId
-LEFT JOIN [goldshop].[GoldPartyLinks] link ON link.PartyId = p.PartyId AND link.CompanyId = @CompanyId
+LEFT JOIN [treasury].[PartyLinks] link ON link.PartyId = p.PartyId AND link.CompanyId = @CompanyId
 WHERE p.CompanyId = @CompanyId AND p.IsDeleted = 0
   AND p.PartyType IN (N'Customer', N'Vendor')
   AND (@PartyType IS NULL OR p.PartyType = @PartyType)

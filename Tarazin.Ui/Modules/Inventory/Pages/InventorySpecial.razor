@@ -3,9 +3,9 @@
 @inject UserSession Session
 @inject ISnackbar Snackbar
 
-<PageTitle>عملیات ویژه — انبار آمل</PageTitle>
+<PageTitle>عملیات ویژه — انبار</PageTitle>
 
-<PageHeader Title="عملیات ویژه" Subtitle="شمارش موجودی (انبارگردانی) — تعدیل بر اساس تعداد شمرده‌شده." />
+<PageHeader Title="عملیات ویژه" Subtitle="شمارش موجودی (انبارگردانی) — تعدیل بر اساس تعداد شمرده‌شده در انبار/انبارک مشخص." />
 <MudPaper Elevation="1" Class="pa-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="4">
@@ -14,6 +14,26 @@
                 @foreach (var it in _items)
                 {
                     <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined"
+                       @bind-Value:after="OnWarehouseChanged">
+                <MudSelectItem Value="0">— انتخاب انبار —</MudSelectItem>
+                @foreach (var w in _warehouses)
+                {
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="انبارک (اختیاری)" @bind-Value="_subWarehouseId" Variant="Variant.Outlined"
+                       Disabled="_warehouseId == 0" Clearable="true">
+                <MudSelectItem Value="0">— بدون انبارک —</MudSelectItem>
+                @foreach (var s in _subWarehouses)
+                {
+                    <MudSelectItem Value="s.SubWarehouseId">@s.Title</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
@@ -33,21 +53,36 @@
     private const string Schema = "inventory";
 
     private List<ItemRow> _items = new();
+    private List<WarehouseRow> _warehouses = new();
+    private List<SubWarehouseRow> _subWarehouses = new();
     private int _itemId;
+    private int _warehouseId;
+    private int _subWarehouseId;
     private decimal _counted;
     private bool _busy;
 
     protected override async Task OnInitializedAsync()
     {
-        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList")).ToList();
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+    }
+
+    private async Task OnWarehouseChanged()
+    {
+        _subWarehouseId = 0;
+        _subWarehouses = (await Db.QueryAsync<SubWarehouseRow>(Schema, "SubWarehouseList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            WarehouseId = _warehouseId == 0 ? (int?)null : _warehouseId
+        })).ToList();
     }
 
     private async Task RunAsync()
     {
         if (_busy) return;
-        if (_itemId == 0)
+        if (_itemId == 0 || _warehouseId == 0)
         {
-            Snackbar.Add("کالا را انتخاب کنید.", Severity.Warning);
+            Snackbar.Add("کالا و انبار را انتخاب کنید.", Severity.Warning);
             return;
         }
 
@@ -57,8 +92,11 @@
             await Db.ExecuteAsync(Schema, "StocktakeRun", new
             {
                 ItemId = _itemId,
+                WarehouseId = _warehouseId,
+                SubWarehouseId = _subWarehouseId == 0 ? (int?)null : _subWarehouseId,
                 CountedQty = _counted,
-                CreatedBy = Session.UserName
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
             });
             Snackbar.Add("انبارگردانی ثبت شد.", Severity.Success);
         }

@@ -1,0 +1,139 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(Model is null ? "حکم جدید" : "ویرایش حکم")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudText Typo="Typo.body2" Class="mb-1">
+                        کارمند: <b>@Employee.FullName</b> (@Employee.EmployeeCode)
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="نوع قرارداد" @bind-Value="_model.ContractType" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Permanent")">دائم</MudSelectItem>
+                        <MudSelectItem Value="@("Fixed")">موقت</MudSelectItem>
+                        <MudSelectItem Value="@("PartTime")">نیمه‌وقت</MudSelectItem>
+                        <MudSelectItem Value="@("Intern")">کارآموز</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success">فعال</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="تاریخ شروع" @bind-Date="_model.StartDate" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="تاریخ پایان (اختیاری)" @bind-Date="_model.EndDate" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="حقوق پایه (ریال)" @bind-Value="_model.BaseSalary"
+                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="حق مسکن (ریال)" @bind-Value="_model.HousingAllowance"
+                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="حق خوراک (ریال)" @bind-Value="_model.FoodAllowance"
+                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="حق حمل (ریال)" @bind-Value="_model.TransportAllowance"
+                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="درصد بیمه کارمند (%)" @bind-Value="_model.InsurancePct"
+                                     Min="0" Max="30" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="int" Label="معافیت مالیاتی (نفر)" @bind-Value="_model.TaxExemptCount"
+                                     Min="0" Max="10" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="یادداشت (اختیاری)" @bind-Value="_model.Notes"
+                                  Variant="Variant.Outlined" Lines="2" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_busy">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy || !_isValid">
+            @(_busy ? "در حال ذخیره…" : "ذخیره")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public EmployeeRow Employee { get; set; } = default!;
+    [Parameter] public EmploymentOrderRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _busy;
+    private EmploymentOrderRow _model = new();
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _model = new EmploymentOrderRow
+            {
+                OrderId = Model.OrderId,
+                ContractType = Model.ContractType,
+                StartDate = Model.StartDate,
+                EndDate = Model.EndDate,
+                BaseSalary = Model.BaseSalary,
+                HousingAllowance = Model.HousingAllowance,
+                FoodAllowance = Model.FoodAllowance,
+                TransportAllowance = Model.TransportAllowance,
+                InsurancePct = Model.InsurancePct,
+                TaxExemptCount = Model.TaxExemptCount,
+                IsActive = Model.IsActive,
+                Notes = Model.Notes
+            };
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("payroll", "EmploymentOrderUpsert", new
+            {
+                OrderId = _model.OrderId,
+                EmployeeId = Employee.EmployeeId,
+                ContractType = _model.ContractType,
+                StartDate = _model.StartDate,
+                EndDate = _model.EndDate,
+                BaseSalary = _model.BaseSalary,
+                HousingAllowance = _model.HousingAllowance,
+                FoodAllowance = _model.FoodAllowance,
+                TransportAllowance = _model.TransportAllowance,
+                InsurancePct = _model.InsurancePct,
+                TaxExemptCount = _model.TaxExemptCount,
+                IsActive = _model.IsActive,
+                Notes = _model.Notes,
+                CreatedBy = Session.UserName,
+                CompanyId = Session.ActiveCompanyId
+            });
+            Snackbar.Add("حکم ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

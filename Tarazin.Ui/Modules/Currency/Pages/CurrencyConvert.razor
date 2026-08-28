@@ -163,7 +163,10 @@
             ItemKey = (string?)null
         })).ToList();
 
-        _funds = (await Db.QueryAsync<FundRow>(Schema, "FundList")).ToList();
+        _funds = (await Db.QueryAsync<FundRow>(Schema, "FundList", new
+        {
+            CompanyId = Session.ActiveCompanyId
+        })).ToList();
     }
 
     private void OnSourceChanged()

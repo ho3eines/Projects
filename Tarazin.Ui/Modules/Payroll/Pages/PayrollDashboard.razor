@@ -1,10 +1,12 @@
 @page "/payroll/dashboard"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>داشبورد — حقوق و دستمزد</PageTitle>
 
-<PageHeader Title="نمای کلی حقوق و دستمزد" Subtitle="کارمندان، دوره‌ها و پرداختی." Eyebrow="حقوق و دستمزد" />
+<PageHeader Title="نمای کلی حقوق و دستمزد" Subtitle="کارمندان، دوره‌ها، ماه جاری و اتصال حسابداری." Eyebrow="حقوق و دستمزد" />
 
 @if (_loading)
 {
@@ -12,7 +14,7 @@
 }
 else
 {
-    <MudGrid>
+    <MudGrid Class="mb-4">
         <StatCard Label="کارمندان فعال" Value="@_summary.ActiveEmployees.ToString("N0")"
                   Icon="@Icons.Material.Filled.Groups" Accent="#9C3B2E" />
         <StatCard Label="کل دوره‌ها" Value="@_summary.TotalRuns.ToString("N0")"
@@ -22,27 +24,115 @@ else
         <StatCard Label="آخرین دوره" Value="@(_summary.LatestPeriod ?? "—")"
                   Icon="@Icons.Material.Filled.EventAvailable" Accent="#0E4D4A" />
     </MudGrid>
+
+    @if (_monthly is not null && _monthly.RunId > 0)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-4">
+            <div class="d-flex align-center justify-space-between flex-wrap" style="gap:8px">
+                <div>
+                    <MudText Typo="Typo.h6">ماه جاری: @_monthly.Period</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        وضعیت: <MudChip T="string" Size="Size.Small" Color="@StatusColor(_monthly.Status)">@StatusText(_monthly.Status)</MudChip>
+                        — @_monthly.SalaryItemCount قلم — @_monthly.EmployeeCount کارمند
+                    </MudText>
+                </div>
+                <MudLink Href="/payroll/special" Color="Color.Primary">مدیریت ماه جاری →</MudLink>
+            </div>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-4">
+            <div class="d-flex align-center justify-space-between flex-wrap" style="gap:8px">
+                <div>
+                    <MudText Typo="Typo.h6">ماه جاری: @_period</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">هنوز دوره‌ای باز نشده است.</MudText>
+                </div>
+                <MudLink Href="/payroll/special" Color="Color.Primary">باز کردن دوره →</MudLink>
+            </div>
+        </MudPaper>
+    }
+
+    <MudGrid Spacing="2">
+        <MudItem xs="12" sm="6" md="3">
+            <MudLink Href="/payroll/salaryitems" Color="Color.Primary" Underline="Underline.None">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudIcon Icon="@Icons.Material.Filled.PostAdd" Size="Size.Large" Color="Color.Primary" />
+                    <MudText Typo="Typo.subtitle2" Class="mt-1">اقلام حقوق</MudText>
+                </MudPaper>
+            </MudLink>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudLink Href="/payroll/settings" Color="Color.Primary" Underline="Underline.None">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudIcon Icon="@Icons.Material.Filled.Gavel" Size="Size.Large" Color="Color.Primary" />
+                    <MudText Typo="Typo.subtitle2" Class="mt-1">حکم‌های اداری</MudText>
+                </MudPaper>
+            </MudLink>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudLink Href="/payroll/entry" Color="Color.Primary" Underline="Underline.None">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Large" Color="Color.Primary" />
+                    <MudText Typo="Typo.subtitle2" Class="mt-1">فیش حقوق</MudText>
+                </MudPaper>
+            </MudLink>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudLink Href="/payroll/reports" Color="Color.Primary" Underline="Underline.None">
+                <MudPaper Class="pa-3 text-center" Style="border-radius:8px">
+                    <MudIcon Icon="@Icons.Material.Filled.Assessment" Size="Size.Large" Color="Color.Primary" />
+                    <MudText Typo="Typo.subtitle2" Class="mt-1">گزارشات</MudText>
+                </MudPaper>
+            </MudLink>
+        </MudItem>
+    </MudGrid>
 }
 
 @code {
     private const string Schema = "payroll";
     private bool _loading = true;
     private PayrollDashboardRow _summary = new();
+    private MonthlyOpenSummaryRow? _monthly;
+    private string _period = "";
 
     protected override async Task OnInitializedAsync()
     {
+        _period = SuggestPeriod();
         try
         {
-            _summary = await Db.QueryFirstOrDefaultAsync<PayrollDashboardRow>(Schema, "DashboardSummary")
-                       ?? new PayrollDashboardRow();
+            _summary = await Db.QueryFirstOrDefaultAsync<PayrollDashboardRow>(Schema, "DashboardSummary") ?? new();
+            _monthly = await Db.QueryFirstOrDefaultAsync<MonthlyOpenSummaryRow>(Schema, "MonthlyOpenSummary", new
+            {
+                Period = _period,
+                CompanyId = Session.ActiveCompanyId
+            });
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _loading = false;
-        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
     }
+
+    private static string SuggestPeriod()
+    {
+        // ماه شمسی واقعی (نه تقریب میلادی منهای ۶۲۱)
+        return $"{PersianDate.CurrentYear}-{PersianDate.CurrentMonth:00}";
+    }
+
+    private static string StatusText(string? status) => status switch
+    {
+        "Draft" => "پیش‌نویس",
+        "Finalized" => "نهایی‌شده",
+        "Closed" => "بسته‌شده",
+        "Reopened" => "بازگشایی‌شده",
+        _ => "—"
+    };
+
+    private static Color StatusColor(string? status) => status switch
+    {
+        "Draft" => Color.Warning,
+        "Finalized" => Color.Success,
+        "Closed" => Color.Error,
+        "Reopened" => Color.Info,
+        _ => Color.Default
+    };
 }

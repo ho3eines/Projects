@@ -5,10 +5,12 @@
 -- Execute. خرید/فروش ارز (PRD §37) — یک عملیات تراکنشی که هم‌زمان:
 --   ۱. موجودی کیف پول ارز را تغییر می‌دهد (خرید: افزایش / فروش: کاهش)
 --   ۲. گردش ارز ثبت می‌کند (نرخ معامله قفل می‌شود — §48)
---   ۳. سند حسابداری دوبل می‌سازد (موجودی ارز ↔ صندوق/بانک + سود/زیان تسعیر)
+--   ۳. سند حسابداری دوبل می‌سازد (موجودی ارز ↔ صندوق/بانک یا تفصیلی طرف‌حساب + سود/زیان تسعیر)
 --   ۴. سمت ریالی را در خزانه (صندوق/بانک) ثبت می‌کند
 --   ۵. طرف حساب را در اشخاص (central) به‌روزرسانی می‌کند
 --   ۶. نرخ معامله را در تاریخچهٔ نرخ ثبت می‌کند
+-- حساب‌ها از تنظیمات مشترک خوانده می‌شوند (TreasurySettings برای صندوق/بانک و
+-- treasury.PartyLinks برای تفصیلی طرف‌حساب) — هماهنگ با طلافروشی و خزانه‌داری.
 -- =============================================
 IF @TransactionType NOT IN (N'Buy', N'Sell')
     THROW 51150, N'نوع معامله باید Buy یا Sell باشد', 1;
@@ -20,6 +22,8 @@ IF @CurrencyCode IN (N'IRR', N'TOMAN')
     THROW 51156, N'خرید/فروش ارز فقط برای ارزهای خارجی است؛ ریال و تومان واحد پایهٔ سیستم‌اند (§35)', 1;
 IF @FundType IS NOT NULL AND @FundType NOT IN (N'Cash', N'Bank')
     THROW 51152, N'نحوهٔ تسویه نامعتبر است (صندوق/بانک)', 1;
+
+DECLARE @Cid INT = ISNULL(@CompanyId, [central].[fn_MobileCompanyId]());
 
 DECLARE @ItemId INT, @ItemTitle NVARCHAR(200), @SysRate DECIMAL(18,2);
 SELECT TOP (1) @ItemId = p.PriceItemId, @ItemTitle = p.Title, @SysRate = r.SystemRate
@@ -36,7 +40,7 @@ DECLARE @WQty DECIMAL(18,4) = 0, @WAvg DECIMAL(18,2) = NULL;
 SELECT @WQty = ISNULL(Quantity, 0), @WAvg = AvgBuyRate
 FROM [currency].[Wallets]
 WHERE CurrencyCode = @CurrencyCode
-  AND CompanyId = [central].[fn_MobileCompanyId]();
+  AND CompanyId = @Cid;
 
 IF @TransactionType = N'Sell' AND @WQty < @Quantity
     THROW 51155, N'موجودی ارز برای فروش کافی نیست', 1;
@@ -51,38 +55,39 @@ BEGIN TRAN;
     INSERT INTO [currency].[FxTransactions]
         (TransactionNumber, TransactionDate, TransactionTime, TransactionType, PartyName, Status, TotalRial, Description, CreatedBy, CompanyId)
     VALUES
-        (N'', @TransactionDate, @TransactionTime, @TransactionType, NULLIF(LTRIM(RTRIM(@PartyName)), N''), N'Posted', @AmountRial, @Description, @CreatedBy, [central].[fn_MobileCompanyId]());
+        (N'', @TransactionDate, @TransactionTime, @TransactionType, NULLIF(LTRIM(RTRIM(@PartyName)), N''), N'Posted', @AmountRial, @Description, @CreatedBy, @Cid);
 
     DECLARE @TxId INT = SCOPE_IDENTITY();
     UPDATE [currency].[FxTransactions]
     SET TransactionNumber = N'FX-' + RIGHT(N'00000' + CAST(@TxId AS NVARCHAR(10)), 5)
     WHERE FxTransactionId = @TxId;
 
-    -- ۲) طرف حساب (central) — upsert بر اساس نام
-    DECLARE @PartyId INT = NULL;
-    IF LEN(LTRIM(RTRIM(@PartyName))) > 0
+    -- ۲) طرف حساب (central) — در صورت انتخاب، از تعریف‌های مشترک استفاده می‌شود
+    IF LEN(LTRIM(RTRIM(@PartyName))) > 0 AND (ISNULL(@PartyId, 0) = 0)
     BEGIN
-        SELECT @PartyId = PartyId FROM [central].[Parties]
+        DECLARE @FoundPartyId INT;
+        SELECT @FoundPartyId = PartyId FROM [central].[Parties]
         WHERE FullName = LTRIM(RTRIM(@PartyName))
           AND IsDeleted = 0
-          AND CompanyId = [central].[fn_MobileCompanyId]();
+          AND CompanyId = @Cid;
 
-        IF @PartyId IS NULL
+        IF @FoundPartyId IS NULL
         BEGIN
             INSERT INTO [central].[Parties]
                 (PartyCode, PartyType, FullName, IsActive, CreatedAt, CreatedBy, CompanyId)
             VALUES
                 (N'FX' + RIGHT(N'00000' + CAST(@TxId AS NVARCHAR(10)), 5),
                  CASE WHEN @TransactionType = N'Buy' THEN N'Vendor' ELSE N'Customer' END,
-                 LTRIM(RTRIM(@PartyName)), 1, SYSUTCDATETIME(), @CreatedBy, [central].[fn_MobileCompanyId]());
-            SET @PartyId = SCOPE_IDENTITY();
+                 LTRIM(RTRIM(@PartyName)), 1, SYSUTCDATETIME(), @CreatedBy, @Cid);
+            SET @FoundPartyId = SCOPE_IDENTITY();
         END
         ELSE
         BEGIN
             UPDATE [central].[Parties]
             SET UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
-            WHERE PartyId = @PartyId;
+            WHERE PartyId = @FoundPartyId;
         END
+        SET @PartyId = @FoundPartyId;
     END
 
     -- ۳) گردش ارز (نرخ قفل‌شده)
@@ -92,7 +97,7 @@ BEGIN TRAN;
          CounterPartyName, FundType, FundId, FxTransactionId, SourceReference, Description, CreatedBy, CompanyId)
     VALUES
         (N'', @TransactionDate, @TransactionTime, @TransactionType, @Direction, @CurrencyCode, @Quantity, @Rate, @AmountRial,
-         NULLIF(LTRIM(RTRIM(@PartyName)), N''), @FundType, @FundId, @TxId, N'FX:' + CAST(@TxId AS NVARCHAR(20)), @Description, @CreatedBy, [central].[fn_MobileCompanyId]());
+         NULLIF(LTRIM(RTRIM(@PartyName)), N''), @FundType, @FundId, @TxId, N'FX:' + CAST(@TxId AS NVARCHAR(20)), @Description, @CreatedBy, @Cid);
 
     DECLARE @Mid BIGINT = SCOPE_IDENTITY();
     UPDATE [currency].[CurrencyMovements]
@@ -111,16 +116,16 @@ BEGIN TRAN;
 
         IF EXISTS (SELECT 1 FROM [currency].[Wallets]
                    WHERE CurrencyCode = @CurrencyCode
-                     AND CompanyId = [central].[fn_MobileCompanyId]())
+                     AND CompanyId = @Cid)
             UPDATE [currency].[Wallets]
             SET Quantity = Quantity + @Quantity, AvgBuyRate = @NewAvg,
                 InQty = InQty + @Quantity, LastMovementAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
             WHERE CurrencyCode = @CurrencyCode
-              AND CompanyId = [central].[fn_MobileCompanyId]();
+              AND CompanyId = @Cid;
         ELSE
             INSERT INTO [currency].[Wallets]
                 (CurrencyCode, Quantity, AvgBuyRate, OpeningQty, OpeningAvgRate, InQty, OutQty, UpdatedAt, UpdatedBy, CompanyId)
-            VALUES (@CurrencyCode, @Quantity, @NewAvg, 0, NULL, @Quantity, 0, SYSUTCDATETIME(), @CreatedBy, [central].[fn_MobileCompanyId]());
+            VALUES (@CurrencyCode, @Quantity, @NewAvg, 0, NULL, @Quantity, 0, SYSUTCDATETIME(), @CreatedBy, @Cid);
     END
     ELSE
     BEGIN
@@ -128,7 +133,7 @@ BEGIN TRAN;
         SET Quantity = Quantity - @Quantity,
             OutQty = OutQty + @Quantity, LastMovementAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @CreatedBy
         WHERE CurrencyCode = @CurrencyCode
-          AND CompanyId = [central].[fn_MobileCompanyId]();
+          AND CompanyId = @Cid;
     END
 
     -- ۵) سمت ریالی خزانه (صندوق/بانک) — دریافت/پرداخت
@@ -142,67 +147,99 @@ BEGIN TRAN;
              CASE WHEN @FundType = N'Bank' THEN @FundId ELSE NULL END,
              CASE WHEN @FundType = N'Cash' THEN @FundId ELSE NULL END,
              N'معاملهٔ ارز ' + @CurrencyCode + N' (' + @TransactionType + N')',
-             N'FX:' + CAST(@TxId AS NVARCHAR(20)), N'Posted', @CreatedBy, [central].[fn_MobileCompanyId]());
+             N'FX:' + CAST(@TxId AS NVARCHAR(20)), N'Posted', @CreatedBy, @Cid);
 
         IF @FundType = N'Bank'
             UPDATE [treasury].[BankAccounts]
             SET Balance = Balance + CASE WHEN @CashDirection = N'In' THEN @AmountRial ELSE -@AmountRial END
             WHERE AccountId = @FundId
-              AND CompanyId = [central].[fn_MobileCompanyId]();
+              AND CompanyId = @Cid;
         ELSE
             UPDATE [treasury].[CashBoxes]
             SET Balance = Balance + CASE WHEN @CashDirection = N'In' THEN @AmountRial ELSE -@AmountRial END
             WHERE CashBoxId = @FundId
-              AND CompanyId = [central].[fn_MobileCompanyId]();
+              AND CompanyId = @Cid;
     END
 
     -- ۶) سند حسابداری (دوبل) — حساب‌های ویژه در صورت نبود ساخته می‌شوند
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1030' AND IsDeleted = 0)
-        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-        VALUES (N'1030', N'موجودی ارز', N'Asset', 1, SYSUTCDATETIME());
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6000' AND IsDeleted = 0)
-        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt)
-        VALUES (N'6000', N'سود و زیان تسعیر ارز', N'Income', 1, SYSUTCDATETIME());
+    IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'1030' AND CompanyId = @Cid AND IsDeleted = 0)
+        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+        VALUES (N'1030', N'موجودی ارز', N'Asset', 1, SYSUTCDATETIME(), @Cid);
+    IF NOT EXISTS (SELECT 1 FROM [accounting].[ChartOfAccounts] WHERE AccountCode = N'6000' AND CompanyId = @Cid AND IsDeleted = 0)
+        INSERT INTO [accounting].[ChartOfAccounts] (AccountCode, Title, AccountType, IsActive, CreatedAt, CompanyId)
+        VALUES (N'6000', N'سود و زیان تسعیر ارز', N'Income', 1, SYSUTCDATETIME(), @Cid);
 
-    DECLARE @FundAccount NVARCHAR(30) = CASE
-        WHEN @FundType = N'Bank' THEN N'1010'
-        WHEN @FundType = N'Cash' THEN N'1000'
-        ELSE N'2000' END;
+    -- حساب صندوق/بانک از تنظیمات مشترک خزانه (TreasurySettings) — هماهنگ با طلا و خزانه
+    DECLARE @FundAccountId INT, @FundCode NVARCHAR(4000), @FundTitle NVARCHAR(200);
+    IF @FundType = N'Bank'
+        SELECT @FundAccountId = BankChartAccountId, @FundCode = BankChartAccountCode, @FundTitle = BankChartAccountTitle
+        FROM [treasury].[TreasurySettings] WHERE CompanyId = @Cid;
+    ELSE IF @FundType = N'Cash'
+        SELECT @FundAccountId = CashAccountId, @FundCode = CashAccountCode, @FundTitle = CashAccountTitle
+        FROM [treasury].[TreasurySettings] WHERE CompanyId = @Cid;
+    -- Fallback: کدهای قدیمی ثابت (فقط ChartOfAccounts تخت)
+    IF @FundAccountId IS NULL OR @FundCode IS NULL
+        SELECT TOP (1) @FundAccountId = a.AccountId, @FundCode = a.AccountCode, @FundTitle = a.Title
+        FROM [accounting].[ChartOfAccounts] a
+        WHERE a.AccountCode = CASE WHEN @FundType = N'Bank' THEN N'1010'
+                                   WHEN @FundType = N'Cash' THEN N'1000'
+                                   ELSE N'2000' END
+          AND a.CompanyId = @Cid AND a.IsDeleted = 0;
+
+    -- تفصیلی طرف‌حساب از تعریف‌های مشترک (treasury.PartyLinks) — مثل طلافروشی
+    DECLARE @PartyAccountId INT = NULL, @PartyAccountCode NVARCHAR(4000) = NULL, @PartyAccountTitle NVARCHAR(200) = NULL;
+    IF @PartyId IS NOT NULL AND @PartyId <> 0
+        SELECT @PartyAccountId = DetailLinkId, @PartyAccountCode = DetailAccountCode, @PartyAccountTitle = p.FullName
+        FROM [treasury].[PartyLinks] l
+        JOIN [central].[Parties] p ON p.PartyId = l.PartyId
+        WHERE l.CompanyId = @Cid AND l.PartyId = @PartyId;
+
+    -- حساب مقابل سند: تسویهٔ نقدی → صندوق/بانک؛ بدون تسویه → تفصیلی طرف‌حساب؛
+    -- اگر هیچ‌کدام نبود → پرداختنی/دریافتنی عمومی (2000)
+    DECLARE @CounterAccountId INT, @CounterCode NVARCHAR(4000), @CounterTitle NVARCHAR(200);
+    IF @FundType IS NOT NULL
+        SELECT @CounterAccountId = @FundAccountId, @CounterCode = @FundCode, @CounterTitle = @FundTitle;
+    ELSE IF @PartyAccountId IS NOT NULL
+        SELECT @CounterAccountId = @PartyAccountId, @CounterCode = @PartyAccountCode, @CounterTitle = @PartyAccountTitle;
+    IF @CounterAccountId IS NULL OR @CounterCode IS NULL
+        SELECT TOP (1) @CounterAccountId = a.AccountId, @CounterCode = a.AccountCode, @CounterTitle = a.Title
+        FROM [accounting].[ChartOfAccounts] a
+        WHERE a.AccountCode = N'2000' AND a.CompanyId = @Cid AND a.IsDeleted = 0;
+    IF @CounterAccountId IS NULL OR @CounterCode IS NULL
+        THROW 51157, N'حساب مقابل سند (صندوق/بانک یا تفصیلی طرف‌حساب) در تنظیمات مشترک تعریف نشده است.', 1;
 
     DECLARE @Cost DECIMAL(18,2) = CASE WHEN @TransactionType = N'Sell' THEN ROUND(ISNULL(@WAvg, @Rate) * @Quantity, 0) ELSE @AmountRial END;
 
     INSERT INTO [accounting].[Documents]
-        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted, CompanyId)
+        (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedAt, CreatedBy, IsDeleted, CompanyId, FiscalYearId)
     VALUES
         (N'', @TransactionDate, CASE WHEN @TransactionType = N'Buy' THEN N'FxBuy' ELSE N'FxSell' END,
-         NULLIF(LTRIM(RTRIM(@PartyName)), N''), @AmountRial, N'IRR', N'Posted', SYSUTCDATETIME(), @CreatedBy, 0, [central].[fn_MobileCompanyId]());
+         NULLIF(LTRIM(RTRIM(@PartyName)), N''), @AmountRial, N'IRR', N'Posted', SYSUTCDATETIME(), @CreatedBy, 0, @Cid, @FiscalYearId);
 
     DECLARE @Did INT = SCOPE_IDENTITY();
     UPDATE [accounting].[Documents]
     SET DocumentNumber = N'DOC-' + RIGHT(N'00000' + CAST(@Did AS NVARCHAR(10)), 5)
     WHERE DocumentId = @Did;
 
-    -- خرید: بدهکار موجودی ارز / بستانکار صندوق-بانک-پرداختنی
-    -- فروش: بدهکار صندوق-بانک / بستانکار موجودی ارز (بها) + سود/زیان تسعیر
+    -- خرید: بدهکار موجودی ارز / بستانکار صندوق-بانک یا تفصیلی طرف‌حساب
+    -- فروش: بدهکار صندوق-بانک یا تفصیلی طرف‌حساب / بستانکار موجودی ارز (بها) + سود/زیان تسعیر
     IF @TransactionType = N'Buy'
     BEGIN
         INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
         SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'خرید ' + @CurrencyCode + N' — ' + CAST(@Quantity AS NVARCHAR(20)) + N' واحد', @AmountRial, 0
-        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
+        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0 AND a.CompanyId = @Cid;
 
         INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-        SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'پرداخت بابت خرید ارز', 0, @AmountRial
-        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = @FundAccount AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
+        VALUES (@Did, @CounterAccountId, @CounterCode, @CounterTitle, N'پرداخت بابت خرید ارز', 0, @AmountRial);
     END
     ELSE
     BEGIN
         INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-        SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'دریافت بابت فروش ارز', @AmountRial, 0
-        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = @FundAccount AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
+        VALUES (@Did, @CounterAccountId, @CounterCode, @CounterTitle, N'دریافت بابت فروش ارز', @AmountRial, 0);
 
         INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
         SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'بهای تمام‌شدهٔ ارز فروخته‌شده', 0, @Cost
-        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
+        FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'1030' AND a.IsDeleted = 0 AND a.CompanyId = @Cid;
 
         IF @Pnl <> 0
         BEGIN
@@ -210,11 +247,11 @@ BEGIN TRAN;
             IF @Pnl > 0
                 INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
                 SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'سود حاصل از فروش ارز', 0, @Pnl
-                FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
+                FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0 AND a.CompanyId = @Cid;
             ELSE
                 INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
                 SELECT @Did, a.AccountId, a.AccountCode, a.Title, N'زیان حاصل از فروش ارز', ABS(@Pnl), 0
-                FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0 AND a.CompanyId = [central].[fn_MobileCompanyId]();
+                FROM [accounting].[ChartOfAccounts] a WHERE a.AccountCode = N'6000' AND a.IsDeleted = 0 AND a.CompanyId = @Cid;
         END
     END
 

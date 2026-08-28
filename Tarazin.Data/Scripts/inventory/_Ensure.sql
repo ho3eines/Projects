@@ -85,6 +85,116 @@ BEGIN
     CREATE INDEX IX_Reservations_Order ON [inventory].[Reservations](OrderId);
 END
 
+-- گروه‌های کالا (جدول پایه — انتخاب از داخل فرم کالا).
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'ItemGroups')
+BEGIN
+    CREATE TABLE [inventory].[ItemGroups] (
+        GroupId     INT IDENTITY(1,1) PRIMARY KEY,
+        GroupCode   NVARCHAR(50) NOT NULL,
+        Title       NVARCHAR(200) NOT NULL,
+        SortOrder   INT NOT NULL DEFAULT 0,
+        IsActive    BIT NOT NULL DEFAULT 1,
+        IsDeleted   BIT NOT NULL DEFAULT 0,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt   DATETIME2 NULL,
+        CreatedBy   NVARCHAR(100) NULL,
+        UpdatedBy   NVARCHAR(100) NULL
+    );
+END
+
+-- واحدهای کالا (جدول پایه — انتخاب از داخل فرم کالا).
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'Units')
+BEGIN
+    CREATE TABLE [inventory].[Units] (
+        UnitId      INT IDENTITY(1,1) PRIMARY KEY,
+        UnitCode    NVARCHAR(30) NOT NULL,
+        Title       NVARCHAR(100) NOT NULL,
+        IsActive    BIT NOT NULL DEFAULT 1,
+        IsDeleted   BIT NOT NULL DEFAULT 0,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt   DATETIME2 NULL,
+        CreatedBy   NVARCHAR(100) NULL,
+        UpdatedBy   NVARCHAR(100) NULL
+    );
+END
+
+-- انبارک‌ها (زیرمجموعهٔ انبار): کالاها یکسان ولی اسناد/گزارشات مجزا.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'SubWarehouses')
+BEGIN
+    CREATE TABLE [inventory].[SubWarehouses] (
+        SubWarehouseId   INT IDENTITY(1,1) PRIMARY KEY,
+        WarehouseId      INT NOT NULL,
+        SubWarehouseCode NVARCHAR(50) NOT NULL,
+        Title            NVARCHAR(120) NOT NULL,
+        Location         NVARCHAR(200) NULL,
+        IsActive         BIT NOT NULL DEFAULT 1,
+        IsDeleted        BIT NOT NULL DEFAULT 0,
+        CreatedAt        DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt        DATETIME2 NULL,
+        CreatedBy        NVARCHAR(100) NULL,
+        UpdatedBy        NVARCHAR(100) NULL,
+        CONSTRAINT FK_SubWarehouses_Warehouse FOREIGN KEY (WarehouseId) REFERENCES [inventory].[Warehouses](WarehouseId)
+    );
+END
+
+-- لایه‌های موجودی (برای قیمت‌گذاری FIFO/LIFO/میانگین موزون).
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'StockLayers')
+BEGIN
+    CREATE TABLE [inventory].[StockLayers] (
+        LayerId           INT IDENTITY(1,1) PRIMARY KEY,
+        ItemId            INT NOT NULL,
+        WarehouseId       INT NOT NULL,
+        SubWarehouseId    INT NULL,
+        ReceiptMovementId INT NOT NULL,
+        QtyRemaining      DECIMAL(18,3) NOT NULL DEFAULT 0,
+        UnitCost          DECIMAL(18,2) NOT NULL DEFAULT 0,
+        ReceivedDate      DATE NOT NULL,
+        CompanyId         INT NULL,
+        CONSTRAINT FK_StockLayers_Items FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId),
+        CONSTRAINT FK_StockLayers_Movements FOREIGN KEY (ReceiptMovementId) REFERENCES [inventory].[Movements](MovementId)
+    );
+    CREATE INDEX IX_StockLayers_Item ON [inventory].[StockLayers](ItemId, WarehouseId, SubWarehouseId, ReceivedDate, LayerId);
+END
+
+-- تنظیمات انبار: روش قیمت‌گذاری + اتصال به حساب انبار (حسابداری).
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'InventorySettings')
+BEGIN
+    CREATE TABLE [inventory].[InventorySettings] (
+        CompanyId                INT NOT NULL PRIMARY KEY,
+        CostingMethod            NVARCHAR(30) NOT NULL DEFAULT N'WeightedAverage',  -- WeightedAverage | FIFO | LIFO
+        InventoryAccountId       INT NULL,
+        InventoryAccountCode     NVARCHAR(4000) NULL,
+        InventoryAccountTitle    NVARCHAR(200) NULL,
+        ReceiptContraAccountId   INT NULL,
+        ReceiptContraAccountCode NVARCHAR(4000) NULL,
+        ReceiptContraAccountTitle NVARCHAR(200) NULL,
+        IssueContraAccountId     INT NULL,
+        IssueContraAccountCode   NVARCHAR(4000) NULL,
+        IssueContraAccountTitle  NVARCHAR(200) NULL,
+        DefaultWarehouseId       INT NULL,
+        DefaultSubWarehouseId    INT NULL,
+        IsEnabled                BIT NOT NULL DEFAULT 1,
+        UpdatedAt                DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedBy                NVARCHAR(100) NULL,
+        CONSTRAINT FK_InventorySettings_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+
 -- Event backbone (ADR-002).
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t
@@ -120,13 +230,70 @@ IF COL_LENGTH(N'inventory.Items', N'CreatedBy') IS NULL
 IF COL_LENGTH(N'inventory.Items', N'UpdatedBy') IS NULL
     ALTER TABLE [inventory].[Items] ADD UpdatedBy NVARCHAR(100) NULL;
 
+-- گروه کالا / واحد کالا (ارجاع به جداول پایه جدید؛ فیلدهای متنی قدیمی نگه داشته می‌شوند).
+IF COL_LENGTH(N'inventory.Items', N'GroupId') IS NULL
+    ALTER TABLE [inventory].[Items] ADD GroupId INT NULL;
+IF COL_LENGTH(N'inventory.Items', N'UnitId') IS NULL
+    ALTER TABLE [inventory].[Items] ADD UnitId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Items_ItemGroups')
+    ALTER TABLE [inventory].[Items] WITH CHECK ADD CONSTRAINT FK_Items_ItemGroups FOREIGN KEY (GroupId) REFERENCES [inventory].[ItemGroups](GroupId);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Items_Units')
+    ALTER TABLE [inventory].[Items] WITH CHECK ADD CONSTRAINT FK_Items_Units FOREIGN KEY (UnitId) REFERENCES [inventory].[Units](UnitId);
+GO
+
 IF COL_LENGTH(N'inventory.Movements', N'UpdatedAt') IS NULL
     ALTER TABLE [inventory].[Movements] ADD UpdatedAt DATETIME2 NULL;
 IF COL_LENGTH(N'inventory.Movements', N'UpdatedBy') IS NULL
     ALTER TABLE [inventory].[Movements] ADD UpdatedBy NVARCHAR(100) NULL;
 
+-- انبارک / قیمت تمام‌شدهٔ حرکت (برای کاردکس و ارزش‌گذاری موجودی).
+IF COL_LENGTH(N'inventory.Movements', N'SubWarehouseId') IS NULL
+    ALTER TABLE [inventory].[Movements] ADD SubWarehouseId INT NULL;
+IF COL_LENGTH(N'inventory.Movements', N'CostPrice') IS NULL
+    ALTER TABLE [inventory].[Movements] ADD CostPrice DECIMAL(18,2) NOT NULL DEFAULT 0;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Movements_SubWarehouses')
+    ALTER TABLE [inventory].[Movements] WITH CHECK ADD CONSTRAINT FK_Movements_SubWarehouses FOREIGN KEY (SubWarehouseId) REFERENCES [inventory].[SubWarehouses](SubWarehouseId);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Movements_Warehouse' AND object_id = OBJECT_ID(N'[inventory].[Movements]'))
+    CREATE INDEX IX_Movements_Warehouse ON [inventory].[Movements](WarehouseId, SubWarehouseId);
+GO
+
 IF COL_LENGTH(N'inventory.Reservations', N'UpdatedAt') IS NULL
     ALTER TABLE [inventory].[Reservations] ADD UpdatedAt DATETIME2 NULL;
+
+-- ─────────────────────────────────────────────────────────────
+-- Multi-Company: ItemGroups / Units per-company scoping
+-- ─────────────────────────────────────────────────────────────
+IF COL_LENGTH(N'inventory.ItemGroups', N'CompanyId') IS NULL
+    ALTER TABLE [inventory].[ItemGroups] ADD CompanyId INT NULL;
+GO
+IF EXISTS (SELECT 1 FROM [inventory].[ItemGroups] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_ItemGroups INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_ItemGroups IS NOT NULL
+        UPDATE [inventory].[ItemGroups] SET CompanyId = @DefaultCompanyId_ItemGroups WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ItemGroups_Company' AND object_id = OBJECT_ID(N'inventory.ItemGroups'))
+    CREATE INDEX IX_ItemGroups_Company ON [inventory].[ItemGroups](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
+
+IF COL_LENGTH(N'inventory.Units', N'CompanyId') IS NULL
+    ALTER TABLE [inventory].[Units] ADD CompanyId INT NULL;
+GO
+IF EXISTS (SELECT 1 FROM [inventory].[Units] WHERE CompanyId IS NULL)
+BEGIN
+    DECLARE @DefaultCompanyId_Units INT = (SELECT TOP 1 CompanyId FROM [central].[Companies] WHERE IsDeleted = 0 ORDER BY CompanyId);
+    IF @DefaultCompanyId_Units IS NOT NULL
+        UPDATE [inventory].[Units] SET CompanyId = @DefaultCompanyId_Units WHERE CompanyId IS NULL;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Units_Company' AND object_id = OBJECT_ID(N'inventory.Units'))
+    CREATE INDEX IX_Units_Company ON [inventory].[Units](CompanyId) WHERE CompanyId IS NOT NULL;
+GO
 
 -- ─────────────────────────────────────────────────────────────
 -- Multi-Company: Warehouses per-company scoping

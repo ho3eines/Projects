@@ -15,4 +15,5 @@ SELECT
 FROM [payroll].[PayrollRunItems] ri
 JOIN [payroll].[PayrollRuns] r ON r.RunId = ri.RunId
 WHERE ri.RunId = @RunId
+  AND (@CompanyId IS NULL OR r.CompanyId = @CompanyId)
 ORDER BY ri.EmployeeName;

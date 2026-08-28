@@ -1,0 +1,280 @@
+@page "/payroll/attendance"
+@using Tarazin.Data.Services
+@using Tarazin.Services
+@inject DbService Db
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject UserSession Session
+
+<PageTitle>حضورغیاب — حقوق و دستمزد</PageTitle>
+
+<PageHeader Title="حضورغیاب"
+            Subtitle="ثبت ورود/خروج روزانه، مرخصی‌ها و مشاهدهٔ خلاصهٔ ماه — اضافه‌کار و کسر مرخصی هنگام باز کردن دورهٔ حقوق خودکار محاسبه می‌شود."
+            Eyebrow="حقوق و دستمزد" />
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudGrid Spacing="2" AlignItems="AlignItems.Center">
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_fromDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_toDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="int" Label="کارمند (همه)" @bind-Value="_employeeFilter" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— همهٔ کارمندان —</MudSelectItem>
+                @foreach (var e in _employees)
+                {
+                    <MudSelectItem Value="e.EmployeeId">@e.FullName (‎@e.EmployeeCode)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <div class="d-flex" style="gap:8px">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="LoadAsync" Disabled="_loading" Class="flex-grow-1">
+                    بارگذاری
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenAttendanceAsync">
+                    ورود/خروج
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_summary.Count > 0)
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">خلاصهٔ حضورغیاب بازه</MudText>
+        <MudTable Items="_summary" Hover="true" Dense="true" Striped="true">
+            <HeaderContent>
+                <MudTh>کارمند</MudTh>
+                <MudTh>روزهای کار</MudTh>
+                <MudTh>اضافه‌کار (ساعت)</MudTh>
+                <MudTh>مرخصی استحقاقی (روز)</MudTh>
+                <MudTh>مرخصی بدون حقوق (روز)</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="کارمند">@context.EmployeeName</MudTd>
+                <MudTd DataLabel="روزهای کار">@context.WorkDays</MudTd>
+                <MudTd DataLabel="اضافه‌کار">@((context.OvertimeMinutes / 60.0).ToString("0.0"))</MudTd>
+                <MudTd DataLabel="مرخصی استحقاقی">@context.PaidLeaveDays.ToString("0.##")</MudTd>
+                <MudTd DataLabel="مرخصی بدون حقوق">@context.UnpaidLeaveDays.ToString("0.##")</MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText Color="Color.Secondary">برای این بازه خلاصه‌ای وجود ندارد.</MudText></NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+}
+
+<MudTabs Class="mb-4" Rounded="true" Outlined="true">
+    <MudTabPanel Text="ورود/خروج روزانه">
+        <MudPaper Elevation="1" Class="pa-4 mt-4">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <MudText Typo="Typo.h6">گزارش حضورغیاب</MudText>
+            </div>
+            <MudTable Items="_logs" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>تاریخ</MudTh>
+                    <MudTh>کارمند</MudTh>
+                    <MudTh>ورود</MudTh>
+                    <MudTh>خروج</MudTh>
+                    <MudTh>کارکرد</MudTh>
+                    <MudTh>اضافه‌کار</MudTh>
+                    <MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="تاریخ">@PersianDate.ToPersian(context.AttendanceDate)</MudTd>
+                    <MudTd DataLabel="کارمند">@context.EmployeeName</MudTd>
+                    <MudTd DataLabel="ورود">@(context.CheckIn?.ToString(@"hh\:mm") ?? "—")</MudTd>
+                    <MudTd DataLabel="خروج">@(context.CheckOut?.ToString(@"hh\:mm") ?? "—")</MudTd>
+                    <MudTd DataLabel="کارکرد">@FormatMinutes(context.WorkMinutes)</MudTd>
+                    <MudTd DataLabel="اضافه‌کار">
+                        @if (context.OvertimeMinutes > 0)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success">@FormatMinutes(context.OvertimeMinutes)</MudChip>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => EditAttendanceAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">در این بازه ردیف حضورغیابی ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+    <MudTabPanel Text="مرخصی‌ها">
+        <MudPaper Elevation="1" Class="pa-4 mt-4">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <MudText Typo="Typo.h6">مرخصی‌های ثبت‌شده</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenLeaveAsync">
+                    مرخصی جدید
+                </MudButton>
+            </div>
+            <MudTable Items="_leaves" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>از تاریخ</MudTh>
+                    <MudTh>تا تاریخ</MudTh>
+                    <MudTh>کارمند</MudTh>
+                    <MudTh>روزها</MudTh>
+                    <MudTh>نوع</MudTh>
+                    <MudTh>وضعیت</MudTh>
+                    <MudTh>شرح</MudTh>
+                    <MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="از تاریخ">@PersianDate.ToPersian(context.StartDate)</MudTd>
+                    <MudTd DataLabel="تا تاریخ">@PersianDate.ToPersian(context.EndDate)</MudTd>
+                    <MudTd DataLabel="کارمند">@context.EmployeeName</MudTd>
+                    <MudTd DataLabel="روزها">@context.Days.ToString("0.##")</MudTd>
+                    <MudTd DataLabel="نوع">@LeaveTypeName(context.LeaveType)</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsPaid ? Color.Success : Color.Error)">
+                            @(context.IsPaid ? "استحقاقی" : "بدون حقوق")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="شرح">@context.Description</MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteLeaveAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Color="Color.Secondary">در این بازه مرخصی‌ای ثبت نشده است.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "payroll";
+
+    private List<EmployeeRow> _employees = new();
+    private List<AttendanceLogRow> _logs = new();
+    private List<LeaveRecordRow> _leaves = new();
+    private List<AttendanceSummaryRow> _summary = new();
+
+    private DateTime? _fromDate = DateTime.Today.AddDays(-30);
+    private DateTime? _toDate = DateTime.Today;
+    private int _employeeFilter;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployeesAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        try
+        {
+            _employees = (await Db.QueryAsync<EmployeeRow>(Schema, "EmployeeList",
+                new { CompanyId = Session.ActiveCompanyId })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری کارمندان: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var cid = Session.ActiveCompanyId;
+            var from = _fromDate ?? DateTime.Today.AddMonths(-1);
+            var to = _toDate ?? DateTime.Today;
+            var emp = _employeeFilter == 0 ? (int?)null : _employeeFilter;
+
+            _logs = (await Db.QueryAsync<AttendanceLogRow>(Schema, "AttendanceList",
+                new { CompanyId = cid, FromDate = from, ToDate = to, EmployeeId = emp })).ToList();
+            _leaves = (await Db.QueryAsync<LeaveRecordRow>(Schema, "LeaveList",
+                new { CompanyId = cid, FromDate = from, ToDate = to, EmployeeId = emp })).ToList();
+
+            // خلاصهٔ بازه (از/تا تاریخ واقعی)
+            _summary = (await Db.QueryAsync<AttendanceSummaryRow>(Schema, "AttendanceSummary",
+                new { CompanyId = cid, FromDate = from, ToDate = to, EmployeeId = emp })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری حضورغیاب: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenAttendanceAsync() => await ShowAttendanceDialogAsync(null);
+
+    private async Task EditAttendanceAsync(AttendanceLogRow row) => await ShowAttendanceDialogAsync(row);
+
+    private async Task ShowAttendanceDialogAsync(AttendanceLogRow? row)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Employees", _employees },
+            { "Log", row }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<AttendanceDialog>("ثبت ورود/خروج", parameters, options);
+        var result = await dlg.Result;
+        if (result is not null && !result.Canceled)
+            await LoadAsync();
+    }
+
+    private async Task OpenLeaveAsync()
+    {
+        var parameters = new DialogParameters { { "Employees", _employees } };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<LeaveDialog>("ثبت مرخصی", parameters, options);
+        var result = await dlg.Result;
+        if (result is not null && !result.Canceled)
+            await LoadAsync();
+    }
+
+    private async Task DeleteLeaveAsync(LeaveRecordRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"مرخصی «{row.EmployeeName}» از {PersianDate.ToPersian(row.StartDate)} حذف شود؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed != true) return;
+
+        try
+        {
+            await Db.ExecuteAsync(Schema, "LeaveDelete",
+                new { LeaveId = row.LeaveId, CompanyId = Session.ActiveCompanyId });
+            Snackbar.Add("مرخصی حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در حذف مرخصی: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static string FormatMinutes(int minutes)
+        => minutes <= 0 ? "—" : $"{minutes / 60}h {minutes % 60}m";
+
+    private static string LeaveTypeName(string type) => type switch
+    {
+        "Annual" => "استحقاقی سالانه",
+        "Sick" => "مرخصی استعلاجی",
+        "Unpaid" => "بدون حقوق",
+        "Hourly" => "ساعتی",
+        _ => type
+    };
+}

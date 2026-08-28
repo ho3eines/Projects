@@ -1,10 +1,11 @@
 @page "/inventory"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
-<PageTitle>اسناد روز انبار — انبار آمل</PageTitle>
+<PageTitle>اسناد روز انبار — انبار</PageTitle>
 
-<PageHeader Title="اسناد روز انبار" Subtitle="رسید و حواله — از تاریخ / تا تاریخ (پیش‌فرض امروز)." />
+<PageHeader Title="اسناد روز انبار" Subtitle="رسید و حواله — از تاریخ / تا تاریخ (پیش‌فرض امروز)؛ به تفکیک انبار/انبارک." />
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="3">
@@ -13,11 +14,31 @@
         <MudItem xs="12" sm="6" md="3">
             <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudTextField Label="جستجو (شماره حرکت یا کالا)" @bind-Value="_search" Variant="Variant.Outlined" />
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined"
+                       @bind-Value:after="OnWarehouseChanged" Clearable="true">
+                <MudSelectItem Value="0">همهٔ انبارها</MudSelectItem>
+                @foreach (var w in _warehouses)
+                {
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+            <MudSelect T="int" Label="انبارک" @bind-Value="_subWarehouseId" Variant="Variant.Outlined"
+                       Disabled="_warehouseId == 0" Clearable="true">
+                <MudSelectItem Value="0">همهٔ انبارک‌ها</MudSelectItem>
+                @foreach (var s in _subWarehouses)
+                {
+                    <MudSelectItem Value="s.SubWarehouseId">@s.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudTextField Label="جستجو (شماره حرکت یا کالا)" @bind-Value="_search" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" md="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
                        StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
                 اعمال فیلتر
             </MudButton>
@@ -29,7 +50,7 @@
     <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true" RowsPerPage="25">
         <HeaderContent>
             <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>کالا</MudTh>
-            <MudTh>انبار</MudTh><MudTh>تعداد</MudTh><MudTh>ارزش</MudTh><MudTh>وضعیت</MudTh>
+            <MudTh>انبار</MudTh><MudTh>انبارک</MudTh><MudTh>تعداد</MudTh><MudTh>ارزش</MudTh><MudTh>وضعیت</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
@@ -37,6 +58,7 @@
             <MudTd DataLabel="نوع">@context.MovementType</MudTd>
             <MudTd DataLabel="کالا">@context.ItemCode — @context.ItemTitle</MudTd>
             <MudTd DataLabel="انبار">@context.WarehouseName</MudTd>
+            <MudTd DataLabel="انبارک">@(string.IsNullOrEmpty(context.SubWarehouseName) ? "—" : context.SubWarehouseName)</MudTd>
             <MudTd DataLabel="تعداد">@context.Qty.ToString("N0")</MudTd>
             <MudTd DataLabel="ارزش">@context.TotalValue.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">
@@ -44,7 +66,7 @@
             </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></NoRecordsContent>
-        <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
+        <PagerContent><MudTablePager PageSizeOptions="(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 </MudPaper>
 
@@ -53,16 +75,31 @@
     private const string Schema = "inventory";
 
     private List<DailyMovementRow> _rows = new();
+    private List<WarehouseRow> _warehouses = new();
+    private List<SubWarehouseRow> _subWarehouses = new();
     private bool _loading = true;
     private string _search = "";
     private DateTime? _from;
     private DateTime? _to;
+    private int _warehouseId;
+    private int _subWarehouseId;
 
     protected override async Task OnInitializedAsync()
     {
         _from = DateTime.Today;
         _to = DateTime.Today;
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         await LoadAsync();
+    }
+
+    private async Task OnWarehouseChanged()
+    {
+        _subWarehouseId = 0;
+        _subWarehouses = (await Db.QueryAsync<SubWarehouseRow>(Schema, "SubWarehouseList", new
+        {
+            CompanyId = Session.ActiveCompanyId,
+            WarehouseId = _warehouseId == 0 ? (int?)null : _warehouseId
+        })).ToList();
     }
 
     private async Task LoadAsync()
@@ -76,8 +113,11 @@
                 ToDate = _to?.Date ?? DateTime.Today,
                 SearchText = _search ?? "",
                 MovementType = (string?)null,
+                WarehouseId = _warehouseId == 0 ? (int?)null : _warehouseId,
+                SubWarehouseId = _subWarehouseId == 0 ? (int?)null : _subWarehouseId,
                 SkipRows = 0,
-                TakeSize = 100
+                TakeSize = 100,
+                CompanyId = Session.ActiveCompanyId
             })).ToList();
         }
         catch (Exception ex)

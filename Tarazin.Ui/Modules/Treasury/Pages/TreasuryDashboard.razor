@@ -1,5 +1,6 @@
 @page "/treasury/dashboard"
 @inject DbService Db
+@inject UserSession Session
 @inject ISnackbar Snackbar
 
 <PageTitle>داشبورد — خزانه‌داری</PageTitle>
@@ -20,7 +21,11 @@ else
         <StatCard Label="مانده صندوق" Value="@_summary.CashBalance.ToString("N0")"
                   Icon="@Icons.Material.Filled.PointOfSale" Accent="#0E4D4A" />
         <StatCard Label="چک‌های در انتظار" Value="@_summary.PendingCheques.ToString("N0")"
-                  Icon="@Icons.Material.Filled.ReceiptLong" Accent="#9C3B2E" />
+                  Icon="@Icons.Material.Filled.ReceiptLong" Accent="#9C3B2E"
+                  Hint="مدیریت وصول/برگشت" Href="/treasury/cheques" />
+        <StatCard Label="چک‌های سررسیدشده" Value="@_summary.OverdueCheques.ToString("N0")"
+                  Icon="@Icons.Material.Filled.NotificationImportant" Accent="#C62828"
+                  Hint="مشاهده گزارش سررسید" Href="/treasury/cheque-report" />
     </MudGrid>
 }
 
@@ -33,7 +38,8 @@ else
     {
         try
         {
-            _summary = await Db.QueryFirstOrDefaultAsync<TreasuryDashboardRow>(Schema, "DashboardSummary")
+            _summary = await Db.QueryFirstOrDefaultAsync<TreasuryDashboardRow>(Schema, "DashboardSummary",
+                           new { CompanyId = Session.ActiveCompanyId })
                        ?? new TreasuryDashboardRow();
         }
         catch (Exception ex)

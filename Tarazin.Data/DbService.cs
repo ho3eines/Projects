@@ -179,6 +179,36 @@ public sealed class DbService
     }
 
     /// <summary>
+    /// Executes a script returning multiple result sets and exposes each set
+    /// through a reader callback. The callback receives a Dapper
+    /// <see cref="SqlMapper.GridReader"/> whose <c>Read&lt;T&gt;</c> calls are
+    /// consumed in order of the result sets.
+    /// </summary>
+    public async Task QueryMultipleAsync(
+        string schema, string scriptName, object? parameters,
+        Func<SqlMapper.GridReader, Task> read, CancellationToken ct = default)
+    {
+        try
+        {
+            var sql = Resolve(schema, scriptName);
+            await using var conn = await OpenConnectionAsync(ct);
+            var grid = await conn.QueryMultipleAsync(new CommandDefinition(sql, parameters, cancellationToken: ct));
+            using (grid)
+            {
+                await read(grid);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw SafeFailure(schema, scriptName, ex);
+        }
+    }
+
+    /// <summary>
     /// Executes a mutating script and **auto-records an audit row** for it
     /// in [central].[AuditLog]. The current predecessor metadata is retained,
     /// but cryptographic chain correctness is an open release gate because
@@ -473,4 +503,5 @@ public sealed class DbService
 public sealed class SafeDataException : Exception
 {
     public SafeDataException(string safeMessage) : base(safeMessage) { }
+    public SafeDataException(string safeMessage, Exception inner) : base(safeMessage, inner) { }
 }

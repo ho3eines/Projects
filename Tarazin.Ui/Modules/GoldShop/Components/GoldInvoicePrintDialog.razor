@@ -1,0 +1,306 @@
+@inject IJSRuntime JS
+@inject PdfReportService Pdf
+@inject IPdfSaver PdfSaver
+@using Tarazin.Models
+
+@* دیالوگ چاپ فاکتور خرید/فروش طلا — قالب HTML با قوانین رسمی چاپ:
+   - حالت عادی: پیش‌نمایش روی صفحه (MudBlazor ریسپانسیو) + دکمهٔ «چاپ / PDF»
+   - حالت پیش‌نمایش چاپ: شبیه‌سازی برگهٔ A4 با هدر/فوتر رسمی قبل از ارسال به پرینتر
+   - در خروجی چاپ/PDF هدر رسمی (لوگو + عنوان) و فوتر رسمی (شماره صفحه) تکرار می‌شوند. *@
+
+<MudDialog Class="@(_preview ? "gp-print-dialog gp-previewing" : "gp-print-dialog")">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@(Model.InvoiceType == "Sale" ? Icons.Material.Filled.Sell : Icons.Material.Filled.ShoppingCart)" />
+            <MudText Typo="Typo.h6">چاپ فاکتور @Model.InvoiceNumber</MudText>
+            @if (_preview)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary">پیش‌نمایش چاپ</MudChip>
+            }
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_preview)
+        {
+            @* ── حالت پیش‌نمایش: شبیه‌سازی برگهٔ A4/A5 با هدر/فوتر رسمی ── *@
+            <div class="gp-preview-stage">
+                <div class="gp-preview-sheet @(_paperSize == "A5" ? "gp-preview-sheet--a5" : "")">
+                    @* هدر رسمی (شبیه‌سازی) *@
+                    <div class="gp-print-header">
+                        <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+                        <div>
+                            <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                                ترازین — سامانه یکپارچه مدیریت کسب‌وکار
+                            </div>
+                            <div style="font-size:9pt;color:#666">
+                                @(Model.InvoiceType == "Sale" ? "فاکتور فروش طلا و جواهرات" : "فاکتور خرید طلا و جواهرات") — @Model.InvoiceNumber
+                            </div>
+                        </div>
+                    </div>
+
+                    @* بدنهٔ برگه *@
+                    <div class="gp-preview-sheet__body">
+                        @RenderBody()
+                    </div>
+
+                    @* فوتر رسمی (شبیه‌سازی) *@
+                    <div class="gp-print-footer">
+                        <span>ترازین — سامانه یکپارچه مدیریت کسب‌وکار</span>
+                        <span class="gp-page-no">صفحه ۱ از ۱</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="gp-print-area @(_paperSize == "A5" ? "gp-print-area--a5" : "")">
+                @RenderBody()
+
+                @* ── فوتر رسمی (در چاپ روی همهٔ صفحات تکرار می‌شود) ── *@
+                <div class="gp-print-footer print-only">
+                    <span>ترازین — سامانه یکپارچه مدیریت کسب‌وکار</span>
+                    <span>این فاکتور توسط سامانه ترازین صادر شده است</span>
+                </div>
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudSelect T="string" Label="اندازهٔ کاغذ" Value="@_paperSize" ValueChanged="OnSizeChanged"
+                   Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
+                   Style="min-width:130px" Class="mr-1">
+            <MudSelectItem Value="@("A4")">A4</MudSelectItem>
+            <MudSelectItem Value="@("A5")">A5</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TogglePreview"
+                   StartIcon="@(_preview ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)">
+            @(_preview ? "خروج از پیش‌نمایش" : "پیش‌نمایش چاپ")
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync"
+                   StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync"
+                   StartIcon="@Icons.Material.Filled.FileDownload" Disabled="@_downloading">
+            @(_downloading ? "در حال ساخت PDF…" : "دانلود PDF")
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" OnClick="Close" StartIcon="@Icons.Material.Filled.Close">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public GoldInvoicePrintModel Model { get; set; } = new();
+
+    private bool _preview;
+    private string _paperSize = "A4";
+    private bool _downloading;
+
+    private void TogglePreview() => _preview = !_preview;
+
+    private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+
+    /// <summary>
+    /// ساخت PDF با QuestPDF (سمت سرور در وب / بومی در MAUI) و دانلود بدون
+    /// دیالوگ پرینتر — جایگزین html2pdf که روی موبایل سنگین بود.
+    /// </summary>
+    private async Task DownloadPdfAsync()
+    {
+        _downloading = true;
+        try
+        {
+            var fileName = PdfFileNames.Invoice(Model.InvoiceNumber, Model.InvoiceDate, _paperSize);
+            var bytes = Pdf.BuildInvoicePdf(Model, _paperSize);
+            await PdfSaver.SaveAsync(fileName, bytes);
+        }
+        finally
+        {
+            _downloading = false;
+        }
+    }
+
+    private bool HasSettlement =>
+        Model.PayCash > 0 || Model.PayBank > 0 || Model.PayGoldGram > 0 ||
+        Model.PayCurrencyQty > 0 || Model.PayChequeAmount > 0 || Model.BalanceRial > 0;
+
+    private static decimal LineTotal(GoldInvoicePrintLine line)
+    {
+        if (line.RowType == "Gold")
+            return Math.Round(line.Qty * line.Price + line.Workmanship + line.Profit, 0);
+        return Math.Round(line.Qty * line.ResolvedRate, 0);
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+
+    private void Close() => MudDialog.Close();
+
+    /// <summary>بدنهٔ مشترک فاکتور (اطلاعات + جدول + جمع‌بندی + تسویه) — هم در حالت عادی و هم در پیش‌نمایش.</summary>
+    private RenderFragment RenderBody() => @<text>
+            @* ── هدر رسمی (در چاپ روی همهٔ صفحات تکرار می‌شود) ── *@
+            <div class="gp-print-header print-only">
+                <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+                <div>
+                    <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                        ترازین — سامانه یکپارچه مدیریت کسب‌وکار
+                    </div>
+                    <div style="font-size:9pt;color:#666">
+                        @(Model.InvoiceType == "Sale" ? "فاکتور فروش طلا و جواهرات" : "فاکتور خرید طلا و جواهرات") — @Model.InvoiceNumber
+                    </div>
+                </div>
+            </div>
+
+            @* ── اطلاعات فاکتور ── *@
+            <MudPaper Elevation="0" Class="pa-4 gp-page-break" Style="border:1px solid #e0e0e0;border-radius:10px">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">شماره فاکتور</MudText>
+                        <MudText Typo="Typo.body1"><b>@Model.InvoiceNumber</b></MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">تاریخ</MudText>
+                        <MudText Typo="Typo.body1">@Model.InvoiceDate.ToString("yyyy/MM/dd")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@(Model.InvoiceType == "Sale" ? "مشتری" : "تأمین‌کننده")</MudText>
+                        <MudText Typo="Typo.body1"><b>@Model.PartyName</b></MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">کد تفصیلی</MudText>
+                        <MudText Typo="Typo.body1">@(string.IsNullOrWhiteSpace(Model.DetailCode) ? "—" : Model.DetailCode)</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            @* ── جدول ریز فاکتور (MudTable ریسپانسیو با DataLabel) ── *@
+            <MudPaper Elevation="0" Class="mt-4 gp-page-break" Style="border:1px solid #e0e0e0;border-radius:10px;overflow:hidden">
+                <MudTable Items="Model.Lines" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">
+                    <HeaderContent>
+                        <MudTh>ردیف</MudTh>
+                        <MudTh>نوع</MudTh>
+                        <MudTh>کالا / ارز</MudTh>
+                        <MudTh>مقدار</MudTh>
+                        <MudTh>نرخ / قیمت</MudTh>
+                        <MudTh>اجرت</MudTh>
+                        <MudTh>سود</MudTh>
+                        <MudTh>مالیات</MudTh>
+                        <MudTh>جمع ردیف</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="line">
+                        <MudTd DataLabel="ردیف">@(Model.Lines.IndexOf(line) + 1)</MudTd>
+                        <MudTd DataLabel="نوع">
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(line.RowType == "Gold" ? Color.Warning : Color.Info)">
+                                @(line.RowType == "Gold" ? "طلا" : "ارز")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="کالا / ارز">
+                            @(line.RowType == "Gold" ? line.Title : line.CurrencyCode)
+                        </MudTd>
+                        <MudTd DataLabel="مقدار">
+                            @(line.RowType == "Gold"
+                                ? line.Qty.ToString("N3") + " گرم"
+                                : line.Qty.ToString("N3") + " " + line.CurrencyCode)
+                        </MudTd>
+                        <MudTd DataLabel="نرخ / قیمت">
+                            @((line.RowType == "Gold" ? line.Price : line.ResolvedRate).ToString("N0"))
+                        </MudTd>
+                        <MudTd DataLabel="اجرت">@(line.RowType == "Gold" ? line.Workmanship.ToString("N0") : "—")</MudTd>
+                        <MudTd DataLabel="سود">@(line.RowType == "Gold" ? line.Profit.ToString("N0") : "—")</MudTd>
+                        <MudTd DataLabel="مالیات">@(line.TaxEnabled ? "10%" : "—")</MudTd>
+                        <MudTd DataLabel="جمع ردیف">
+                            <b>@LineTotal(line).ToString("N0")</b>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            @* ── جمع‌بندی مالی ── *@
+            <MudGrid Spacing="3" Class="mt-1 gp-page-break">
+                <MudItem xs="12" sm="6" md="4">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background:rgba(13,110,253,.06);border-radius:8px">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">جمع پایه</MudText>
+                        <MudText Typo="Typo.h6">@Model.TotalBase.ToString("N0") <small>ریال</small></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background:rgba(255,193,7,.10);border-radius:8px">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">مالیات (@Model.TaxPct.ToString("0")%)</MudText>
+                        <MudText Typo="Typo.h6">@Model.TotalTax.ToString("N0") <small>ریال</small></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background:rgba(25,135,84,.08);border-radius:8px">
+                        <MudText Typo="Typo.caption" Color="Color.Success">جمع کل فاکتور</MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Success"><b>@Model.TotalAmount.ToString("N0")</b> <small>ریال</small></MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            @* ── روش تسویه ── *@
+            @if (HasSettlement)
+            {
+                <MudPaper Elevation="0" Class="mt-3 pa-4 gp-page-break" Style="border:1px solid #e0e0e0;border-radius:10px">
+                    <MudText Typo="Typo.h6" Class="mb-2">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Class="mr-1" /> روش تسویه
+                    </MudText>
+                    <MudGrid Spacing="2">
+                        @if (Model.PayCash > 0)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">نقدی</MudText>
+                                <MudText Typo="Typo.body1">@Model.PayCash.ToString("N0") ریال</MudText>
+                            </MudItem>
+                        }
+                        @if (Model.PayBank > 0)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">پرداخت به بانک</MudText>
+                                <MudText Typo="Typo.body1">@Model.PayBank.ToString("N0") ریال</MudText>
+                            </MudItem>
+                        }
+                        @if (Model.PayGoldGram > 0)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">تسویه با طلا</MudText>
+                                <MudText Typo="Typo.body1">@Model.PayGoldGram.ToString("N3") گرم × @Model.GoldPrice.ToString("N0")</MudText>
+                            </MudItem>
+                        }
+                        @if (Model.PayCurrencyQty > 0)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">تسویه با ارز</MudText>
+                                <MudText Typo="Typo.body1">@Model.PayCurrencyQty.ToString("N3") @Model.PayCurrencyCode × @Model.PayCurrencyRate.ToString("N0")</MudText>
+                            </MudItem>
+                        }
+                        @if (Model.PayChequeAmount > 0)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">چک</MudText>
+                                <MudText Typo="Typo.body1">
+                                    @Model.PayChequeAmount.ToString("N0") ریال
+                                    <span class="text-caption text-secondary">
+                                        (@Model.ChequeNumber — @Model.ChequeBankName@(Model.ChequeDueDate.HasValue ? " — سررسید " + Model.ChequeDueDate.Value.ToString("yyyy/MM/dd") : ""))
+                                    </span>
+                                </MudText>
+                            </MudItem>
+                        }
+                        @if (Model.BalanceRial > 0)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudText Typo="Typo.caption" Color="Color.Warning">مانده (نسیه)</MudText>
+                                <MudText Typo="Typo.body1" Color="Color.Warning">@Model.BalanceRial.ToString("N0") ریال</MudText>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudPaper>
+            }
+
+            @* ── سند حسابداری ── *@
+            @if (Model.DocumentId > 0)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 d-block">
+                    سند حسابداری شماره: @Model.DocumentId — تاریخ: @Model.InvoiceDate.ToString("yyyy/MM/dd")
+                </MudText>
+            }
+    </text>;
+}

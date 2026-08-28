@@ -93,6 +93,37 @@
         }
     </MudTabPanel>
 
+    <MudTabPanel Text="اتصال حسابداری">
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3">
+            انبار، حساب‌های حسابداری و تسویهٔ خزانه برای شرکت فعال. گروه تفصیلی مشتری در
+            <MudLink Href="/accounting/settings" Typo="Typo.body2">تنظیمات شرکت مالی</MudLink>
+            تعریف می‌شود و هنگام ساخت مشتری به‌صورت خودکار لینک می‌شود.
+        </MudAlert>
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudForm @ref="_settingsForm" @bind-IsValid="_settingsValid">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6"><MudSelect T="int?" Label="انبار فروشگاه" @bind-Value="_warehouse" Required="true" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">انتخاب کنید</MudSelectItem>@foreach(var w in _warehouses){<MudSelectItem Value="@((int?)w.WarehouseId)">@w.Title</MudSelectItem>}</MudSelect></MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="int?" Label="صندوق پیش‌فرض خزانه" @bind-Value="_cashBox" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">— بدون صندوق —</MudSelectItem>@foreach(var c in _cashBoxes){<MudSelectItem Value="@((int?)c.CashBoxId)">@c.Title</MudSelectItem>}</MudSelect></MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="int?" Label="حساب بانکی پیش‌فرض خزانه" @bind-Value="_bankAccount" Variant="Variant.Outlined"><MudSelectItem Value="@((int?)null)">— بدون بانک —</MudSelectItem>@foreach(var b in _banks){<MudSelectItem Value="@((int?)b.AccountId)">@b.AccountName — @b.AccountNo</MudSelectItem>}</MudSelect></MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب فروش</MudText>
+                        <AccountPickerField Value="_salesAccount" ValueChanged="OnSalesAccountAsync" ButtonLabel="انتخاب حساب فروش" EmptyText="حساب فروش انتخاب نشده است." PickerOptions="@_moeinOptions" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب صندوق (سند حسابداری)</MudText>
+                        <AccountPickerField Value="_cashAccount" ValueChanged="OnCashAccountAsync" ButtonLabel="انتخاب حساب صندوق" EmptyText="حساب صندوق انتخاب نشده است." PickerOptions="@_moeinOptions" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب بانکی سند حسابداری</MudText>
+                        <AccountPickerField Value="_bankChartAccount" ValueChanged="OnBankChartAccountAsync" ButtonLabel="انتخاب حساب بانک" EmptyText="حساب بانک انتخاب نشده است." PickerOptions="@_moeinOptions" />
+                    </MudItem>
+                    <MudItem xs="12"><MudSwitch T="bool" @bind-Value="_settingsEnabled" Color="Color.Success">فعال‌سازی یکپارچه‌سازی فروشگاه (سند خودکار سفارش)</MudSwitch></MudItem>
+                </MudGrid>
+            </MudForm>
+            <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSettingsAsync" Disabled="_busy">ذخیره تنظیمات اتصال</MudButton>
+        </MudPaper>
+    </MudTabPanel>
+
     <MudTabPanel Text="مشتریان">
         <MudPaper Elevation="1" Class="pa-4">
             <div class="d-flex justify-end mb-4">
@@ -103,13 +134,17 @@
             </div>
             <MudTable Items="_customers" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
-                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>تلفن</MudTh><MudTh>ایمیل</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>تلفن</MudTh><MudTh>ماندهٔ دفتر</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.CustomerCode</MudTd>
                     <MudTd DataLabel="نام">@context.FullName</MudTd>
                     <MudTd DataLabel="تلفن">@context.Phone</MudTd>
-                    <MudTd DataLabel="ایمیل">@context.Email</MudTd>
+                    <MudTd DataLabel="ماندهٔ دفتر">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.Balance > 0 ? Color.Error : context.Balance < 0 ? Color.Success : Color.Default)">
+                            @(context.Balance == 0 ? "تسویه" : $"{(context.Balance > 0 ? "بدهکار" : "بستانکار")} {Math.Abs(context.Balance):N0}")
+                        </MudChip>
+                    </MudTd>
                     <MudTd DataLabel="وضعیت">
                         <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                             @(context.IsActive ? "فعال" : "غیرفعال")
@@ -139,6 +174,18 @@
     private List<ProductCategoryRow> _categories = new();
     private bool _loading = true;
 
+    // ── تنظیمات اتصال حسابداری/خزانه/انبار ──
+    private MudForm? _settingsForm;
+    private bool _settingsValid;
+    private bool _busy;
+    private bool _settingsEnabled = true;
+    private int? _warehouse, _cashBox, _bankAccount;
+    private AccountPickerResult? _salesAccount, _cashAccount, _bankChartAccount;
+    private List<WarehouseRow> _warehouses = new();
+    private List<CashBoxRow> _cashBoxes = new();
+    private List<BankAccountRow> _banks = new();
+    private static readonly AccountPickerOptions _moeinOptions = new() { Title = "انتخاب حساب (کل/معین/تفصیلی)", AllowedType = AccountPickerType.Moein, TransactionalOnly = true };
+
     protected override Task OnInitializedAsync() => LoadAsync();
 
     private async Task LoadAsync()
@@ -147,9 +194,24 @@
         try
         {
             _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
-            _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList")).ToList();
+            _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList", new { CompanyId = Session.ActiveCompanyId })).ToList();
             if (Session.HasPermission(TarazinPermissions.StoreCategories))
                 _categories = (await Db.QueryAsync<ProductCategoryRow>(Schema, "ProductCategoryList")).ToList();
+
+            _warehouses = (await Db.QueryAsync<WarehouseRow>("inventory", "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+            _cashBoxes = (await Db.QueryAsync<CashBoxRow>("treasury", "CashBoxList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+            _banks = (await Db.QueryAsync<BankAccountRow>("treasury", "BankAccountList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+            var s = await Db.QueryFirstOrDefaultAsync<StoreSettingsRow>("store", "StoreSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+            if (s is not null)
+            {
+                _warehouse = s.InventoryWarehouseId;
+                _cashBox = s.CashBoxId;
+                _bankAccount = s.BankAccountId;
+                _settingsEnabled = s.IsEnabled;
+                if (s.SalesAccountId is int sid && sid > 0) _salesAccount = new AccountPickerResult { Id = sid, AccountCode = s.SalesAccountCode ?? "", Title = s.SalesAccountTitle ?? "", NodeType = "BaseMoein" };
+                if (s.CashAccountId is int cid && cid > 0) _cashAccount = new AccountPickerResult { Id = cid, AccountCode = s.CashAccountCode ?? "", Title = s.CashAccountTitle ?? "", NodeType = "BaseMoein" };
+                if (s.BankChartAccountId is int bid && bid > 0) _bankChartAccount = new AccountPickerResult { Id = bid, AccountCode = s.BankChartAccountCode ?? "", Title = s.BankChartAccountTitle ?? "", NodeType = "BaseMoein" };
+            }
         }
         catch (Exception ex)
         {
@@ -158,6 +220,41 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    private Task OnSalesAccountAsync(AccountPickerResult? v) { _salesAccount = v; return Task.CompletedTask; }
+    private Task OnCashAccountAsync(AccountPickerResult? v) { _cashAccount = v; return Task.CompletedTask; }
+    private Task OnBankChartAccountAsync(AccountPickerResult? v) { _bankChartAccount = v; return Task.CompletedTask; }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (_settingsForm is null) return;
+        await _settingsForm.ValidateAsync();
+        if (!_settingsValid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("store", "StoreSettingsUpsert", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                InventoryWarehouseId = _warehouse,
+                SalesAccountId = _salesAccount?.Id, SalesAccountCode = _salesAccount?.AccountCode, SalesAccountTitle = _salesAccount?.Title,
+                InventoryAccountId = (int?)null, InventoryAccountCode = (string?)null, InventoryAccountTitle = (string?)null,
+                CashAccountId = _cashAccount?.Id, CashAccountCode = _cashAccount?.AccountCode, CashAccountTitle = _cashAccount?.Title,
+                BankChartAccountId = _bankChartAccount?.Id, BankChartAccountCode = _bankChartAccount?.AccountCode, BankChartAccountTitle = _bankChartAccount?.Title,
+                CashBoxId = _cashBox, BankAccountId = _bankAccount,
+                IsEnabled = _settingsEnabled, UpdatedBy = Session.UserName
+            });
+            Snackbar.Add("تنظیمات اتصال ذخیره شد.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 

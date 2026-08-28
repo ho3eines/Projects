@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Tarazin.Data.Services;
 
 namespace Tarazin.Data;
 
@@ -22,6 +23,13 @@ public static class DataServiceCollectionExtensions
         // کسب‌وکار نمی‌شود.
         services.AddScoped<PriceFeedService>();
         services.AddSingleton<PriceFeedScheduler>();
+
+        // حقوق و دستمزد
+        services.AddScoped<PayrollTaxService>();
+        services.AddScoped<PayrollCalculationService>();
+
+        // دیسپچر پس‌زمینهٔ Outbox حقوق (تخلیهٔ PayrollFinalized → accounting/treasury)
+        services.AddSingleton<PayrollOutboxDispatcher>();
 
         return services;
     }

@@ -1,5 +1,5 @@
 -- =============================================
--- Cross-schema: central
+-- Cross-schema: central, accounting
 -- Tarazin.Data/Scripts/treasury/_Seed.sql
 -- Schema: treasury
 -- Endpoint: execute (startup)
@@ -51,6 +51,30 @@ BEGIN
         SELECT N'CHQ-' + RIGHT(N'000000' + CAST(ROW_NUMBER() OVER (ORDER BY b.BankId) AS NVARCHAR(10)), 6),
                b.BankId, 75000000, DATEADD(DAY, 30, SYSDATETIME()), N'In', N'Pending', SYSUTCDATETIME(), @SeedCompanyId
         FROM [treasury].[Banks] b WHERE b.CompanyId = @SeedCompanyId;
+    END
+
+    -- اتصال حسابداری پیش‌فرض: تفصیلی‌های استاندارد seed حسابداری
+    -- (صندوق اصلی / بانک‌ها) — همان الگوی GoldShopSettings؛ کاربر می‌تواند بعداً در
+    -- «امکانات ← اتصال حسابداری» تغییر دهد.
+    IF NOT EXISTS (SELECT 1 FROM [treasury].[TreasurySettings] WHERE CompanyId = @SeedCompanyId)
+    BEGIN
+        DECLARE @TrsCashDetilId INT = (SELECT TOP 1 DetilId FROM [accounting].[BaseDetil] WHERE CompanyId=@SeedCompanyId AND DetilCode=N'0000002' AND IsDeleted=0);
+        DECLARE @TrsBankDetilId INT = (SELECT TOP 1 DetilId FROM [accounting].[BaseDetil] WHERE CompanyId=@SeedCompanyId AND DetilCode=N'0000001' AND IsDeleted=0);
+        DECLARE @TrsDefaultCashBox INT = (SELECT TOP 1 CashBoxId FROM [treasury].[CashBoxes] WHERE CompanyId=@SeedCompanyId AND IsDeleted=0 ORDER BY CashBoxId);
+        DECLARE @TrsDefaultBank INT = (SELECT TOP 1 AccountId FROM [treasury].[BankAccounts] WHERE CompanyId=@SeedCompanyId AND IsDeleted=0 ORDER BY AccountId);
+        INSERT INTO [treasury].[TreasurySettings]
+            (CompanyId, CashAccountId, CashAccountCode, CashAccountTitle,
+             BankChartAccountId, BankChartAccountCode, BankChartAccountTitle,
+             ReceiveContraAccountId, ReceiveContraAccountCode, ReceiveContraAccountTitle,
+             PayContraAccountId, PayContraAccountCode, PayContraAccountTitle,
+             DefaultCashBoxId, DefaultBankAccountId, IsEnabled, UpdatedBy)
+        VALUES
+            (@SeedCompanyId,
+             @TrsCashDetilId, N'0000002', N'صندوق اصلی',
+             @TrsBankDetilId, N'0000001', N'بانک‌ها',
+             @TrsCashDetilId, N'0000002', N'صندوق اصلی',
+             @TrsBankDetilId, N'0000001', N'بانک‌ها',
+             @TrsDefaultCashBox, @TrsDefaultBank, 1, N'seed');
     END
 
     FETCH NEXT FROM trs_cursor INTO @SeedCompanyId;
