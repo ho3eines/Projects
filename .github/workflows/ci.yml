@@ -14,6 +14,9 @@
 
 name: CI
 
+# CI روی شاخهٔ پیش‌فرض (main/stable) و شاخهٔ در حال توسعه (develop) اجرا
+# می‌شود. badge جداگانهٔ main و develop در README هرکدام وضعیت همان شاخه را
+# نشان می‌دهند. شاخه‌های موقت (arena/* و …) هم CI می‌گیرند ولی badge ندارند.
 on:
   push:
   pull_request:

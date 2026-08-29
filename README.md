@@ -5,7 +5,8 @@
 >
 > 🧑‍💻 **توسعه‌دهنده؟ قبل از هر تغییر/دریافت پارامتر، اول `.claude/skills/tarazin-development/SKILL.md` را کامل بخوان** (اسکیل رسمی پروژه — با `/tarazin-development` هم قابل فراخوانی است) — معماری، لایهٔ داده، قواعد MudBlazor 9.8.0، دسترسی‌ها و الگوهای مودال/نوبار همه در آن سند است و هر تغییری باید مطابق آن باشد.
 >
-> [![CI Status](https://github.com/ho3eines/Projects/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ho3eines/Projects/actions/workflows/ci.yml)
+> [![CI – main](https://github.com/ho3eines/Projects/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ho3eines/Projects/actions/workflows/ci.yml)
+> [![CI – develop](https://github.com/ho3eines/Projects/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ho3eines/Projects/actions/workflows/ci.yml)
 
 ترازین یک ERP یکپارچه برای طلافروشی و کسب‌وکارهای چندشعبه‌ای است: **حسابداری + انبار + خزانه + حقوق + طلافروشی + فروشگاه + ارز و معاملات ارزی + داشبورد BI + پلتفرم مشترک** — همه در یک دیتابیس `TarazinMaster` با اسکیمهٔ جدا، یک `Tarazin.Ui` مشترک و دو هاست نازک (Blazor Server و MAUI Blazor Hybrid).
 
