@@ -80,10 +80,15 @@ jobs:
         run: |
           set -euo pipefail
           CID="${{ job.services.sqlserver.id }}"
-          for f in Tarazin.Data/Scripts/*/_Ensure.sql; do
+          # ترتیب مثل EnsureSchemaAsync هاست: central اول (Companies/FiscalYears)
+          # چون بقیهٔ اسکیماها به آن FK دارند؛ بعد بقیه به‌ترتیب الفبا.
+          # ⚠ پرچم -I (QUOTED_IDENTIFIER ON) لازم است — ایندکس‌های فیلترشده
+          #    بدون آن ساخته نمی‌شوند (خطای 1934).
+          for f in Tarazin.Data/Scripts/central/_Ensure.sql \
+                   Tarazin.Data/Scripts/{accounting,assets,bi,branch,currency,goldshop,inventory,payroll,printing,store,treasury}/_Ensure.sql; do
             echo "── init: $f"
             docker cp "$f" "$CID:/tmp/init.sql"
-            docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SQL_PASSWORD" -C -b -d master -i /tmp/init.sql
+            docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SQL_PASSWORD" -C -I -b -d master -i /tmp/init.sql
           done
           echo "All schemas initialized"
 

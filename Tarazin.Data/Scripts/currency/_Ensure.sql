@@ -221,6 +221,25 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'currency.
         ON [currency].[Wallets]([CompanyId], [CurrencyCode])
         WHERE [CompanyId] IS NOT NULL;
 
+-- ── AssetHoldings (دارایی فیزیکی: طلا/سکه/فلز) — PRD §50/§51 ────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'currency' AND t.name = N'AssetHoldings')
+BEGIN
+    CREATE TABLE [currency].[AssetHoldings] (
+        HoldingId    INT IDENTITY(1,1) PRIMARY KEY,
+        ItemKey      NVARCHAR(50) NOT NULL,           -- XAU-18 | SIKKEH-EMAMI | XAG
+        Title        NVARCHAR(200) NOT NULL,
+        Quantity     DECIMAL(18,4) NOT NULL DEFAULT 0,
+        CostRate     DECIMAL(18,2) NULL,             -- نرخ خرید ثبت‌شده (برای سود/زیان ارزش)
+        CreatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedBy    NVARCHAR(100) NULL,
+        CompanyId    INT NULL
+    );
+END
+
 SELECT @LegacyIndexName = NULL, @LegacyIsConstraint = NULL;
 SELECT TOP (1) @LegacyIndexName = i.name, @LegacyIsConstraint = i.is_unique_constraint
 FROM sys.indexes i
@@ -323,25 +342,6 @@ BEGIN
         CONSTRAINT FK_FxLegs_Transaction FOREIGN KEY (FxTransactionId) REFERENCES [currency].[FxTransactions](FxTransactionId)
     );
     CREATE INDEX IX_FxLegs_Transaction ON [currency].[FxTransactionLegs](FxTransactionId);
-END
-
--- ── AssetHoldings (دارایی فیزیکی: طلا/سکه/فلز) — PRD §50/§51 ────────────
-IF NOT EXISTS (
-    SELECT 1 FROM sys.tables t
-    JOIN sys.schemas s ON t.schema_id = s.schema_id
-    WHERE s.name = N'currency' AND t.name = N'AssetHoldings')
-BEGIN
-    CREATE TABLE [currency].[AssetHoldings] (
-        HoldingId    INT IDENTITY(1,1) PRIMARY KEY,
-        ItemKey      NVARCHAR(50) NOT NULL,           -- XAU-18 | SIKKEH-EMAMI | XAG
-        Title        NVARCHAR(200) NOT NULL,
-        Quantity     DECIMAL(18,4) NOT NULL DEFAULT 0,
-        CostRate     DECIMAL(18,2) NULL,             -- نرخ خرید ثبت‌شده (برای سود/زیان ارزش)
-        CreatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        UpdatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        UpdatedBy    NVARCHAR(100) NULL,
-        CompanyId    INT NULL
-    );
 END
 
 -- ── AssetValuationHistory (اسنپ‌شات ارزش دارایی) — PRD §51 ───────────────
