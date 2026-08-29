@@ -16,7 +16,10 @@
 # bug is caught and the guard reports a clean 0.
 #
 # NOTE on SQL: the print-template and close-year guards need a live SQL Server;
-# without one they Skip (not fail) — CI spins up SQL Server so they actually run.
+# without one they Skip (not fail). CI spins up SQL Server as a service of the
+# same checks job (with TARAZIN_TEST_CONN set), so here they actually run inside
+# the same gate — and a later conditional step re-validates the guards against
+# a fresh schema built from the _Ensure sources.
 #
 # Usage: bash tools/run-checks.sh            (from project root)
 
@@ -42,7 +45,9 @@ fi
 # ── 2. Print-template guards (Resolution + SqlGuard) ─────────────────
 step "۲) گاردهای قالب چاپ (Resolution + SqlGuard)"
 # بدون SQL Server تست‌ها Skip می‌شوند (Skipped!) — آن هم نتیجهٔ قابل قبول برای
-# این گام است؛ اجرای واقعیِ آن‌ها در CI در job جداگانه با SQL Server انجام می‌شود.
+# این گام است؛ در CI سرویس SQL Server همین job را بالا می‌آورد (TARAZIN_TEST_CONN)
+# تا این گاردها واقعاً اجرا شوند — و یک step شرطی بعدی آن‌ها را روی اسکیمای تازه
+# از _Ensure ها دوباره اعتبارسنجی می‌کند.
 if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo \
      --filter "FullyQualifiedName~PrintTemplate" 2>&1 | tail -1 | grep -qE "Passed!|Skipped!"; then
   pass "گاردهای قالب چاپ سبز (ترتیب وضوح، بازنشانی، ایندکس‌های یکتا، هم‌زمانی)"

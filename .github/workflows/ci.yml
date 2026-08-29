@@ -1,12 +1,14 @@
 # CI — گیتِ هر بیلد/PR پروژهٔ ترازین
 #
-# دو job:
-#   1) checks      — tools/run-checks.sh (اسکن cross-schema، گاردهای قالب چاپ،
-#                    کل سویت تست، بیلد وب، گارد stale). بدون SQL Server —
-#                    تست‌های DBدار Skip می‌شوند نه Fail.
-#   2) db-guards   — با سرویس SQL Server 2022: اسکیمای واقعی از روی
-#                    Tarazin.Data/Scripts/*/_Ensure.sql ساخته می‌شود و
-#                    گاردهای DBدار (قالب چاپ + بستن سال) واقعاً اجرا می‌شوند.
+# یک job واحد («checks») که کل گیت را در خود دارد:
+#   1) tools/run-checks.sh — اسکن cross-schema، گاردهای قالب چاپ، کل سویت تست،
+#      بیلد وب، گارد stale. وقتی SQL Server در دسترس باشد (سرویس پایین) تست‌های
+#      DBدار همین‌جا واقعاً اجرا می‌شوند؛ در غیر این صورت Skip می‌شوند نه Fail.
+#   2) step شرطی DB — با سرویس SQL Server 2022: اگر SQL در دسترس بود، اسکیمای
+#      واقعی از روی Tarazin.Data/Scripts/*/_Ensure.sql ساخته می‌شود و گاردهای
+#      DBدار (قالب چاپ + بستن سال) مقابل همان اسکیما اجرا می‌شوند.
+#      اگر SQL در دسترس نبود، این گام‌ها Skip می‌شوند و گیت همچنان سبز می‌ماند
+#      (مثل رفتار محلی «Skip نه Fail»).
 #
 # راه‌اندازی محلی معادل:  bash tools/run-checks.sh
 
@@ -18,22 +20,7 @@ on:
 
 jobs:
   checks:
-    name: Checks (scan + tests + build + stale guard)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Run full check gate
-        run: bash tools/run-checks.sh
-
-  db-guards:
-    name: DB guards (print templates + close year)
+    name: Checks (scan + tests + build + stale guard + DB guards)
     runs-on: ubuntu-latest
     env:
       # کانتینر SQL Server رمز ضعیف را نمی‌پذیرد (سیاست رمز قوی) — و تست‌ها
@@ -63,20 +50,38 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Wait for SQL Server
+      # آمادگی SQL را می‌سنجد ولی job را fail نمی‌کند — خروجی ready برای
+      # گام‌های شرطی DB استفاده می‌شود (SQL نبود → Skip، مثل محلی).
+      - name: Wait for SQL Server (optional — DB steps skip if unavailable)
+        id: wait-sql
         run: |
           CID="${{ job.services.sqlserver.id }}"
+          READY="false"
           for i in $(seq 1 30); do
             if docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SQL_PASSWORD" -C -b -Q 'SELECT 1' >/dev/null 2>&1; then
               echo "SQL Server ready"
+              READY="true"
               break
             fi
             echo "waiting for SQL Server ($i)..."
             sleep 5
           done
+          echo "ready=$READY" >> "$GITHUB_OUTPUT"
+          if [ "$READY" != "true" ]; then
+            echo "⚠ SQL Server NOT available — DB-backed guards will Skip (mirrors local Skip-not-Fail)"
+          fi
 
+      # گیت اصلی — با TARAZIN_TEST_CONN، تست‌های DBدار همین‌جا واقعاً اجرا
+      # می‌شوند وقتی سرویس SQL آماده است؛ وگرنه Skip (خود run-checks.sh).
+      - name: Run full check gate
+        env:
+          TARAZIN_TEST_CONN: "Server=localhost;Database=TarazinMaster;User Id=sa;Password=Tarazin#CI2026!;TrustServerCertificate=True;Encrypt=False"
+        run: bash tools/run-checks.sh
+
+      # ══ step شرطی DB (ادغامِ job سابق db-guards) ══
       # اسکیمای واقعی از روی _Ensure های منبع (idempotent) — معادل init هاست
       - name: Initialize schemas from source (_Ensure, idempotent)
+        if: steps.wait-sql.outputs.ready == 'true'
         run: |
           set -euo pipefail
           CID="${{ job.services.sqlserver.id }}"
@@ -93,6 +98,7 @@ jobs:
           echo "All schemas initialized"
 
       - name: Run DB-backed guards (print templates + close year)
+        if: steps.wait-sql.outputs.ready == 'true'
         env:
           TARAZIN_TEST_CONN: "Server=localhost;Database=TarazinMaster;User Id=sa;Password=Tarazin#CI2026!;TrustServerCertificate=True;Encrypt=False"
         run: |
