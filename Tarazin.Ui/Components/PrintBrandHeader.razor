@@ -1,0 +1,60 @@
+@inject DbService Db
+@inject UserSession Session
+
+@* سربرگ رسمی چاپ — نام/لوگو/آدرس شرکت از «تنظیمات شرکت مالی» + QRCode اختیاری (برای پیگیری سند).
+   این کامپوننت در همهٔ دیالوگ‌های چاپ (فاکتور طلا، سند حسابداری، گزارش چک، گزارش‌های جدولی)
+   استفاده می‌شود تا سربرگ همه‌جا یکسان باشد. در حالت عادی (غیرچاپ) چیزی نمایش نمی‌دهد؛
+   قواعد @media print هدر را روی برگه تکرار می‌کنند. *@
+
+<div class="@($"{(HeaderOnly ? "gp-print-header print-only" : "gp-print-header")}")">
+    @if (!string.IsNullOrWhiteSpace(_settings?.LogoPath))
+    {
+        <img src="@_settings.LogoPath" alt="@CompanyName" />
+    }
+    else
+    {
+        <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
+    }
+    <div>
+        <div style="font-size:13pt;font-weight:700;color:#1a237e">
+            @CompanyName
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_settings?.Address))
+        {
+            <div style="font-size:9pt;color:#666">آدرس: @_settings.Address</div>
+        }
+        <div style="font-size:9pt;color:#666">
+            @Title
+        </div>
+    </div>
+
+    @if (QrEnabled && !string.IsNullOrWhiteSpace(QrPayload))
+    {
+        <div class="gp-print-qr" style="margin-inline-start:auto">
+            <qr-fill data-payload="@QrPayload"></qr-fill>
+        </div>
+    }
+</div>
+
+@code {
+    private CompanyAccountSettingsRow? _settings;
+    private bool _settingsLoaded;
+
+    [Parameter] public string CompanyName { get; set; } = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public bool HeaderOnly { get; set; } = true;
+    [Parameter] public bool QrEnabled { get; set; } = true;
+    [Parameter] public string? QrPayload { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_settingsLoaded) return;
+        try
+        {
+            _settings = await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting",
+                "CompanyAccountSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+        }
+        catch { /* بدون تنظیم → fallback برند */ }
+        finally { _settingsLoaded = true; }
+    }
+}

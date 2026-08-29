@@ -1,0 +1,12 @@
+@namespace Tarazin.Components
+
+<MudChip T="string" Size="Size.Small" Color="@(IsActive ? Color.Success : Color.Default)"
+         Variant="Variant.Outlined" Icon="@(IsActive ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.PauseCircle)">
+    @(IsActive ? ActiveText : InactiveText)
+</MudChip>
+
+@code {
+    [Parameter] public bool IsActive { get; set; }
+    [Parameter] public string ActiveText { get; set; } = "فعال";
+    [Parameter] public string InactiveText { get; set; } = "غیرفعال";
+}

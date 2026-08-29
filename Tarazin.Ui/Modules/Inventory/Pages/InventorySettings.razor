@@ -10,12 +10,8 @@
 <MudTabs>
     <MudTabPanel Text="گروه کالا">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="OpenGroupNewAsync">
-                    گروه جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="گروه جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="OpenGroupNewAsync" />
             <MudTable Items="_groups" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>ترتیب</MudTh><MudTh>تعداد کالا</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -25,20 +21,10 @@
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                     <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>
                     <MudTd DataLabel="تعداد کالا">@context.ItemCount</MudTd>
-                    <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                            @(context.IsActive ? "فعال" : "غیرفعال")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                     <MudTd DataLabel="عملیات">
-                        <MudTooltip Text="ویرایش">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => OpenGroupEditAsync(context))" />
-                        </MudTooltip>
-                        <MudTooltip Text="حذف">
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                           OnClick="@(() => DeleteGroupAsync(context))" />
-                        </MudTooltip>
+                        <EntityActions EditClicked="@(() => OpenGroupEditAsync(context))"
+                                       DeleteClicked="@(() => DeleteGroupAsync(context))" />
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">گروهی نیست.</MudText></NoRecordsContent>
@@ -48,12 +34,8 @@
 
     <MudTabPanel Text="واحد کالا">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="OpenUnitNewAsync">
-                    واحد جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="واحد جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="OpenUnitNewAsync" />
             <MudTable Items="_units" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -61,20 +43,10 @@
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.UnitCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
-                    <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                            @(context.IsActive ? "فعال" : "غیرفعال")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                     <MudTd DataLabel="عملیات">
-                        <MudTooltip Text="ویرایش">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => OpenUnitEditAsync(context))" />
-                        </MudTooltip>
-                        <MudTooltip Text="حذف">
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                           OnClick="@(() => DeleteUnitAsync(context))" />
-                        </MudTooltip>
+                        <EntityActions EditClicked="@(() => OpenUnitEditAsync(context))"
+                                       DeleteClicked="@(() => DeleteUnitAsync(context))" />
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">واحدی نیست.</MudText></NoRecordsContent>
@@ -84,12 +56,8 @@
 
     <MudTabPanel Text="کالاها">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="OpenItemNewAsync">
-                    کالای جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="کالای جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="OpenItemNewAsync" />
             <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>گروه</MudTh><MudTh>واحد</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -99,20 +67,10 @@
                     <MudTd DataLabel="عنوان">@context.ItemTitle</MudTd>
                     <MudTd DataLabel="گروه">@(context.GroupTitle ?? context.Category)</MudTd>
                     <MudTd DataLabel="واحد">@(context.UnitTitle ?? context.Unit)</MudTd>
-                    <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                            @(context.IsActive ? "فعال" : "غیرفعال")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                     <MudTd DataLabel="عملیات">
-                        <MudTooltip Text="ویرایش کالا">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => OpenItemEditAsync(context))" />
-                        </MudTooltip>
-                        <MudTooltip Text="حذف">
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                           OnClick="@(() => DeleteItemAsync(context))" />
-                        </MudTooltip>
+                        <EntityActions EditClicked="@(() => OpenItemEditAsync(context))"
+                                       DeleteClicked="@(() => DeleteItemAsync(context))" />
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">کالایی نیست.</MudText></NoRecordsContent>
@@ -122,12 +80,8 @@
 
     <MudTabPanel Text="انبارها">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="OpenWarehouseNewAsync">
-                    انبار جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="انبار جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="OpenWarehouseNewAsync" />
             <MudTable Items="_warehouses" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>موقعیت</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -136,20 +90,10 @@
                     <MudTd DataLabel="کد">@context.WarehouseCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                     <MudTd DataLabel="موقعیت">@context.Location</MudTd>
-                    <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                            @(context.IsActive ? "فعال" : "غیرفعال")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                     <MudTd DataLabel="عملیات">
-                        <MudTooltip Text="ویرایش انبار">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => OpenWarehouseEditAsync(context))" />
-                        </MudTooltip>
-                        <MudTooltip Text="حذف">
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                           OnClick="@(() => DeleteWarehouseAsync(context))" />
-                        </MudTooltip>
+                        <EntityActions EditClicked="@(() => OpenWarehouseEditAsync(context))"
+                                       DeleteClicked="@(() => DeleteWarehouseAsync(context))" />
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">انباری نیست.</MudText></NoRecordsContent>
@@ -159,12 +103,8 @@
 
     <MudTabPanel Text="انبارک‌ها">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="OpenSubWarehouseNewAsync">
-                    انبارک جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="انبارک جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="OpenSubWarehouseNewAsync" />
             <MudTable Items="_subWarehouses" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>انبار اصلی</MudTh><MudTh>موقعیت</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -174,20 +114,10 @@
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                     <MudTd DataLabel="انبار اصلی">@context.WarehouseTitle</MudTd>
                     <MudTd DataLabel="موقعیت">@context.Location</MudTd>
-                    <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                            @(context.IsActive ? "فعال" : "غیرفعال")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                     <MudTd DataLabel="عملیات">
-                        <MudTooltip Text="ویرایش">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => OpenSubWarehouseEditAsync(context))" />
-                        </MudTooltip>
-                        <MudTooltip Text="حذف">
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                           OnClick="@(() => DeleteSubWarehouseAsync(context))" />
-                        </MudTooltip>
+                        <EntityActions EditClicked="@(() => OpenSubWarehouseEditAsync(context))"
+                                       DeleteClicked="@(() => DeleteSubWarehouseAsync(context))" />
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">انبارکی نیست.</MudText></NoRecordsContent>

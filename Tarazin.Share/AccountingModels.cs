@@ -134,6 +134,64 @@ public class DocumentLineRow
     public decimal Credit { get; set; }
 }
 
+/// <summary>برادرهای قبلی/بعدی سند برای دکمه‌های پیمایش بین اسناد.</summary>
+public class DocumentNeighborsRow
+{
+    public int PrevDocumentId { get; set; }
+    public int NextDocumentId { get; set; }
+    public string? PrevNumber { get; set; }
+    public string? NextNumber { get; set; }
+}
+
+/// <summary>مدل چاپ سند حسابداری (ساده یا پیشرفته) — دیالوگ DocumentPrintDialog.</summary>
+public class AccountingDocumentPrintModel
+{
+    public int DocumentId { get; set; }
+    public string DocumentNumber { get; set; } = "";
+    public DateTime DocumentDate { get; set; }
+    public string? DocumentType { get; set; }
+    public string? CounterPartyName { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string? Status { get; set; }
+    public List<DocumentLineRow> Lines { get; set; } = new();
+
+    /// <summary>نام شرکت برای سربرگ چاپ — خالی = برند پیش‌فرض ترازین.</summary>
+    public string? BrandName { get; set; }
+
+    /// <summary>آدرس پایهٔ QRCode پیگیری — از تنظیمات شرکت مالی.</summary>
+    public string? QrBaseUrl { get; set; }
+
+    /// <summary>حالت چاپ: Simple = فقط ردیف‌ها؛ Advanced = سلسله‌مراتب کل/معین/تفصیل با جمع هر سطح.</summary>
+    public bool Advanced { get; set; }
+
+    /// <summary>جمع بدهکار همهٔ ردیف‌ها.</summary>
+    public decimal TotalDebit => Lines.Sum(l => l.Debit);
+
+    /// <summary>جمع بستانکار همهٔ ردیف‌ها.</summary>
+    public decimal TotalCredit => Lines.Sum(l => l.Credit);
+}
+
+/// <summary>یک سطح تجمیع (کل/معین) برای چاپ پیشرفته سند.</summary>
+public class AccountRollupRow
+{
+    public string Code { get; set; } = "";
+    public string Title { get; set; } = "";
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+    public int LineCount { get; set; }
+}
+
+/// <summary>عنوان کل/معین برای کد در چاپ پیشرفته سند (خروجی DocumentPrintRollup.sql).</summary>
+public class DocumentRollupTitleRow
+{
+    public string Level { get; set; } = "";
+    public string Code { get; set; } = "";
+    public string? Title { get; set; }
+    public int LineCount { get; set; }
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+}
+
 /// <summary>دفتر روزنامه — ردیف‌های سند در بازهٔ تاریخ.</summary>
 public class DailyBookRow
 {

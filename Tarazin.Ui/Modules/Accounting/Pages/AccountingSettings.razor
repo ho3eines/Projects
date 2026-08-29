@@ -2,58 +2,115 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>تنظیمات شرکت مالی — حسابداری</PageTitle>
-<PageHeader Title="تنظیمات شرکت مالی" Subtitle="گروه‌های تفصیلی مشترک حسابداری که همهٔ ماژول‌ها (مشتریان، تأمین‌کنندگان، موجودی کالا) از آن استفاده می‌کنند — یک بار تنظیم کنید، همه‌جا یکسان." />
-<MudPaper Class="pa-4">
-    <MudForm @ref="_form" @bind-IsValid="_valid">
-        <MudGrid Spacing="2">
-            <MudItem xs="12" sm="4">
-                <MudSelect T="int?" Label="گروه تفصیلی مشتریان" @bind-Value="_customerGroup" Variant="Variant.Outlined"
-                           HelperText="تفصیلی هر مشتری به‌صورت خودکار در این گروه ساخته می‌شود">
-                    <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
-                    @foreach (var g in _detilGroups)
-                    {
-                        <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="4">
-                <MudSelect T="int?" Label="گروه تفصیلی تأمین‌کنندگان" @bind-Value="_supplierGroup" Variant="Variant.Outlined"
-                           HelperText="تفصیلی هر تأمین‌کننده به‌صورت خودکار در این گروه ساخته می‌شود">
-                    <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
-                    @foreach (var g in _detilGroups)
-                    {
-                        <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="4">
-                <MudSelect T="int?" Label="گروه تفصیلی موجودی کالا" @bind-Value="_inventoryGroup" Variant="Variant.Outlined"
-                           HelperText="تفصیلی هر کالا به‌صورت خودکار در این گروه ساخته می‌شود">
-                    <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
-                    @foreach (var g in _detilGroups)
-                    {
-                        <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-        </MudGrid>
-    </MudForm>
-    <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">
-        ذخیره تنظیمات شرکت
-    </MudButton>
-</MudPaper>
+<PageHeader Title="تنظیمات شرکت مالی" Subtitle="گروه‌های تفصیلی مشترک، اطلاعات سربرگ چاپ و پیگیری فاکتور (لوگو، نام، آدرس و QRCode)." />
+
+<MudTabs>
+    <MudTabPanel Text="گروه‌های تفصیلی">
+        <MudPaper Class="pa-4 mt-3">
+            <MudForm @ref="_form" @bind-IsValid="_valid">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="int?" Label="گروه تفصیلی مشتریان" @bind-Value="_customerGroup" Variant="Variant.Outlined"
+                                   HelperText="تفصیلی هر مشتری به‌صورت خودکار در این گروه ساخته می‌شود">
+                            <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
+                            @foreach (var g in _detilGroups)
+                            {
+                                <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="int?" Label="گروه تفصیلی تأمین‌کنندگان" @bind-Value="_supplierGroup" Variant="Variant.Outlined"
+                                   HelperText="تفصیلی هر تأمین‌کننده به‌صورت خودکار در این گروه ساخته می‌شود">
+                            <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
+                            @foreach (var g in _detilGroups)
+                            {
+                                <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="int?" Label="گروه تفصیلی موجودی کالا" @bind-Value="_inventoryGroup" Variant="Variant.Outlined"
+                                   HelperText="تفصیلی هر کالا به‌صورت خودکار در این گروه ساخته می‌شود">
+                            <MudSelectItem Value="@((int?)null)">— انتخاب گروه —</MudSelectItem>
+                            @foreach (var g in _detilGroups)
+                            {
+                                <MudSelectItem Value="@((int?)g.AccountGroupId)">@g.Title (@g.GroupCode)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+            <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">
+                ذخیره گروه‌های تفصیلی
+            </MudButton>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="سربرگ چاپ و پیگیری">
+        <MudPaper Class="pa-4 mt-3">
+            <MudForm @ref="_printForm" @bind-IsValid="_printValid">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="نام شرکت" @bind-Value="_companyName" Variant="Variant.Outlined" Immediate="true"
+                                      HelperText="در سربرگ همهٔ چاپ‌ها و PDFها نمایش داده می‌شود" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="آدرس شرکت" @bind-Value="_address" Variant="Variant.Outlined" Immediate="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="آدرس پایهٔ پیگیری QRCode" @bind-Value="_qrBaseUrl" Variant="Variant.Outlined" Immediate="true"
+                                      HelperText="مثلاً https://tarazin.example.com/track — بارکد QR هر سند به این آدرس + شناسه متصل می‌شود" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSwitch T="bool" Label="درج QRCode در چاپ/PDF" @bind-Value="_qrEnabled" Color="Color.Primary" />
+                    </MudItem>
+                    @* لوگو: پیش‌نمایش + فیلد پنهان برای پایه‌۶۴ (توسط JS آپلود پر می‌شود) *@
+                    <MudItem xs="12" sm="6" md="9">
+                        <div class="d-flex align-center gap-4 flex-wrap">
+                            @if (!string.IsNullOrWhiteSpace(_logoPath))
+                            {
+                                <img src="@_logoPath" alt="لوگو" style="height:54px;border:1px solid #ddd;border-radius:8px;padding:4px;background:#fff" />
+                            }
+                            <input id="brandLogoUpload" type="file" accept="image/*" hidden
+                                   onchange="tarazinBrandLogo.read(this)" />
+                            @* MudBlazor یکدست: دکمهٔ آپلود هم MudButton است؛ JS-interop فقط
+                               فایل‌پیکر مرورگر را باز می‌کند (الگوی فیلد پنهان حفظ شده). *@
+                            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Medium"
+                                       StartIcon="@Icons.Material.Filled.UploadFile"
+                                       OnClick="@(() => JS.InvokeVoidAsync(
+                                           "eval", "document.getElementById('brandLogoUpload').click()"))">
+                                آپلود / تغییر لوگو
+                            </MudButton>
+                            <span class="text-caption text-secondary">لوگوی شرکت پس از انتخاب به‌صورت خودکار در فیلد ذخیره می‌شود.</span>
+                        </div>
+                        <input id="logoPathInput" hidden value="@_logoPath" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+            <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" OnClick="SavePrintAsync" Disabled="_busy">
+                ذخیره سربرگ چاپ
+            </MudButton>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
 <MudAlert Class="mt-4" Severity="Severity.Info">
-    این تنظیمات در سطح شرکت مالی است و بین همهٔ ماژول‌ها مشترک است؛ اگر گروهی را اینجا عوض کنید،
-    لینک تفصیلی مشتریان/تأمین‌کنندگان/کالاهای آینده طبق گروه جدید ساخته می‌شود.
+    تنظیمات در سطح شرکت مالی است و بین همهٔ ماژول‌ها مشترک است؛ لوگو، نام شرکت، آدرس و آدرس QRCode در همهٔ
+    چاپ‌ها (فاکتور طلا، سند حسابداری، گزارش چک‌ها و گزارش‌های جدولی) نمایش داده می‌شوند.
 </MudAlert>
 
 @code {
-    private MudForm? _form;
-    private bool _valid, _busy;
+    private MudForm? _form, _printForm;
+    private bool _valid, _printValid, _busy;
     private int? _customerGroup, _supplierGroup, _inventoryGroup;
     private List<AccountGroupRow> _detilGroups = new();
+
+    private string? _companyName, _address, _logoPath, _qrBaseUrl;
+    private bool _qrEnabled = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -61,13 +118,24 @@
         {
             _detilGroups = (await Db.QueryAsync<AccountGroupRow>("accounting", "AccountGroupList",
                 new { CompanyId = Session.ActiveCompanyId, GroupType = "Detil", IncludeInactive = 0 })).ToList();
+            if (Session.ActiveCompanyId is not int companyId || companyId <= 0)
+            {
+                Snackbar.Add("شرکت فعال مشخص نشده است.", Severity.Warning);
+                return;
+            }
+
             var s = await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting", "CompanyAccountSettingsGet",
-                new { CompanyId = Session.ActiveCompanyId });
+                new { CompanyId = companyId });
             if (s is not null)
             {
                 _customerGroup = s.CustomerAccountGroupId;
                 _supplierGroup = s.SupplierAccountGroupId;
                 _inventoryGroup = s.InventoryAccountGroupId;
+                _companyName = s.CompanyName;
+                _address = s.Address;
+                _logoPath = s.LogoPath;
+                _qrBaseUrl = s.QrBaseUrl;
+                _qrEnabled = s.QrEnabled;
             }
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
@@ -76,15 +144,52 @@
     private async Task SaveAsync()
     {
         if (_busy) return;
+        if (_form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+        await SaveCoreAsync(_customerGroup, _supplierGroup, _inventoryGroup);
+    }
+
+    private async Task SavePrintAsync()
+    {
+        if (_busy) return;
+        if (_printForm is null) return;
+        await _printForm.ValidateAsync();
+        if (!_printValid) return;
+        await SaveCoreAsync(_customerGroup, _supplierGroup, _inventoryGroup);
+    }
+
+    private async Task SaveCoreAsync(int? cg, int? sg, int? ig)
+    {
+        if (Session.ActiveCompanyId is null or <= 0)
+        {
+            Snackbar.Add("ابتدا شرکت فعال را مشخص کنید.", Severity.Warning);
+            return;
+        }
+
         _busy = true;
         try
         {
+            // اگر لوگو از طریق آپلود خوانده شده بود، مقدار آن از فیلد پنهان برداشته شود
+            // اگر اسکریپت لود نبود، خطا نمی‌دهیم (ذخیره بدون لوگو ادامه می‌یابد)
+            try
+            {
+                var uploaded = await JS.InvokeAsync<string?>("tarazinBrandLogo.takeCurrent");
+                if (!string.IsNullOrWhiteSpace(uploaded)) _logoPath = uploaded;
+            }
+            catch { /* اسکریپت برند هنوز لود نشده — لوگوی فیلد حفظ می‌شود */ }
+
             await Db.ExecuteAsync("accounting", "CompanyAccountSettingsUpsert", new
             {
                 CompanyId = Session.ActiveCompanyId,
-                CustomerAccountGroupId = _customerGroup,
-                SupplierAccountGroupId = _supplierGroup,
-                InventoryAccountGroupId = _inventoryGroup,
+                CustomerAccountGroupId = cg,
+                SupplierAccountGroupId = sg,
+                InventoryAccountGroupId = ig,
+                CompanyName = _companyName,
+                Address = _address,
+                LogoPath = _logoPath,
+                QrBaseUrl = _qrBaseUrl,
+                QrEnabled = _qrEnabled,
                 UpdatedBy = Session.UserName
             });
             Snackbar.Add("تنظیمات شرکت ذخیره شد.", Severity.Success);

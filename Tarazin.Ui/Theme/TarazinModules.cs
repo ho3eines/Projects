@@ -35,6 +35,7 @@ public static class TarazinModules
                 new("کاربران", "/central/users", Icons.Material.Filled.Group, TarazinPermissions.Users),
                 new("نقش‌ها و دسترسی‌ها", "/central/roles", Icons.Material.Filled.AdminPanelSettings, TarazinPermissions.Roles),
                 new("ممیزی", "/central/audit", Icons.Material.Filled.Policy, TarazinPermissions.Audit),
+                new("مدیریت قالب‌های چاپ", "/central/printing", Icons.Material.Filled.Print, Perm("central", TarazinActions.View)),
             ]),
         new("accounting", "حسابداری", "اسناد، دفتر روزنامه و کل، تراز آزمایشی",
             "/accounting", Icons.Material.Filled.AccountBalance, "#1E4B73",

@@ -117,8 +117,9 @@
     <MudDivider />
 
     <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive"
-               ClipMode="DrawerClipMode.Always" Anchor="Anchor.Start" Class="tz-drawer"
-               Elevation="0" Breakpoint="Breakpoint.Md">
+               ClipMode="DrawerClipMode.Always" Anchor="Anchor.Start" Class="tz-drawer tz-drawer--mobile"
+               Elevation="0" Breakpoint="Breakpoint.Md" SwipeAreaWidth="24"
+               @ontouchstart="OnDrawerTouchStart" @ontouchend="OnDrawerTouchEnd">
         <div class="tz-drawer__head">
             <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="40" height="40" />
             <div>
@@ -131,7 +132,9 @@
 
     <MudMainContent Class="tz-main">
         <ModuleSubNav Module="_module" CurrentPath="@_path" />
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="tz-page">
+        @* @key = مسیر فعلی: با هر تغییر تب/صفحه، контینر دوباره مونت می‌شود و
+           انیمیشن ورود صفحه (tz-page-enter) دوباره پخش می‌شود — انتقال نرم بین تب‌ها. *@
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="tz-page" @key="_path">
             @if (_denied)
             {
                 <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-4" Icon="@Icons.Material.Filled.Lock">
@@ -277,7 +280,27 @@
             : "شما دسترسی لازم برای این بخش را ندارید. برای دریافت دسترسی با مدیر سیستم تماس بگیرید.";
     }
 
+    private double _drawerTouchStartX;
+
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void OnDrawerTouchStart(TouchEventArgs args)
+    {
+        _drawerTouchStartX = args.Touches.FirstOrDefault()?.ClientX ?? 0;
+    }
+
+    private void OnDrawerTouchEnd(TouchEventArgs args)
+    {
+        var endX = args.ChangedTouches.FirstOrDefault()?.ClientX ?? _drawerTouchStartX;
+        var delta = endX - _drawerTouchStartX;
+        if (Math.Abs(delta) < 48) return;
+
+        // در RTL، کشیدن از راست به چپ drawer را می‌بندد و برعکس باز می‌کند.
+        if (delta < 0 && _drawerOpen)
+            _drawerOpen = false;
+        else if (delta > 0 && !_drawerOpen)
+            _drawerOpen = true;
+    }
 
     private async Task Logout()
     {
@@ -286,7 +309,7 @@
         Nav.NavigateTo("/", forceLoad: true);
     }
 
-    private async Task NavigateToSettings()
+    private void NavigateToSettings()
     {
         Nav.NavigateTo("/settings");
     }

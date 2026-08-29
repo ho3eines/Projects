@@ -30,10 +30,10 @@
 <MudTabs>
     <MudTabPanel Text="معاملات ارز">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-3">
+            <PageToolbar Class="mb-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintTransactionsAsync"
                            Disabled="_loading || _transactions.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
-            </div>
+            </PageToolbar>
             <MudTable Items="_transactions" Hover="true" Dense="true" Striped="true" Loading="_loading"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
@@ -62,10 +62,10 @@
 
     <MudTabPanel Text="گردش ارز">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-3">
+            <PageToolbar Class="mb-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintMovementsAsync"
                            Disabled="_loading || _movements.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
-            </div>
+            </PageToolbar>
             <MudTable Items="_movements" Hover="true" Dense="true" Striped="true" Loading="_loading"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>

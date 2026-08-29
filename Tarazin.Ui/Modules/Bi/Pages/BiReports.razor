@@ -4,6 +4,8 @@
 @inject DbService Db
 @inject BiReportService ReportService
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject PrintTemplateService Tpl
 
 <PageTitle>گزارش‌ها و چاپ — داشبورد و BI</PageTitle>
 
@@ -30,6 +32,12 @@
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="BuildAsync" Disabled="_busy"
                        StartIcon="@Icons.Material.Filled.Print">
                 ایجاد و نمایش
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" OnClick="PrintGenericAsync" Disabled="_busy"
+                       StartIcon="@Icons.Material.Filled.Print">
+                چاپ موتور عمومی
             </MudButton>
         </MudItem>
     </MudGrid>
@@ -138,6 +146,124 @@
         for (var i = 0; i < pairs.Length; i += 2)
             map[pairs[i]] = pairs[i + 1];
         return map;
+    }
+
+    /// <summary>
+    /// چاپ گزارش انتخاب‌شده با موتور چاپ عمومی (قالب پویا از تعریف گزارش + همان دادهٔ اسکریپت).
+    /// ستون‌ها از ColumnTitles گزارش ساخته می‌شوند؛ مقدارها از خروجی اسکریپت نامدار می‌آیند.
+    /// </summary>
+    private async Task PrintGenericAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var def = Reports.First(r => r.Key == _selectedKey);
+
+            var parameters = new Dictionary<string, object?>(def.Params);
+            foreach (var key in new[] { "FromDate", "ToDate" })
+            {
+                if (parameters.ContainsKey(key))
+                    parameters[key] = key == "FromDate" ? _from : _to;
+            }
+
+            var rows = await Db.QueryAsync<dynamic>(def.Schema, def.Script, parameters);
+
+            // قالب پویا از ستون‌های تعریف‌شدهٔ گزارش
+            var tpl = new PrintTemplateDef
+            {
+                Id = "bi." + def.Key,
+                Name = def.Title,
+                Module = "bi",
+                PaperSize = PrintPaperSize.A4,
+                Orientation = rows.Count > 0 && def.ColumnTitles is { Count: > 6 }
+                    ? PrintOrientation.Landscape
+                    : PrintOrientation.Portrait,
+                MarginMm = 10,
+                FontSizePt = 8.5f,
+                ShowCompanyHeader = true,
+                ShowPageFooter = true,
+                ShowReportFooter = def.ColumnTitles is { Count: <= 4 },
+                QrEnabled = false,
+                ReportTitle = def.Title,
+                MetaFields = new List<PrintMetaField>
+                {
+                    new() { Label = "بازه", Bold = true },
+                    new() { Label = "تعداد ردیف", Bold = true }
+                },
+                Columns = def.ColumnTitles?.Select(kv => new PrintColumnDef
+                {
+                    Key = kv.Key,
+                    Title = kv.Value,
+                    Width = kv.Value.Contains("مبلغ") || kv.Value.Contains("ارزش") || kv.Value.Contains("سود") || kv.Value.Contains("درصد")
+                        ? 100 : 90,
+                    Align = kv.Value.Contains("مبلغ") || kv.Value.Contains("ارزش") || kv.Value.Contains("سود")
+                        ? PrintAlign.End : PrintAlign.Start,
+                    Format = kv.Value.Contains("مبلغ") || kv.Value.Contains("ارزش") || kv.Value.Contains("سود") || kv.Value.Contains("درصد") ? "N0" : null,
+                    Bold = kv.Value == "شماره"
+                }).ToList() ?? new()
+            };
+
+            var data = new PrintDataModel
+            {
+                CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+                Title = def.Title,
+                Subtitle = def.Subtitle,
+                RangeText = $"{_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}",
+                QrEnabled = false
+            };
+            data.MetaFields.Add(new PrintMetaField { Label = "بازه", Value = $"{_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", Bold = true });
+            data.MetaFields.Add(new PrintMetaField { Label = "تعداد ردیف", Value = rows.Count.ToString("N0"), Bold = true });
+
+            foreach (var r in rows)
+            {
+                var row = new PrintRow();
+                foreach (var col in tpl.Columns)
+                {
+                    var val = GetDynamic(r, col.Key);
+                    row[col.Key] = val;
+                }
+                data.Rows.Add(row);
+            }
+
+            await Dialog.ShowAsync<TemplatePrintDialog>($"چاپ — {def.Title}",
+                new DialogParameters<TemplatePrintDialog>
+                {
+                    { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "bi." + def.Key }
+                },
+                new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static object? GetDynamic(dynamic row, string key)
+    {
+        try
+        {
+            var dict = (IDictionary<string, object>)row;
+            return dict.TryGetValue(key, out var v) ? v : null;
+        }
+        catch
+        {
+            try
+            {
+                var p = row.GetType().GetProperty(key);
+                return p?.GetValue(row);
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     private async Task BuildAsync()

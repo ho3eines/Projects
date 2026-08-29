@@ -1,0 +1,95 @@
+# CI — گیتِ هر بیلد/PR پروژهٔ ترازین
+#
+# دو job:
+#   1) checks      — tools/run-checks.sh (اسکن cross-schema، گاردهای قالب چاپ،
+#                    کل سویت تست، بیلد وب، گارد stale). بدون SQL Server —
+#                    تست‌های DBدار Skip می‌شوند نه Fail.
+#   2) db-guards   — با سرویس SQL Server 2022: اسکیمای واقعی از روی
+#                    Tarazin.Data/Scripts/*/_Ensure.sql ساخته می‌شود و
+#                    گاردهای DBدار (قالب چاپ + بستن سال) واقعاً اجرا می‌شوند.
+#
+# راه‌اندازی محلی معادل:  bash tools/run-checks.sh
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    name: Checks (scan + tests + build + stale guard)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run full check gate
+        run: bash tools/run-checks.sh
+
+  db-guards:
+    name: DB guards (print templates + close year)
+    runs-on: ubuntu-latest
+    env:
+      # کانتینر SQL Server رمز ضعیف را نمی‌پذیرد (سیاست رمز قوی) — و تست‌ها
+      # اتصال را از TARAZIN_TEST_CONN می‌خوانند (پیش‌فرض محلی 123456 است).
+      SQL_PASSWORD: "Tarazin#CI2026!"
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Tarazin#CI2026!"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Tarazin#CI2026!' -C -b -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 30s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Wait for SQL Server
+        run: |
+          CID="${{ job.services.sqlserver.id }}"
+          for i in $(seq 1 30); do
+            if docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SQL_PASSWORD" -C -b -Q 'SELECT 1' >/dev/null 2>&1; then
+              echo "SQL Server ready"
+              break
+            fi
+            echo "waiting for SQL Server ($i)..."
+            sleep 5
+          done
+
+      # اسکیمای واقعی از روی _Ensure های منبع (idempotent) — معادل init هاست
+      - name: Initialize schemas from source (_Ensure, idempotent)
+        run: |
+          set -euo pipefail
+          CID="${{ job.services.sqlserver.id }}"
+          for f in Tarazin.Data/Scripts/*/_Ensure.sql; do
+            echo "── init: $f"
+            docker cp "$f" "$CID:/tmp/init.sql"
+            docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SQL_PASSWORD" -C -b -d master -i /tmp/init.sql
+          done
+          echo "All schemas initialized"
+
+      - name: Run DB-backed guards (print templates + close year)
+        env:
+          TARAZIN_TEST_CONN: "Server=localhost;Database=TarazinMaster;User Id=sa;Password=Tarazin#CI2026!;TrustServerCertificate=True;Encrypt=False"
+        run: |
+          dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo \
+            --filter "FullyQualifiedName~PrintTemplate|FullyQualifiedName~AccountingCloseYearTests"

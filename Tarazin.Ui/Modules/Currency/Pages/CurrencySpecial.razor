@@ -33,13 +33,9 @@
 <MudTabs>
     <MudTabPanel Text="منابع قیمت">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="@(() => OpenSourceEditorAsync(new PriceSourceRow()))"
-                           Disabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))">
-                    منبع جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="منبع جدید" AddIcon="@Icons.Material.Filled.Add"
+                         AddDisabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))"
+                         OnAddClick="@(() => OpenSourceEditorAsync(new PriceSourceRow()))" />
             <MudTable Items="_sources" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>عنوان</MudTh><MudTh>کلید</MudTh><MudTh>اولویت</MudTh><MudTh>فاصله (ثانیه)</MudTh>

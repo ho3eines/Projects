@@ -29,15 +29,15 @@
             <MudTd DataLabel="عنوان"><b>@context.Title</b></MudTd>
             <MudTd DataLabel="آدرس">@context.Location</MudTd>
             <MudTd DataLabel="مدیر">@context.Manager</MudTd>
-            <MudTd DataLabel="فعال">@(context.IsActive ? "بله" : "خیر")</MudTd>
-            <MudTd DataLabel="">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                               OnClick="@(() => OpenEditorAsync(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                               OnClick="@(() => DeleteAsync(context))" />
+            <MudTd DataLabel="فعال"><StatusChip IsActive="context.IsActive" /></MudTd>
+            <MudTd DataLabel="عملیات">
+                <EntityActions OnEdit="@(() => OpenEditorAsync(context))"
+                               OnDelete="@(() => DeleteAsync(context))" />
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">شعبه‌ای ثبت نشده است.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Title="شعبه‌ای ثبت نشده است." Description="برای شروع، یک شعبهٔ جدید اضافه کنید." Icon="@Icons.Material.Filled.Store" />
+        </NoRecordsContent>
     </MudTable>
 </MudPaper>
 

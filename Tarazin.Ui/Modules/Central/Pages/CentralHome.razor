@@ -1,6 +1,5 @@
 @page "/central"
 @inject UserSession Session
-@inject NavigationManager Nav
 
 <PageTitle>پلتفرم مشترک — ترازین</PageTitle>
 
@@ -9,17 +8,8 @@
 <div class="tz-modgrid">
     @foreach (var card in Cards)
     {
-        <button type="button" class="tz-modcard" style="--tz-accent:@card.Accent"
-                @onclick="() => Nav.NavigateTo(card.Url)">
-            <div class="tz-modcard__icon">
-                <MudIcon Icon="@card.Icon" />
-            </div>
-            <div class="tz-modcard__body">
-                <h3>@card.Title</h3>
-                <p>@card.Lead</p>
-            </div>
-            <MudIcon Icon="@Icons.Material.Filled.West" Class="tz-modcard__go" />
-        </button>
+        <ModuleCard Icon="@card.Icon" Title="@card.Title" Lead="@card.Lead"
+                    Url="@card.Url" Accent="@card.Accent" />
     }
 </div>
 

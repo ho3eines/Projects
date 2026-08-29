@@ -4,6 +4,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 @inject PdfReportService Pdf
+@inject PrintTemplateService Tpl
 
 <PageTitle>گزارشات — انبار</PageTitle>
 
@@ -66,7 +67,9 @@
                     <MudTd DataLabel="قیمت">@context.UnitPrice.ToString("N0")</MudTd>
                     <MudTd DataLabel="ارزش">@context.StockValue.ToString("N0")</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent>
+                    <EmptyState Title="موجودی‌ای برای نمایش وجود ندارد." Description="فیلتر انبار یا گزینهٔ نمایش موجودی را تغییر دهید." Icon="@Icons.Material.Filled.Inventory2" />
+                </NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
             @if (_balances.Count > 0)
@@ -152,7 +155,9 @@
                     <MudTd DataLabel="مانده ارزش">@context.BalanceValue.ToString("N0")</MudTd>
                     <MudTd DataLabel="شرح">@context.Description</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">کارتکسی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent>
+                    <EmptyState Title="کارتکسی برای نمایش وجود ندارد." Description="کالا و بازهٔ تاریخ را انتخاب کنید." Icon="@Icons.Material.Filled.ListAlt" />
+                </NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
         </MudPaper>
@@ -259,20 +264,44 @@
         }
     }
 
-    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+    // ── چاپ / PDF (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
 
     private async Task PrintBalancesAsync()
     {
         if (_balances.Count == 0) return;
-        await Dialog.ShowAsync<ReportPrintDialog>("چاپ موجودی کالا", new DialogParameters<ReportPrintDialog>
+        var tpl = await Tpl.GetOrCreateDefaultAsync("inventory.balances");
+        var data = new PrintDataModel
         {
-            { x => x.Title, "موجودی کالا" },
-            { x => x.Subtitle, "موجودی به تفکیک انبار/انبارک" },
-            { x => x.RangeText, $"تهیه شده در {DateTime.Now:yyyy/MM/dd HH:mm}" },
-            { x => x.Body, BalancesTableBody },
-            { x => x.BuildPdf, BuildBalancesPdf },
-            { x => x.Wide, true }
-        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = "موجودی کالا",
+            Subtitle = "موجودی به تفکیک انبار/انبارک",
+            RangeText = $"تهیه‌شده در {DateTime.Now:yyyy/MM/dd HH:mm}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "انبار", Value = _whFilter == 0 ? "همه" : (_warehouses.FirstOrDefault(w => w.WarehouseId == _whFilter)?.Title ?? "—"), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "تاریخ تهیه", Value = DateTime.Now.ToString("yyyy/MM/dd HH:mm") });
+        data.MetaFields.Add(new PrintMetaField { Label = "تعداد اقلام", Value = _balances.Count.ToString("N0"), Bold = true });
+        foreach (var r in _balances)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["ItemCode"] = r.ItemCode,
+                ["ItemTitle"] = r.ItemTitle,
+                ["Unit"] = r.Unit,
+                ["WarehouseName"] = r.WarehouseName ?? "—",
+                ["SubWarehouseName"] = r.SubWarehouseName ?? "—",
+                ["StockQty"] = r.StockQty,
+                ["UnitPrice"] = r.UnitPrice,
+                ["StockValue"] = r.StockValue
+            });
+        }
+        data.FooterFields.Add(new PrintMetaField { Label = "جمع ارزش", Value = _balances.Sum(b => b.StockValue).ToString("N0") + " ریال", Bold = true });
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ موجودی کالا",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "inventory.balances" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
     }
 
     private async Task PrintCardAsync()
@@ -280,15 +309,40 @@
         if (_card.Count == 0) return;
         var item = _items.FirstOrDefault(i => i.ItemId == _cardItemId);
         var title = item is null ? "کاردکس کالا" : $"کاردکس {item.ItemCode} — {item.ItemTitle}";
-        await Dialog.ShowAsync<ReportPrintDialog>("چاپ کاردکس کالا", new DialogParameters<ReportPrintDialog>
+        var tpl = await Tpl.GetOrCreateDefaultAsync("inventory.card");
+        var data = new PrintDataModel
         {
-            { x => x.Title, title },
-            { x => x.Subtitle, "گردش دریافت/صدور و ماندهٔ جاری" },
-            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
-            { x => x.Body, CardTableBody },
-            { x => x.BuildPdf, BuildCardPdf },
-            { x => x.Wide, true }
-        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = title,
+            Subtitle = "گردش دریافت/صدور و ماندهٔ جاری",
+            RangeText = $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "کالا", Value = title, Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "بازه", Value = $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" });
+        if (_card.Count > 0)
+            data.MetaFields.Add(new PrintMetaField { Label = "ماندهٔ ابتدا", Value = $"{_card[0].OpeningQty:N0} واحد — ارزش {_card[0].OpeningValue:N0}", Bold = true });
+        foreach (var r in _card)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["MovementDate"] = r.MovementDate.ToString("yyyy/MM/dd"),
+                ["MovementNumber"] = r.MovementNumber,
+                ["MovementType"] = r.MovementType,
+                ["InQty"] = r.InQty > 0 ? r.InQty : (object)0,
+                ["OutQty"] = r.OutQty > 0 ? r.OutQty : (object)0,
+                ["CostPrice"] = r.CostPrice,
+                ["BalanceQty"] = r.BalanceQty,
+                ["BalanceValue"] = r.BalanceValue,
+                ["Description"] = r.Description ?? ""
+            });
+        }
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ کاردکس کالا",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "inventory.card" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
     }
 
     private RenderFragment BalancesTableBody => @<MudTable Items="_balances" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">

@@ -10,14 +10,10 @@
 <PageHeader Title="امکانات و جداول پایه" Subtitle="نرخ ارز، بانک‌ها، حساب‌های بانکی، صندوق‌ها و اتصال حسابداری." />
 <MudTabs>
     <MudTabPanel Text="نرخ ارز">
-        <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="@(() => OpenRateEditorAsync(EntityEditorModel.FromCurrencyRate()))">
-                    نرخ جدید
-                </MudButton>
-            </div>
-            <MudTable Items="_rates" Hover="true" Dense="true" Striped="true" Loading="_loading">
+<MudPaper Elevation="1" Class="pa-4">
+    <PageToolbar AddText="نرخ جدید" AddIcon="@Icons.Material.Filled.Add"
+                 OnAddClick="@(() => OpenRateEditorAsync(EntityEditorModel.FromCurrencyRate()))" />
+    <MudTable Items="_rates" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>نرخ به ریال</MudTh><MudTh>تاریخ</MudTh><MudTh>عملیات</MudTh>
                 </HeaderContent>
@@ -44,12 +40,8 @@
 
     <MudTabPanel Text="بانک‌ها">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="@(() => OpenBankAsync(new BankRow()))">
-                    بانک جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="بانک جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="@(() => OpenBankAsync(new BankRow()))" />
             <MudTable Items="_banks" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -80,12 +72,8 @@
 
     <MudTabPanel Text="حساب‌های بانکی">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="@(() => OpenBankAccountAsync(new BankAccountRow()))">
-                    حساب بانکی جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="حساب بانکی جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="@(() => OpenBankAccountAsync(new BankAccountRow()))" />
             <MudTable Items="_bankAccounts" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>نام حساب</MudTh><MudTh>شماره</MudTh><MudTh>بانک</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -118,12 +106,8 @@
 
     <MudTabPanel Text="صندوق‌ها">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="@(() => OpenCashBoxAsync(new CashBoxRow()))">
-                    صندوق جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="صندوق جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="@(() => OpenCashBoxAsync(new CashBoxRow()))" />
             <MudTable Items="_cashBoxes" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>مانده</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>

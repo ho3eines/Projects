@@ -1,0 +1,53 @@
+@namespace Tarazin.Components
+@* نوار ابزار صفحه — الگوی تکرارشوندهٔ «ردیف دکمه‌های عملیات بالای جدول/تب».
+   به‌جای <div class="d-flex justify-end mb-4"> دستی در هر صفحه، این کامپوننت
+   را استفاده کنید تا فاصله‌ها، چینش RTL و گارد دسترسی یکدست بمانند.
+
+   استفاده:
+   <PageToolbar>
+       <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                  StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewAsync">
+           ردیف جدید
+       </MudButton>
+   </PageToolbar>
+
+   اگر فقط یک دکمهٔ «جدید» دارید، از میان‌بر زیر استفاده کنید:
+   <PageToolbar AddText="مشتری جدید" AddIcon="@Icons.Material.Filled.PersonAdd"
+                OnAddClick="OpenNewAsync" /> *@
+
+<div class="@(string.IsNullOrWhiteSpace(Class) ? "tz-toolbar" : $"tz-toolbar {Class}")">
+    @if (AddClick.HasDelegate || OnAddClick is not null)
+    {
+        @* میان‌بر: دکمهٔ «جدید» استاندارد بدون نیاز به ChildContent *@
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@(string.IsNullOrWhiteSpace(AddIcon) ? Icons.Material.Filled.Add : AddIcon)"
+                   OnClick="@(AddClick.HasDelegate ? AddClick : EventCallback.Factory.Create(this, OnAddClick!))"
+                   Disabled="AddDisabled">
+            @AddText
+        </MudButton>
+    }
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>محتوای دلخواه (دکمه‌های اضافی، فیلترها، جست‌وجو).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>متن دکمهٔ میان‌بر «جدید» (فقط با OnAddClick/AddClick معنا دارد).</summary>
+    [Parameter] public string AddText { get; set; } = "ردیف جدید";
+
+    /// <summary>آیکون دکمهٔ میان‌بر (پیش‌فرض: +).</summary>
+    [Parameter] public string? AddIcon { get; set; }
+
+    /// <summary>رویداد دکمهٔ میان‌بر — EventCallback تا از markup هم قابل اتصال باشد.</summary>
+    [Parameter] public EventCallback AddClick { get; set; }
+
+    /// <summary>هم‌معنای AddClick برای اتصال نام متد در markup (اختیاری).</summary>
+    [Parameter] public Func<Task>? OnAddClick { get; set; }
+
+    /// <summary>غیرفعال‌کردن دکمهٔ میان‌بر (مثلاً حین ذخیره).</summary>
+    [Parameter] public bool AddDisabled { get; set; }
+
+    /// <summary>کلاس اضافی (مثلاً mb-3 به‌جای mb-4 پیش‌فرض).</summary>
+    [Parameter] public string? Class { get; set; }
+}

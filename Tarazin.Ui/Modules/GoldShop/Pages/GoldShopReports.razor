@@ -4,6 +4,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 @inject PdfReportService Pdf
+@inject PrintTemplateService Tpl
 
 <PageTitle>گزارشات — طلافروشی</PageTitle>
 
@@ -65,11 +66,11 @@
 
     <MudTabPanel Text="تاریخچه قیمت طلا">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-3">
+            <PageToolbar Class="mb-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintPricesAsync"
                            Disabled="_loadingPrices || _prices.Count == 0"
                            StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
-            </div>
+            </PageToolbar>
             <MudTable Items="_prices" Loading="_loadingPrices" Hover="true" Dense="true" Striped="true"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
@@ -153,33 +154,77 @@
         }
     }
 
-    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+    // ── چاپ / PDF (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
 
     private async Task PrintSalesAsync()
     {
         if (_sales.Count == 0) return;
-        await Dialog.ShowAsync<ReportPrintDialog>("چاپ فروش روز", new DialogParameters<ReportPrintDialog>
+        var tpl = await Tpl.GetOrCreateDefaultAsync("goldshop.sales");
+        var data = new PrintDataModel
         {
-            { x => x.Title, "فروش روز طلا" },
-            { x => x.Subtitle, "فاکتورهای فروش طلا و جواهرات در بازهٔ تاریخ" },
-            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
-            { x => x.Body, SalesTableBody },
-            { x => x.BuildPdf, BuildSalesPdf },
-            { x => x.Wide, true }
-        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = "فروش روز طلا",
+            Subtitle = "فاکتورهای فروش طلا و جواهرات در بازهٔ تاریخ",
+            RangeText = $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "بازه", Value = $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "تعداد فاکتور", Value = _sales.Count.ToString("N0"), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "جمع فروش", Value = _sales.Sum(s => s.TotalAmount).ToString("N0"), Bold = true });
+        foreach (var r in _sales)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["InvoiceNumber"] = r.InvoiceNumber,
+                ["InvoiceDate"] = r.InvoiceDate.ToString("yyyy/MM/dd"),
+                ["CustomerName"] = r.CustomerName,
+                ["ItemCode"] = r.ItemCode,
+                ["ItemTitle"] = r.ItemTitle,
+                ["WeightGram"] = r.WeightGram,
+                ["Workmanship"] = r.Workmanship,
+                ["Profit"] = r.Profit,
+                ["Tax"] = r.Tax,
+                ["TotalAmount"] = r.TotalAmount
+            });
+        }
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ فروش روز",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "goldshop.sales" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
     }
 
     private async Task PrintPricesAsync()
     {
         if (_prices.Count == 0) return;
-        await Dialog.ShowAsync<ReportPrintDialog>("چاپ تاریخچه قیمت طلا", new DialogParameters<ReportPrintDialog>
+        var tpl = await Tpl.GetOrCreateDefaultAsync("goldshop.prices");
+        var data = new PrintDataModel
         {
-            { x => x.Title, "تاریخچه قیمت طلا" },
-            { x => x.Subtitle, "قیمت هر گرم اقلام طلا و جواهرات" },
-            { x => x.RangeText, $"تهیه شده در {DateTime.Now:yyyy/MM/dd HH:mm}" },
-            { x => x.Body, PricesTableBody },
-            { x => x.BuildPdf, BuildPricesPdf }
-        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = "تاریخچه قیمت طلا",
+            Subtitle = "قیمت هر گرم اقلام طلا و جواهرات",
+            RangeText = $"تهیه‌شده در {DateTime.Now:yyyy/MM/dd HH:mm}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "تاریخ تهیه", Value = DateTime.Now.ToString("yyyy/MM/dd HH:mm") });
+        data.MetaFields.Add(new PrintMetaField { Label = "تعداد اقلام", Value = _prices.Count.ToString("N0"), Bold = true });
+        foreach (var r in _prices)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["ItemCode"] = r.ItemCode,
+                ["Title"] = r.Title,
+                ["PricePerGram"] = r.PricePerGram,
+                ["UpdatedAt"] = r.UpdatedAt.ToString("yyyy/MM/dd HH:mm")
+            });
+        }
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ تاریخچه قیمت طلا",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "goldshop.prices" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
     }
 
     private RenderFragment SalesTableBody => @<MudTable Items="_sales" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">

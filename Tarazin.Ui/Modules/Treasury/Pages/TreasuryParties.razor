@@ -14,7 +14,8 @@
     </MudGrid>
 </MudPaper>
 <MudPaper Class="pa-4">
-    <div class="d-flex justify-end mb-3"><MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => EditAsync(new TreasuryPartyEditModel { PartyType = string.IsNullOrEmpty(_type) ? "Customer" : _type }))">طرف حساب جدید</MudButton></div>
+    <PageToolbar AddText="طرف حساب جدید" AddIcon="@Icons.Material.Filled.PersonAdd"
+                 OnAddClick="@(() => EditAsync(new TreasuryPartyEditModel { PartyType = string.IsNullOrEmpty(_type) ? "Customer" : _type }))" />
     <MudTable Items="_rows" Loading="_loading" Dense="true" Hover="true" Striped="true">
         <HeaderContent><MudTh>نوع</MudTh><MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>تلفن</MudTh><MudTh>تفصیلی</MudTh><MudTh>عملیات</MudTh></HeaderContent>
         <RowTemplate>

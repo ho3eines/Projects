@@ -9,7 +9,18 @@
 
 <PageTitle>ثبت سند — حسابداری</PageTitle>
 
-<PageHeader Title="ثبت سند حسابداری" Subtitle="سند روزنامه با ردیف‌های بدهکار و بستانکار — باید متوازن باشد. روی هر ردیف کلیک کنید تا انتخاب شده و سبز شود." Eyebrow="حسابداری" />
+<PageHeader Title="ثبت سند حسابداری" Subtitle="سند روزنامه با ردیف‌های بدهکار و بستانکار — باید متوازن باشد. روی هر ردیف کلیک کنید تا انتخاب شده و سبز شود." Eyebrow="حسابداری">
+    @* چاپ پیش‌نمایش سندِ در حال ثبت — منوی دو حالته: ساده / پیشرفته *@
+    <MudMenu Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Variant="Variant.Outlined"
+             Label="چاپ">
+        <MudMenuItem OnClick="@(() => PrintEntryAsync(advanced: false))">
+            <MudIcon Icon="@Icons.Material.Filled.Description" Class="mr-2" /> چاپ ساده (ردیف‌های سند)
+        </MudMenuItem>
+        <MudMenuItem OnClick="@(() => PrintEntryAsync(advanced: true))">
+            <MudIcon Icon="@Icons.Material.Filled.AccountTree" Class="mr-2" /> چاپ پیشرفته (کل / معین / تفصیل)
+        </MudMenuItem>
+    </MudMenu>
+</PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
@@ -74,11 +85,13 @@
                                  ValueChanged="v => { context.Credit = v; }" Variant="Variant.Outlined"
                                  Margin="Margin.Dense" Min="0" Format="#,##0.##" />
             </MudTd>
-            <MudTd DataLabel="">
+            <MudTd DataLabel="عملیات">
                 <span @onclick:stopPropagation="true">
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
-                                   Size="Size.Small" Disabled="@(_lines.Count <= 1)"
-                                   OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                    <MudTooltip Text="حذف ردیف">
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
+                                       Size="Size.Small" Disabled="@(_lines.Count <= 1)"
+                                       OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                    </MudTooltip>
                 </span>
             </MudTd>
         </RowTemplate>
@@ -188,7 +201,7 @@
     private bool CanOverrideClosedYear =>
         Session.IsAdmin || Session.HasPermission(TarazinPermissions.AccountingClosedYear);
 
-    private AccountDetailBalance _accountDetailBalance= new AccountDetailBalance();
+    private AccountDetailBalance? _accountDetailBalance;
 
     private decimal TotalDebit
     {
@@ -256,8 +269,8 @@
                 {
                     CompanyId = Session.ActiveCompanyId,
                     FiscalYearId = Session.ActiveFiscalYearId,
-                    AccountCode = args?.Item.AccountCode
-                }) ?? new AccountDetailBalance();
+                    AccountCode = args.Item.AccountCode
+                });
 
                 _selectedLine = args?.Item;
             }
@@ -391,11 +404,64 @@
     private void ShowSelectedDetail()
     {
         _ = ShowSelectedDetailAsync();
+    }    private async Task PrintEntryAsync(bool advanced)
+    {
+        try
+        {
+            if (_lines.Count == 0)
+            {
+                Snackbar.Add("ابتدا ردیفی به سند اضافه کنید.", Severity.Warning);
+                return;
+            }
+
+            var settings = await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting",
+                "CompanyAccountSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+
+            var model = new AccountingDocumentPrintModel
+            {
+                DocumentId = 0,
+                DocumentNumber = "جدید (پیش‌نمایش)",
+                DocumentDate = _documentDate ?? DateTime.Today,
+                DocumentType = _documentType,
+                CounterPartyName = _counterParty,
+                TotalAmount = TotalDebit,
+                Status = _status,
+                Lines = _lines.Where(l => l.AccountId != 0).Select(l => new DocumentLineRow
+                {
+                    AccountId = l.AccountId,
+                    AccountCode = l.AccountCode,
+                    Title = l.AccountTitle,
+                    Description = l.Description,
+                    Debit = l.Debit,
+                    Credit = l.Credit
+                }).ToList(),
+                BrandName = settings?.CompanyName,
+                QrBaseUrl = settings?.QrBaseUrl,
+                Advanced = advanced
+            };
+
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Medium,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+            await DialogService.ShowAsync<DocumentPrintDialog>("چاپ پیش‌نمایش سند", new DialogParameters
+            {
+                ["Model"] = model
+            }, options);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در چاپ پیش‌نمایش: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task SaveAsync()
     {
         if (_busy) return;
+
         try
         {
             if (!IsBalanced)

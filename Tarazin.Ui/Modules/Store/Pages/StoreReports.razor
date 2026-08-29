@@ -4,6 +4,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 @inject PdfReportService Pdf
+@inject PrintTemplateService Tpl
 
 <PageTitle>گزارشات — فروشگاه اینترنتی</PageTitle>
 
@@ -56,7 +57,9 @@
             <MudTd DataLabel="مبلغ">@context.TotalAmount.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">@StatusText(context.Status)</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Title="سفارشی در این بازه ثبت نشده است." Description="بازهٔ تاریخ یا وضعیت سفارش را تغییر دهید." Icon="@Icons.Material.Filled.ReceiptLong" />
+        </NoRecordsContent>
         <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 
@@ -108,19 +111,41 @@
         }
     }
 
-    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+    // ── چاپ / PDF (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
 
     private async Task PrintAsync()
     {
         if (_rows.Count == 0) return;
-        await Dialog.ShowAsync<ReportPrintDialog>("چاپ گزارش سفارش‌ها", new DialogParameters<ReportPrintDialog>
+        var tpl = await Tpl.GetOrCreateDefaultAsync("store.orders");
+        var data = new PrintDataModel
         {
-            { x => x.Title, "گزارش سفارش‌ها" },
-            { x => x.Subtitle, "سفارش‌ها بر اساس وضعیت در بازهٔ تاریخ" },
-            { x => x.RangeText, $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}" },
-            { x => x.Body, TableBody },
-            { x => x.BuildPdf, BuildPdf }
-        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = "گزارش سفارش‌ها",
+            Subtitle = "سفارش‌ها بر اساس وضعیت در بازهٔ تاریخ",
+            RangeText = $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "بازه", Value = $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "تعداد سفارش", Value = _rows.Count.ToString("N0"), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "جمع مبلغ", Value = _rows.Sum(r => r.TotalAmount).ToString("N0"), Bold = true });
+        foreach (var r in _rows)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["OrderNumber"] = r.OrderNumber,
+                ["OrderDate"] = r.OrderDate.ToString("yyyy/MM/dd"),
+                ["CustomerName"] = r.CustomerName,
+                ["ItemCount"] = r.ItemCount,
+                ["TotalAmount"] = r.TotalAmount,
+                ["StatusTitle"] = StatusText(r.Status)
+            });
+        }
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ گزارش سفارش‌ها",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "store.orders" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
     }
 
     private RenderFragment TableBody => @<MudTable Items="_rows" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">

@@ -1,0 +1,663 @@
+@page "/central/printing"
+@inject PrintTemplateService Tpl
+@inject DbService Db
+@inject UserSession Session
+@inject IJSRuntime JS
+@inject IDialogService Dialogs
+@inject IPdfSaver PdfSaver
+@inject PdfReportService Pdf
+@inject NavigationManager Nav
+
+@* ═══════════════════════════════════════════════════════════════════════
+   مدیریت چاپ — حالت دیزاین موتور چاپ عمومی
+   هر گزارش/سند یک قالب مجزا دارد (شناسه: ماژول.گزارش). در این صفحه قالب
+   انتخاب، ویرایش (باندها: هدر شرکت، هدر داده، ستون‌ها، فوتر گزارش، فوتر
+   صفحه)، پیش‌نمایش زنده، ذخیره، چاپ و دانلود PDF می‌شود.
+   ═══════════════════════════════════════════════════════════════════════ *@
+
+<PageHeader Title="مدیریت قالب‌های چاپ"
+            Subtitle="برای هر گزارش قالب مجزا تعریف کنید — هدر شرکت، هدر داده، جدول دیتیل، فوتر گزارش و فوتر صفحه."
+            Eyebrow="موتور چاپ عمومی">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_saving"
+               StartIcon="@Icons.Material.Filled.Save">ذخیره قالب</MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="NewTemplateAsync"
+               StartIcon="@Icons.Material.Filled.Add">قالب جدید</MudButton>
+</PageHeader>
+
+<MudGrid Spacing="3">
+    @* ── ستون فهرست قالب‌ها ── *@
+    <MudItem xs="12" md="3">
+        <MudPaper Elevation="0" Class="pa-2" Style="border:1px solid #e0e0e0;border-radius:10px">
+            <MudTextField T="string" Label="جستجوی قالب" Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true"
+                          @bind-Value="_filter" Class="mb-2" />
+            <MudList T="string" Dense="true" Class="tpl-list">
+                @foreach (var t in _filteredTemplates)
+                {
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.Description"
+                                 Class="@(_selectedId == t.Id ? "tpl-list__item tpl-list__item--active" : "tpl-list__item")"
+                                 OnClick="@(() => SelectAsync(t.Id))">
+                        <div class="d-flex align-center justify-space-between w-100">
+                            <div>
+                                <div class="font-weight-bold">@t.Name</div>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@t.Id</MudText>
+                            </div>
+                            <div class="d-flex align-center gap-1">
+                                @if (!string.IsNullOrWhiteSpace(t.DefaultFor))
+                                {
+                                    var isOwnDefault = t.CompanyId is null || t.CompanyId == Session.ActiveCompanyId;
+                                    <MudChip T="string" Size="Size.Small"
+                                             Color="@(isOwnDefault ? Color.Warning : Color.Default)"
+                                             Icon="@Icons.Material.Filled.Star">
+                                        پیش‌فرض: @t.DefaultFor@(isOwnDefault ? "" : $" (شرکت {t.CompanyId})")
+                                    </MudChip>
+                                }
+                                @if (t.IsSystem)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info">سیستمی</MudChip>
+                                }
+                                <MudMenu Class="tpl-setdefault-menu">
+                                    <ActivatorContent>
+                                        @* در MudBlazor 9 کلیک روی ActivatorContent باید به MenuContext وصل شود. *@
+                                        <MudTooltip Text="تنظیم به‌عنوان پیش‌فرض">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Star" Size="Size.Small"
+                                                           Color="@(string.IsNullOrWhiteSpace(t.DefaultFor) || (t.CompanyId is not null && t.CompanyId != Session.ActiveCompanyId) ? Color.Default : Color.Warning)"
+                                                           OnClick="() => context.ToggleAsync()" />
+                                        </MudTooltip>
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <MudMenuItem OnClick="@(() => ClearDefaultAsync(t))">
+                                            <MudIcon Icon="@Icons.Material.Filled.Cancel" Class="mr-2" /> بدون پیش‌فرض
+                                        </MudMenuItem>
+                                        <MudDivider />
+                                        @foreach (var r in PrintTemplates.Defaults.Known)
+                                        {
+                                            <MudMenuItem OnClick="@(() => SetDefaultAsync(t, r))">
+                                                <MudIcon Icon="@Icons.Material.Filled.Star" Class="mr-2" /> @r
+                                            </MudMenuItem>
+                                        }
+                                    </ChildContent>
+                                </MudMenu>
+                            </div>
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 px-2">
+                @_templates.Count قالب — @_filteredTemplates.Count نمایان
+            </MudText>
+        </MudPaper>
+    </MudItem>
+
+    @* ── ستون ویرایشگر ── *@
+    <MudItem xs="12" md="4">
+        @if (_tpl is null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                یک قالب را از فهرست انتخاب کنید یا «قالب جدید» بزنید.
+            </MudAlert>
+        }
+        else
+        {
+            <MudPaper Elevation="0" Class="pa-4 mb-3" Style="border:1px solid #e0e0e0;border-radius:10px">
+                <MudText Typo="Typo.h6" Class="mb-3"><MudIcon Icon="@Icons.Material.Filled.Tune" /> تنظیمات قالب</MudText>
+                <MudTextField T="string" Label="شناسه (ID)" @bind-Value="_tpl.Id" Disabled="@(_tpl.IsSystem)"
+                              HelperText="مثل treasury.cheques — کلید یکتای گزارش" Class="mb-2" />
+                <MudTextField T="string" Label="نام قالب" @bind-Value="_tpl.Name" Class="mb-2" />
+                <MudTextField T="string" Label="توضیح" @bind-Value="_tpl.Description" Class="mb-2" />
+                <MudTextField T="string" Label="عنوان گزارش" @bind-Value="_tpl.ReportTitle" Class="mb-2" />
+                <MudTextField T="string" Label="زیرعنوان" @bind-Value="_tpl.ReportSubtitle" Class="mb-2" />
+                <MudGrid Spacing="2">
+                    <MudItem xs="6">
+                        <MudSelect T="PrintPaperSize" Label="اندازهٔ کاغذ" @bind-Value="_tpl.PaperSize"
+                                   Variant="Variant.Outlined">
+                            <MudSelectItem Value="@PrintPaperSize.A4">A4</MudSelectItem>
+                            <MudSelectItem Value="@PrintPaperSize.A5">A5</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudSelect T="PrintOrientation" Label="جهت برگه" @bind-Value="_tpl.Orientation"
+                                   Variant="Variant.Outlined">
+                            <MudSelectItem Value="@PrintOrientation.Portrait">عمودی</MudSelectItem>
+                            <MudSelectItem Value="@PrintOrientation.Landscape">افقی</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField T="int" Label="حاشیه (mm)" @bind-Value="_tpl.MarginMm" Min="4" Max="40"
+                                         Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField T="float" Label="اندازهٔ قلم (pt)" @bind-Value="_tpl.FontSizePt"
+                                         Min="6f" Max="14f" Step="0.5f"                                          Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudSwitch T="bool" Label="نمایش هدر اطلاعات شرکت (لوگو/نام/آدرس)" @bind-Value="_tpl.ShowCompanyHeader" Class="mt-2" />
+                <MudSwitch T="bool" Label="نمایش فوتر صفحه (شماره صفحه)" @bind-Value="_tpl.ShowPageFooter" />
+                <MudSwitch T="bool" Label="نمایش فوتر گزارش (جمع‌ها)" @bind-Value="_tpl.ShowReportFooter" />
+                <MudSwitch T="bool" Label="نمایش QRCode پیگیری" @bind-Value="_tpl.QrEnabled" />
+
+                <MudDivider Class="my-3" />
+                <MudText Typo="Typo.subtitle1" Class="mb-1"><MudIcon Icon="@Icons.Material.Filled.Star" /> پیش‌فرض گزارش</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                    اگر این قالب باید هنگام چاپِ یک گزارش خاص (مثل <code>treasury.cheques</code>) بدون تغییر کد استفاده شود،
+                    شناسهٔ آن گزارش را انتخاب کنید.
+                </MudText>
+                <div class="d-flex align-center gap-2">
+                    <MudSelect T="string" Label="پیش‌فرض برای گزارش" @bind-Value="_tpl.DefaultFor"
+                               Variant="Variant.Outlined" Class="flex-grow-1"
+                               Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Star">
+                        <MudSelectItem T="string" Value="@(string.Empty)">— بدون پیش‌فرض —</MudSelectItem>
+                        @foreach (var r in PrintTemplates.Defaults.Known)
+                        {
+                            <MudSelectItem T="string" Value="@r">@r</MudSelectItem>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_tpl.DefaultFor) && !PrintTemplates.Defaults.Known.Contains(_tpl.DefaultFor))
+                        {
+                            <MudSelectItem T="string" Value="@_tpl.DefaultFor">@_tpl.DefaultFor</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTooltip Text="ذخیرهٔ قالب">
+                        <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary"
+                                       OnClick="SaveAsync" Disabled="@(_saving || string.IsNullOrWhiteSpace(_tpl.Id))" />
+                    </MudTooltip>
+                </div>
+
+                @if (_hasSavedRow)
+                {
+                    <MudDivider Class="my-3" />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" FullWidth="true"
+                               OnClick="ResetToBuiltInAsync"
+                               StartIcon="@Icons.Material.Filled.RestartAlt">
+                        بازنشانی به قالب پیش‌فرض داخلی
+                    </MudButton>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        قالب ذخیره‌شدهٔ فعلی حذف می‌شود (با هر «پیش‌فرض گزارش» که دارد) و این گزارش به قالب پیش‌فرض داخلی برمی‌گردد.
+                    </MudText>
+                }
+            </MudPaper>
+
+            <MudPaper Elevation="0" Class="pa-4 mb-3" Style="border:1px solid #e0e0e0;border-radius:10px">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.ViewColumn" /> هدر داده</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="AddMetaField"
+                               StartIcon="@Icons.Material.Filled.Add">افزودن فیلد</MudButton>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                    این‌ها همان «برچسب‌ها»ی بالای گزارش‌اند (شماره، تاریخ، وضعیت، …) — مقدارها از دادهٔ گزارش به‌صورت خودکار پر می‌شود.
+                </MudText>
+                @for (var i = 0; i < _tpl.MetaFields.Count; i++)
+                {
+                    var idx = i;
+                    <div class="d-flex align-center gap-2 mb-1">
+                        <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="@(idx == 0)"
+                                       OnClick="@(() => MoveMeta(idx, -1))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="@(idx == _tpl.MetaFields.Count - 1)"
+                                       OnClick="@(() => MoveMeta(idx, 1))" />
+                        <MudTextField T="string" Label="برچسب" @bind-Value="_tpl.MetaFields[idx].Label"
+                                      Variant="Variant.Outlined" Class="flex-grow-1" />
+                        <MudTooltip Text="بولد">
+                            <MudSwitch T="bool" @bind-Value="_tpl.MetaFields[idx].Bold" />
+                        </MudTooltip>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => RemoveMetaField(idx))" />
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Elevation="0" Class="pa-4" Style="border:1px solid #e0e0e0;border-radius:10px">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.TableChart" /> ستون‌های دیتیل</MudText>
+                    <MudMenu Label="افزودن ستون" Variant="Variant.Text" Color="Color.Primary"
+                             StartIcon="@Icons.Material.Filled.Add" Class="mb-0">
+                        @foreach (var preset in _columnPresets)
+                        {
+                            <MudMenuItem OnClick="@(() => AddColumnPreset(preset))">
+                                <span class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@preset.Icon" Size="Size.Small" />
+                                    <span>@preset.Name</span>
+                                </span>
+                            </MudMenuItem>
+                        }
+                        <MudDivider />
+                        <MudMenuItem OnClick="AddColumn">
+                            <MudIcon Icon="@Icons.Material.Filled.Notes" Size="Size.Small" Class="mr-2" /> ستون خالی
+                        </MudMenuItem>
+                    </MudMenu>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                    برای افزودن ستون از الگوهای آماده استفاده کنید؛ «کلید داده» همان نام فیلد در دادهٔ گزارش است و با جستجو انتخاب می‌شود.
+                </MudText>
+                @for (var i = 0; i < _tpl.Columns.Count; i++)
+                {
+                    var idx = i;
+                    <MudPaper Elevation="0" Class="pa-2 mb-2" Style="border:1px dashed #ccc;border-radius:8px">
+                        <MudGrid Spacing="1">
+                            <MudItem xs="7">
+                                <MudTextField T="string" Label="عنوان ستون (در چاپ)" @bind-Value="_tpl.Columns[idx].Title"
+                                              Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="5">
+                                <MudAutocomplete T="string" Label="کلید داده (فیلد گزارش)"
+                                                 @bind-Value="_tpl.Columns[idx].Key"
+                                                 SearchFunc="@((string? s, CancellationToken _) => Task.FromResult(FilterKeys(s)))"
+                                                 ToStringFunc="@(k => k ?? "")" Clearable="true"
+                                                 Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="4">
+                                <MudNumericField T="int" Label="عرض" @bind-Value="_tpl.Columns[idx].Width" Min="20" Max="500"
+                                                 Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="4">
+                                <MudSelect T="PrintAlign" Label="تراز" @bind-Value="_tpl.Columns[idx].Align"
+                                           Variant="Variant.Outlined">
+                                    <MudSelectItem Value="@PrintAlign.Start">راست</MudSelectItem>
+                                    <MudSelectItem Value="@PrintAlign.Center">وسط</MudSelectItem>
+                                    <MudSelectItem Value="@PrintAlign.End">چپ</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="4">
+                                <MudSelect T="string" Label="فرمت عدد" @bind-Value="_tpl.Columns[idx].Format"
+                                           Variant="Variant.Outlined">
+                                    <MudSelectItem Value="@(string.Empty)">بدون فرمت</MudSelectItem>
+                                    <MudSelectItem Value="@("N0")">N0 (هزار جداکن)</MudSelectItem>
+                                    <MudSelectItem Value="@("N2")">N2 (۲ رقم اعشار)</MudSelectItem>
+                                    <MudSelectItem Value="@("N3")">N3 (۳ رقم اعشار)</MudSelectItem>
+                                    <MudSelectItem Value="@("N4")">N4 (۴ رقم اعشار)</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" Class="d-flex align-center gap-3 pt-1">
+                                <MudSwitch T="bool" @bind-Value="_tpl.Columns[idx].Bold" Label="بولد" />
+                                <MudSwitch T="bool" @bind-Value="_tpl.Columns[idx].Total" Label="جمع در فوتر" />
+                                <MudSpacer />
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="@(idx == 0)"
+                                               OnClick="@(() => MoveColumn(idx, -1))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="@(idx == _tpl.Columns.Count - 1)"
+                                               OnClick="@(() => MoveColumn(idx, 1))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => RemoveColumn(idx))" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+            </MudPaper>
+        }
+    </MudItem>
+
+    @* ── ستون پیش‌نمایش زنده ── *@
+    <MudItem xs="12" md="5">
+        @if (_tpl is not null)
+        {
+            <div class="d-flex align-center gap-2 mb-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync" Disabled="@(_saving)"
+                           StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync" Disabled="@_saving"
+                           StartIcon="@Icons.Material.Filled.FileDownload">دانلود PDF</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="DeleteAsync" Disabled="@(_tpl.IsSystem)"
+                           StartIcon="@Icons.Material.Filled.Delete">حذف</MudButton>
+                <MudSpacer />
+                <MudSwitch T="bool" @bind-Value="_showSample" Label="نمونه داده" />
+            </div>
+            <div class="tpl-print-stage">
+                <div class="tpl-sheet-shell">
+                    @((MarkupString)PrintSheetRenderer.BuildHtml(_tpl, BuildPreviewData()))
+                </div>
+            </div>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private readonly List<PrintTemplateRow> _templates = new();
+    private List<PrintTemplateRow> _filteredTemplates => _templates
+        .Where(t => string.IsNullOrWhiteSpace(_filter) ||
+                    t.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase) ||
+                    t.Id.Contains(_filter, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private string _filter = "";
+    private string? _selectedId;
+    private PrintTemplateDef? _tpl;
+    /// <summary>آیا قالبِ انتخاب‌شده ردیفِ ذخیره‌شده در دیتابیس دارد؟ (برای دکمهٔ بازنشانی)</summary>
+    private bool _hasSavedRow;
+    private bool _saving;
+    private bool _showSample = true;
+    private CompanyAccountSettingsRow? _company;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadListAsync();
+        _company = await TryLoadCompanyAsync();
+
+        var tplParam = ParseQuery(Nav.Uri, "tpl");
+        if (!string.IsNullOrWhiteSpace(tplParam))
+            await SelectAsync(tplParam);
+        else if (_templates.Count > 0)
+            await SelectAsync(_templates[0].Id);
+    }
+
+    private static string? ParseQuery(string uri, string key)
+    {
+        var q = uri.IndexOf('?');
+        if (q < 0) return null;
+        foreach (var part in uri[(q + 1)..].Split('&'))
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length == 2 && string.Equals(kv[0], key, StringComparison.OrdinalIgnoreCase))
+                return Uri.UnescapeDataString(kv[1]);
+        }
+        return null;
+    }
+
+    private async Task LoadListAsync()
+    {
+        _templates.Clear();
+        _templates.AddRange(await Tpl.ListAsync());
+
+        // قالب‌های پیش‌فرض داخلی که هنوز در دیتابیس ذخیره نشده‌اند هم در فهرست
+        // نمایش داده می‌شوند تا کاربر بتواند آن‌ها را انتخاب، شخصی‌سازی و ذخیره کند.
+        var savedIds = new HashSet<string>(_templates.Select(t => t.Id), StringComparer.OrdinalIgnoreCase);
+        foreach (var id in PrintTemplates.Defaults.Known)
+        {
+            if (savedIds.Contains(id)) continue;
+            var def = PrintTemplates.Defaults.Get(id);
+            _templates.Add(new PrintTemplateRow
+            {
+                Id = def.Id, Name = def.Name, Description = def.Description,
+                Module = def.Module, PaperSize = def.PaperSize.ToString(),
+                Orientation = def.Orientation.ToString(), IsSystem = true
+            });
+        }
+    }
+
+    private async Task SelectAsync(string id)
+    {
+        _selectedId = id;
+        var saved = await Tpl.GetAsync(id);
+        _hasSavedRow = saved is not null;
+        _tpl = saved ?? PrintTemplates.Defaults.Get(id).Clone();
+    }
+
+    private async Task NewTemplateAsync()
+    {
+        var id = Guid.NewGuid().ToString("N")[..8];
+        _tpl = new PrintTemplateDef
+        {
+            Id = id,
+            Name = "قالب جدید",
+            Module = "central",
+            PaperSize = PrintPaperSize.A4,
+            Orientation = PrintOrientation.Portrait,
+            MarginMm = 12,
+            FontSizePt = 9,
+            ShowCompanyHeader = true,
+            ShowPageFooter = true,
+            ShowReportFooter = true,
+            Columns = new List<PrintColumnDef>
+            {
+                new() { Key = "Title", Title = "شرح", Width = 200 },
+                new() { Key = "Amount", Title = "مبلغ", Width = 110, Align = PrintAlign.End, Format = "N0", Total = true }
+            },
+            MetaFields = new List<PrintMetaField>
+            {
+                new() { Label = "تاریخ", Bold = true },
+                new() { Label = "شماره", Bold = true }
+            }
+        };
+        _selectedId = _tpl.Id;
+        _hasSavedRow = false;
+        await Task.CompletedTask;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_tpl is null || string.IsNullOrWhiteSpace(_tpl.Id)) return;
+        _saving = true;
+        try
+        {
+            await Tpl.SaveAsync(_tpl);
+            await LoadListAsync();
+            _selectedId = _tpl.Id;
+            _hasSavedRow = true;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_tpl is null || _tpl.IsSystem) return;
+        var ok = await Dialogs.ShowMessageBoxAsync("حذف قالب", $"قالب «{_tpl.Name}» حذف شود؟", "حذف", "انصراف");
+        if (ok == true)
+        {
+            await Tpl.DeleteAsync(_tpl.Id);
+            _tpl = null;
+            _selectedId = null;
+            _hasSavedRow = false;
+            await LoadListAsync();
+        }
+    }
+
+    /// <summary>«پیش‌فرضِ گزارش» را سریع از فهرست روی قالب تنظیم می‌کند (بدون تغییر کد).</summary>
+    private async Task SetDefaultAsync(PrintTemplateRow t, string reportId)
+    {
+        try
+        {
+            await Tpl.SetDefaultForAsync(t.Id, reportId);
+            await LoadListAsync();
+            if (_selectedId == t.Id)
+                _tpl = await Tpl.GetAsync(t.Id);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageBoxAsync("خطا", ex.Message, "باشه");
+        }
+    }
+
+    /// <summary>برداشتن «پیش‌فرض بودن» یک قالب.</summary>
+    private async Task ClearDefaultAsync(PrintTemplateRow t)
+    {
+        try
+        {
+            await Tpl.ClearDefaultForAsync(t.Id);
+            await LoadListAsync();
+            if (_selectedId == t.Id)
+                _tpl = await Tpl.GetAsync(t.Id);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageBoxAsync("خطا", ex.Message, "باشه");
+        }
+    }
+
+    /// <summary>
+    /// «بازنشانی به قالب پیش‌فرض داخلی» — ردیف ذخیره‌شدهٔ قالب حذف می‌شود
+    /// (DefaultFor هم با آن پاک می‌شود) تا گزارش دوباره از تعریف داخلیِ کد استفاده کند.
+    /// </summary>
+    private async Task ResetToBuiltInAsync()
+    {
+        if (_tpl is null || !_hasSavedRow) return;
+        var ok = await Dialogs.ShowMessageBoxAsync("بازنشانی به قالب پیش‌فرض داخلی",
+            $"قالب «{_tpl.Name}» حذف می‌شود و گزارش به قالب پیش‌فرض داخلی برمی‌گردد. ادامه می‌دهید؟",
+            "بازنشانی", "انصراف");
+        if (ok != true) return;
+        try
+        {
+            var id = _tpl.Id;
+            await Tpl.ResetToDefaultAsync(id);
+            await LoadListAsync();
+            if (PrintTemplates.Defaults.Known.Contains(id, StringComparer.OrdinalIgnoreCase))
+            {
+                // همان گزارش با قالب داخلی دوباره انتخاب می‌شود
+                await SelectAsync(id);
+            }
+            else
+            {
+                _tpl = null;
+                _selectedId = null;
+                _hasSavedRow = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageBoxAsync("خطا", ex.Message, "باشه");
+        }
+    }
+
+    private void AddColumn() => _tpl!.Columns.Add(new PrintColumnDef { Key = "Field" + (_tpl.Columns.Count + 1), Title = "ستون جدید", Width = 100 });
+
+    private void RemoveColumn(int idx) => _tpl!.Columns.RemoveAt(idx);
+
+    private void MoveColumn(int idx, int delta)
+    {
+        var c = _tpl!.Columns;
+        var target = idx + delta;
+        if (idx < 0 || target < 0 || target >= c.Count) return;
+        (c[idx], c[target]) = (c[target], c[idx]);
+    }
+
+    private void AddMetaField() => _tpl!.MetaFields.Add(new PrintMetaField { Label = "فیلد جدید", Bold = true });
+
+    private void RemoveMetaField(int idx) => _tpl!.MetaFields.RemoveAt(idx);
+
+    private void MoveMeta(int idx, int delta)
+    {
+        var m = _tpl!.MetaFields;
+        var target = idx + delta;
+        if (idx < 0 || target < 0 || target >= m.Count) return;
+        (m[idx], m[target]) = (m[target], m[idx]);
+    }
+
+    // ── الگوهای آمادهٔ ستون + جستجوی کلید داده ──
+
+    private sealed record ColumnPreset(string Name, string Key, string Title, int Width, PrintAlign Align, string? Format = null, bool Total = false, bool Bold = false, string Icon = Icons.Material.Filled.TextFields);
+
+    private IReadOnlyList<ColumnPreset> _columnPresets { get; } = new List<ColumnPreset>
+    {
+        new("شماره", "DocumentNumber", "شماره", 90, PrintAlign.Center, Bold: true, Icon: Icons.Material.Filled.Numbers),
+        new("تاریخ", "DocumentDate", "تاریخ", 90, PrintAlign.Center, Icon: Icons.Material.Filled.CalendarMonth),
+        new("شرح", "Title", "شرح", 200, PrintAlign.Start, Icon: Icons.Material.Filled.Notes),
+        new("مبلغ", "TotalAmount", "مبلغ", 110, PrintAlign.End, "N0", Total: true, Icon: Icons.Material.Filled.Payments),
+        new("بدهکار", "Debit", "بدهکار", 100, PrintAlign.End, "N0", Total: true, Icon: Icons.Material.Filled.TrendingUp),
+        new("بستانکار", "Credit", "بستانکار", 100, PrintAlign.End, "N0", Total: true, Icon: Icons.Material.Filled.TrendingDown),
+        new("تعداد", "Quantity", "تعداد", 80, PrintAlign.Center, "N0", Icon: Icons.Material.Filled.Pin),
+        new("طرف حساب", "CounterPartyName", "طرف حساب", 150, PrintAlign.Start, Icon: Icons.Material.Filled.Person),
+        new("وضعیت", "StatusTitle", "وضعیت", 90, PrintAlign.Center, Icon: Icons.Material.Filled.Flag),
+        new("کد حساب", "AccountCode", "کد", 70, PrintAlign.Start, Bold: true, Icon: Icons.Material.Filled.Tag)
+    };
+
+    private void AddColumnPreset(ColumnPreset p)
+        => _tpl!.Columns.Add(new PrintColumnDef
+        {
+            Key = p.Key, Title = p.Title, Width = p.Width, Align = p.Align,
+            Format = p.Format, Total = p.Total, Bold = p.Bold
+        });
+
+    /// <summary>کلیدهای دادهٔ شناخته‌شده در پروژه (از مصرف‌کننده‌های موتور چاپ و مدل‌ها).</summary>
+    private static readonly string[] KnownKeys =
+    {
+        "AccountCode", "AccountTitle", "Title", "Description", "Debit", "Credit", "TotalAmount", "Amount",
+        "Quantity", "UnitPrice", "WeightGram", "DocumentNumber", "DocumentDate", "DocumentType",
+        "CounterPartyName", "StatusTitle", "ChequeNumber", "BankName", "Direction", "DueDate", "AlertTitle",
+        "SourceReference", "InvoiceNumber", "InvoiceDate", "CustomerName", "ItemTitle", "CurrencyCode",
+        "CurrencyName", "SystemRate", "RialValue", "EmployeeName", "EmployeeCode", "OrderNumber", "ItemName"
+    };
+
+    private IEnumerable<string> FilterKeys(string? search)
+    {
+        var list = KnownKeys.Concat(_tpl?.Columns.Select(c => c.Key) ?? Enumerable.Empty<string>());
+        if (string.IsNullOrWhiteSpace(search))
+            return list.Distinct().OrderBy(k => k);
+        return list.Where(k => k.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Distinct().OrderBy(k => k);
+    }
+
+
+
+    // ── پیش‌نمایش ──
+
+    private PrintDataModel BuildPreviewData()
+    {
+        var data = new PrintDataModel
+        {
+            CompanyName = _company?.CompanyName ?? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            CompanyAddress = _company?.Address,
+            LogoPath = _company?.LogoPath,
+            Title = _tpl!.ReportTitle ?? _tpl.Name,
+            Subtitle = _tpl.ReportSubtitle,
+            RangeText = _showSample ? "بازه: 1405/06/01 تا 1405/06/31" : null,
+            QrPayload = _showSample ? $"tarazin:tpl:{_tpl.Id}" : null,
+            QrEnabled = _tpl.QrEnabled
+        };
+
+        for (var i = 0; i < _tpl.MetaFields.Count; i++)
+        {
+            var f = _tpl.MetaFields[i];
+            var value = _showSample switch
+            {
+                _ when i == 0 && string.IsNullOrWhiteSpace(f.Label) is false && f.Label.Contains("شماره") => "00000018",
+                _ when i == 1 && string.IsNullOrWhiteSpace(f.Label) is false && f.Label.Contains("تاریخ") => "1405/06/06",
+                _ when i == 2 && string.IsNullOrWhiteSpace(f.Label) is false && f.Label.Contains("وضعیت") => "یادداشت",
+                _ when i == 3 && string.IsNullOrWhiteSpace(f.Label) is false && f.Label.Contains("نوع") => "فروش",
+                _ when i == 4 && string.IsNullOrWhiteSpace(f.Label) is false && f.Label.Contains("طرف") => "سارا رضایی",
+                _ => _showSample ? "نمونه" : null
+            };
+            data.MetaFields.Add(new PrintMetaField { Label = f.Label, Value = _showSample ? value : null, Bold = f.Bold });
+        }
+
+        if (_showSample)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["AccountCode"] = "2000", ["Title"] = "صندوق — دریافت نقدی", ["Debit"] = 20000000m, ["Credit"] = 0m
+            });
+            data.Rows.Add(new PrintRow
+            {
+                ["AccountCode"] = "1020", ["Title"] = "بانک — دریافت چک", ["Debit"] = 8000000m, ["Credit"] = 0m
+            });
+            data.Rows.Add(new PrintRow
+            {
+                ["AccountCode"] = "1010", ["Title"] = "فروش — فروش فروشگاه", ["Debit"] = 0m, ["Credit"] = 28000000m
+            });
+            data.FooterFields.Add(new PrintMetaField { Label = "تعداد ردیف", Value = data.Rows.Count.ToString(), Bold = true });
+        }
+        else
+        {
+            data.Rows.Add(new PrintRow { ["Title"] = "داده‌ای انتخاب نشده — برای پیش‌نمایش واقعی «نمونه داده» را روشن کنید." });
+        }
+        return data;
+    }
+
+    private async Task<CompanyAccountSettingsRow?> TryLoadCompanyAsync()
+    {
+        try
+        {
+            return await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting",
+                "CompanyAccountSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+
+    private async Task DownloadPdfAsync()
+    {
+        if (_tpl is null) return;
+        _saving = true;
+        try
+        {
+            var bytes = Pdf.BuildTemplatePdf(_tpl, BuildPreviewData());
+            var fileName = $"{PdfFileNames.Sanitize(_tpl.Name)}-{PdfFileNames.ShamsiDate(DateTime.Now)}-{_tpl.PaperSize}.pdf";
+            await PdfSaver.SaveAsync(fileName, bytes);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

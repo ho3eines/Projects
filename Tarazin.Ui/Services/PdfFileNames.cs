@@ -62,4 +62,11 @@ public static class PdfFileNames
     /// <summary>نام فایل گزارش چک‌ها: گزارش-چک‌ها-{تاریخ شمسی}-{اندازه}.pdf</summary>
     public static string ChequeReport(DateTime date, string paperSize)
         => $"{Sanitize("گزارش-چک‌ها")}-{ShamsiDate(date)}-{paperSize}.pdf";
+
+    /// <summary>نام فایل سند حسابداری: سند-{شماره}-{تاریخ شمسی}-{ساده/پیشرفته}-{اندازه}.pdf</summary>
+    public static string Document(string documentNumber, bool advanced, DateTime date, string paperSize)
+    {
+        var kind = advanced ? "پیشرفته" : "ساده";
+        return $"{Sanitize($"سند-{documentNumber}")}-{kind}-{ShamsiDate(date)}-{paperSize}.pdf";
+    }
 }

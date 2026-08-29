@@ -23,9 +23,7 @@
             <MudTd DataLabel="نام نمایشی">@context.DisplayName</MudTd>
             <MudTd DataLabel="نقش">@context.RoleTitle</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                    @(context.IsActive ? "فعال" : "غیرفعال")
-                </MudChip>
+                <StatusChip IsActive="context.IsActive" />
             </MudTd>
             <MudTd DataLabel="ایجاد">@context.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
             <MudTd DataLabel="ویرایش">
@@ -39,17 +37,13 @@
                 }
             </MudTd>
             <MudTd DataLabel="عملیات">
-                <MudTooltip Text="ویرایش کاربر">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromUser(context)))" />
-                </MudTooltip>
-                <MudTooltip Text="حذف">
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromUser(context)))" />
-                </MudTooltip>
+                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromUser(context)))"
+                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromUser(context)))" />
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">کاربری نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Title="کاربری ثبت نشده است." Description="برای شروع، یک کاربر جدید ایجاد کنید." Icon="@Icons.Material.Filled.PeopleOutline" />
+        </NoRecordsContent>
     </MudTable>
 </MudPaper>
 

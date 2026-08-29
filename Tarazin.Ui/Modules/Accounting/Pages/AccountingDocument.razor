@@ -17,6 +17,20 @@
                    Href="/accounting">
             بازگشت به اسناد
         </MudButton>
+        <span style="margin:0 4px"></span>
+        @* پیمایش بین اسناد قبلی/بعدی (محدود به اسنادی که کاربر اجازهٔ باز کردن دارد) *@
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.ArrowBackIos"
+                   Disabled="@(_prevId <= 0)"
+                   OnClick="@(() => GoTo(_prevId))">
+            سند قبل (@(_prevNum ?? ""))
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.ArrowForwardIos"
+                   Disabled="@(_nextId <= 0)"
+                   OnClick="@(() => GoTo(_nextId))">
+            سند بعد (@(_nextNum ?? ""))
+        </MudButton>
 
     </PageHeader>
 }
@@ -41,6 +55,17 @@ else
                            OnClick="LoadAsync" Disabled="_loading">
                     بازخوانی
                 </MudButton>
+
+                @* چاپ سند — منوی دو حالته: ساده / پیشرفته (در همهٔ وضعیت‌ها و دسترسی‌ها فعال) *@
+                <MudMenu Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Variant="Variant.Filled"
+                         Label="چاپ سند">
+                    <MudMenuItem OnClick="@(() => PrintDocumentAsync(advanced: false))">
+                        <MudIcon Icon="@Icons.Material.Filled.Description" Class="mr-2" /> چاپ ساده (ردیف‌های سند)
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => PrintDocumentAsync(advanced: true))">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountTree" Class="mr-2" /> چاپ پیشرفته (کل / معین / تفصیل)
+                    </MudMenuItem>
+                </MudMenu>
 
                 @if (NextStatus is not null && CanChangeStatusTo(NextStatus))
                 {
@@ -163,11 +188,13 @@ else
                                          Margin="Margin.Dense" Min="0" Format="#,##0.##"
                                          ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
                     </MudTd>
-                    <MudTd DataLabel="">
+                    <MudTd DataLabel="عملیات">
                         <span @onclick:stopPropagation="true">
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
-                                           Size="Size.Small" Disabled="@(IsReadOnly || _lines.Count <= 1)"
-                                           OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                            <MudTooltip Text="حذف ردیف">
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
+                                               Size="Size.Small" Disabled="@(IsReadOnly || _lines.Count <= 1)"
+                                               OnClick="@(() => ConfirmRemoveLineAsync(_lines.IndexOf(context)))" />
+                            </MudTooltip>
                         </span>
                     </MudTd>
                 </RowTemplate>
@@ -248,6 +275,11 @@ else
     private bool _loading = true;
     private bool _busy;
 
+    private int _prevId;
+    private int _nextId;
+    private string? _prevNum;
+    private string? _nextNum;
+
     private AccountDetailBalance _accountDetailBalance = new AccountDetailBalance();
 
 
@@ -302,10 +334,10 @@ else
                 {
                     CompanyId = Session.ActiveCompanyId,
                     FiscalYearId = Session.ActiveFiscalYearId,
-                    AccountCode = args?.Item.AccountCode
-                }) ?? new AccountDetailBalance();
+                    AccountCode = args.Item.AccountCode
+                });
 
-                _selectedLine = args?.Item;
+                _selectedLine = args.Item;
             }
         }
         catch (Exception ex)
@@ -362,6 +394,7 @@ else
     private async Task LoadAsync()
     {
         _loading = true;
+        _prevId = 0; _nextId = 0; _prevNum = null; _nextNum = null;
         try
         {
             _document = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(Schema, "DocumentById", new { DocumentId, CompanyId = Session.ActiveCompanyId, FiscalYearId = Session.ActiveFiscalYearId });
@@ -377,6 +410,19 @@ else
             _documentDate = _document.DocumentDate;
             _documentType = string.IsNullOrWhiteSpace(_document.DocumentType) ? "Journal" : _document.DocumentType!;
             _counterParty = _document.CounterPartyName ?? "";
+
+            // همسایه‌های قبلی/بعدی برای پیمایش بین اسناد (فقط اسنادی که در دسترس‌اند).
+            var neigh = await Db.QueryFirstOrDefaultAsync<DocumentNeighborsRow>(Schema, "DocumentNeighbors", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
+                CurrentDate = _document.DocumentDate,
+                CurrentNumber = _document.DocumentNumber ?? ""
+            });
+            _prevId = neigh?.PrevDocumentId ?? 0;
+            _nextId = neigh?.NextDocumentId ?? 0;
+            _prevNum = neigh?.PrevNumber;
+            _nextNum = neigh?.NextNumber;
 
             var rows = await Db.QueryAsync<DocumentLineRow>(Schema, "DocumentLines", new { DocumentId, CompanyId = Session.ActiveCompanyId, FiscalYearId = Session.ActiveFiscalYearId });
             _lines = (rows ?? Array.Empty<DocumentLineRow>()).Select(r => new JournalLineRow
@@ -622,6 +668,71 @@ else
         {
             _busy = false;
         }
+    }
+
+    /// <summary>باز کردن دیالوگ چاپ سند — ساده یا پیشرفته. چاپ فقط‌خواندنی است و در هر وضعیتی فعال است.</summary>
+    private async Task PrintDocumentAsync(bool advanced)
+    {
+        try
+        {
+            if (_document is null)
+            {
+                Snackbar.Add("ابتدا سند را بارگذاری کنید.", Severity.Warning);
+                return;
+            }
+
+            // اطلاعات سربرگ چاپ (نام شرکت + آدرس پایهٔ QR) از تنظیمات شرکت مالی
+            var settings = await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting",
+                "CompanyAccountSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+
+            var model = new AccountingDocumentPrintModel
+            {
+                DocumentId = _document.DocumentId,
+                DocumentNumber = _document.DocumentNumber ?? "",
+                DocumentDate = _document.DocumentDate,
+                DocumentType = _document.DocumentType,
+                CounterPartyName = _document.CounterPartyName,
+                TotalAmount = _document.TotalAmount,
+                Status = _status,
+                Lines = _lines.Select(l => new DocumentLineRow
+                {
+                    AccountId = l.AccountId,
+                    AccountCode = l.AccountCode,
+                    Title = l.AccountTitle,
+                    Description = l.Description,
+                    Debit = l.Debit,
+                    Credit = l.Credit
+                }).ToList(),
+                BrandName = settings?.CompanyName,
+                QrBaseUrl = settings?.QrBaseUrl,
+                Advanced = advanced
+            };
+
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Medium,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+            await DialogService.ShowAsync<DocumentPrintDialog>("چاپ سند", new DialogParameters
+            {
+                ["Model"] = model
+            }, options);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در باز کردن چاپ سند: {ex.Message}", Severity.Error);
+        }
+    }
+
+    /// <summary>پیمایش به سند قبلی/بعدی — فقط در صورتی که کاربر اجازهٔ دسترسی داشته باشد.</summary>
+    private void GoTo(int targetId)
+    {
+        if (targetId <= 0) return;
+        // همسایه‌ها همان‌ند فهرست «اسناد روز» به شرکت و سال مالی فعال محدود شده‌اند؛
+        // خودِ صفحهٔ سند هم دسترسی را دوباره بررسی می‌کند (فقط‌خواندنی برای بدونِ مجوز ویرایش).
+        Nav.NavigateTo($"/accounting/document/{targetId}");
     }
 
     private async Task DeleteAsync()

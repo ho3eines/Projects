@@ -11,12 +11,8 @@
 <MudTabs>
     <MudTabPanel Text="محصولات">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromProduct()))">
-                    محصول جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="محصول جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="@(() => OpenEditorAsync(EntityEditorModel.FromProduct()))" />
             <MudTable Items="_products" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>قیمت</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -25,20 +21,10 @@
                     <MudTd DataLabel="کد">@context.ProductCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
                     <MudTd DataLabel="قیمت">@context.Price.ToString("N0")</MudTd>
-                    <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                            @(context.IsActive ? "فعال" : "غیرفعال")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                     <MudTd DataLabel="عملیات">
-                        <MudTooltip Text="ویرایش محصول">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromProduct(context)))" />
-                        </MudTooltip>
-                        <MudTooltip Text="حذف">
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                           OnClick="@(() => DeleteAsync(EntityEditorModel.FromProduct(context)))" />
-                        </MudTooltip>
+                        <EntityActions EditClicked="@(() => OpenEditorAsync(EntityEditorModel.FromProduct(context)))"
+                                       DeleteClicked="@(() => DeleteAsync(EntityEditorModel.FromProduct(context)))" />
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent><MudText Color="Color.Secondary">محصولی نیست.</MudText></NoRecordsContent>
@@ -50,12 +36,8 @@
         @if (Session.HasPermission(TarazinPermissions.StoreCategories))
         {
             <MudPaper Elevation="1" Class="pa-4">
-                <div class="d-flex justify-end mb-4">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                               OnClick="OpenNewCategoryAsync">
-                        دستهٔ جدید
-                    </MudButton>
-                </div>
+                <PageToolbar AddText="دستهٔ جدید" AddIcon="@Icons.Material.Filled.Add"
+                             OnAddClick="OpenNewCategoryAsync" />
                 <MudTable Items="_categories" Hover="true" Dense="true" Striped="true" Loading="_loading">
                     <HeaderContent>
                         <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>ترتیب</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -63,12 +45,7 @@
                     <RowTemplate>
                         <MudTd DataLabel="کد">@context.CategoryCode</MudTd>
                         <MudTd DataLabel="عنوان">@context.Title</MudTd>
-                        <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>
-                        <MudTd DataLabel="وضعیت">
-                            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                                @(context.IsActive ? "فعال" : "غیرفعال")
-                            </MudChip>
-                        </MudTd>
+                        <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>                            <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                         <MudTd DataLabel="عملیات">
                             <MudTooltip Text="ویرایش دسته">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
@@ -126,12 +103,8 @@
 
     <MudTabPanel Text="مشتریان">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
-                           OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromCustomer()))">
-                    مشتری جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="مشتری جدید" AddIcon="@Icons.Material.Filled.PersonAdd"
+                         OnAddClick="@(() => OpenEditorAsync(EntityEditorModel.FromCustomer()))" />
             <MudTable Items="_customers" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>تلفن</MudTh><MudTh>ماندهٔ دفتر</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
@@ -145,11 +118,7 @@
                             @(context.Balance == 0 ? "تسویه" : $"{(context.Balance > 0 ? "بدهکار" : "بستانکار")} {Math.Abs(context.Balance):N0}")
                         </MudChip>
                     </MudTd>
-                    <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                            @(context.IsActive ? "فعال" : "غیرفعال")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
                     <MudTd DataLabel="عملیات">
                         <MudTooltip Text="ویرایش مشتری">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"

@@ -916,10 +916,31 @@ BEGIN
         CustomerAccountGroupId INT NULL,
         SupplierAccountGroupId INT NULL,
         InventoryAccountGroupId INT NULL,
+        CompanyName            NVARCHAR(200) NULL,
+        Address                NVARCHAR(500) NULL,
+        LogoPath               NVARCHAR(500) NULL,
+        QrBaseUrl              NVARCHAR(500) NULL,
+        QrEnabled              BIT NOT NULL CONSTRAINT DF_CompanyAccountSettings_QrEnabled DEFAULT 1,
         UpdatedAt              DATETIME2 NOT NULL CONSTRAINT DF_CompanyAccountSettings_UpdatedAt DEFAULT SYSUTCDATETIME(),
         UpdatedBy              NVARCHAR(100) NULL
     );
 END
+GO
+-- ستون‌های چاپ/گزارش (مigrations برای دیتابیس‌های موجود)
+IF COL_LENGTH(N'accounting.CompanyAccountSettings', N'CompanyName') IS NULL
+    ALTER TABLE [accounting].[CompanyAccountSettings] ADD CompanyName NVARCHAR(200) NULL;
+GO
+IF COL_LENGTH(N'accounting.CompanyAccountSettings', N'Address') IS NULL
+    ALTER TABLE [accounting].[CompanyAccountSettings] ADD Address NVARCHAR(500) NULL;
+GO
+IF COL_LENGTH(N'accounting.CompanyAccountSettings', N'LogoPath') IS NULL
+    ALTER TABLE [accounting].[CompanyAccountSettings] ADD LogoPath NVARCHAR(500) NULL;
+GO
+IF COL_LENGTH(N'accounting.CompanyAccountSettings', N'QrBaseUrl') IS NULL
+    ALTER TABLE [accounting].[CompanyAccountSettings] ADD QrBaseUrl NVARCHAR(500) NULL;
+GO
+IF COL_LENGTH(N'accounting.CompanyAccountSettings', N'QrEnabled') IS NULL
+    ALTER TABLE [accounting].[CompanyAccountSettings] ADD QrEnabled BIT NOT NULL CONSTRAINT DF_CompanyAccountSettings_QrEnabled DEFAULT 1;
 GO
 -- Backfill از تنظیمات طلافروشی (یک‌بار برای دادهٔ موجود)
 IF NOT EXISTS (SELECT 1 FROM [accounting].[CompanyAccountSettings])

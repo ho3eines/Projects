@@ -3,6 +3,7 @@
 @inject UserSession Session
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
+@inject PrintTemplateService Tpl
 
 <PageTitle>گزارش چک‌ها — خزانه‌داری</PageTitle>
 
@@ -117,13 +118,62 @@
         if (_rows.Count == 0)
             return;
 
-        // چاپ با قالب HTML رسمی (هدر لوگو + فوتر شماره صفحه با @page CSS).
-        await Dialog.ShowAsync<ChequeDuePrintDialog>("چاپ گزارش چک‌ها",
-            new DialogParameters<ChequeDuePrintDialog>
+        // ── موتور چاپ عمومی (قالب‌محور): قالب از دیتابیس یا پیش‌فرض داخلی،
+        //    داده مستقیماً تزریق می‌شود (TemplatePrintDialog → HTML + PDF). ──
+        var tpl = await Tpl.GetOrCreateDefaultAsync("treasury.cheques");
+        var company = await TryLoadCompanyAsync();
+
+        var data = new PrintDataModel
+        {
+            CompanyName = string.IsNullOrWhiteSpace(company?.CompanyName)
+                ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار"
+                : company!.CompanyName,
+            CompanyAddress = company?.Address,
+            LogoPath = company?.LogoPath,
+            Title = "گزارش چک‌های در جریان و سررسیدشده",
+            RangeText = $"تعداد {_rows.Count:N0} چک — تهیه‌شده در {DateTime.Now:yyyy/MM/dd HH:mm}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "چک‌های باز", Value = _rows.Count.ToString("N0"), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "سررسیدشده", Value = OverdueCount.ToString("N0"), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "سررسید نزدیک", Value = DueSoonCount.ToString("N0"), Bold = true });
+
+        foreach (var r in _rows)
+        {
+            data.Rows.Add(new PrintRow
             {
-                { x => x.Rows, _rows }
+                ["ChequeNumber"] = r.ChequeNumber,
+                ["BankName"] = r.BankName,
+                ["Direction"] = r.Direction == "Incoming" ? "دریافتی" : "پرداختی",
+                ["StatusTitle"] = StatusLabel(r.Status),
+                ["DueDate"] = r.DueDate?.ToString("yyyy/MM/dd") ?? "—",
+                ["AlertTitle"] = AlertLabel(r.AlertLevel),
+                ["Amount"] = r.Amount,
+                ["SourceReference"] = string.IsNullOrWhiteSpace(r.SourceReference) ? "—" : r.SourceReference
+            });
+        }
+
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ گزارش چک‌ها",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl },
+                { x => x.Data, data },
+                { x => x.TemplateId, "treasury.cheques" }
             },
             new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task<CompanyAccountSettingsRow?> TryLoadCompanyAsync()
+    {
+        try
+        {
+            return await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting",
+                "CompanyAccountSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task LoadAsync()

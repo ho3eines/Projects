@@ -78,6 +78,18 @@ public class CompanyAccountSettingsRow
     public int? InventoryAccountGroupId { get; set; }
     public string? InventoryAccountGroupTitle { get; set; }
     public string? InventoryAccountGroupCode { get; set; }
+
+    /// <summary>نام شرکت برای سربرگ چاپ/گزارش.</summary>
+    public string? CompanyName { get; set; }
+    /// <summary>آدرس شرکت برای سربرگ/فاکتور.</summary>
+    public string? Address { get; set; }
+    /// <summary>مسیر لوگوی شرکت (آدرس URL یا پایه‌۶۴) برای سربرگ چاپ.</summary>
+    public string? LogoPath { get; set; }
+    /// <summary>آدرس پایهٔ پیگیری QRCode چاپ‌ها (مثلاً https://tarazin.example.com/track).</summary>
+    public string? QrBaseUrl { get; set; }
+    /// <summary>آیا QR در خروجی چاپ/PDF درج شود؟</summary>
+    public bool QrEnabled { get; set; } = true;
+
     public DateTime? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
 }

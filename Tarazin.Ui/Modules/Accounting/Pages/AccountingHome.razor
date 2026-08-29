@@ -5,10 +5,16 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Nav
+@inject PrintTemplateService Tpl
 
 <PageTitle>اسناد — حسابداری</PageTitle>
 
-<PageHeader Title="اسناد" Subtitle="از تاریخ تا تاریخ — پیش‌فرض بازهٔ سال مالی فعال. کلیک روی ردیف، سند را باز می‌کند." Eyebrow="حسابداری" />
+<PageHeader Title="اسناد" Subtitle="از تاریخ تا تاریخ — پیش‌فرض بازهٔ سال مالی فعال. کلیک روی ردیف، سند را باز می‌کند." Eyebrow="حسابداری">
+    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintListAsync" Disabled="_loading || _rows.Count == 0"
+               StartIcon="@Icons.Material.Filled.Print">
+        چاپ فهرست
+    </MudButton>
+</PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
@@ -83,6 +89,46 @@
     private const string Schema = "accounting";
 
     private List<DailyDocumentRow> _rows = new();
+
+    /// <summary>چاپ فهرست اسناد با موتور چاپ عمومی (قالب accounting.documents).</summary>
+    private async Task PrintListAsync()
+    {
+        if (_rows.Count == 0) return;
+
+        var tpl = await Tpl.GetOrCreateDefaultAsync("accounting.documents");
+        var data = new PrintDataModel
+        {
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = "فهرست اسناد حسابداری",
+            RangeText = $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd} — تعداد {_rows.Count:N0} سند",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "تعداد اسناد", Value = _rows.Count.ToString("N0"), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "جمع کل", Value = _rows.Sum(r => r.TotalAmount).ToString("N0"), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "وضعیت", Value = _search, Bold = false });
+
+        foreach (var r in _rows)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["DocumentNumber"] = r.DocumentNumber,
+                ["DocumentDate"] = r.DocumentDate.ToString("yyyy/MM/dd"),
+                ["DocumentType"] = r.DocumentType,
+                ["CounterPartyName"] = string.IsNullOrWhiteSpace(r.CounterPartyName) ? "—" : r.CounterPartyName,
+                ["StatusTitle"] = AccountingDocumentStatus.Title(r.Status),
+                ["TotalAmount"] = r.TotalAmount
+            });
+        }
+
+        await DialogService.ShowAsync<TemplatePrintDialog>("چاپ فهرست اسناد",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl },
+                { x => x.Data, data },
+                { x => x.TemplateId, "accounting.documents" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
     private bool _loading = true;
     private string _search = "";
     private DateTime? _from;

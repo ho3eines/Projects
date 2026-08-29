@@ -2,7 +2,6 @@
 @inject UserSession Session
 @inject ScriptCatalog Catalog
 @inject DbService Db
-@inject NavigationManager Nav
 @implements IDisposable
 
 <PageTitle>خانه — ترازین</PageTitle>
@@ -10,11 +9,11 @@
 <section class="tz-hero">
     <div class="tz-hero__copy">
         <div class="tz-kicker">ترازین</div>
-        <h1>میز کار یکپارچهٔ کسب‌وکار</h1>
-        <p>
+        <MudText Typo="Typo.h2" Class="tz-hero__title" Style="color:#f7f1e3">میز کار یکپارچهٔ کسب‌وکار</MudText>
+        <MudText Typo="Typo.body1" Class="tz-hero__desc">
             حسابداری، خزانه، انبار، حقوق، طلا، فروشگاه، معاملات ارز و داشبورد هوش تجاری —
             همه در یک پوستهٔ راست‌چین، با یک حساب و یک دیتابیس.
-        </p>
+        </MudText>
         <div class="tz-hero__cta">
             @if (Session.IsAuthenticated)
             {
@@ -29,8 +28,8 @@
                     ورود به سامانه
                 </MudButton>
             }
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/diag"
-                       StartIcon="@Icons.Material.Filled.MonitorHeart">
+            <MudButton Variant="Variant.Outlined" Href="/diag"
+                       StartIcon="@Icons.Material.Filled.MonitorHeart" Style="color:#f7f1e3;border-color:rgba(247,241,227,0.6)">
                 وضعیت اتصال
             </MudButton>
         </div>
@@ -79,18 +78,9 @@
     {
         @if (!Session.IsAuthenticated || Session.CanView(m.Key))
         {
-        <button type="button" class="tz-modcard" style="--tz-accent:@m.Accent"
-                aria-label="@($"باز کردن ماژول {m.Title}")"
-                @onclick="() => Nav.NavigateTo(m.Url)">
-            <div class="tz-modcard__icon">
-                <MudIcon Icon="@m.Icon" />
-            </div>
-            <div class="tz-modcard__body">
-                <h3>@m.Title</h3>
-                <p>@m.Lead</p>
-            </div>
-            <MudIcon Icon="@Icons.Material.Filled.West" Class="tz-modcard__go" />
-        </button>
+            var card = ModuleCardSpec.FromModule(m);
+            <ModuleCard Icon="@card.Icon" Title="@card.Title" Lead="@card.Lead"
+                        Url="@card.Url" Accent="@card.Accent" />
         }
     }
 </div>

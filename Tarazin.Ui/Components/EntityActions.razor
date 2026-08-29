@@ -1,0 +1,29 @@
+@namespace Tarazin.Components
+
+<MudStack Row="true" Spacing="0" AlignItems="AlignItems.Center">
+    @if (ShowEdit)
+    {
+        <MudTooltip Text="ویرایش">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                           Disabled="EditDisabled" OnClick="EditClicked" aria-label="ویرایش" />
+        </MudTooltip>
+    }
+    @if (ShowDelete)
+    {
+        <MudTooltip Text="حذف">
+            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                           Disabled="DeleteDisabled" OnClick="DeleteClicked" aria-label="حذف" />
+        </MudTooltip>
+    }
+    @ChildContent
+</MudStack>
+
+@code {
+    [Parameter] public EventCallback EditClicked { get; set; }
+    [Parameter] public EventCallback DeleteClicked { get; set; }
+    [Parameter] public bool ShowEdit { get; set; } = true;
+    [Parameter] public bool ShowDelete { get; set; } = true;
+    [Parameter] public bool EditDisabled { get; set; }
+    [Parameter] public bool DeleteDisabled { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,317 @@
+@using Tarazin.Models
+@using Tarazin.Services
+@inject IJSRuntime JS
+@inject DbService Db
+@inject UserSession Session
+@inject PdfReportService Pdf
+@inject IPdfSaver PdfSaver
+
+@* چاپ سند حسابداری — دو حالت:
+   ساده: فقط ردیف‌های سند (کامپکت، ستون‌ها کنار هم)
+   پیشرفته: یک جدول واحدِ تودرتو — کل (۲ رقم) → معین (۵ رقم) → تفصیل (ریز ردیف).
+            صرفاً خلاصهٔ حساب‌های کل یکجا و بعد معین‌ها یکجا نیست؛ هر کل زیرِ خودش
+            معین‌هایش را و هر معین زیر خودش تفصیل‌ها را نشان می‌دهد.
+   در حالت چاپ جدول حتماً ستونی (کنار هم) است نه کارتی/زیر هم.
+   سربرگ رسمی (لوگو/نام/آدرس از تنظیمات شرکت مالی) + QRCode پیگیری. *@
+
+<MudDialog Class="gp-print-dialog">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+            <MudText Typo="Typo.h6">@(Model.Advanced ? "چاپ پیشرفته سند" : "چاپ ساده سند") — @Model.DocumentNumber</MudText>
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="gp-print-area">
+            @* هدر رسمی — نام/لوگو/آدرس از تنظیمات شرکت مالی + QRCode *@
+            <PrintBrandHeader CompanyName="@BrandName"
+                              Title="@PrintTitle"
+                              HeaderOnly="true"
+                              QrEnabled="true"
+                              QrPayload="@QrPayload" />
+
+            @* ── اطلاعات سند ── *@
+            <MudPaper Elevation="0" Class="pa-3 gp-page-break" Style="border:1px solid #e0e0e0;border-radius:8px;margin-top:10px">
+                <MudGrid Spacing="2">
+                    <MudItem xs="6" sm="3" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">شماره سند</MudText>
+                        <MudText Typo="Typo.body2"><b>@Model.DocumentNumber</b></MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">تاریخ سند</MudText>
+                        <MudText Typo="Typo.body2">@Model.DocumentDate.ToString("yyyy/MM/dd")</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">نوع سند</MudText>
+                        <MudText Typo="Typo.body2">@SafeType(Model.DocumentType)</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3" md="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">وضعیت</MudText>
+                        <MudText Typo="Typo.body2">@AccountingDocumentStatus.Title(Model.Status)</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">طرف حساب</MudText>
+                        <MudText Typo="Typo.body2">@(string.IsNullOrWhiteSpace(Model.CounterPartyName) ? "—" : Model.CounterPartyName)</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">مبلغ کل</MudText>
+                        <MudText Typo="Typo.body2"><b>@Model.TotalAmount.ToString("N0")</b> ریال</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            @if (Model.Advanced)
+            {
+                @* ════ چاپ پیشرفته: یک جدول واحد تودرتو (کل → معین → تفصیل) ════ *@
+                <MudPaper Elevation="0" Class="mt-3 gp-page-break" Style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden">
+                    <MudTable Items="@AdvancedRows" Dense="true" Hover="true" Striped="false"
+                              FixedHeader="false" Class="gp-lines-table gp-doc-print">
+                        <HeaderContent>
+                            <MudTh Style="width:90px">کد</MudTh>
+                            <MudTh>عنوان حساب</MudTh>
+                            <MudTh Style="width:70px" Class="text-center">تعداد</MudTh>
+                            <MudTh Style="width:130px" Class="text-right">بدهکار</MudTh>
+                            <MudTh Style="width:130px" Class="text-right">بستانکار</MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="r">
+                            <MudTd DataLabel="کد" Style="@CellStyle(r.Level)"><b>@r.Code</b></MudTd>
+                            <MudTd DataLabel="عنوان" Style="@CellStyle(r.Level)">
+                                <span style="padding-inline-start:@(r.Level * 14)px;display:inline-block">
+                                    @r.Title
+                                </span>
+                                @if (r.Level == 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-2">کل</MudChip>
+                                }
+                                else if (r.Level == 1)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Class="ml-2">معین</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="تعداد" Style="@CellStyle(r.Level)" Class="text-center">
+                                @(r.LineCount > 0 ? r.LineCount.ToString() : "—")
+                            </MudTd>
+                            <MudTd DataLabel="بدهکار" Style="@CellStyle(r.Level)" Class="text-right">
+                                @(r.Debit > 0 ? r.Debit.ToString("N0") : "—")
+                            </MudTd>
+                            <MudTd DataLabel="بستانکار" Style="@CellStyle(r.Level)" Class="text-right">
+                                @(r.Credit > 0 ? r.Credit.ToString("N0") : "—")
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            }
+            else
+            {
+                @* ════ چاپ ساده: فقط ردیف‌های سند (ستون‌ها کنار هم) ════ *@
+                <MudPaper Elevation="0" Class="mt-3 gp-page-break" Style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden">
+                    <MudTable Items="Model.Lines" Dense="true" Hover="true" Striped="true"
+                              Class="gp-lines-table gp-doc-print">
+                        <HeaderContent>
+                            <MudTh Style="width:90px">کد حساب</MudTh>
+                            <MudTh>عنوان حساب</MudTh>
+                            <MudTh>شرح ردیف</MudTh>
+                            <MudTh Style="width:130px">بدهکار</MudTh>
+                            <MudTh Style="width:130px">بستانکار</MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="line">
+                            <MudTd DataLabel="کد حساب"><b>@line.AccountCode</b></MudTd>
+                            <MudTd DataLabel="عنوان">@line.Title</MudTd>
+                            <MudTd DataLabel="شرح">@(line.Description ?? "—")</MudTd>
+                            <MudTd DataLabel="بدهکار" Class="text-right">@(line.Debit > 0 ? line.Debit.ToString("N0") : "—")</MudTd>
+                            <MudTd DataLabel="بستانکار" Class="text-right">@(line.Credit > 0 ? line.Credit.ToString("N0") : "—")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            }
+
+            @* ── جمع نهایی ── *@
+            <MudGrid Spacing="2" Class="mt-3 gp-page-break">
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2">جمع بدهکار: <b>@Model.TotalDebit.ToString("N0")</b> ریال</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2">جمع بستانکار: <b>@Model.TotalCredit.ToString("N0")</b> ریال</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(Model.TotalDebit == Model.TotalCredit ? Color.Success : Color.Error)">
+                        @(Model.TotalDebit == Model.TotalCredit ? "✔ متوازن" : "✘ نامتوازن")
+                    </MudChip>
+                </MudItem>
+            </MudGrid>
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        <MudSelect T="string" Label="اندازهٔ کاغذ" Value="@_paperSize" ValueChanged="OnSizeChanged"
+                   Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
+                   Style="min-width:110px" Class="mr-1">
+            <MudSelectItem Value="@("A4")">A4</MudSelectItem>
+            <MudSelectItem Value="@("A5")">A5</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync"
+                   StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync" Disabled="@_downloading"
+                   StartIcon="@Icons.Material.Filled.FileDownload">
+            @(_downloading ? "در حال ساخت PDF…" : "دانلود PDF")
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" OnClick="Close" StartIcon="@Icons.Material.Filled.Close">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const string Schema = "accounting";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public AccountingDocumentPrintModel Model { get; set; } = new();
+
+    private List<AccountRollupRow> _kolRows = new();
+    private List<AccountRollupRow> _moeinRows = new();
+    private string _paperSize = "A4";
+    private bool _downloading;
+
+    /// <summary>ردیف چاپ پیشرفته — یک سطح از سلسله‌مراتب کل/معین/تفصیل.</summary>
+    private class DocRow
+    {
+        public int Level { get; set; }
+        public string Code { get; set; } = "";
+        public string Title { get; set; } = "";
+        public int LineCount { get; set; }
+        public decimal Debit { get; set; }
+        public decimal Credit { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model.Advanced)
+        {
+            try
+            {
+                var rows = await Db.QueryAsync<DocumentRollupTitleRow>(Schema, "DocumentPrintRollup", new
+                {
+                    DocumentId = Model.DocumentId,
+                    CompanyId = Session.ActiveCompanyId
+                });
+                _kolRows = rows.Where(r => r.Level == "Kol")
+                               .Select(r => new AccountRollupRow
+                               {
+                                   Code = r.Code, Title = r.Title ?? "—",
+                                   LineCount = r.LineCount, Debit = r.Debit, Credit = r.Credit
+                               }).ToList();
+                _moeinRows = rows.Where(r => r.Level == "Moein")
+                                 .Select(r => new AccountRollupRow
+                                 {
+                                     Code = r.Code, Title = r.Title ?? "—",
+                                     LineCount = r.LineCount, Debit = r.Debit, Credit = r.Credit
+                                 }).ToList();
+            }
+            catch { /* عنوان‌ها اختیاری‌اند — جمع‌ها از ردیف‌ها محاسبه می‌شود */ }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("tarazinQr.fillAll");
+    }
+
+    /// <summary>ساخت ردیف‌های تودرتوی چاپ پیشرفته به ترتیب کل ← معین ← تفصیل.</summary>
+    private List<DocRow> AdvancedRows => BuildAdvancedRows();
+
+    private List<DocRow> BuildAdvancedRows()
+    {
+        var result = new List<DocRow>();
+
+        foreach (var kol in _kolRows.OrderBy(k => k.Code, StringComparer.Ordinal))
+        {
+            var moeins = _moeinRows
+                .Where(m => m.Code.Length >= 2 && m.Code.StartsWith(kol.Code, StringComparison.Ordinal))
+                .OrderBy(m => m.Code, StringComparer.Ordinal).ToList();
+
+            decimal kolDebit = 0, kolCredit = 0;
+            int kolCount = 0;
+
+            // ابتدا بن‌بست هر معین کِ رسید تا جمع کل صحیح باشد.
+            var moeinBlock = new List<DocRow>();
+            foreach (var moein in moeins)
+            {
+                var moeinLines = Model.Lines
+                    .Where(l => l.AccountCode.StartsWith(moein.Code, StringComparison.Ordinal))
+                    .OrderBy(l => l.AccountCode, StringComparer.Ordinal).ToList();
+                var mDebit = moeinLines.Sum(l => l.Debit);
+                var mCredit = moeinLines.Sum(l => l.Credit);
+                kolDebit += mDebit; kolCredit += mCredit; kolCount += moeinLines.Count;
+
+                moeinBlock.Add(new DocRow { Level = 1, Code = moein.Code, Title = moein.Title,
+                    Debit = mDebit, Credit = mCredit, LineCount = moeinLines.Count });
+
+                foreach (var line in moeinLines)
+                {
+                    moeinBlock.Add(new DocRow { Level = 2, Code = line.AccountCode,
+                        Title = string.IsNullOrWhiteSpace(line.Description)
+                            ? line.Title
+                            : $"{line.Title} — {line.Description}",
+                        Debit = line.Debit, Credit = line.Credit, LineCount = 0 });
+                }
+            }
+
+            // ردیف کل اول، سپس بلوک معین/تفصیل زیر همان کل (ترتیب حفظ می‌شود).
+            result.Add(new DocRow { Level = 0, Code = kol.Code, Title = kol.Title,
+                Debit = kolDebit, Credit = kolCredit, LineCount = kolCount });
+            result.AddRange(moeinBlock);
+        }
+        return result;
+    }
+
+    private static string CellStyle(int level) => level switch
+    {
+        0 => "background:#eef2ff;font-weight:600",
+        1 => "background:#f8fafc",
+        _ => ""
+    };
+
+    private string BrandName =>
+        string.IsNullOrWhiteSpace(Model.BrandName) ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار" : Model.BrandName!;
+
+    private string PrintTitle =>
+        $"سند حسابداری {SafeType(Model.DocumentType)} — شماره {Model.DocumentNumber}";
+
+    private string QrPayload =>
+        string.IsNullOrWhiteSpace(Model.QrBaseUrl)
+            ? $"tarazin:doc:{Model.DocumentId}"
+            : $"{Model.QrBaseUrl.TrimEnd('/')}/doc/{Model.DocumentId}";
+
+    private static string SafeType(string? t) => (t ?? "") switch
+    {
+        "Journal" => "سند روزنامه",
+        "Receipt" => "دریافت",
+        "Payment" => "پرداخت",
+        "Purchase" => "خرید",
+        "Sale" => "فروش",
+        _ => t ?? ""
+    };
+
+    private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+
+    private async Task DownloadPdfAsync()
+    {
+        _downloading = true;
+        try
+        {
+            var fileName = PdfFileNames.Document(Model.DocumentNumber, Model.Advanced, Model.DocumentDate, _paperSize);
+            var bytes = Pdf.BuildDocumentPdf(Model, _paperSize);
+            await PdfSaver.SaveAsync(fileName, bytes);
+        }
+        finally
+        {
+            _downloading = false;
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+
+    private void Close() => MudDialog.Close();
+}

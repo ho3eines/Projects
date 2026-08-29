@@ -23,22 +23,16 @@
             <MudTd DataLabel="توضیح">@context.Caption</MudTd>
             <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                    @(context.IsActive ? "فعال" : "غیرفعال")
-                </MudChip>
+                <StatusChip IsActive="context.IsActive" />
             </MudTd>
             <MudTd DataLabel="عملیات">
-                <MudTooltip Text="ویرایش آیتم">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGallery(context)))" />
-                </MudTooltip>
-                <MudTooltip Text="حذف">
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromGallery(context)))" />
-                </MudTooltip>
+                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromGallery(context)))"
+                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromGallery(context)))" />
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">آیتمی نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Title="آیتمی در گالری ثبت نشده است." Description="برای شروع، یک آیتم جدید اضافه کنید." Icon="@Icons.Material.Filled.Collections" />
+        </NoRecordsContent>
     </MudTable>
 </MudPaper>
 

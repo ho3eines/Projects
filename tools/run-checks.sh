@@ -4,15 +4,19 @@
 # Runs, in order, every check a coder/CI must pass before a build, PR, or
 # dev-server restart:
 #   1. Cross-schema scan      (tools/cross-schema-scan.sh)
-#   2. PDF regression tests   (dotnet test Tarazin.Tests)
-#   3. Web build              (dotnet build Tarazin.Web)  — refreshes Web/bin copy
-#   4. Stale-build guard      (tools/check-stale-build.sh)
+#   2. Print-template guards  (PrintTemplateResolutionTests + PrintTemplateSqlGuardTests)
+#   3. Full test suite        (PDF regression, close-year, everything else)
+#   4. Web build              (dotnet build Tarazin.Web)  — refreshes Web/bin copy
+#   5. Stale-build guard      (tools/check-stale-build.sh)
 #
 # Exit code: 0 = all green, 1 = a check failed (the failing step is named).
 #
-# NOTE on ordering: the Web build (3) MUST come after the test/build that refresh
-# Tarazin.Ui/bin and before the stale guard (4), so that the "server runs old code"
+# NOTE on ordering: the Web build (4) MUST come after the test/build that refresh
+# Tarazin.Ui/bin and before the stale guard (5), so that the "server runs old code"
 # bug is caught and the guard reports a clean 0.
+#
+# NOTE on SQL: the print-template and close-year guards need a live SQL Server;
+# without one they Skip (not fail) — CI spins up SQL Server so they actually run.
 #
 # Usage: bash tools/run-checks.sh            (from project root)
 
@@ -35,24 +39,35 @@ else
   fail "Cross-schema scan — fix the violations above."
 fi
 
-# ── 2. PDF regression tests (guards MediaBox/pagination/RTL) ──────────
-step "۲) تست‌های بازگشت‌پذیر PDF (Tarazin.Tests)"
-if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo 2>&1 | tail -1 | grep -q "Passed!"; then
-  pass "همهٔ تست‌های PDF سبز"
+# ── 2. Print-template guards (Resolution + SqlGuard) ─────────────────
+step "۲) گاردهای قالب چاپ (Resolution + SqlGuard)"
+# بدون SQL Server تست‌ها Skip می‌شوند (Skipped!) — آن هم نتیجهٔ قابل قبول برای
+# این گام است؛ اجرای واقعیِ آن‌ها در CI در job جداگانه با SQL Server انجام می‌شود.
+if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo \
+     --filter "FullyQualifiedName~PrintTemplate" 2>&1 | tail -1 | grep -qE "Passed!|Skipped!"; then
+  pass "گاردهای قالب چاپ سبز (ترتیب وضوح، بازنشانی، ایندکس‌های یکتا، هم‌زمانی)"
 else
-  fail "تست‌های PDF قرمز شدند — باگ خروجی PDF برگشته."
+  fail "گاردهای قالب چاپ قرمز شدند — ترتیب وضوح/بازنشانی/ایندکس برگشته."
 fi
 
-# ── 3. Web build (refreshes Tarazin.Web/bin — REQUIRED before restart) ─
-step "۳) بیلد کامل وب (به‌روزرسانی کپی Tarazin.Web/bin)"
+# ── 3. Full test suite (PDF regression + close-year + rest) ───────────
+step "۳) کل سویت تست (PDF/حسابداری/چاپ)"
+if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo 2>&1 | tail -1 | grep -qE "Passed!|Skipped!"; then
+  pass "همهٔ تست‌ها سبز"
+else
+  fail "تست‌ها قرمز شدند — باگ خروجی PDF/سند برگشته."
+fi
+
+# ── 4. Web build (refreshes Tarazin.Web/bin — REQUIRED before restart) ─
+step "۴) بیلد کامل وب (به‌روزرسانی کپی Tarazin.Web/bin)"
 if dotnet build Tarazin.Web/Tarazin.Web.csproj --nologo -v q 2>&1 | grep -q "0 Error(s)"; then
   pass "بیلد وب بدون خطا"
 else
   fail "بیلد وب با خطا — پیش از ادامه درستش کن."
 fi
 
-# ── 4. Stale-build guard (must be 0 before dev-server restart) ────────
-step "۴) گارد ضد «سرور با کد قدیمی»"
+# ── 5. Stale-build guard (must be 0 before dev-server restart) ────────
+step "۵) گارد ضد «سرور با کد قدیمی»"
 if bash tools/check-stale-build.sh; then
   pass "ساختار بیلد تازه — امن برای ریاستارت dev server"
 else

@@ -23,22 +23,16 @@
             <MudTd DataLabel="خلاصه">@context.Summary</MudTd>
             <MudTd DataLabel="تاریخ انتشار">@(context.PublishedAt?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                    @(context.IsActive ? "فعال" : "غیرفعال")
-                </MudChip>
+                <StatusChip IsActive="context.IsActive" />
             </MudTd>
             <MudTd DataLabel="عملیات">
-                <MudTooltip Text="ویرایش خبر">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromNews(context)))" />
-                </MudTooltip>
-                <MudTooltip Text="حذف">
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromNews(context)))" />
-                </MudTooltip>
+                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromNews(context)))"
+                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromNews(context)))" />
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">خبری نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Title="خبری ثبت نشده است." Description="برای شروع، یک خبر جدید ایجاد کنید." Icon="@Icons.Material.Filled.Campaign" />
+        </NoRecordsContent>
     </MudTable>
 </MudPaper>
 

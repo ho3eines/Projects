@@ -52,7 +52,9 @@
             <MudTd DataLabel="شرح">@context.Description</MudTd>
             <MudTd DataLabel="وضعیت">@context.Status</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Title="گردشی در این بازه ثبت نشده است." Description="بازهٔ تاریخ یا فیلترها را تغییر دهید." Icon="@Icons.Material.Filled.AccountBalanceWallet" />
+        </NoRecordsContent>
         <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 

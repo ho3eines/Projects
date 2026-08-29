@@ -232,6 +232,128 @@ public sealed class PdfReportService
         });
     }
 
+    // ─────────────────────────── سند حسابداری ───────────────────────────
+
+    /// <summary>ساخت PDF سند حسابداری (ساده یا پیشرفته — A4/A5 پرتره).</summary>
+    public byte[] BuildDocumentPdf(AccountingDocumentPrintModel model, string paperSize = "A4")
+    {
+        var isA5 = string.Equals(paperSize, "A5", StringComparison.OrdinalIgnoreCase);
+        var pageSize = isA5 ? PageSizes.A5 : PageSizes.A4;
+
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(pageSize);
+                page.Margin(isA5 ? 18 : 22);
+                page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(9).FontColor("#1f2937"));
+
+                page.Header().Element(h => BuildOfficialHeader(h, isA5, $"سند حسابداری — {model.DocumentNumber}"));
+
+                page.Content().Column(col =>
+                {
+                    col.Item().Element(c => BuildDocumentMeta(c, model));
+                    col.Item().PaddingTop(6).Element(c => BuildDocumentTable(c, model));
+                    col.Item().PaddingTop(6).Element(c => BuildDocumentTotals(c, model));
+                });
+
+                page.Footer().Element(f => BuildOfficialFooter(f, isA5, $"سند {model.DocumentNumber}"));
+            });
+        }).GeneratePdf();
+    }
+
+    private static void BuildDocumentMeta(IContainer c, AccountingDocumentPrintModel model)
+    {
+        c.Border(0.8f).BorderColor("#d1d5db").Padding(6).Row(row =>
+        {
+            row.RelativeItem().Column(meta =>
+            {
+                meta.Item().Text($"شماره سند: {model.DocumentNumber}").Bold();
+                meta.Item().Text($"وضعیت: {AccountingDocumentStatus.Title(model.Status)}");
+            });
+            row.RelativeItem().Column(meta =>
+            {
+                if (!string.IsNullOrWhiteSpace(model.CounterPartyName))
+                    meta.Item().Text($"طرف حساب: {model.CounterPartyName}");
+                meta.Item().Text($"نوع: {TypeDocLabel(model.DocumentType)}");
+            });
+            row.RelativeItem().AlignRight().Column(meta =>
+            {
+                meta.Item().Text($"تاریخ: {model.DocumentDate.ToString("yyyy/MM/dd", Fa)}").Bold();
+                meta.Item().Text($"مبلغ کل: {model.TotalAmount:N0} ریال");
+            });
+        });
+    }
+
+    private static void BuildDocumentTable(IContainer c, AccountingDocumentPrintModel model)
+    {
+        c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
+        {
+            table.ColumnsDefinition(cols =>
+            {
+                cols.RelativeColumn(1.5f); // بستانکار
+                cols.RelativeColumn(1.5f); // بدهکار
+                cols.RelativeColumn(3);    // عنوان / شرح
+                cols.RelativeColumn(1.2f);// کد
+            });
+
+            table.Header(h =>
+            {
+                h.Cell().Element(HeaderCell).Text("بستانکار").Bold();
+                h.Cell().Element(HeaderCell).Text("بدهکار").Bold();
+                h.Cell().Element(HeaderCell).Text("عنوان / شرح").Bold();
+                h.Cell().Element(HeaderCell).Text("کد").Bold();
+            });
+
+            foreach (var line in model.Lines)
+            {
+                table.Cell().Element(BodyCell).AlignRight().Text(line.Credit > 0 ? line.Credit.ToString("N0", Fa) : "");
+                table.Cell().Element(BodyCell).AlignRight().Text(line.Debit > 0 ? line.Debit.ToString("N0", Fa) : "");
+                table.Cell().Element(BodyCell).Text(LineLabel(line));
+                table.Cell().Element(BodyCell).Text(line.AccountCode);
+            }
+        });
+    }
+
+    private static string LineLabel(DocumentLineRow line)
+        => string.IsNullOrWhiteSpace(line.Description) ? line.Title : $"{line.Title} — {line.Description}";
+
+    private static void BuildDocumentTotals(IContainer c, AccountingDocumentPrintModel model)
+    {
+        c.PaddingTop(2).Row(row =>
+        {
+            row.RelativeItem();
+            row.ConstantItem(240).Border(0.8f).BorderColor("#d1d5db").Padding(6).Column(total =>
+            {
+                total.Item().Row(r =>
+                {
+                    r.RelativeItem().Text("جمع بدهکار");
+                    r.RelativeItem().AlignRight().Text(model.TotalDebit.ToString("N0", Fa));
+                });
+                total.Item().Row(r =>
+                {
+                    r.RelativeItem().Text("جمع بستانکار");
+                    r.RelativeItem().AlignRight().Text(model.TotalCredit.ToString("N0", Fa));
+                });
+                total.Item().PaddingTop(2).Row(r =>
+                {
+                    r.RelativeItem().Text(model.TotalDebit == model.TotalCredit ? "✔ متوازن" : "✘ نامتوازن").Bold()
+                        .FontColor(model.TotalDebit == model.TotalCredit ? "#059669" : "#dc2626");
+                });
+            });
+        });
+    }
+
+    private static string TypeDocLabel(string? t) => (t ?? "") switch
+    {
+        "Journal" => "سند روزنامه",
+        "Receipt" => "دریافت",
+        "Payment" => "پرداخت",
+        "Purchase" => "خرید",
+        "Sale" => "فروش",
+        _ => t ?? ""
+    };
+
     // ─────────────────────────── گزارش چک‌ها ───────────────────────────
 
     /// <summary>ساخت PDF گزارش چک‌های در جریان و سررسیدشده (A4/A5 landscape).</summary>
@@ -458,6 +580,262 @@ public sealed class PdfReportService
         });
     }
 
+    // ─────────────────── موتور چاپ عمومی (قالب‌محور) ───────────────────
+
+    /// <summary>
+    /// ساخت PDF از روی قالب چاپ + داده — باندها: هدر اطلاعات شرکت، هدر گزارش
+    /// (عنوان + هدر داده)، جدول دیتیل، فوتر گزارش (جمع‌ها)، فوتر صفحه.
+    /// چیدمان با رندرر HTML (PrintSheetRenderer) یکسان است.
+    /// </summary>
+    public byte[] BuildTemplatePdf(PrintTemplateDef tpl, PrintDataModel data)
+    {
+        var isA5 = tpl.PaperSize == PrintPaperSize.A5;
+        var landscape = tpl.Orientation == PrintOrientation.Landscape;
+        var pageSize = isA5 ? PageSizes.A5 : PageSizes.A4;
+        if (landscape)
+            pageSize = isA5 ? PageSizes.A5.Landscape() : PageSizes.A4.Landscape();
+
+        var margin = tpl.MarginMm > 0 ? tpl.MarginMm : 12;
+
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(pageSize);
+                page.Margin(margin);
+                page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(tpl.FontSizePt).FontColor("#1f2937"));
+
+                if (tpl.ShowCompanyHeader)
+                    page.Header().Element(h => BuildTemplateCompanyHeader(h, tpl, data));
+
+                page.Content().Column(col =>
+                {
+                    col.Item().Element(c => BuildTemplateReportHeader(c, tpl, data));
+                    if (tpl.Columns.Count > 0)
+                        col.Item().PaddingTop(4).Element(c => BuildTemplateTable(c, tpl, data));
+                    if (tpl.ShowReportFooter)
+                        col.Item().PaddingTop(4).Element(c => BuildTemplateReportFooter(c, tpl, data));
+                });
+
+                if (tpl.ShowPageFooter)
+                    page.Footer().Element(f => BuildOfficialFooter(f, isA5, data.CompanyName ?? "ترازین"));
+            });
+        }).GeneratePdf();
+    }
+
+    private static void BuildTemplateCompanyHeader(IContainer c, PrintTemplateDef tpl, PrintDataModel data)
+    {
+        var isA5 = tpl.PaperSize == PrintPaperSize.A5;
+        c.PaddingBottom(6).BorderBottom(2).BorderColor("#0f766e").Row(row =>
+        {
+            // ترتیب RTL: نام شرکت راست‌ترین و لوگو سمت چپِ آن.
+            row.RelativeItem().Column(col =>
+            {
+                col.Item().AlignRight().Text(string.IsNullOrWhiteSpace(data.CompanyName)
+                    ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار"
+                    : data.CompanyName)
+                    .FontSize(isA5 ? 11 : 13).FontColor("#1a237e").Bold();
+                if (!string.IsNullOrWhiteSpace(data.CompanyAddress))
+                    col.Item().PaddingTop(1).AlignRight().Text($"آدرس: {data.CompanyAddress}")
+                        .FontSize(isA5 ? 7 : 8).FontColor("#6b7280");
+                // عنوان گزارش فقط یک‌بار (در هدر گزارش) چاپ می‌شود تا با رندرر HTML یکسان باشد.
+            });
+            row.AutoItem().PaddingLeft(isA5 ? 6 : 8).Element(x => x
+                .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
+                .Background("#0f766e")
+                .AlignCenter().AlignMiddle()
+                .Text("ت").FontColor(Colors.White).FontSize(isA5 ? 12 : 15).Bold());
+        });
+    }
+
+    private static void BuildTemplateReportHeader(IContainer c, PrintTemplateDef tpl, PrintDataModel data)
+    {
+        c.Column(col =>
+        {
+            var title = string.IsNullOrWhiteSpace(data.Title) ? tpl.ReportTitle : data.Title;
+            if (!string.IsNullOrWhiteSpace(title))
+                col.Item().AlignRight().Text(title).FontSize(12).Bold().FontColor("#111827");
+            var subtitle = string.IsNullOrWhiteSpace(data.Subtitle) ? tpl.ReportSubtitle : data.Subtitle;
+            if (!string.IsNullOrWhiteSpace(subtitle))
+                col.Item().AlignRight().Text(subtitle).FontSize(9).FontColor("#6b7280");
+            if (!string.IsNullOrWhiteSpace(data.RangeText))
+                col.Item().AlignRight().Text(data.RangeText).FontSize(8.5f).FontColor("#6b7280");
+
+            var fields = BuildMetaFields(tpl, data);
+            if (fields.Count > 0)
+            {
+                col.Item().PaddingTop(4).Element(meta =>
+                {
+                    meta.Border(0.8f).BorderColor("#d1d5db").Padding(5).Column(grid =>
+                    {
+                        for (var i = 0; i < fields.Count; i += 3)
+                        {
+                            // RTL: اولین فیلد باید راست‌ترین بنشیند؛ Row در QuestPDF LTR است → معکوس.
+                            var chunk = fields.Skip(i).Take(3).Reverse().ToList();
+                            grid.Item().Row(row =>
+                            {
+                                foreach (var f in chunk)
+                                {
+                                    row.RelativeItem().Column(item =>
+                                    {
+                                        var t = item.Item().AlignRight().Text(MetaText(f));
+                                        if (f.Bold)
+                                            t = t.Bold();
+                                        t.FontSize(8.5f);
+                                    });
+                                }
+                            });
+                        }
+                    });
+                });
+            }
+        });
+    }
+
+    private static List<PrintMetaField> BuildMetaFields(PrintTemplateDef tpl, PrintDataModel data)
+    {
+        var result = new List<PrintMetaField>();
+        var max = Math.Max(tpl.MetaFields.Count, data.MetaFields.Count);
+        for (var i = 0; i < max; i++)
+        {
+            var def = i < tpl.MetaFields.Count ? tpl.MetaFields[i] : new PrintMetaField();
+            var value = i < data.MetaFields.Count && data.MetaFields[i].Value is not null
+                ? data.MetaFields[i].Value
+                : def.Value;
+            result.Add(new PrintMetaField
+            {
+                Label = i < data.MetaFields.Count && !string.IsNullOrWhiteSpace(data.MetaFields[i].Label)
+                    ? data.MetaFields[i].Label
+                    : def.Label,
+                Value = value,
+                Bold = i < data.MetaFields.Count ? data.MetaFields[i].Bold : def.Bold
+            });
+        }
+        result.RemoveAll(f => string.IsNullOrWhiteSpace(f.Label) && string.IsNullOrWhiteSpace(f.Value));
+        return result;
+    }
+
+    private static string MetaText(PrintMetaField f)
+        => string.IsNullOrWhiteSpace(f.Label)
+            ? f.Value ?? ""
+            : $"{f.Label}: {f.Value ?? "—"}";
+
+    private static void BuildTemplateTable(IContainer c, PrintTemplateDef tpl, PrintDataModel data)
+    {
+        c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
+        {
+            // برای هم‌خوانی با HTML (dir=rtl): اولین ستون راست‌ترین می‌شود
+            // → ترتیب تعریف ستون‌ها معکوس است.
+            var reversed = tpl.Columns.AsEnumerable().Reverse().ToList();
+            table.ColumnsDefinition(cols =>
+            {
+                foreach (var col in reversed)
+                    cols.RelativeColumn(Math.Max(col.Width, 20));
+            });
+
+            table.Header(h =>
+            {
+                foreach (var col in reversed)
+                    h.Cell().Element(c => ColHeaderCell(c, col, tpl)).Text(col.Title);
+            });
+
+            var rowIdx = 0;
+            foreach (var row in data.Rows)
+            {
+                var indent = row.TryGetValue("__indent", out var iv) && iv is int i ? i : 0;
+                var bg = row.TryGetValue("__bg", out var bv) ? Convert.ToString(bv, Fa) : null;
+                var boldRow = row.TryGetValue("__bold", out var bo) && bo is true;
+                var zebra = !string.IsNullOrWhiteSpace(bg) ? null : (rowIdx % 2 == 1 ? "#fafafa" : null);
+
+                foreach (var col in reversed)
+                {
+                    var isFirst = col == reversed[^1];
+                    var value = RowValue(row, col);
+                    // هر سلول فقط یک فرزند می‌گیرد → یک زنجیرهٔ واحد تا پایان با .Text
+                    // (در QuestPDF نتیجهٔ هر fluent باید دوباره تخصیص شود تا اعمال گردد).
+                    table.Cell().Element(inner =>
+                    {
+                        var x = inner.Padding(2f);
+                        // RTL: Start=راست، End=چپ (هماهنگ با CSS رندرر HTML)
+                        if (col.Align == PrintAlign.Start)
+                            x = x.AlignRight();
+                        else if (col.Align == PrintAlign.End)
+                            x = x.AlignLeft();
+                        else
+                            x = x.AlignCenter();
+                        var back = bg ?? zebra;
+                        if (!string.IsNullOrWhiteSpace(back))
+                            x = x.Background(back);
+                        if (isFirst && indent > 0)
+                            x = x.PaddingLeft((float)(indent * 8));
+                        x.Text(t =>
+                        {
+                            var span = t.Span(value);
+                            span.FontSize(tpl.FontSizePt);
+                            if (col.Bold || boldRow)
+                                span.Bold();
+                        });
+                    });
+                }
+                rowIdx++;
+            }
+        });
+    }
+
+    private static string RowValue(PrintRow row, PrintColumnDef col)
+    {
+        if (!row.TryGetValue(col.Key, out var value) || value is null)
+            return "";
+        if (value is IFormattable f && !string.IsNullOrWhiteSpace(col.Format))
+            return f.ToString(col.Format, Fa);
+        if (value is decimal d)
+            return string.IsNullOrWhiteSpace(col.Format) ? d.ToString(Fa) : d.ToString(col.Format, Fa);
+        if (value is int ii)
+            return string.IsNullOrWhiteSpace(col.Format) ? ii.ToString(Fa) : ii.ToString(col.Format, Fa);
+        if (value is long ll)
+            return string.IsNullOrWhiteSpace(col.Format) ? ll.ToString(Fa) : ll.ToString(col.Format, Fa);
+        return Convert.ToString(value, Fa) ?? "";
+    }
+
+    private static void BuildTemplateReportFooter(IContainer c, PrintTemplateDef tpl, PrintDataModel data)
+    {
+        var totals = tpl.Columns.Where(x => x.Total).ToList();
+        if (totals.Count == 0 && data.FooterFields.Count == 0)
+            return;
+
+        c.Border(0.8f).BorderColor("#d1d5db").Padding(5).Column(col =>
+        {
+            foreach (var colDef in totals)
+            {
+                decimal sum = 0;
+                foreach (var row in data.Rows)
+                {
+                    if (row.TryGetValue(colDef.Key, out var v) && v is decimal dd)
+                        sum += dd;
+                }
+                var label = $"جمع {colDef.Title}";
+                var value = string.IsNullOrWhiteSpace(colDef.Format)
+                    ? sum.ToString(Fa)
+                    : sum.ToString(colDef.Format, Fa);
+                col.Item().Row(r =>
+                {
+                    // RTL: لیبل راست و مقدار سمت چپ آن (Row در QuestPDF LTR است → معکوس)
+                    r.RelativeItem().AlignLeft().Text(value).Bold();
+                    r.RelativeItem().AlignRight().Text(label).Bold();
+                });
+            }
+
+            foreach (var f in data.FooterFields)
+            {
+                col.Item().Row(r =>
+                {
+                    r.RelativeItem().AlignLeft().Text(f.Value ?? "—").Bold();
+                    r.RelativeItem().AlignRight().Text(f.Label).Bold();
+                });
+            }
+        });
+    }
+
     private static void BuildOfficialFooter(IContainer c, bool isA5, string rightText)
     {
         c.PaddingTop(4).BorderTop(0.8f).BorderColor("#d1d5db").Row(row =>
@@ -479,6 +857,22 @@ public sealed class PdfReportService
     private static IContainer HeaderCell(IContainer c)
         => c.Background("#f3f4f6").BorderBottom(1).BorderColor("#d1d5db").Padding(4)
             .AlignRight().DefaultTextStyle(t => t.FontSize(8.5f));
+
+    /// <summary>
+    /// هدر ستون قالب‌محور — ترازِ هر ستون همانند رندرر HTML (RTL: Start=راست، End=چپ)
+    /// اعمال می‌شود تا چاپ مرورگر و PDF یکسان باشند.
+    /// </summary>
+    private static IContainer ColHeaderCell(IContainer c, PrintColumnDef col, PrintTemplateDef tpl)
+    {
+        var x = c.Background("#f3f4f6").Border(0.4f).BorderColor("#d1d5db").Padding(2.5f);
+        x = col.Align switch
+        {
+            PrintAlign.End => x.AlignLeft(),
+            PrintAlign.Center => x.AlignCenter(),
+            _ => x.AlignRight()
+        };
+        return x.DefaultTextStyle(t => t.FontSize(tpl.FontSizePt).Bold());
+    }
 
     private static IContainer BodyCell(IContainer c)
         => c.BorderBottom(0.5f).BorderColor("#e5e7eb").Padding(4)

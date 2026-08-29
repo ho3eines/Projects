@@ -24,22 +24,16 @@
             <MudTd DataLabel="برچسب‌ها">@context.Tags</MudTd>
             <MudTd DataLabel="تاریخ انتشار">@(context.PublishedAt?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
             <MudTd DataLabel="وضعیت">
-                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                    @(context.IsActive ? "فعال" : "غیرفعال")
-                </MudChip>
+                <StatusChip IsActive="context.IsActive" />
             </MudTd>
             <MudTd DataLabel="عملیات">
-                <MudTooltip Text="ویرایش پست">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromBlog(context)))" />
-                </MudTooltip>
-                <MudTooltip Text="حذف">
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => DeleteAsync(EntityEditorModel.FromBlog(context)))" />
-                </MudTooltip>
+                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromBlog(context)))"
+                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromBlog(context)))" />
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">پستی نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Title="پستی ثبت نشده است." Description="برای شروع، یک پست جدید ایجاد کنید." Icon="@Icons.Material.Filled.Article" />
+        </NoRecordsContent>
     </MudTable>
 </MudPaper>
 

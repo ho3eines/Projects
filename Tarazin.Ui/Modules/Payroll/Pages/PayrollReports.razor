@@ -7,6 +7,7 @@
 @inject BiReportService ReportService
 @inject IDialogService Dialog
 @inject PdfReportService Pdf
+@inject PrintTemplateService Tpl
 
 <PageTitle>گزارشات — حقوق و دستمزد</PageTitle>
 
@@ -32,7 +33,7 @@
                     <MudTd DataLabel="تعداد کارمند">@context.EmployeeCount</MudTd>
                     <MudTd DataLabel="خالص کل">@context.NetTotal.ToString("N0")</MudTd>
                     <MudTd DataLabel="وضعیت">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Finalized" ? Color.Success : Color.Default)">@context.Status</MudChip>
+                        <StatusChip IsActive="@(context.Status == "Finalized")" ActiveText="نهایی‌شده" InactiveText="@context.Status" />
                     </MudTd>
                     <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
                 </RowTemplate>
@@ -63,11 +64,18 @@
                         نمایش فیش‌ها
                     </MudButton>
                 </MudItem>
-                <MudItem xs="12" sm="6" md="6">
+                <MudItem xs="12" sm="6" md="3">
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Print" OnClick="PrintSlipsAsync"
                                Disabled="_busyPrint || _runId == 0">
-                        چاپ فیش حقوق (Stimulsoft)
+                        فیش (Stimulsoft)
+                    </MudButton>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Print" OnClick="PrintSlipsListAsync"
+                               Disabled="_loadingSlips || _slips.Count == 0">
+                        چاپ فهرست فیش‌ها
                     </MudButton>
                 </MudItem>
             </MudGrid>
@@ -203,19 +211,75 @@
         }
     }
 
-    // ── چاپ دوره‌های حقوق (QuestPDF — طبق اسکیل tarazin-reporting) ──
+    // ── چاپ فهرست فیش‌های دوره (موتور چاپ عمومی) ──
+
+    private async Task PrintSlipsListAsync()
+    {
+        if (_slips.Count == 0) return;
+        var run = _runs.FirstOrDefault(r => r.RunId == _runId);
+        var tpl = await Tpl.GetOrCreateDefaultAsync("payroll.slips");
+        var data = new PrintDataModel
+        {
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = "فیش حقوق دوره",
+            Subtitle = "خالص پرداختی هر کارمند",
+            RangeText = $"تهیه‌شده در {DateTime.Now:yyyy/MM/dd HH:mm}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "دوره", Value = run?.Period ?? _runId.ToString(), Bold = true });
+        data.MetaFields.Add(new PrintMetaField { Label = "تعداد فیش", Value = _slips.Count.ToString("N0"), Bold = true });
+        foreach (var s in _slips)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["EmployeeId"] = s.EmployeeId,
+                ["EmployeeName"] = s.EmployeeName,
+                ["NetPay"] = s.NetPay
+            });
+        }
+        data.FooterFields.Add(new PrintMetaField { Label = "جمع خالص", Value = _slips.Sum(s => s.NetPay).ToString("N0") + " ریال", Bold = true });
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ فهرست فیش‌ها",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "payroll.slips" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    // ── چاپ دوره‌های حقوق (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
 
     private async Task PrintRunsAsync()
     {
         if (_runs.Count == 0) return;
-        await Dialog.ShowAsync<ReportPrintDialog>("چاپ دوره‌های حقوق", new DialogParameters<ReportPrintDialog>
+        var tpl = await Tpl.GetOrCreateDefaultAsync("payroll.runs");
+        var data = new PrintDataModel
         {
-            { x => x.Title, "دوره‌های حقوق" },
-            { x => x.Subtitle, "دوره‌های حقوق و خالص پرداختی هر دوره" },
-            { x => x.RangeText, $"تهیه شده در {DateTime.Now:yyyy/MM/dd HH:mm}" },
-            { x => x.Body, RunsTableBody },
-            { x => x.BuildPdf, BuildRunsPdf }
-        }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+            CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
+            Title = "دوره‌های حقوق",
+            Subtitle = "دوره‌های حقوق و خالص پرداختی هر دوره",
+            RangeText = $"تهیه‌شده در {DateTime.Now:yyyy/MM/dd HH:mm}",
+            QrEnabled = false
+        };
+        data.MetaFields.Add(new PrintMetaField { Label = "تاریخ تهیه", Value = DateTime.Now.ToString("yyyy/MM/dd HH:mm") });
+        data.MetaFields.Add(new PrintMetaField { Label = "تعداد دوره‌ها", Value = _runs.Count.ToString("N0"), Bold = true });
+        foreach (var r in _runs)
+        {
+            data.Rows.Add(new PrintRow
+            {
+                ["Period"] = r.Period,
+                ["EmployeeCount"] = r.EmployeeCount,
+                ["NetTotal"] = r.NetTotal,
+                ["StatusTitle"] = r.Status == "Finalized" ? "نهایی‌شده" : r.Status,
+                ["CreatedAt"] = r.CreatedAt.ToString("yyyy/MM/dd")
+            });
+        }
+        data.FooterFields.Add(new PrintMetaField { Label = "جمع خالص دوره‌ها", Value = _runs.Sum(r => r.NetTotal).ToString("N0") + " ریال", Bold = true });
+        await Dialog.ShowAsync<TemplatePrintDialog>("چاپ دوره‌های حقوق",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, tpl }, { x => x.Data, data }, { x => x.TemplateId, "payroll.runs" }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
     }
 
     private RenderFragment RunsTableBody => @<MudTable Items="_runs" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="gp-lines-table">

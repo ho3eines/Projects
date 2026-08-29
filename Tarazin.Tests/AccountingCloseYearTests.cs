@@ -21,33 +21,13 @@ namespace Tarazin.Tests
     ///
     /// نیازمند SQL Server زنده است؛ اگر در دسترس نبود (مثل CI) تست Skip می‌شود.
     /// </summary>
-    /// <summary>
-    /// استثنای Skip سازگار با xunit 2.9.2 — پرتاب آن تست را به‌عنوان Skipped علامت می‌زند
-    /// (وقتی SQL Server در دسترس نیست، مثلاً در CI).
-    /// </summary>
-    public sealed class SkipTestException : Exception
-    {
-        public SkipTestException(string reason) : base(reason) { }
-    }
-
     public class AccountingCloseYearTests
     {
-        private const string Conn =
-            "Server=localhost;Database=TarazinMaster;User Id=sa;Password=123456;TrustServerCertificate=True;Encrypt=False";
-
-        [Fact]
+        [SkippableFact]
         public async Task CloseYear_chain_lock_override_carryover()
         {
-            using var cn = new SqlConnection(Conn);
-            try
-            {
-                await cn.OpenAsync();
-            }
-            catch (Exception ex)
-            {
-                // SQL Server در دسترس نیست (مثلاً CI) — تست Skip می‌شود نه Fail.
-                throw new SkipTestException($"SQL Server در دسترس نیست: {ex.Message}");
-            }
+            // SQL Server در دسترس نیست (مثلاً CI) → Skip نه Fail.
+            using var cn = await TestDb.OpenOrSkipAsync();
 
             // 1) Throwaway company + fiscal years 1404/1405/1406
             var compId = await cn.ExecuteScalarAsync<int>(@"

@@ -44,13 +44,13 @@
 @if (_selectedEmployee is not null)
 {
     <MudPaper Elevation="1" Class="pa-4">
-        <div class="d-flex justify-space-between align-center mb-4">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
             <MudText Typo="Typo.h6">اقلام «‎@_selectedEmployee.FullName» — دورهٔ @_period</MudText>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
                        OnClick="OpenNewAsync">
                 قلم جدید
             </MudButton>
-        </div>
+        </MudStack>
 
         <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
             <HeaderContent>

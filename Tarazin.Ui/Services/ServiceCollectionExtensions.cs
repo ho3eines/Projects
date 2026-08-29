@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         // PDF سمت سرور (QuestPDF) — موتور مشترک وب + MAUI. ذخیره‌کننده (IPdfSaver)
         // را هاست ثبت می‌کند (وب: WebPdfSaver، MAUI: MauiPdfSaver).
         services.AddScoped<PdfReportService>();
+        services.AddScoped<PrintTemplateService>(); // مدیریت قالب‌های چاپ (موتور چاپ عمومی)
 
         return services;
     }

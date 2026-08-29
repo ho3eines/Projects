@@ -14,10 +14,11 @@
                 @if (!item.HideInNav && Session.HasPermission(item.Permission))
                 {
                     var active = TarazinModules.IsActive(CurrentPath, item.Url);
-                    <a href="@item.Url" class="tz-subnav__tab @(active ? "is-active" : null)">
+                    <MudNavLink Href="@item.Url" Class="@(active ? "tz-subnav__tab is-active" : "tz-subnav__tab")"
+                                Match="@(active ? NavLinkMatch.All : NavLinkMatch.Prefix)">
                         <MudIcon Icon="@item.Icon" Size="Size.Small" />
                         <span>@item.Title</span>
-                    </a>
+                    </MudNavLink>
                 }
             }
         </div>

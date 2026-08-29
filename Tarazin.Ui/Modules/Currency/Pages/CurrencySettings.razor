@@ -12,13 +12,9 @@
 <MudTabs>
     <MudTabPanel Text="ارزها">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="d-flex justify-end mb-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="@(() => OpenEditorAsync(new CurrencyDefRow()))"
-                           Disabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))">
-                    ارز جدید
-                </MudButton>
-            </div>
+            <PageToolbar AddText="ارز جدید" AddIcon="@Icons.Material.Filled.Add"
+                         AddDisabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))"
+                         OnAddClick="@(() => OpenEditorAsync(new CurrencyDefRow()))" />
             <MudTable Items="_currencies" Hover="true" Dense="true" Striped="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>نماد</MudTh><MudTh>واحد پایه</MudTh>
