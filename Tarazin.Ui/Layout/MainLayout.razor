@@ -196,6 +196,7 @@
     </div>
 }
 @code {
+    [CascadingParameter] private Breakpoint ScreenBreakpoint { get; set; }
     private bool _drawerOpen = true;
     private string _path = "";
     private TarazinModule? _module;
@@ -216,6 +217,7 @@
 
     private List<FiscalYearRow> _years = new();
     private string _yearsError = "";
+    private Breakpoint _lastBreakpoint;
 
     protected override async Task OnInitializedAsync()
     {
@@ -224,6 +226,17 @@
         Nav.LocationChanged += OnLocation;
         RefreshPath(Nav.Uri);
         await EnsureContextAsync();
+    }
+
+    // با عبور از Breakpoint.Md (موبایل ← دسکتاپ و برعکس) drawer خودکار تنظیم می‌شود:
+    // در موبایل بسته (روی محتوا نمی‌افتد) و در دسکتاپ باز. تغییرات breakpoint فقط
+    // وقتی واقعاً عوض شده باشد drawer را لمس می‌کند تا باز/بستهٔ دستیِ کاربر حفظ شود.
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        if (ScreenBreakpoint == _lastBreakpoint) return;
+        _lastBreakpoint = ScreenBreakpoint;
+        _drawerOpen = ScreenBreakpoint >= Breakpoint.Md;
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);

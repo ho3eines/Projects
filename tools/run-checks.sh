@@ -8,6 +8,9 @@
 #   3. Full test suite        (PDF regression, close-year, everything else)
 #   4. Web build              (dotnet build Tarazin.Web)  — refreshes Web/bin copy
 #   5. Stale-build guard      (tools/check-stale-build.sh)
+#   6. Test-report refresh    (tools/refresh-test-report.sh) — regenerates the
+#                             auto-gate section of docs/testing-report.md from the
+#                             real step-3 output, so the QA evidence never drifts.
 #
 # Exit code: 0 = all green, 1 = a check failed (the failing step is named).
 #
@@ -56,9 +59,11 @@ else
 fi
 
 # ── 3. Full test suite (PDF regression + close-year + rest) ───────────
+# خروجی کامل ذخیره می‌شود تا گام ۶ (تولید گزارش نهایی) از همان عددِ واقعی بخواند.
 step "۳) کل سویت تست (PDF/حسابداری/چاپ)"
-if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo 2>&1 | tail -1 | grep -qE "Passed!|Skipped!"; then
-  pass "همهٔ تست‌ها سبز"
+TEST_SUMMARY_LINE="$(dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo 2>&1 | grep -E "Passed!|Skipped!|Failed!" | tail -1)"
+if printf '%s\n' "$TEST_SUMMARY_LINE" | grep -qE "Passed!|Skipped!"; then
+  pass "همهٔ تست‌ها سبز — $TEST_SUMMARY_LINE"
 else
   fail "تست‌ها قرمز شدند — باگ خروجی PDF/سند برگشته."
 fi
@@ -77,6 +82,14 @@ if bash tools/check-stale-build.sh; then
   pass "ساختار بیلد تازه — امن برای ریاستارت dev server"
 else
   fail "گارد stale خطا داد — اول طبق پیام rebuild کن."
+fi
+
+# ── 6. Test-report refresh (QA evidence must reflect reality) ──────────
+step "۶) به‌روزرسانی گزارش نهایی تست"
+if bash tools/refresh-test-report.sh "$TEST_SUMMARY_LINE"; then
+  pass "گزارش تست (docs/testing-report.md) از خروجی واقعی بازنویسی شد"
+else
+  fail "بازنویسی گزارش تست شکست خورد — فایل گزارش قابل‌نوشتن نیست."
 fi
 
 echo

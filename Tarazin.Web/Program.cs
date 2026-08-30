@@ -15,6 +15,20 @@ using Tarazin.Web;
 Console.InputEncoding = Encoding.UTF8;
 Console.OutputEncoding = Encoding.UTF8;
 
+// ── تک‌نمونه‌سازی (single-instance) ────────────────────────────────────────
+// از اجرای هم‌زمان دو نمونهٔ هاست وب جلوگیری می‌کند؛ در غیر این صورت هر دو روی
+// پورت‌های 65220/65221 رقابت می‌کنند، DLLهای در حال استفاده قفل می‌شوند و
+// دسترسی HTTP/HTTPS ناپایدار می‌شود. مودِکس همنامِ فرایند محلی: دومین نمونه
+// به‌جای خاموشی گیج‌کننده، پیام واضح چاپ و بلافاصله خروجی می‌کند.
+using var singleInstanceLock = AcquireSingleInstanceLock();
+if (singleInstanceLock is null)
+{
+    Console.ForegroundColor = ConsoleColor.Yellow;
+    Console.WriteLine("یک نمونهٔ دیگر از Tarazin.Web در حال اجراست. برای راه‌اندازی مجدد ابتدا آن را متوقف کنید.");
+    Console.ResetColor();
+    return;
+}
+
 var fa = CultureInfo.GetCultureInfo("fa-IR");
 CultureInfo.DefaultThreadCurrentCulture = fa;
 CultureInfo.DefaultThreadCurrentUICulture = fa;
@@ -67,6 +81,15 @@ if (!string.IsNullOrWhiteSpace(stimulsoftLicensePath))
 // ── Blazor Server (web host) — the UI itself lives in Tarazin.Ui ─────────
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+
+// مشخص‌کردن صریحِ پورت HTTPS (از پیکربندی) تا redirect پایدار باشد حتی اگر
+// هاست هم‌زمان هر دو بایند شود یا launchSettings/ASPNETCORE_URLS ناهماهنگ باشند.
+if (builder.Configuration.GetValue<int?>("Tarazin:HttpsPort") is int httpsPort)
+    builder.Services.AddHttpsRedirection(options =>
+    {
+        options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
+        options.HttpsPort = httpsPort;
+    });
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -153,6 +176,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+
+// HTTP → HTTPS: پیکربندیِ redirect (پورت/کد) قبلاً از طریق AddHttpsRedirection
+// بالای همین فایل اعمال شده؛ اینجا فقط میان‌افزار را نصب می‌کنیم.
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
@@ -206,6 +232,23 @@ app.MapFallbackToPage("/_Host");
 
 
 app.Run();
+
+// قفل تک‌نمونه‌ای: نگه‌داشتن مودِکس تا پایان عمر فرایند. اگر نمونهٔ دیگری از قبل
+// در حال اجراست، null برمی‌گرداند و فراخواننده پیام چاپ می‌کند و خروجی می‌دهد.
+// نام بدون پیشوند Global است تا در همان نشست/کاربرِ کاربر کار کند (بدون نیاز به
+// دسترسی ادمین).
+static IDisposable? AcquireSingleInstanceLock()
+{
+    var mutexName = typeof(Program).FullName + ".SingleInstance";
+    var mutex = new Mutex(initiallyOwned: true, name: "Local\\" + mutexName, out var createdNew);
+    if (createdNew) return mutex;                                   // این نمونه مالک شد
+    try
+    {
+        if (!mutex.WaitOne(0)) { mutex.Dispose(); return null; }   // نمونهٔ دیگری مالک است → رد
+        return mutex;                                              // مالکِ قبلی رِهلش کرد → مالک شدیم
+    }
+    catch (AbandonedMutexException) { return mutex; }              // مالکِ قبلی cras ه؛ اکنون مالکیم
+}
 
 static IResult MobileError(int status, string code, string message)
     => Results.Json(new MobileConnectionError { Code = code, Message = message }, statusCode: status);

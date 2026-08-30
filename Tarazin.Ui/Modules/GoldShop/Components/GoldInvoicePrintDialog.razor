@@ -26,18 +26,9 @@
             @* ── حالت پیش‌نمایش: شبیه‌سازی برگهٔ A4/A5 با هدر/فوتر رسمی ── *@
             <div class="gp-preview-stage">
                 <div class="gp-preview-sheet @(_paperSize == "A5" ? "gp-preview-sheet--a5" : "")">
-                    @* هدر رسمی (شبیه‌سازی) *@
-                    <div class="gp-print-header">
-                        <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
-                        <div>
-                            <div style="font-size:13pt;font-weight:700;color:#1a237e">
-                                ترازین — سامانه یکپارچه مدیریت کسب‌وکار
-                            </div>
-                            <div style="font-size:9pt;color:#666">
-                                @(Model.InvoiceType == "Sale" ? "فاکتور فروش طلا و جواهرات" : "فاکتور خرید طلا و جواهرات") — @Model.InvoiceNumber
-                            </div>
-                        </div>
-                    </div>
+                    @* هدر رسمی (شبیه‌سازی) — نام/لوگو/آدرس از تنظیمات شرکت مالی + QRCode *@
+                    <PrintBrandHeader CompanyName="@BrandName" Title="@PrintTitle"
+                                      HeaderOnly="true" QrEnabled="true" QrPayload="@QrPayload" />
 
                     @* بدنهٔ برگه *@
                     <div class="gp-preview-sheet__body">
@@ -100,6 +91,23 @@
 
     private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
 
+    private string BrandName =>
+        string.IsNullOrWhiteSpace(Model.BrandName) ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار" : Model.BrandName!;
+
+    private string PrintTitle =>
+        $"{(Model.InvoiceType == "Sale" ? "فاکتور فروش طلا و جواهرات" : "فاکتور خرید طلا و جواهرات")} — {Model.InvoiceNumber}";
+
+    private string QrPayload =>
+        string.IsNullOrWhiteSpace(Model.QrBaseUrl)
+            ? $"tarazin:goldinvoice:{Model.DocumentId}"
+            : $"{Model.QrBaseUrl.TrimEnd('/')}/invoice/{Model.DocumentId}";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("tarazinQr.fillAll");
+    }
+
     /// <summary>
     /// ساخت PDF با QuestPDF (سمت سرور در وب / بومی در MAUI) و دانلود بدون
     /// دیالوگ پرینتر — جایگزین html2pdf که روی موبایل سنگین بود.
@@ -130,24 +138,21 @@
         return Math.Round(line.Qty * line.ResolvedRate, 0);
     }
 
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+    private async Task PrintAsync()
+    {
+        // چاپ از خودِ دیالوگ تا CSS مودال/جدول MudBlazor در دسترس باشد؛
+        // اندازهٔ کاغذ (A4/A5) با کلاس gp-print-area--a5 + قانون page: تنظیم می‌شود.
+        try { await JS.InvokeVoidAsync("tarazinQr.fillAll"); } catch { }
+        await JS.InvokeVoidAsync("window.print");
+    }
 
     private void Close() => MudDialog.Close();
 
     /// <summary>بدنهٔ مشترک فاکتور (اطلاعات + جدول + جمع‌بندی + تسویه) — هم در حالت عادی و هم در پیش‌نمایش.</summary>
     private RenderFragment RenderBody() => @<text>
-            @* ── هدر رسمی (در چاپ روی همهٔ صفحات تکرار می‌شود) ── *@
-            <div class="gp-print-header print-only">
-                <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
-                <div>
-                    <div style="font-size:13pt;font-weight:700;color:#1a237e">
-                        ترازین — سامانه یکپارچه مدیریت کسب‌وکار
-                    </div>
-                    <div style="font-size:9pt;color:#666">
-                        @(Model.InvoiceType == "Sale" ? "فاکتور فروش طلا و جواهرات" : "فاکتور خرید طلا و جواهرات") — @Model.InvoiceNumber
-                    </div>
-                </div>
-            </div>
+            @* ── هدر رسمی (در چاپ روی همهٔ صفحات تکرار می‌شود) — نام/لوگو/آدرس از تنظیمات شرکت مالی + QRCode ── *@
+            <PrintBrandHeader CompanyName="@BrandName" Title="@PrintTitle"
+                              HeaderOnly="true" QrEnabled="true" QrPayload="@QrPayload" />
 
             @* ── اطلاعات فاکتور ── *@
             <MudPaper Elevation="0" Class="pa-4 gp-page-break" Style="border:1px solid #e0e0e0;border-radius:10px">

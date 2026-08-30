@@ -114,6 +114,10 @@ public class GoldInvoicePrintModel
     public int DocumentId { get; set; }
     public List<GoldInvoicePrintLine> Lines { get; set; } = new();
 
+    // سربرگ رسمی چاپ — از تنظیمات شرکت مالی (مثل سند حسابداری)
+    public string? BrandName { get; set; }
+    public string? QrBaseUrl { get; set; }
+
     // تسویه
     public decimal PayCash { get; set; }
     public decimal PayBank { get; set; }

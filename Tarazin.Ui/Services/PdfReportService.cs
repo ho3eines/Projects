@@ -234,11 +234,21 @@ public sealed class PdfReportService
 
     // ─────────────────────────── سند حسابداری ───────────────────────────
 
-    /// <summary>ساخت PDF سند حسابداری (ساده یا پیشرفته — A4/A5 پرتره).</summary>
+    /// <summary>
+    /// ساخت PDF سند حسابداری (ساده یا پیشرفته — A4/A5 پرتره).
+    /// چیدمان با رندرر HTML دیالوگ چاپ سند یکسان است: هدر رسمی (لوگو/نام/آدرس + QR)،
+    /// جدول دیتیل (ساده: ردیف‌ها؛ پیشرفته: کل → معین → تفصیل تودرتو با جمع هر سطح).
+    /// </summary>
     public byte[] BuildDocumentPdf(AccountingDocumentPrintModel model, string paperSize = "A4")
     {
         var isA5 = string.Equals(paperSize, "A5", StringComparison.OrdinalIgnoreCase);
         var pageSize = isA5 ? PageSizes.A5 : PageSizes.A4;
+
+        var qr = (!string.IsNullOrWhiteSpace(model.QrBaseUrl) || true)
+            ? BuildQrPng(string.IsNullOrWhiteSpace(model.QrBaseUrl)
+                ? $"tarazin:doc:{model.DocumentId}"
+                : $"{model.QrBaseUrl.TrimEnd('/')}/doc/{model.DocumentId}")
+            : null;
 
         return Document.Create(container =>
         {
@@ -248,18 +258,78 @@ public sealed class PdfReportService
                 page.Margin(isA5 ? 18 : 22);
                 page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(9).FontColor("#1f2937"));
 
-                page.Header().Element(h => BuildOfficialHeader(h, isA5, $"سند حسابداری — {model.DocumentNumber}"));
+                page.Header().Element(h => BuildDocumentCompanyHeader(h, isA5, model, qr));
 
                 page.Content().Column(col =>
                 {
                     col.Item().Element(c => BuildDocumentMeta(c, model));
-                    col.Item().PaddingTop(6).Element(c => BuildDocumentTable(c, model));
+                    col.Item().PaddingTop(6).Element(c =>
+                    {
+                        if (model.Advanced)
+                            BuildDocumentAdvancedTable(c, model);
+                        else
+                            BuildDocumentTable(c, model);
+                    });
                     col.Item().PaddingTop(6).Element(c => BuildDocumentTotals(c, model));
                 });
 
                 page.Footer().Element(f => BuildOfficialFooter(f, isA5, $"سند {model.DocumentNumber}"));
             });
         }).GeneratePdf();
+    }
+
+    /// <summary>هدر رسمی سند — لوگو/نام/آدرس شرکت (از تنظیمات) + QRCode پیگیری، هم‌راست با رندرر HTML.</summary>
+    private static void BuildDocumentCompanyHeader(IContainer c, bool isA5, AccountingDocumentPrintModel model, byte[]? qr)
+    {
+        c.PaddingBottom(6).BorderBottom(2).BorderColor("#0f766e").Row(row =>
+        {
+            // لوگو (سمت راست در RTL) — از data URL base64 یا لوگوی پیش‌فرض
+            row.AutoItem().Element(x =>
+            {
+                var logo = TryLoadImage(model.LogoPath);
+                var size = isA5 ? 20 : 26;
+                if (logo is not null)
+                    x.Width(size).Height(size).Image(logo);
+                else
+                    x.Width(size).Height(size).Background("#0f766e").AlignCenter().AlignMiddle()
+                        .Text("ت").FontColor(Colors.White).FontSize(isA5 ? 12 : 15).Bold();
+            });
+
+            row.RelativeItem().PaddingLeft(isA5 ? 6 : 8).Column(col =>
+            {
+                col.Item().AlignRight().Text(string.IsNullOrWhiteSpace(model.BrandName)
+                        ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار"
+                        : model.BrandName)
+                    .FontSize(isA5 ? 11 : 13).FontColor("#1a237e").Bold();
+                col.Item().PaddingTop(1).AlignRight()
+                    .Text($"سند حسابداری {TypeDocLabel(model.DocumentType)} — شماره {model.DocumentNumber}")
+                    .FontSize(isA5 ? 8 : 9.5f).FontColor("#6b7280");
+            });
+
+            if (qr is not null)
+                row.AutoItem().Element(x => x
+                    .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
+                    .Image(qr));
+        });
+    }
+
+    /// <summary>تبدیل مسیر/data-URL لوگو به بایت‌های تصویر برای QuestPDF — null اگر قابل خواندن نباشد.</summary>
+    private static byte[]? TryLoadImage(string? logoPath)
+    {
+        if (string.IsNullOrWhiteSpace(logoPath)) return null;
+        try
+        {
+            if (logoPath.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                var comma = logoPath.IndexOf(',');
+                if (comma < 0) return null;
+                return Convert.FromBase64String(logoPath[(comma + 1)..]);
+            }
+            if (File.Exists(logoPath))
+                return File.ReadAllBytes(logoPath);
+        }
+        catch { /* لوگوی نامعتبر → fallback آواتار */ }
+        return null;
     }
 
     private static void BuildDocumentMeta(IContainer c, AccountingDocumentPrintModel model)
@@ -285,34 +355,193 @@ public sealed class PdfReportService
         });
     }
 
+    /// <summary>جدول سادهٔ سند — ستون‌ها هم‌ارز رندرر HTML: کد، عنوان، شرح، بدهکار، بستانکار.</summary>
     private static void BuildDocumentTable(IContainer c, AccountingDocumentPrintModel model)
     {
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
             table.ColumnsDefinition(cols =>
             {
-                cols.RelativeColumn(1.5f); // بستانکار
-                cols.RelativeColumn(1.5f); // بدهکار
-                cols.RelativeColumn(3);    // عنوان / شرح
-                cols.RelativeColumn(1.2f);// کد
+                cols.RelativeColumn(1.6f); // بستانکار (راست‌ترین در RTL → آخرین رندر)
+                cols.RelativeColumn(1.6f); // بدهکار
+                cols.RelativeColumn(2.4f); // شرح ردیف
+                cols.RelativeColumn(3);    // عنوان حساب
+                cols.RelativeColumn(1.4f); // کد حساب
             });
 
+            // QuestPDF Row همیشه LTR است؛ برای نمایش RTL ستون راست‌ترین اول رندر می‌شود.
             table.Header(h =>
             {
                 h.Cell().Element(HeaderCell).Text("بستانکار").Bold();
                 h.Cell().Element(HeaderCell).Text("بدهکار").Bold();
-                h.Cell().Element(HeaderCell).Text("عنوان / شرح").Bold();
-                h.Cell().Element(HeaderCell).Text("کد").Bold();
+                h.Cell().Element(HeaderCell).Text("شرح ردیف").Bold();
+                h.Cell().Element(HeaderCell).Text("عنوان حساب").Bold();
+                h.Cell().Element(HeaderCell).Text("کد حساب").Bold();
             });
 
             foreach (var line in model.Lines)
             {
                 table.Cell().Element(BodyCell).AlignRight().Text(line.Credit > 0 ? line.Credit.ToString("N0", Fa) : "");
                 table.Cell().Element(BodyCell).AlignRight().Text(line.Debit > 0 ? line.Debit.ToString("N0", Fa) : "");
-                table.Cell().Element(BodyCell).Text(LineLabel(line));
+                table.Cell().Element(BodyCell).Text(line.Description ?? "");
+                table.Cell().Element(BodyCell).Text(line.Title ?? "");
                 table.Cell().Element(BodyCell).Text(line.AccountCode);
             }
         });
+    }
+
+    /// <summary>
+    /// جدول پیشرفتهٔ سند — سلسله‌مراتب تودرتو: کل (۲ رقم) → معین (۵ رقم) → تفصیل (ریز ردیف).
+    /// هر کل زیرِ خودش معین‌هایش را و هر معین زیر خودش تفصیل‌ها را نشان می‌دهد؛
+    /// جمع هر سطح در ستون‌های بدهکار/بستانکار همان ردیف نمایش داده می‌شود (هم‌ارز HTML).
+    /// </summary>
+    private static void BuildDocumentAdvancedTable(IContainer c, AccountingDocumentPrintModel model)
+    {
+        var rows = BuildAdvancedDocRows(model);
+        c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
+        {
+            table.ColumnsDefinition(cols =>
+            {
+                cols.RelativeColumn(1.4f); // بستانکار
+                cols.RelativeColumn(1.4f); // بدهکار
+                cols.RelativeColumn(0.8f); // تعداد
+                cols.RelativeColumn(4.5f); // عنوان حساب
+                cols.RelativeColumn(1.3f); // کد
+            });
+
+            table.Header(h =>
+            {
+                h.Cell().Element(HeaderCell).Text("بستانکار").Bold();
+                h.Cell().Element(HeaderCell).Text("بدهکار").Bold();
+                h.Cell().Element(HeaderCell).Text("تعداد").Bold();
+                h.Cell().Element(HeaderCell).Text("عنوان حساب").Bold();
+                h.Cell().Element(HeaderCell).Text("کد").Bold();
+            });
+
+            foreach (var r in rows)
+            {
+                var bg = r.Level switch
+                {
+                    0 => "#eef2ff",
+                    1 => "#f8fafc",
+                    _ => ""
+                };
+                var bold = r.Level == 0;
+
+                // QuestPDF به رشتهٔ خالی به‌عنوان رنگ اعتراض می‌کند؛ پس فقط وقتی bg پر است اعمالش کن.
+                // (نکته: نباید دو child روی یک container گذاشت — پس زنجیره می‌سازیم.)
+                static IContainer StyleCell(IContainer cell, string color)
+                    => color.Length > 0 ? BodyCell(cell).Background(color) : BodyCell(cell);
+
+                table.Cell().Element(cell => StyleCell(cell, bg))
+                    .AlignRight().Text(r.Credit > 0 ? r.Credit.ToString("N0", Fa) : "");
+                table.Cell().Element(cell => StyleCell(cell, bg))
+                    .AlignRight().Text(r.Debit > 0 ? r.Debit.ToString("N0", Fa) : "");
+                table.Cell().Element(cell => StyleCell(cell, bg))
+                    .AlignCenter().Text(r.LineCount > 0 ? r.LineCount.ToString() : "—");
+                table.Cell().Element(cell => StyleCell(cell, bg))
+                    .PaddingLeft(r.Level * 10).Text(t =>
+                    {
+                        t.Span(r.Title);
+                        if (r.Level == 0) t.Span("  (کل)").FontColor("#4f46e5");
+                        else if (r.Level == 1) t.Span("  (معین)").FontColor("#0d9488");
+                    });
+                table.Cell().Element(cell => StyleCell(cell, bg))
+                    .Text(r.Code);
+            }
+        });
+    }
+
+    /// <summary>ساخت ردیف‌های تودرتوی چاپ پیشرفته از رول‌آپ مدل — ترتیب کل ← معین ← تفصیل.</summary>
+    private static List<DocPdfRow> BuildAdvancedDocRows(AccountingDocumentPrintModel model)
+    {
+        var result = new List<DocPdfRow>();
+        var kols = model.KolRows.Count > 0
+            ? model.KolRows
+            : model.Lines
+                .GroupBy(l => l.AccountCode.Length >= 2 ? l.AccountCode[..2] : l.AccountCode)
+                .Select(g => new AccountRollupRow
+                {
+                    Code = g.Key,
+                    Title = g.First().Title,
+                    Debit = g.Sum(x => x.Debit),
+                    Credit = g.Sum(x => x.Credit),
+                    LineCount = g.Count()
+                }).ToList();
+
+        foreach (var kol in kols.OrderBy(k => k.Code, StringComparer.Ordinal))
+        {
+            var moeins = (model.MoeinRows.Count > 0 ? model.MoeinRows : new List<AccountRollupRow>())
+                .Where(m => m.Code.Length >= 2 && m.Code.StartsWith(kol.Code, StringComparison.Ordinal))
+                .OrderBy(m => m.Code, StringComparer.Ordinal).ToList();
+
+            // اگر معین‌ها از رول‌آپ نیامدند، از روی ردیف‌ها تجمیع کن
+            if (moeins.Count == 0)
+            {
+                moeins = model.Lines
+                    .Where(l => l.AccountCode.StartsWith(kol.Code, StringComparison.Ordinal))
+                    .GroupBy(l => l.AccountCode.Length >= 5 ? l.AccountCode[..5] : l.AccountCode)
+                    .Select(g => new AccountRollupRow
+                    {
+                        Code = g.Key,
+                        Title = g.First().Title,
+                        Debit = g.Sum(x => x.Debit),
+                        Credit = g.Sum(x => x.Credit),
+                        LineCount = g.Count()
+                    }).OrderBy(m => m.Code, StringComparer.Ordinal).ToList();
+            }
+
+            decimal kolDebit = 0, kolCredit = 0;
+            int kolCount = 0;
+            var moeinBlock = new List<DocPdfRow>();
+
+            foreach (var moein in moeins)
+            {
+                var moeinLines = model.Lines
+                    .Where(l => l.AccountCode.StartsWith(moein.Code, StringComparison.Ordinal))
+                    .OrderBy(l => l.AccountCode, StringComparer.Ordinal).ToList();
+                var mDebit = moeinLines.Sum(l => l.Debit);
+                var mCredit = moeinLines.Sum(l => l.Credit);
+                kolDebit += mDebit; kolCredit += mCredit; kolCount += moeinLines.Count;
+
+                moeinBlock.Add(new DocPdfRow
+                {
+                    Level = 1, Code = moein.Code, Title = moein.Title,
+                    Debit = mDebit, Credit = mCredit, LineCount = moeinLines.Count
+                });
+
+                foreach (var line in moeinLines)
+                {
+                    moeinBlock.Add(new DocPdfRow
+                    {
+                        Level = 2, Code = line.AccountCode,
+                        Title = string.IsNullOrWhiteSpace(line.Description)
+                            ? line.Title
+                            : $"{line.Title} — {line.Description}",
+                        Debit = line.Debit, Credit = line.Credit, LineCount = 0
+                    });
+                }
+            }
+
+            result.Add(new DocPdfRow
+            {
+                Level = 0, Code = kol.Code, Title = kol.Title,
+                Debit = kolDebit, Credit = kolCredit, LineCount = kolCount
+            });
+            result.AddRange(moeinBlock);
+        }
+        return result;
+    }
+
+    /// <summary>ردیف چاپ پیشرفتهٔ PDF — سطح سلسله‌مراتب (۰=کل، ۱=معین، ۲=تفصیل).</summary>
+    private sealed class DocPdfRow
+    {
+        public int Level { get; set; }
+        public string Code { get; set; } = "";
+        public string Title { get; set; } = "";
+        public int LineCount { get; set; }
+        public decimal Debit { get; set; }
+        public decimal Credit { get; set; }
     }
 
     private static string LineLabel(DocumentLineRow line)
@@ -597,6 +826,12 @@ public sealed class PdfReportService
 
         var margin = tpl.MarginMm > 0 ? tpl.MarginMm : 12;
 
+        // QR مستقل (هدر شرکت خاموش ولی QR روشن) — گوشهٔ بالای راست، مثل رندرر HTML
+        var standaloneQr = (!tpl.ShowCompanyHeader && tpl.QrEnabled && data.QrEnabled
+                            && !string.IsNullOrWhiteSpace(data.QrPayload))
+            ? BuildQrPng(data.QrPayload!)
+            : null;
+
         return Document.Create(container =>
         {
             container.Page(page =>
@@ -610,6 +845,10 @@ public sealed class PdfReportService
 
                 page.Content().Column(col =>
                 {
+                    // QR مستقل بدون هدر شرکت — دقیقاً مثل .tpl-standalone-qr در HTML
+                    if (standaloneQr is not null)
+                        col.Item().PaddingBottom(4).Element(c => BuildStandaloneQr(c, standaloneQr));
+
                     col.Item().Element(c => BuildTemplateReportHeader(c, tpl, data));
                     if (tpl.Columns.Count > 0)
                         col.Item().PaddingTop(4).Element(c => BuildTemplateTable(c, tpl, data));
@@ -621,6 +860,37 @@ public sealed class PdfReportService
                     page.Footer().Element(f => BuildOfficialFooter(f, isA5, data.CompanyName ?? "ترازین"));
             });
         }).GeneratePdf();
+    }
+
+    /// <summary>باند QR مستقل (بدون هدر شرکت) — گوشهٔ بالای راست برگه، هم‌راست با رندرر HTML.</summary>
+    private static void BuildStandaloneQr(IContainer c, byte[] qrPng)
+    {
+        c.Row(row =>
+        {
+            row.RelativeItem(); // فاصلهٔ راست (جهت RTL) — QR به گوشهٔ بالای راست می‌چسبد
+            row.AutoItem().Element(x => x
+                .Width(26).Height(26)
+                .Image(qrPng));
+        });
+    }
+
+    /// <summary>
+    /// تولید PNGِ QRCode از payload با QRCoder.Core — خالص و بدون وابستگی به
+    /// System.Drawing، پس روی همهٔ پلتفرم‌ها (وب، اندروید/iOS/ویندوز) کار می‌کند.
+    /// </summary>
+    private static byte[]? BuildQrPng(string payload)
+    {
+        try
+        {
+            using var generator = new QRCoder.QRCodeGenerator();
+            var qrData = generator.CreateQrCode(payload, QRCoder.QRCodeGenerator.ECCLevel.M);
+            using var qr = new QRCoder.PngByteQRCode(qrData);
+            return qr.GetGraphic(4);
+        }
+        catch
+        {
+            return null; // اگر QR ساخته نشد، باند خاموش می‌ماند (مثل fallback در HTML)
+        }
     }
 
     private static void BuildTemplateCompanyHeader(IContainer c, PrintTemplateDef tpl, PrintDataModel data)
@@ -645,6 +915,16 @@ public sealed class PdfReportService
                 .Background("#0f766e")
                 .AlignCenter().AlignMiddle()
                 .Text("ت").FontColor(Colors.White).FontSize(isA5 ? 12 : 15).Bold());
+
+            // QRCode پیگیری داخل هدر شرکت — سمت چپ، مثل .tpl-qr در رندرر HTML
+            if (tpl.QrEnabled && data.QrEnabled && !string.IsNullOrWhiteSpace(data.QrPayload))
+            {
+                var qr = BuildQrPng(data.QrPayload!);
+                if (qr is not null)
+                    row.AutoItem().PaddingLeft(isA5 ? 6 : 8).Element(x => x
+                        .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
+                        .Image(qr));
+            }
         });
     }
 

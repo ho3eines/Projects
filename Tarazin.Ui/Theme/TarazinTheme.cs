@@ -97,7 +97,7 @@ public static class TarazinTheme
             Default = new DefaultTypography
             {
                 FontFamily = Fonts,
-                FontSize = "0.875rem",
+                FontSize = "0.9375rem",
                 FontWeight = "400",
                 LineHeight = "1.72",
                 LetterSpacing = "0",
@@ -110,18 +110,18 @@ public static class TarazinTheme
             H6 = new H6Typography { FontFamily = Fonts, FontWeight = "600", FontSize = "1rem" },
             Subtitle1 = new Subtitle1Typography { FontFamily = Fonts, FontWeight = "600" },
             Subtitle2 = new Subtitle2Typography { FontFamily = Fonts, FontWeight = "600" },
-            Body1 = new Body1Typography { FontFamily = Fonts, LineHeight = "1.72", FontSize = "0.875rem" },
-            Body2 = new Body2Typography { FontFamily = Fonts, LineHeight = "1.68", FontSize = "0.8125rem" },
-            Button = new ButtonTypography { FontFamily = Fonts, FontWeight = "500", FontSize = "0.8125rem", TextTransform = "none", LetterSpacing = "0" },
-            Caption = new CaptionTypography { FontFamily = Fonts, FontWeight = "400", FontSize = "0.75rem" },
+            Body1 = new Body1Typography { FontFamily = Fonts, LineHeight = "1.72", FontSize = "0.9375rem" },
+            Body2 = new Body2Typography { FontFamily = Fonts, LineHeight = "1.68", FontSize = "0.875rem" },
+            Button = new ButtonTypography { FontFamily = Fonts, FontWeight = "600", FontSize = "0.875rem", TextTransform = "none", LetterSpacing = "0" },
+            Caption = new CaptionTypography { FontFamily = Fonts, FontWeight = "400", FontSize = "0.8125rem" },
             Overline = new OverlineTypography { FontFamily = Fonts, FontWeight = "600", LetterSpacing = "0.06em" },
         },
         LayoutProperties = new LayoutProperties
         {
             DefaultBorderRadius = "14px",
-            DrawerWidthLeft = "288px",
-            DrawerWidthRight = "288px",
-            AppbarHeight = "64px",
+            DrawerWidthLeft = "300px",
+            DrawerWidthRight = "300px",
+            AppbarHeight = "68px",
         },
     };
 }

@@ -648,7 +648,24 @@
         }
     }
 
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // بعد از هر رندرِ پیش‌نمایش، QRCodeها دوباره پر می‌شوند (برخلاف DocumentPrintDialog که فقط firstRender است،
+        // اینجا چون پیش‌نمایش با هر تغییر سوییچ/ستون دوباره ساخته می‌شود باید همیشه اجرا شود).
+        if (_tpl is not null)
+            await JS.InvokeVoidAsync("tarazinQr.fillAll");
+    }
+
+    private async Task PrintAsync()
+    {
+        if (_tpl is null) return;
+        // QR svgها را اول پر کن، بعد HTMLِ واقعیِ برگه (با QR و لوگوی آماده) را برای چاپ بگیر.
+        try { await JS.InvokeVoidAsync("tarazinQr.fillAll"); } catch { }
+        var html = await JS.InvokeAsync<string>("tarazin.getActiveSheetHtml");
+        if (string.IsNullOrWhiteSpace(html))    // فال‌بک: اگر برگه در DOM نبود از BuildHtml بساز
+            html = PrintSheetRenderer.BuildHtml(_tpl, BuildPreviewData());
+        await JS.InvokeVoidAsync("tarazin.printHtml", html, _tpl.Name ?? "چاپ");
+    }
 
     private async Task DownloadPdfAsync()
     {

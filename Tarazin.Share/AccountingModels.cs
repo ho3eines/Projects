@@ -158,11 +158,20 @@ public class AccountingDocumentPrintModel
     /// <summary>نام شرکت برای سربرگ چاپ — خالی = برند پیش‌فرض ترازین.</summary>
     public string? BrandName { get; set; }
 
+    /// <summary>لوگوی شرکت (base64/data URL یا مسیر) برای سربرگ چاپ — خالی = لوگوی پیش‌فرض ترازین.</summary>
+    public string? LogoPath { get; set; }
+
     /// <summary>آدرس پایهٔ QRCode پیگیری — از تنظیمات شرکت مالی.</summary>
     public string? QrBaseUrl { get; set; }
 
     /// <summary>حالت چاپ: Simple = فقط ردیف‌ها؛ Advanced = سلسله‌مراتب کل/معین/تفصیل با جمع هر سطح.</summary>
     public bool Advanced { get; set; }
+
+    /// <summary>عنوان‌های کل (سطح ۲ رقمی) برای چاپ پیشرفته — از DocumentPrintRollup.</summary>
+    public List<AccountRollupRow> KolRows { get; set; } = new();
+
+    /// <summary>عنوان‌های معین (سطح ۵ رقمی) برای چاپ پیشرفته — از DocumentPrintRollup.</summary>
+    public List<AccountRollupRow> MoeinRows { get; set; } = new();
 
     /// <summary>جمع بدهکار همهٔ ردیف‌ها.</summary>
     public decimal TotalDebit => Lines.Sum(l => l.Debit);

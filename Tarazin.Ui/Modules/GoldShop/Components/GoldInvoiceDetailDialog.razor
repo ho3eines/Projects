@@ -206,8 +206,13 @@
             }
 
             var first = rows[0];
+            // اطلاعات سربرگ چاپ (نام شرکت + آدرس پایهٔ QR) از تنظیمات شرکت مالی
+            var settings = await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting",
+                "CompanyAccountSettingsGet", new { CompanyId = Session.ActiveCompanyId });
             var model = new GoldInvoicePrintModel
             {
+                BrandName = settings?.CompanyName,
+                QrBaseUrl = settings?.QrBaseUrl,
                 InvoiceType = first.InvoiceType,
                 InvoiceNumber = first.InvoiceNumber,
                 InvoiceDate = first.InvoiceDate,

@@ -23,7 +23,7 @@
     </TitleContent>
 
     <DialogContent>
-        <div class="gp-print-area">
+        <div class="gp-print-area @(_paperSize == "A5" ? "gp-print-area--a5" : "")">
             @* هدر رسمی — نام/لوگو/آدرس از تنظیمات شرکت مالی + QRCode *@
             <PrintBrandHeader CompanyName="@BrandName"
                               Title="@PrintTitle"
@@ -207,6 +207,9 @@
                                      Code = r.Code, Title = r.Title ?? "—",
                                      LineCount = r.LineCount, Debit = r.Debit, Credit = r.Credit
                                  }).ToList();
+                // رول‌آپ را به مدل منتقل کن تا PDF پیشرفته هم از همین سلسله‌مراتب استفاده کند
+                Model.KolRows = _kolRows;
+                Model.MoeinRows = _moeinRows;
             }
             catch { /* عنوان‌ها اختیاری‌اند — جمع‌ها از ردیف‌ها محاسبه می‌شود */ }
         }
@@ -311,7 +314,13 @@
         }
     }
 
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+    private async Task PrintAsync()
+    {
+        // چاپ از خودِ دیالوگ (window.print) تا CSS مودال/جدول MudBlazor در دسترس باشد؛
+        // اندازهٔ کاغذ (A4/A5) با کلاس gp-print-area--a5 + قانون page: در CSS تنظیم می‌شود.
+        try { await JS.InvokeVoidAsync("tarazinQr.fillAll"); } catch { }
+        await JS.InvokeVoidAsync("window.print");
+    }
 
     private void Close() => MudDialog.Close();
 }

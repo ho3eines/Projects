@@ -1460,10 +1460,16 @@ body {
     margin: 24mm 10mm 20mm 10mm;
 }
 
-/* A5 portrait (فاکتور) */
+/* A4 portrait سند حسابداری — حاشیهٔ فشرده‌تر و متناسب با جدول سند */
+@page gp-doc {
+    size: A4;
+    margin: 14mm 8mm 14mm 8mm;
+}
+
+/* A5 portrait (فاکتور و سند) */
 @page gp-a5 {
     size: A5;
-    margin: 18mm 8mm 16mm 8mm;
+    margin: 14mm 8mm 14mm 8mm;
 }
 
 /* A4 landscape (گزارش چک‌ها) */
@@ -1497,6 +1503,15 @@ body {
     }
 }
 
+@page gp-doc {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #555;
+    }
+}
+
 @page cq-landscape {
     @bottom-center {
         content: "صفحه " counter(page) " از " counter(pages);
@@ -1516,6 +1531,10 @@ body {
 }
 
 /* اتصال چاپ‌گرها به صفحهٔ نام‌دار (فقط در چاپ اثر دارد) */
+/* سند حسابداری: ناحیهٔ چاپ عادی = A4 پرتره با حاشیهٔ مناسب سند؛ --a5 = A5 پرتره */
+.gp-print-area {
+    page: gp-doc;
+}
 .gp-print-area--a5 {
     page: gp-a5;
 }
@@ -1914,6 +1933,27 @@ body {
 .tpl-qr qr-fill {
     width: 44px;
     height: 44px;
+    overflow: hidden;
+}
+
+/* QRCode مستقل (وقتی هدر شرکت خاموش است) — گوشهٔ بالای راست */
+.tpl-standalone-qr {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
+
+.tpl-standalone-qr qr-fill {
+    width: 44px;
+    height: 44px;
+    overflow: hidden;
+}
+
+/* SVG تولیدشدهٔ QR نباید از قاب ۴۴px بیرون بزند (در هر دو حالت) */
+qr-fill svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
 }
 
 /* ── باند ۲: هدر گزارش ── */

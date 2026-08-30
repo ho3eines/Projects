@@ -5,7 +5,7 @@
 
 <PageTitle>اسناد روز انبار — انبار</PageTitle>
 
-<PageHeader Title="اسناد روز انبار" Subtitle="رسید و حواله — از تاریخ / تا تاریخ (پیش‌فرض امروز)؛ به تفکیک انبار/انبارک." />
+<PageHeader Title="اسناد روز انبار" Subtitle="رسید و حواله — از تاریخ / تا تاریخ (پیش‌فرض ۳۰ روز اخیر)؛ به تفکیک انبار/انبارک." />
 <MudPaper Elevation="1" Class="pa-4 mb-4">
     <MudGrid>
         <MudItem xs="12" sm="6" md="3">
@@ -86,7 +86,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _from = DateTime.Today;
+        _from = DateTime.Today.AddDays(-30);
         _to = DateTime.Today;
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         await LoadAsync();
@@ -109,7 +109,7 @@
         {
             _rows = (await Db.QueryAsync<DailyMovementRow>(Schema, "DailyMovements", new
             {
-                FromDate = _from?.Date ?? DateTime.Today,
+                FromDate = _from?.Date ?? DateTime.Today.AddDays(-30),
                 ToDate = _to?.Date ?? DateTime.Today,
                 SearchText = _search ?? "",
                 MovementType = (string?)null,

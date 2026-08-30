@@ -37,6 +37,10 @@ public static class PrintSheetRenderer
         if (tpl.ShowCompanyHeader)
             sb.Append(BuildCompanyHeader(tpl, data));
 
+        // QR مستقل از هدر شرکت — وقتی هدر شرکت خاموش است QR در گوشهٔ بالای راست می‌ماند
+        if (!tpl.ShowCompanyHeader && tpl.QrEnabled && data.QrEnabled && !string.IsNullOrWhiteSpace(data.QrPayload))
+            sb.Append(BuildStandaloneQr(data));
+
         // ═══ باند ۲: هدر گزارش ═══
         sb.Append("<div class=\"tpl-report-header\">");
         var title = string.IsNullOrWhiteSpace(data.Title) ? tpl.ReportTitle : data.Title;
@@ -140,6 +144,16 @@ public static class PrintSheetRenderer
               .Append("</div>");
         }
         sb.Append("</div>");
+        return sb.ToString();
+    }
+
+    /// <summary>QRCode مستقل (بدون هدر شرکت) — گوشهٔ بالای راست برگه.</summary>
+    private static string BuildStandaloneQr(PrintDataModel data)
+    {
+        var sb = new StringBuilder();
+        sb.Append("<div class=\"tpl-standalone-qr\">")
+          .Append($"<qr-fill data-payload=\"{EncAttr(data.QrPayload)}\"></qr-fill>")
+          .Append("</div>");
         return sb.ToString();
     }
 
