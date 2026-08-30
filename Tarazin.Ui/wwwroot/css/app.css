@@ -5,7 +5,7 @@
 
 :root {
     --tz-font: "Vazirmatn", Tahoma, "Segoe UI", sans-serif;
-    --tz-font-size: clamp(0.8rem, 0.77rem + 0.12vw, 0.9rem);
+    --tz-font-size: clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem);
     --tz-body-leading: clamp(1.55, 1.5 + 0.16vw, 1.72);
     --tz-space-1: clamp(0.35rem, 0.3rem + 0.15vw, 0.5rem);
     --tz-space-2: clamp(0.6rem, 0.5rem + 0.25vw, 0.85rem);
@@ -80,6 +80,7 @@ body {
 /* ── App bar ─────────────────────────────────────────────── */
 .tz-appbar.mud-appbar {
     border-bottom: 1px solid rgba(232, 200, 114, 0.18);
+    box-shadow: 0 2px 14px rgba(7, 40, 38, 0.16);
     backdrop-filter: saturate(1.2);
 }
 
@@ -106,13 +107,13 @@ body {
 
 .tz-brand__text strong {
     font-weight: 800;
-    font-size: 1.05rem;
+    font-size: 1.15rem;
     letter-spacing: -0.02em;
 }
 
 .tz-brand__text small {
-    font-size: 0.7rem;
-    opacity: 0.72;
+    font-size: 0.78rem;
+    opacity: 0.75;
     font-weight: 500;
 }
 
@@ -131,7 +132,7 @@ body {
 }
 
 .tz-user__name {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     font-weight: 600;
 }
 
@@ -153,33 +154,39 @@ body {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 1.15rem 1.1rem 1rem;
-    border-bottom: 1px solid rgba(232, 200, 114, 0.14);
+    padding: 1.2rem 1.15rem 1.05rem;
+    border-bottom: 1px solid rgba(232, 200, 114, 0.16);
+    background: linear-gradient(180deg, rgba(232, 200, 114, 0.06), transparent);
+}
+
+.tz-drawer .tz-drawer__head img {
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 .tz-drawer__title {
     font-weight: 800;
-    font-size: 1.05rem;
+    font-size: 1.15rem;
     color: #f4ebd4;
 }
 
 .tz-drawer__sub {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     color: #c9b889;
-    opacity: 0.85;
+    opacity: 0.9;
 }
 
 .tz-nav {
-    padding: 0.4rem 0.55rem 1.5rem;
+    padding: 0.5rem 0.65rem 1.5rem;
 }
 
 .tz-nav__label {
-    padding: 1rem 0.85rem 0.35rem;
-    font-size: 0.7rem;
+    padding: 1.15rem 1rem 0.45rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     color: #c9b889;
-    opacity: 0.7;
+    opacity: 0.85;
 }
 
 .tz-nav .mud-nav-link,
@@ -187,8 +194,8 @@ body {
     width: 100%;
     box-sizing: border-box;
     font-family: var(--tz-font) !important;
-    font-weight: 400;
-    padding: 2px 2px;
+    font-weight: 500;
+    padding: 8px 10px;
     color: inherit;
     line-height: 1.5;
     display: inline-flex;
@@ -199,9 +206,9 @@ body {
                 box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1),
                 border 250ms cubic-bezier(0.4, 0, 0.2, 1),
                 padding 250ms cubic-bezier(0.4, 0, 0.2, 1);
-    align-items: flex-start;
-    border-radius: 8px;
-    margin: 1px 0;
+    align-items: center;
+    border-radius: 10px;
+    margin: 2px 0;
 }
 
 .tz-nav .mud-nav-link:hover,
@@ -212,18 +219,33 @@ body {
 .tz-nav .mud-nav-link .mud-nav-link-text,
 .mud-nav-link .mud-nav-link-text {
     font-family: var(--tz-font) !important;
-    font-size: 0.78rem;
-    font-weight: 400;
+    font-size: 0.95rem;
+    font-weight: 500;
     line-height: 1.5;
 }
 
 .tz-nav .mud-nav-link.active {
-    background: rgba(212, 176, 106, 0.16);
-    color: #f4ebd4;
+    background: linear-gradient(90deg, rgba(212, 176, 106, 0.22), rgba(212, 176, 106, 0.08));
+    color: #f7f1e3;
+    box-shadow: inset 3px 0 0 var(--mud-palette-secondary, #c49a3c);
+    font-weight: 600;
 }
 
 .tz-nav .mud-nav-group .mud-nav-link {
-    padding-inline-start: 0.4rem;
+    padding-inline-start: 0.6rem;
+}
+
+/* گروه‌های ماژول در منو — عنوان بزرگ‌تر و خوانا */
+.tz-nav .mud-nav-group .mud-nav-link .mud-nav-link-text,
+.tz-nav .mud-nav-group > .mud-nav-link .mud-nav-link-text {
+    font-size: 1.02rem;
+    font-weight: 600;
+}
+
+.tz-nav .mud-nav-group .mud-nav-link .mud-nav-link-icon,
+.tz-nav .mud-nav-group > .mud-nav-link .mud-nav-link-icon {
+    font-size: 1.35rem;
+    color: var(--mud-palette-drawer-icon, #d4b06a);
 }
 
 /* ── Module sub-nav ──────────────────────────────────────── */
@@ -245,7 +267,7 @@ body {
     gap: 0.4rem;
     color: var(--tz-accent, var(--tz-ink));
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.95rem;
     white-space: nowrap;
     padding-inline-end: 0.75rem;
     border-inline-end: 1px solid var(--mud-palette-divider);
@@ -260,11 +282,11 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.28rem 0.6rem;
+    padding: 0.35rem 0.75rem;
     border-radius: 999px;
     color: var(--mud-palette-text-secondary);
     text-decoration: none;
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     font-weight: 600;
     white-space: nowrap;
     transition: background 0.15s ease, color 0.15s ease;
@@ -1296,13 +1318,13 @@ body {
     }
 
     .tz-nav .mud-nav-link {
-        min-height: 38px;
+        min-height: 42px;
         align-items: center;
-        padding: 0.3rem 0.45rem;
+        padding: 0.4rem 0.6rem;
     }
 
     .tz-nav .mud-nav-group > .mud-nav-link {
-        min-height: 42px;
+        min-height: 46px;
     }
 
     .tz-subnav {
@@ -1313,14 +1335,14 @@ body {
     }
 
     .tz-subnav__brand {
-        font-size: 0.72rem;
+        font-size: 0.85rem;
         padding-inline-end: 0.45rem;
     }
 
     .tz-subnav__tab {
-        min-height: 34px;
-        padding-inline: 0.5rem;
-        font-size: 0.74rem;
+        min-height: 36px;
+        padding-inline: 0.6rem;
+        font-size: 0.85rem;
     }
 
     .tz-page {
@@ -1811,13 +1833,27 @@ body {
 }
 
 .tpl-sheet-shell {
-    width: 210mm;
+    width: 210mm;              /* A4 portrait */
     max-width: 100%;
     margin: 0 auto;
     background: #fff;
     box-shadow: 0 4px 18px rgba(0, 0, 0, .3);
     border-radius: 2px;
     box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* پیش‌نمایش باید اندازهٔ کاغذ را دقیق نشان دهد */
+.tpl-sheet-shell--landscape {
+    width: 297mm;              /* A4 landscape */
+}
+
+.tpl-sheet-shell--a5 {
+    width: 148mm;              /* A5 portrait */
+}
+
+.tpl-sheet-shell--landscape.tpl-sheet-shell--a5 {
+    width: 210mm;              /* A5 landscape */
 }
 
 .tpl-sheet {
@@ -1828,7 +1864,9 @@ body {
     text-align: right;
     padding: 12mm;
     box-sizing: border-box;
-    min-height: 277mm; /* A4 منهای پدینگ */
+    min-height: 277mm;     /* A4 portrait = 297mm − 2×12mm padding */
+    max-width: 100%;
+    overflow: hidden;      /* جلوگیری از بیرون‌زدن محتوا از صفحه */
 }
 
 .tpl-sheet--landscape {
@@ -1924,6 +1962,7 @@ body {
 /* ── باند ۳+۴: جدول دیتیل ── */
 .tpl-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: inherit;
     margin-top: 2px;
@@ -1935,6 +1974,8 @@ body {
     padding: 3px 6px;
     font-weight: 700;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .tpl-table .tpl-td {
@@ -1942,6 +1983,8 @@ body {
     padding: 2px 6px;
     vertical-align: top;
     word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .tpl-table .tpl-tr:nth-child(even) .tpl-td {

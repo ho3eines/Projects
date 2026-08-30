@@ -52,10 +52,14 @@ public static class PrintSheetRenderer
 
         // ═══ باند ۳+۴: جدول دیتیل ═══
         sb.Append("<table class=\"tpl-table\"><thead><tr>");
+        // عرض ستونها بهصورت درصدی (نسبت به کل) تا در هر اندازهٔ کاغذ جا شوند
+        var totalW = tpl.Columns.Sum(c => Math.Max(c.Width, 20));
         foreach (var col in tpl.Columns)
         {
             var align = AlignClass(col.Align);
-            sb.Append($"<th class=\"tpl-th {align}\" style=\"width:{Math.Max(col.Width, 20)}px\">{Enc(col.Title)}</th>");
+            var w = Math.Max(col.Width, 20);
+            var pct = totalW > 0 ? (w * 100.0 / totalW) : 0;
+            sb.Append($"<th class=\"tpl-th {align}\" style=\"width:{pct:0.#}%\">{Enc(col.Title)}</th>");
         }
         sb.Append("</tr></thead><tbody>");
 

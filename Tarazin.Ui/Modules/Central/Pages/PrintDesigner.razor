@@ -299,7 +299,12 @@
                 <MudSwitch T="bool" @bind-Value="_showSample" Label="نمونه داده" />
             </div>
             <div class="tpl-print-stage">
-                <div class="tpl-sheet-shell">
+                @{
+                    var shellCls = "tpl-sheet-shell";
+                    if (_tpl.Orientation == PrintOrientation.Landscape) shellCls += " tpl-sheet-shell--landscape";
+                    if (_tpl.PaperSize == PrintPaperSize.A5) shellCls += " tpl-sheet-shell--a5";
+                }
+                <div class="@shellCls">
                     @((MarkupString)PrintSheetRenderer.BuildHtml(_tpl, BuildPreviewData()))
                 </div>
             </div>
