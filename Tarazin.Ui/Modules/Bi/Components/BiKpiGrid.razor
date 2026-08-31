@@ -58,9 +58,9 @@
 
     private static string KpiColor(BiKpiRow kpi) => kpi.Status switch
     {
-        "Bad" => "#C62828",
-        "Good" => "#2E7D32",
-        _ => "#1E4B73"
+        "Bad" => TarazinAccents.Crimson,
+        "Good" => TarazinAccents.Emerald,
+        _ => TarazinAccents.Steel
     };
 
     private static string FormatAmount(decimal value) =>

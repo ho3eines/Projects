@@ -15,16 +15,16 @@ else
 {
     <MudGrid>
         <StatCard Label="خالص امروز" Value="@_summary.TodayNet.ToString("N0")"
-                  Icon="@Icons.Material.Filled.SwapVert" Accent="#C49A3C" />
+                  Icon="@Icons.Material.Filled.SwapVert" Accent="@TarazinAccents.Gold" />
         <StatCard Label="مانده بانک" Value="@_summary.BankBalance.ToString("N0")"
-                  Icon="@Icons.Material.Filled.AccountBalance" Accent="#1E4B73" />
+                  Icon="@Icons.Material.Filled.AccountBalance" Accent="@TarazinAccents.Steel" />
         <StatCard Label="مانده صندوق" Value="@_summary.CashBalance.ToString("N0")"
-                  Icon="@Icons.Material.Filled.PointOfSale" Accent="#0E4D4A" />
+                  Icon="@Icons.Material.Filled.PointOfSale" Accent="@TarazinAccents.Ink" />
         <StatCard Label="چک‌های در انتظار" Value="@_summary.PendingCheques.ToString("N0")"
-                  Icon="@Icons.Material.Filled.ReceiptLong" Accent="#9C3B2E"
+                  Icon="@Icons.Material.Filled.ReceiptLong" Accent="@TarazinAccents.Wine"
                   Hint="مدیریت وصول/برگشت" Href="/treasury/cheques" />
         <StatCard Label="چک‌های سررسیدشده" Value="@_summary.OverdueCheques.ToString("N0")"
-                  Icon="@Icons.Material.Filled.NotificationImportant" Accent="#C62828"
+                  Icon="@Icons.Material.Filled.NotificationImportant" Accent="@TarazinAccents.Crimson"
                   Hint="مشاهده گزارش سررسید" Href="/treasury/cheque-report" />
     </MudGrid>
 }

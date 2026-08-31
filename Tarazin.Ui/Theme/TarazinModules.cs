@@ -26,7 +26,7 @@ public static class TarazinModules
     public static readonly IReadOnlyList<TarazinModule> All =
     [
         new("central", "پلتفرم مشترک", "اخبار، بلاگ، گالری، کاربران، نقش‌ها و ممیزی",
-            "/central", Icons.Material.Filled.Apartment, "#0E4D4A",
+            "/central", Icons.Material.Filled.Apartment, TarazinAccents.Ink,
             [
                 new("نمای کلی", "/central", Icons.Material.Filled.Home, Perm("central", TarazinActions.View)),
                 new("اخبار", "/central/news", Icons.Material.Filled.Newspaper, Perm("central", TarazinActions.View)),
@@ -38,7 +38,7 @@ public static class TarazinModules
                 new("مدیریت قالب‌های چاپ", "/central/printing", Icons.Material.Filled.Print, Perm("central", TarazinActions.View)),
             ]),
         new("accounting", "حسابداری", "اسناد، دفتر روزنامه و کل، تراز آزمایشی",
-            "/accounting", Icons.Material.Filled.AccountBalance, "#1E4B73",
+            "/accounting", Icons.Material.Filled.AccountBalance, TarazinAccents.Steel,
             [
                 new("داشبورد", "/accounting/dashboard", Icons.Material.Filled.Dashboard, Perm("accounting", TarazinActions.View)),
                 new("اسناد", "/accounting", Icons.Material.Filled.Description, Perm("accounting", TarazinActions.View)),
@@ -52,7 +52,7 @@ public static class TarazinModules
                 new("تنظیمات شرکت", "/accounting/settings", Icons.Material.Filled.CorporateFare, Perm("accounting", TarazinActions.Settings)),
             ]),
         new("inventory", "انبار", "رسید و حواله، کارتکس، موجودی کالا",
-            "/inventory", Icons.Material.Filled.Inventory2, "#4A6B3A",
+            "/inventory", Icons.Material.Filled.Inventory2, TarazinAccents.Moss,
             [
                 new("داشبورد", "/inventory/dashboard", Icons.Material.Filled.Dashboard, Perm("inventory", TarazinActions.View)),
                 new("اسناد روز", "/inventory", Icons.Material.Filled.Today, Perm("inventory", TarazinActions.View)),
@@ -62,7 +62,7 @@ public static class TarazinModules
                 new("امکانات", "/inventory/settings", Icons.Material.Filled.Tune, Perm("inventory", TarazinActions.Settings)),
             ]),
         new("treasury", "خزانه‌داری", "دریافت و پرداخت، صندوق و بانک، چک",
-            "/treasury", Icons.Material.Filled.AccountBalanceWallet, "#C49A3C",
+            "/treasury", Icons.Material.Filled.AccountBalanceWallet, TarazinAccents.Gold,
             [
                 new("داشبورد", "/treasury/dashboard", Icons.Material.Filled.Dashboard, Perm("treasury", TarazinActions.View)),
                 new("گردش روز", "/treasury", Icons.Material.Filled.Today, Perm("treasury", TarazinActions.View)),
@@ -75,7 +75,7 @@ public static class TarazinModules
                 new("امکانات", "/treasury/settings", Icons.Material.Filled.Tune, Perm("treasury", TarazinActions.Settings)),
             ]),
         new("payroll", "حقوق و دستمزد", "کارمندان، حکم اداری، فیش حقوق، ماه جاری",
-            "/payroll", Icons.Material.Filled.Badge, "#9C3B2E",
+            "/payroll", Icons.Material.Filled.Badge, TarazinAccents.Wine,
             [
                 new("داشبورد", "/payroll/dashboard", Icons.Material.Filled.Dashboard, Perm("payroll", TarazinActions.View)),
                 new("ماه جاری", "/payroll/special", Icons.Material.Filled.CalendarMonth, Perm("payroll", TarazinActions.Special)),
@@ -87,7 +87,7 @@ public static class TarazinModules
                 new("امکانات", "/payroll/settings", Icons.Material.Filled.Tune, Perm("payroll", TarazinActions.Settings)),
             ]),
         new("goldshop", "طلافروشی", "فروش روز، قیمت طلا، فاکتور و اجناس",
-            "/goldshop", Icons.Material.Filled.Diamond, "#B8860B",
+            "/goldshop", Icons.Material.Filled.Diamond, TarazinAccents.Brass,
             [
                 new("داشبورد", "/goldshop/dashboard", Icons.Material.Filled.Dashboard, Perm("goldshop", TarazinActions.View)),
                 new("فروش روز", "/goldshop", Icons.Material.Filled.Today, Perm("goldshop", TarazinActions.View)),
@@ -98,7 +98,7 @@ public static class TarazinModules
                 new("اتصال انبار و حسابداری", "/goldshop/settings/integration", Icons.Material.Filled.Link, Perm("goldshop", TarazinActions.Settings)),
             ]),
         new("currency", "ارز و معاملات ارزی", "کیف پول ارز، خرید و فروش، تبدیل، مرکز نرخ‌ها و ارزش لحظه‌ای دارایی",
-            "/currency", Icons.Material.Filled.Payments, "#2E7D32",
+            "/currency", Icons.Material.Filled.Payments, TarazinAccents.Emerald,
             [
                 new("تابلو قیمت", "/currency", Icons.Material.Filled.Dashboard, Perm("currency", TarazinActions.View)),
                 new("داشبورد ارز", "/currency/dashboard", Icons.Material.Filled.Insights, Perm("currency", TarazinActions.View)),
@@ -113,7 +113,7 @@ public static class TarazinModules
                 new("امکانات", "/currency/settings", Icons.Material.Filled.Tune, Perm("currency", TarazinActions.Settings)),
             ]),
         new("bi", "داشبورد و BI", "مرکز فرماندهی: اجرایی، مالی، خزانه، فروش، طلا، ارز، انبار، هشدار و تحلیل هوشمند",
-            "/bi", Icons.Material.Filled.SpaceDashboard, "#5E35B1",
+            "/bi", Icons.Material.Filled.SpaceDashboard, TarazinAccents.Violet,
             [
                 new("مرکز فرماندهی", "/bi", Icons.Material.Filled.SpaceDashboard, Perm("bi", TarazinActions.View)),
                 new("هشدارها", "/bi/alerts", Icons.Material.Filled.NotificationsActive, Perm("bi", TarazinActions.View)),
@@ -122,7 +122,7 @@ public static class TarazinModules
                 new("شعب", "/bi/branches", Icons.Material.Filled.Apartment, Perm("branch", TarazinActions.View)),
             ]),
         new("store", "فروشگاه", "سفارش‌ها، محصولات و مشتریان",
-            "/store", Icons.Material.Filled.Storefront, "#2B6B7A",
+            "/store", Icons.Material.Filled.Storefront, TarazinAccents.Petrol,
             [
                 new("داشبورد", "/store/dashboard", Icons.Material.Filled.Dashboard, Perm("store", TarazinActions.View)),
                 new("سفارش‌های روز", "/store", Icons.Material.Filled.Today, Perm("store", TarazinActions.View)),

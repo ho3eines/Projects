@@ -15,15 +15,15 @@ else
 {
     <MudGrid>
         <StatCard Label="فروش امروز" Value="@_summary.TodaySales.ToString("N0")"
-                  Icon="@Icons.Material.Filled.PointOfSale" Accent="#B8860B" />
+                  Icon="@Icons.Material.Filled.PointOfSale" Accent="@TarazinAccents.Brass" />
         <StatCard Label="مبلغ امروز" Value="@_summary.TodayAmount.ToString("N0")"
-                  Icon="@Icons.Material.Filled.Payments" Accent="#C49A3C" />
+                  Icon="@Icons.Material.Filled.Payments" Accent="@TarazinAccents.Gold" />
         <StatCard Label="قیمت‌های ثبت‌شده" Value="@_summary.PriceCount.ToString("N0")"
-                  Icon="@Icons.Material.Filled.ShowChart" Accent="#0E4D4A" />
+                  Icon="@Icons.Material.Filled.ShowChart" Accent="@TarazinAccents.Ink" />
         <StatCard Label="قیمت طلای ۲۴" Value="@_summary.Gold24Price.ToString("N0")"
-                  Icon="@Icons.Material.Filled.Diamond" Accent="#9C3B2E" />
+                  Icon="@Icons.Material.Filled.Diamond" Accent="@TarazinAccents.Wine" />
         <StatCard Label="چک‌های فاکتورها" Value="@_summary.PendingInvoiceCheques.ToString("N0")"
-                  Icon="@Icons.Material.Filled.RequestQuote" Accent="#1E4B73"
+                  Icon="@Icons.Material.Filled.RequestQuote" Accent="@TarazinAccents.Steel"
                   Hint="مدیریت وصول/برگشت" Href="/treasury/cheques" />
     </MudGrid>
 }

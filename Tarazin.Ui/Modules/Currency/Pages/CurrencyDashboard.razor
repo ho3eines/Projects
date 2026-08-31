@@ -8,13 +8,13 @@
             Eyebrow="ارز و معاملات ارزی" />
 
 <MudGrid Class="mb-4">
-    <StatCard Label="ارزش ارز (ریال)" Value="@TotalCurrencyValue.ToString("N0")" Accent="#2E7D32"
+    <StatCard Label="ارزش ارز (ریال)" Value="@TotalCurrencyValue.ToString("N0")" Accent="@TarazinAccents.Emerald"
               Icon="@Icons.Material.Filled.AccountBalanceWallet" />
     <StatCard Label="سود محقق‌شده ارز" Value="@RealizedFx.ToString("N0")" Accent="@PnlColor(RealizedFx)"
               Icon="@Icons.Material.Filled.TrendingUp" />
     <StatCard Label="سود محقق‌نشده" Value="@Unrealized.ToString("N0")" Accent="@PnlColor(Unrealized)"
               Icon="@Icons.Material.Filled.ShowChart" />
-    <StatCard Label="معاملات امروز" Value="@TodayCount.ToString("N0")" Accent="#1E4B73"
+    <StatCard Label="معاملات امروز" Value="@TodayCount.ToString("N0")" Accent="@TarazinAccents.Steel"
               Icon="@Icons.Material.Filled.ReceiptLong" />
 </MudGrid>
 
@@ -44,7 +44,7 @@
                         </MudText>
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="داده‌ای ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudItem>
@@ -60,7 +60,7 @@
                     <MudTd DataLabel="موجودی">@context.Quantity.ToString("N2")</MudTd>
                     <MudTd DataLabel="ارزش">@context.RialValue.ToString("N0")</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">کیف پولی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="کیف پولی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudItem>
@@ -119,5 +119,5 @@
         }
     }
 
-    private static string PnlColor(decimal value) => value >= 0 ? "#2E7D32" : "#C62828";
+    private static string PnlColor(decimal value) => value >= 0 ? TarazinAccents.Jade : TarazinAccents.Crimson;
 }

@@ -22,15 +22,15 @@
 
 <MudGrid Class="mb-4">
     <StatCard Label="چک‌های باز" Value="@_rows.Count.ToString("N0")"
-              Icon="@Icons.Material.Filled.ReceiptLong" Accent="#1E4B73" />
+              Icon="@Icons.Material.Filled.ReceiptLong" Accent="@TarazinAccents.Steel" />
     <StatCard Label="سررسیدشده" Value="@OverdueCount.ToString("N0")"
-              Icon="@Icons.Material.Filled.NotificationImportant" Accent="#C62828"
+              Icon="@Icons.Material.Filled.NotificationImportant" Accent="@TarazinAccents.Crimson"
               Hint="سررسید گذشته" />
     <StatCard Label="سررسید نزدیک (۷ روز)" Value="@DueSoonCount.ToString("N0")"
-              Icon="@Icons.Material.Filled.Schedule" Accent="#EF6C00"
+              Icon="@Icons.Material.Filled.Schedule" Accent="@TarazinAccents.Amber"
               Hint="تا ۷ روز آینده" />
     <StatCard Label="جمع سررسیدشده" Value="@OverdueAmount.ToString("N0")"
-              Icon="@Icons.Material.Filled.WarningAmber" Accent="#9C3B2E"
+              Icon="@Icons.Material.Filled.WarningAmber" Accent="@TarazinAccents.Wine"
               Hint="ریال" />
 </MudGrid>
 

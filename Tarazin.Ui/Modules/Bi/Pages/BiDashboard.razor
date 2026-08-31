@@ -8,7 +8,7 @@
             Eyebrow="داشبورد و BI" />
 
 @* ── فیلتر سراسری (§2) ── *@
-<MudPaper Elevation="1" Class="pa-4 mb-4" Style="border-right:4px solid #5E35B1">
+<MudPaper Elevation="1" Class="pa-4 mb-4" Style="@($"border-right:4px solid {TarazinAccents.Violet}")">
     <MudGrid Class="align-center">
         <MudItem xs="12" md="2">
             <MudText Typo="Typo.subtitle2">فیلتر سراسری داشبورد (§2)</MudText>
@@ -425,7 +425,7 @@
     // ── Render تب‌ها ────────────────────────────────────────────────────
     private RenderFragment RenderExecutive() => __builder =>
     {
-        <MudPaper Elevation="1" Class="pa-4 mb-4" Style="border-right:4px solid #5E35B1">
+        <MudPaper Elevation="1" Class="pa-4 mb-4" Style="@($"border-right:4px solid {TarazinAccents.Violet}")">
             <MudGrid>
                 <MudItem xs="12" md="3" Class="d-flex align-center">
                     <div class="me-4" Style="text-align:center">
@@ -710,7 +710,7 @@
                         </MudChip>
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">هدف‌ای برای ماه جاری تعریف نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="هدف‌ای برای ماه جاری تعریف نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>;
     };

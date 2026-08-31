@@ -14,10 +14,10 @@
 </PageHeader>
 
 <MudGrid Class="mb-4">
-    <StatCard Label="ارزش کل دارایی (ریال)" Value="@Summary.TotalRial.ToString("N0")" Accent="#1E4B73" Icon="@Icons.Material.Filled.DonutLarge" />
-    <StatCard Label="ارزش روز گذشته" Value="@Summary.YesterdayTotal.ToString("N0")" Accent="#4A6B3A" Icon="@Icons.Material.Filled.History" />
-    <StatCard Label="افزایش/کاهش" Value="@Summary.Change.ToString("+0;-0;0")" Accent="@(Summary.Change >= 0 ? "#2E7D32" : "#C62828")" Icon="@Icons.Material.Filled.TrendingUp" />
-    <StatCard Label="درصد تغییر" Value="@ChangePercentText" Accent="@(Summary.Change >= 0 ? "#2E7D32" : "#C62828")" Icon="@Icons.Material.Filled.ShowChart" />
+    <StatCard Label="ارزش کل دارایی (ریال)" Value="@Summary.TotalRial.ToString("N0")" Accent="@TarazinAccents.Steel" Icon="@Icons.Material.Filled.DonutLarge" />
+    <StatCard Label="ارزش روز گذشته" Value="@Summary.YesterdayTotal.ToString("N0")" Accent="@TarazinAccents.Moss" Icon="@Icons.Material.Filled.History" />
+    <StatCard Label="افزایش/کاهش" Value="@Summary.Change.ToString("+0;-0;0")" Accent="@(Summary.Change >= 0 ? TarazinAccents.Emerald : TarazinAccents.Crimson)" Icon="@Icons.Material.Filled.TrendingUp" />
+    <StatCard Label="درصد تغییر" Value="@ChangePercentText" Accent="@(Summary.Change >= 0 ? TarazinAccents.Emerald : TarazinAccents.Crimson)" Icon="@Icons.Material.Filled.ShowChart" />
 </MudGrid>
 
 <MudGrid>
@@ -54,7 +54,7 @@
                         }
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">دارایی‌ای ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="دارایی‌ای ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudItem>
@@ -80,7 +80,7 @@
                     <MudTd DataLabel="تاریخ">@context.SnapshotDate.ToString("yyyy/MM/dd")</MudTd>
                     <MudTd DataLabel="ارزش">@context.TotalRial.ToString("N0")</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">اسنپ‌شاتی ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="اسنپ‌شاتی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudItem>

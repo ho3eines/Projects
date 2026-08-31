@@ -15,13 +15,13 @@ else
 {
     <MudGrid>
         <StatCard Label="حرکات امروز" Value="@_summary.TodayMovements.ToString("N0")"
-                  Icon="@Icons.Material.Filled.SwapHoriz" Accent="#4A6B3A" />
+                  Icon="@Icons.Material.Filled.SwapHoriz" Accent="@TarazinAccents.Moss" />
         <StatCard Label="کل کالاها" Value="@_summary.TotalItems.ToString("N0")"
-                  Icon="@Icons.Material.Filled.Inventory2" Accent="#0E4D4A" />
+                  Icon="@Icons.Material.Filled.Inventory2" Accent="@TarazinAccents.Ink" />
         <StatCard Label="ارزش موجودی" Value="@_summary.StockValue.ToString("N0")"
-                  Icon="@Icons.Material.Filled.Savings" Accent="#C49A3C" />
+                  Icon="@Icons.Material.Filled.Savings" Accent="@TarazinAccents.Gold" />
         <StatCard Label="رزرو فعال" Value="@_summary.ActiveReservations.ToString("N0")"
-                  Icon="@Icons.Material.Filled.Bookmark" Accent="#9C3B2E" />
+                  Icon="@Icons.Material.Filled.Bookmark" Accent="@TarazinAccents.Wine" />
     </MudGrid>
 }
 

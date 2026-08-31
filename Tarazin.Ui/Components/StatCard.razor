@@ -1,62 +1,49 @@
-<MudItem xs="@Xs" sm="@Sm" md="@Md">
+<MudItem xs="Xs" sm="Sm" md="Md">
     @if (!string.IsNullOrWhiteSpace(Href))
     {
         <MudLink Href="@Href" Class="tz-stat-link" Underline="Underline.None">
-            <MudPaper Elevation="0" Class="tz-stat" Style="@($"--tz-accent:{Accent}")">
-                <div class="tz-stat__icon" aria-hidden="true">
-                    <MudIcon Icon="@Icon" />
-                </div>
-                <div class="tz-stat__body">
-                    <div class="tz-stat__label">@Label</div>
-                    @if (Loading)
-                    {
-                        @* اسکلتونِ مقدار — درک سرعتِ بهتر و بدون پرش layout هنگام آمدن داده. *@
-                        <MudSkeleton Width="70%" Height="1.9rem" Class="tz-stat__value" />
-                    }
-                    else
-                    {
-                        <div class="tz-stat__value tz-num">@Value</div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Hint))
-                    {
-                        <div class="tz-stat__hint">@Hint</div>
-                    }
-                </div>
-                <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Class="tz-stat__arrow" />
-            </MudPaper>
+            @CardBody
         </MudLink>
     }
     else
     {
-        <MudPaper Elevation="0" Class="tz-stat" Style="@($"--tz-accent:{Accent}")">
-            <div class="tz-stat__icon" aria-hidden="true">
-                <MudIcon Icon="@Icon" />
-            </div>
-            <div class="tz-stat__body">
-                <div class="tz-stat__label">@Label</div>
-                @if (Loading)
-                {
-                    @* اسکلتونِ مقدار — درک سرعتِ بهتر و بدون پرش layout هنگام آمدن داده. *@
-                    <MudSkeleton Width="70%" Height="1.9rem" Class="tz-stat__value" />
-                }
-                else
-                {
-                    <div class="tz-stat__value tz-num">@Value</div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Hint))
-                {
-                    <div class="tz-stat__hint">@Hint</div>
-                }
-            </div>
-        </MudPaper>
+        @CardBody
     }
 </MudItem>
 
+@* بدنهٔ مشترک کارت آمار — برای هر دو حالت لینک‌دار/ساده یک‌بار نوشته می‌شود
+   تا قوانین نمایش (label/اسکلتون/مقدار/هینت) هیچ‌وقت دوباره تکرار نگردند. *@
 @code {
+    private RenderFragment CardBody => @<MudPaper Elevation="0" Class="tz-stat" Style="@($"--tz-accent:{Accent}")">
+        <div class="tz-stat__icon" aria-hidden="true">
+            <MudIcon Icon="@Icon" />
+        </div>
+        <div class="tz-stat__body">
+            <div class="tz-stat__label">@Label</div>
+            @if (Loading)
+            {
+                @* اسکلتونِ مقدار — درک سرعتِ بهتر و بدون پرش layout هنگام آمدن داده. *@
+                <MudSkeleton Width="70%" Height="1.9rem" Class="tz-stat__value" />
+            }
+            else
+            {
+                <div class="tz-stat__value tz-num">@Value</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Hint))
+            {
+                <div class="tz-stat__hint">@Hint</div>
+            }
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Href))
+        {
+            <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Class="tz-stat__arrow" />
+        }
+    </MudPaper>;
+
     [Parameter] public string Label { get; set; } = "";
     [Parameter] public string Value { get; set; } = "—";
     [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Insights;
-    [Parameter] public string Accent { get; set; } = "#0E4D4A";
+    [Parameter] public string Accent { get; set; } = TarazinAccents.Ink;
     [Parameter] public string? Hint { get; set; }
     /// <summary>وقتی true باشد به‌جای مقدار، اسکلتون بارگذاری نمایش داده می‌شود.</summary>
     [Parameter] public bool Loading { get; set; }
@@ -65,4 +52,4 @@
     [Parameter] public int Sm { get; set; } = 6;
     /// <summary>وقتی داده شود، کل کارت به این مسیر لینک می‌شود (مثل ورود به صفحهٔ مرتبط).</summary>
     [Parameter] public string? Href { get; set; }
-}
+}
