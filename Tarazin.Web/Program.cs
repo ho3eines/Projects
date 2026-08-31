@@ -67,17 +67,6 @@ if (reverseProxyEnabled)
     });
 }
 
-// Product licenses are deployment secrets. They must live outside the web
-// root/repository and are loaded only by the server process when configured.
-var stimulsoftLicensePath = Environment.GetEnvironmentVariable("TARAZIN_STIMULSOFT_LICENSE_PATH");
-if (!string.IsNullOrWhiteSpace(stimulsoftLicensePath))
-{
-    if (!Path.IsPathRooted(stimulsoftLicensePath) || !File.Exists(stimulsoftLicensePath))
-        throw new InvalidOperationException("The configured Stimulsoft license file is unavailable.");
-
-    Stimulsoft.Base.StiLicense.LoadFromFile(stimulsoftLicensePath);
-}
-
 // ── Blazor Server (web host) — the UI itself lives in Tarazin.Ui ─────────
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();

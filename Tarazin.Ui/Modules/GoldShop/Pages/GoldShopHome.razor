@@ -38,7 +38,7 @@
         </PagerContent>
         <HeaderContent>
             <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>مشتری</MudTh><MudTh>کالا</MudTh>
-            <MudTh>وزن (گرم)</MudTh><MudTh>اجرت</MudTh><MudTh>سود</MudTh><MudTh>مالیات</MudTh><MudTh>جمع</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+            <MudTh>وزن (گرم)</MudTh><MudTh>اجرت</MudTh><MudTh>سود</MudTh><MudTh>مالیات</MudTh><MudTh>جمع</MudTh><MudTh>وضعیت</MudTh><MudTh>منبع</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="شماره">
@@ -62,12 +62,20 @@
                     <MudChip T="string" Color="Color.Warning" Size="Size.Small">پیش‌نویس</MudChip>
                 }
             </MudTd>
+            <MudTd DataLabel="منبع">
+                <MudButton Variant="Variant.Text" Color="Color.Info" Size="Size.Small"
+                           Class="px-1" Style="text-transform:none;white-space:nowrap"
+                           OnClick="@(() => ShowSourceAsync(context))"
+                           StartIcon="@Icons.Material.Filled.FolderOpen">
+                    @SourceReferenceLabel(context)
+                </MudButton>
+            </MudTd>
             <MudTd DataLabel="عملیات">
                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Primary" OnClick="() => OpenDetailAsync(context)" />
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Secondary" OnClick="() => EditInvoiceAsync(context)" />
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="فاکتوری در این بازه ثبت نشده است." /></NoRecordsContent>
     </MudTable>
 </MudPaper>
 
@@ -138,4 +146,23 @@
 
     private void EditInvoiceAsync(DailySaleRow row)
         => Nav.NavigateTo($"/goldshop/entry?edit={row.InvoiceId}");
+
+    /// <summary>SourceReference یک فاکتور فروش — برای تعمیم «نمایش منبع قابل‌کلیک» از چک‌های خزانه.</summary>
+    private static string SourceReferenceOf(DailySaleRow row)
+        => $"GoldInvoice:{row.InvoiceId}";
+
+    private static string SourceReferenceLabel(DailySaleRow row)
+        => Tarazin.Models.TreasurySourceLabels.For(SourceReferenceOf(row));
+
+    /// <summary>بازکردن «جزئیات منبع» فاکتور — وضوح سابقهٔ پشتنویس و سند حسابداری لینک‌شده (همان الگوی چک‌های خزانه).</summary>
+    private async Task ShowSourceAsync(DailySaleRow row)
+    {
+        var parameters = new DialogParameters<Tarazin.Modules.Treasury.Components.SourceDetailDialog>
+        {
+            { x => x.SourceReference, SourceReferenceOf(row) }
+        };
+        var dlg = await DialogService.ShowAsync<Tarazin.Modules.Treasury.Components.SourceDetailDialog>("جزئیات منبع", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        await dlg.Result;
+    }
 }

@@ -118,23 +118,25 @@
 
     <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive"
                ClipMode="DrawerClipMode.Always" Anchor="Anchor.Start" Class="tz-drawer tz-drawer--mobile"
-               Elevation="0" Breakpoint="Breakpoint.Md" SwipeAreaWidth="24"
+               Elevation="0" Breakpoint="Breakpoint.Md"
                @ontouchstart="OnDrawerTouchStart" @ontouchend="OnDrawerTouchEnd">
-        <div class="tz-drawer__head">
+@*         <div class="tz-drawer__head">
             <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="40" height="40" />
             <div>
                 <div class="tz-drawer__title">ترازین</div>
                 <div class="tz-drawer__sub">نه ماژول، یک میز کار</div>
             </div>
-        </div>
+        </div> *@
         <NavMenu CurrentPath="@_path" />
     </MudDrawer>
 
     <MudMainContent Class="tz-main">
         <ModuleSubNav Module="_module" CurrentPath="@_path" />
-        @* @key = مسیر فعلی: با هر تغییر تب/صفحه، контینر دوباره مونت می‌شود و
-           انیمیشن ورود صفحه (tz-page-enter) دوباره پخش می‌شود — انتقال نرم بین تب‌ها. *@
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="tz-page" @key="_path">
+        @* @key = مسیر + محیط فعال (شرکت/سال مالی): با هر تغییر تب/صفحه یا تغییر سال مالی
+           از نوار بالا، فقط همین کانتینر (صفحهٔ فعلی) دوباره مونت می‌شود و OnInitializedAsync
+           صفحه با سال جدید اجرا می‌شود — بدون forceLoad و بدون رفرش کامل مرورگر.
+           چون Session.Changed همینجا شنیده می‌شود، تغییر سال فقط صفحهٔ فعلی را تازه می‌کند. *@
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="tz-page" @key="_pageKey">
             @if (_denied)
             {
                 <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-4" Icon="@Icons.Material.Filled.Lock">
@@ -281,13 +283,29 @@
         }
     }
 
+    /// <summary>
+    /// کلید مونت کانتینر صفحه — مسیر + محیط فعال (شرکت/سال مالی).
+    /// با تغییر سال مالی از نوار بالا، Session.Changed -> OnSessionChanged -> StateHasChanged
+    /// اجرا می‌شود و چون این کلید عوض شده، فقط صفحهٔ فعلی دوباره مونت می‌شود و
+    /// OnInitializedAsync آن با سال جدید اجرا می‌شود (بدون forceLoad / رفرش کامل).
+    /// </summary>
+    private string _pageKey =>
+        $"{_path}|{Session.ActiveCompanyId?.ToString() ?? "-"}|{Session.ActiveFiscalYearId?.ToString() ?? "-"}";
+
     private void RefreshPath(string uri)
     {
         _path = Nav.ToBaseRelativePath(uri);
         _module = TarazinModules.Match(_path);
 
         var required = TarazinModules.RequiredPermissionFor(_path);
-        _denied = required is not null && !Session.HasPermission(required);
+        // صفحهٔ تنظیمات انبار با مجوز کامل (inventory.settings) یا مجوز نازک
+        // «مدیریت گروه کالا» (inventory.categories) / «مدیریت واحد کالا» (inventory.units)
+        // در دسترس است — بقیهٔ تب‌ها داخل صفحه بر اساس همان مجوزها فیلتر می‌شوند.
+        var allowed = required is null || Session.HasPermission(required)
+            || (required == TarazinPermissions.For("inventory", TarazinActions.Settings)
+                && (Session.HasPermission(TarazinPermissions.InventoryCategories)
+                    || Session.HasPermission(TarazinPermissions.InventoryUnits)));
+        _denied = !allowed;
         _denyMessage = !Session.IsAuthenticated
             ? "برای دسترسی به این بخش ابتدا وارد شوید."
             : "شما دسترسی لازم برای این بخش را ندارید. برای دریافت دسترسی با مدیر سیستم تماس بگیرید.";
@@ -361,11 +379,12 @@
 
             await Context.SetActiveContextAsync(company, year);
 
-            // صفحه‌های برنامه سال فعال را فقط در لحظهٔ رندر از Session می‌خوانند؛
-            // پس بعد از تغییر سال باید صفحهٔ فعلی با محیط جدید دوباره بارگذاری شود
-            // (همان الگوی انتخاب/ایجاد شرکت در همین MainLayout). نشستِ جدید قبلاً
-            // در store مرورگر ذخیره شده و بعد از ریلود بازیابی می‌شود.
-            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+            // بدون forceLoad: SetActiveContextAsync -> UpdateActiveContextAsync -> Session.Changed
+            // را صدا می‌زند؛ OnSessionChanged همین‌جا آن را می‌شنود، EnsureContextAsync اجرا و
+            // StateHasChanged فراخوانی می‌شود. چون @key کانتینر صفحه به سال فعال وصل است،
+            // فقط صفحهٔ فعلی دوباره مونت می‌شود و داده‌ها با سال جدید بارگذاری می‌شوند.
+            // (حالت جایگزین قدیمی Nav.NavigateTo(Nav.Uri, forceLoad: true) بود که کل صفحه
+            // را رفرش می‌کرد — دیگر لازم نیست.)
         }
         catch (Exception ex)
         {

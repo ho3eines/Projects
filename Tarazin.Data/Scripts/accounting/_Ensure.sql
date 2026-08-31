@@ -770,10 +770,16 @@ BEGIN
 
     IF @DefaultCompanyId IS NOT NULL AND @DefaultFiscalYearId IS NOT NULL
     BEGIN
+        -- فقط ردیف‌های «کاملاً يتيمِ» پیش از چندشرکتی (هم CompanyId هم FiscalYearId
+        -- ندارند) را به اولین شرکت/سال فعالِ پیش‌فرض تخصیص بده. ردیف‌هایی که فقط
+        -- FiscalYearId ندارند اما CompanyId دارند (مثل ارجاعات آزمایشی/قدیمیِ ناقص)
+        -- دست نمی‌خورند: نسبت دادنشان به سالِ خودِ شرکتِ‌شان با شمارهٔ سندِ همان
+        -- (شرکت+سال) تصادم می‌داد (بازتولید: Msg 2601 روی UX_Documents_Number مثل
+        -- (1131, 1669, 00000001) و (3,4,00000001)).
         UPDATE [accounting].[Documents]
         SET CompanyId = @DefaultCompanyId,
             FiscalYearId = @DefaultFiscalYearId
-        WHERE CompanyId IS NULL OR FiscalYearId IS NULL;
+        WHERE CompanyId IS NULL AND FiscalYearId IS NULL;
     END
 END
 GO

@@ -143,6 +143,21 @@ public class TreasurySettingsRow
     public DateTime? UpdatedAt { get; set; }
 }
 
+/// <summary>نتیجهٔ وضوح «منبع یک چک» (SourceDetail.sql) به سابقه/سفارش پشتنویس + سند حسابداری لینک‌شده.</summary>
+public class SourceDetailRow
+{
+    public string SourceReference { get; set; } = "";
+    public string SourceType { get; set; } = "";
+    public long SourceId { get; set; }
+    /// <summary>شماره/کلید منبع در ماژول مبدأ (مثل شماره فاکتور یا شماره سفارش).</summary>
+    public string Key { get; set; } = "";
+    public string Detail { get; set; } = "";
+    public int? DocumentId { get; set; }
+    public string DocumentNumber { get; set; } = "";
+    /// <summary>شناسه در جدول ماژول مبدأ (برای عمق‌شدن به صفحهٔ همان ماژول).</summary>
+    public long? ModuleId { get; set; }
+}
+
 /// <summary>طرف حساب یکپارچه خزانه (مشتری/تأمین‌کننده) — همان central.Parties مشترک.</summary>
 public class TreasuryPartyRow
 {

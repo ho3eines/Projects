@@ -81,7 +81,21 @@
                     }
                 }
             </MudTd>
-            <MudTd DataLabel="منبع">@SourceLabel(context.SourceReference)</MudTd>
+            <MudTd DataLabel="منبع">
+                @if (!string.IsNullOrWhiteSpace(context.SourceReference))
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Info" Size="Size.Small"
+                               Class="px-1" Style="text-transform:none;white-space:nowrap"
+                               OnClick="@(() => ShowSourceAsync(context))"
+                               StartIcon="@Icons.Material.Filled.FolderOpen">
+                        @SourceLabel(context.SourceReference)
+                    </MudButton>
+                }
+                else
+                {
+                    @SourceLabel(context.SourceReference)
+                }
+            </MudTd>
             <MudTd DataLabel="عملیات">
                 @if (context.Status == "Pending")
                 {
@@ -244,11 +258,17 @@
         _ => Color.Default
     };
 
-    private static string SourceLabel(string? source) => source switch
+    private static string SourceLabel(string? source) => Tarazin.Models.TreasurySourceLabels.For(source);
+
+    /// <summary>بازکردن «جزئیات منبع» چک — وضوح سابقه/سفارش پشتنویس و سند حسابداری لینک‌شده.</summary>
+    private async Task ShowSourceAsync(ChequeRow row)
     {
-        null => "دستی",
-        var s when s.StartsWith("GoldInvoice:") => "فاکتور طلافروشی",
-        var s when s.StartsWith("Cheque:") => "وصول چک",
-        _ => source
-    };
+        var parameters = new DialogParameters<SourceDetailDialog>
+        {
+            { x => x.SourceReference, row.SourceReference ?? "" }
+        };
+        var dlg = await Dialog.ShowAsync<SourceDetailDialog>("جزئیات منبع", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        await dlg.Result;
+    }
 }

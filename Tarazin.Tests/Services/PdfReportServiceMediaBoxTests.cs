@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using QuestPDF.Helpers;
 using Tarazin.Models;
 using Tarazin.Services;
+using Tarazin.Tests; // PdfSurfaceGeometry (گارد بدون بیرون‌زدگی)
 using Xunit;
 
 namespace Tarazin.Tests.Services;
@@ -101,6 +102,74 @@ public class PdfReportServiceMediaBoxTests
         Assert.InRange(box.Height, expected.Height - 2, expected.Height + 2);
     }
 
+    [Fact]
+    public void BuildTablePdf_a5l_landscape_media_box_and_no_overflow()
+    {
+        // گارد جداول عمومی: وقتی BuildTablePdf با «A5L» صدا زده می‌شود، MediaBox باید
+        // دقیقاً ۵۹۵×۴۲۰ (A5 landscape ≈ 595.28×419.53) باشد و هیچ محتوای واقعی‌ای
+        // از لبهٔ صفحه بیرون نزند — هم‌دهان با گاردهای قالب/سند/فاکتور.
+        // ستون‌های کم (۴ تا) تا مطمئن شویم landscape از «A5L» آمده نه از قانون «>۶ ستون».
+        var cols = Enumerable.Range(1, 4)
+            .Select(i => new TableReportColumn { Header = $"ستون {i}" })
+            .ToList();
+        var rows = new List<IReadOnlyList<string>>
+        {
+            Enumerable.Range(1, 4).Select(i => i.ToString()).ToList(),
+            Enumerable.Range(1, 4).Select(i => (i * 1_000_000).ToString("N0")).ToList()
+        };
+
+        foreach (var size in new[] { "A5L" })
+        {
+            var bytes = Svc.BuildTablePdf("گزارش عریض", "زیرنویس", "از تاریخ تا تاریخ", cols, rows, null, size);
+
+            var box = Assert.Single(ParseMediaBoxes(bytes));
+            Assert.InRange(box.Width, 594, 596);
+            Assert.InRange(box.Height, 418, 421);
+            Assert.True(box.Width > box.Height,
+                $"[{size}] A5 افقی باید landscape باشد ولی MediaBox={box} شده.");
+
+            var geometry = PdfSurfaceGeometry.Check(bytes);
+            const double tol = 2.0;
+            Assert.InRange(geometry.PageWidth, 594, 596);
+            Assert.InRange(geometry.PageHeight, 418, 421);
+            Assert.True(geometry.MaxDeviceX.HasValue && geometry.MaxDeviceY.HasValue,
+                $"[{size}] هیچ محتوای قابل سنجشی نبود objects={geometry.ObjectsParsed} bt={geometry.BtCount}");
+            Assert.InRange(geometry.MaxDeviceX!.Value, -tol, geometry.PageWidth + tol);
+            Assert.InRange(geometry.MaxDeviceY!.Value, -tol, geometry.PageHeight + tol);
+            Assert.True(geometry.MaxDeviceX.Value > 10,
+                $"[{size}] MaxDeviceX محتوای واقعی نیست maxX={geometry.MaxDeviceX.Value}");
+        }
+    }
+
+    [Fact]
+    public void BuildTablePdf_wide_columns_in_a5_auto_landscape_no_overflow()
+    {
+        // جداول عمومی «خودکار landscape» می‌شوند: با بیش از ۶ ستون حتی بدون پسوند L،
+        // A5 باید افقی (۵۹۵×۴۲۰) بیرون بیاید و محتوا از لبه نزند — نه A5 پرترهٔ بریده.
+        var cols = Enumerable.Range(1, 8)
+            .Select(i => new TableReportColumn { Header = $"ستون {i}" })
+            .ToList();
+        var rows = new List<IReadOnlyList<string>> { Enumerable.Range(1, 8).Select(i => i.ToString()).ToList() };
+
+        var bytes = Svc.BuildTablePdf("گزارش عریض", "زیرنویس", "از تاریخ تا تاریخ", cols, rows, null, "A5");
+        var box = Assert.Single(ParseMediaBoxes(bytes));
+        Assert.InRange(box.Width, 594, 596);
+        Assert.InRange(box.Height, 418, 421);
+        Assert.True(box.Width > box.Height,
+            $"جدول ۸ ستونهٔ A5 باید خودکار landscape شود ولی MediaBox={box} شده.");
+
+        var geometry = PdfSurfaceGeometry.Check(bytes);
+        const double tol = 2.0;
+        Assert.InRange(geometry.PageWidth, 594, 596);
+        Assert.InRange(geometry.PageHeight, 418, 421);
+        Assert.True(geometry.MaxDeviceX.HasValue && geometry.MaxDeviceY.HasValue,
+            $"هیچ محتوای قابل سنجشی نبود objects={geometry.ObjectsParsed} bt={geometry.BtCount}");
+        Assert.InRange(geometry.MaxDeviceX!.Value, -tol, geometry.PageWidth + tol);
+        Assert.InRange(geometry.MaxDeviceY!.Value, -tol, geometry.PageHeight + tol);
+        Assert.True(geometry.MaxDeviceX.Value > 10,
+            $"MaxDeviceX محتوای واقعی نیست maxX={geometry.MaxDeviceX.Value}");
+    }
+
     // ─────────────────────── صفحه‌بندی فاکتورهای بلند ───────────────────────
 
     [Fact]
@@ -114,6 +183,43 @@ public class PdfReportServiceMediaBoxTests
         var pageCount = PageCount(Svc.BuildInvoicePdf(SampleInvoice(40), "A4"));
         Assert.True(pageCount >= 2,
             $"فاکتور بلند باید چندصفحه‌ای شود ولی فقط {pageCount} صفحه دارد (صفحه‌بندی خراب/برگشته).");
+    }
+
+    // ─────────────── قالب عمومی (BuildTemplatePdf) در A5 افقی ───────────────
+
+    [Fact]
+    public void BuildTemplatePdf_a5l_landscape_media_box_and_no_overflow()
+    {
+        // گارد موتور چاپ عمومی: وقتی قالب با A5 افقی («A5L») ساخته می‌شود، MediaBox باید
+        // دقیقاً ۵۹۵×۴۲۰ (A5 landscape = PageSizes.A5.Landscape()≈595.28×419.53) باشد و
+        // هیچ محتوای واقعی‌ای از لبهٔ صفحه بیرون نزند — هم‌دهان با گاردهای سند/فاکتور.
+        var svc = new PdfReportService();
+        var tpl = SampleTemplate();
+
+        foreach (var size in new[] { "A5L" })
+        {
+            var bytes = svc.BuildTemplatePdf(tpl, SamplePrintData(), size);
+
+            var box = Assert.Single(ParseMediaBoxes(bytes));
+            // پنجرهٔ دقیق ۵۹۵×۴۲۰ (تلورانس قرینه‌سازی ۵۹۵.۲۸/۴۱۹.۵۳).
+            Assert.InRange(box.Width, 594, 596);
+            Assert.InRange(box.Height, 418, 421);
+            // افقی بودن را هم صریح نگهبانی کن (عرض > ارتفاع).
+            Assert.True(box.Width > box.Height,
+                $"[{size}] A5 افقی باید landscape باشد ولی MediaBox={box} شده.");
+
+            // بدون بیرون‌زدگی: مختصاتِ واقعی رسم (پس از CTM/FlateDecode) باید درون MediaBox بماند.
+            var geometry = PdfSurfaceGeometry.Check(bytes);
+            const double tol = 2.0;
+            Assert.InRange(geometry.PageWidth, 594, 596);
+            Assert.InRange(geometry.PageHeight, 418, 421);
+            Assert.True(geometry.MaxDeviceX.HasValue && geometry.MaxDeviceY.HasValue,
+                $"[{size}] هیچ محتوای قابل سنجشی نبود objects={geometry.ObjectsParsed} bt={geometry.BtCount}");
+            Assert.InRange(geometry.MaxDeviceX!.Value, -tol, geometry.PageWidth + tol);
+            Assert.InRange(geometry.MaxDeviceY!.Value, -tol, geometry.PageHeight + tol);
+            Assert.True(geometry.MaxDeviceX.Value > 10,
+                $"[{size}] MaxDeviceX محتوای واقعی نیست maxX={geometry.MaxDeviceX.Value}");
+        }
     }
 
     // ─────────────────── راست‌به‌چپ بودن (RTL) — گاردِ سطحِ منبع ───────────────────
@@ -135,6 +241,39 @@ public class PdfReportServiceMediaBoxTests
     }
 
     // ─────────────────────────── دادهٔ نمونه ───────────────────────────
+
+    private static PrintTemplateDef SampleTemplate() => new()
+    {
+        Id = "treasury.cheques",
+        Name = "چک‌ها",
+        PaperSize = PrintPaperSize.A4,
+        Orientation = PrintOrientation.Portrait,
+        MarginMm = 8,
+        FontSizePt = 8f,
+        ShowCompanyHeader = true,
+        ShowPageFooter = true,
+        ShowReportFooter = true,
+        Columns = new List<PrintColumnDef>
+        {
+            new() { Key = "ChequeNumber", Title = "شماره چک", Width = 90 },
+            new() { Key = "BankName", Title = "بانک", Width = 110 },
+            new() { Key = "Amount", Title = "مبلغ", Width = 120, Format = "N0", Total = true }
+        }
+    };
+
+    private static PrintDataModel SamplePrintData()
+    {
+        var data = new PrintDataModel
+        {
+            CompanyName = "ترازین",
+            Title = "گزارش چک‌ها",
+            RangeText = "از 1405/06/01 تا 1405/06/06",
+            QrEnabled = false
+        };
+        data.Rows.Add(new PrintRow { ["ChequeNumber"] = "CHQ-1", ["BankName"] = "بانک صادرات", ["Amount"] = 500000000m });
+        data.Rows.Add(new PrintRow { ["ChequeNumber"] = "CHQ-2", ["BankName"] = "بانک ملی", ["Amount"] = 20000000m });
+        return data;
+    }
 
     private static GoldInvoicePrintModel SampleInvoice(int nLines) => new()
     {

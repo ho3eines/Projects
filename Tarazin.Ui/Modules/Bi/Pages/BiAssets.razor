@@ -8,43 +8,39 @@
 
 <PageHeader Title="اموال و دارایی ثابت" Subtitle="ثبت دارایی، استهلاک خط مستقیم، ارزش دفتری و وضعیت (§73/§74)."
             Eyebrow="داشبورد و BI">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="(() => OpenEditorAsync())"
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => OpenEditorAsync()"
                StartIcon="@Icons.Material.Filled.Add">
         دارایی جدید
     </MudButton>
 </PageHeader>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_assets" Hover="true" Dense="true" Striped="true" Loading="_loading">
-        <HeaderContent>
-            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>دسته</MudTh><MudTh>تاریخ خرید</MudTh>
-            <MudTh>بها</MudTh><MudTh>استهلاک ماهانه</MudTh><MudTh>استهلاک انباشته</MudTh>
-            <MudTh>ارزش دفتری</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="کد">@context.AssetCode</MudTd>
-            <MudTd DataLabel="عنوان">@context.Title</MudTd>
-            <MudTd DataLabel="دسته">@context.Category</MudTd>
-            <MudTd DataLabel="تاریخ">@context.PurchaseDate.ToString("yyyy/MM/dd")</MudTd>
-            <MudTd DataLabel="بها">@context.PurchaseCost.ToString("N0")</MudTd>
-            <MudTd DataLabel="استهلاک ماهانه">@context.MonthlyDepreciation.ToString("N0")</MudTd>
-            <MudTd DataLabel="استهلاک انباشته">@context.AccumulatedDepreciation.ToString("N0")</MudTd>
-            <MudTd DataLabel="ارزش دفتری"><b>@context.NetBookValue.ToString("N0")</b></MudTd>
-            <MudTd DataLabel="وضعیت">
-                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)" Variant="Variant.Outlined">
-                    @StatusText(context.Status)
-                </MudChip>
-            </MudTd>
-            <MudTd DataLabel="عملیات">
-                <EntityActions OnEdit="@(() => OpenEditorAsync(context))"
-                               OnDelete="@(() => DeleteAsync(context))" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <EmptyState Title="دارایی‌ای ثبت نشده است." Description="برای شروع، یک دارایی جدید اضافه کنید." Icon="@Icons.Material.Filled.AccountBalance" />
-        </NoRecordsContent>
-    </MudTable>
-</MudPaper>
+<TzDataTable T="FixedAssetRow" Items="_assets" Loading="_loading" ShowPager="true"
+             SkeletonColumns="10" EmptyTitle="دارایی‌ای ثبت نشده است." EmptyIcon="@Icons.Material.Filled.AccountBalance">
+    <HeaderContent>
+        <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>دسته</MudTh><MudTh>تاریخ خرید</MudTh>
+        <MudTh>بها</MudTh><MudTh>استهلاک ماهانه</MudTh><MudTh>استهلاک انباشته</MudTh>
+        <MudTh>ارزش دفتری</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="کد">@item.AssetCode</MudTd>
+        <MudTd DataLabel="عنوان">@item.Title</MudTd>
+        <MudTd DataLabel="دسته">@item.Category</MudTd>
+        <MudTd DataLabel="تاریخ">@item.PurchaseDate.ToString("yyyy/MM/dd")</MudTd>
+        <MudTd DataLabel="بها">@item.PurchaseCost.ToString("N0")</MudTd>
+        <MudTd DataLabel="استهلاک ماهانه">@item.MonthlyDepreciation.ToString("N0")</MudTd>
+        <MudTd DataLabel="استهلاک انباشته">@item.AccumulatedDepreciation.ToString("N0")</MudTd>
+        <MudTd DataLabel="ارزش دفتری"><b>@item.NetBookValue.ToString("N0")</b></MudTd>
+        <MudTd DataLabel="وضعیت">
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(item.Status)" Variant="Variant.Outlined">
+                @StatusText(item.Status)
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="عملیات">
+            <EntityActions EditClicked="() => OpenEditorAsync(item)"
+                           DeleteClicked="() => DeleteAsync(item)" />
+        </MudTd>
+    </RowTemplate>
+</TzDataTable>
 
 @code {
     private const string Schema = "assets";
@@ -118,4 +114,4 @@
         "Transferred" => "منتقل‌شده",
         _ => status
     };
-}
+}

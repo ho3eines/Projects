@@ -27,7 +27,7 @@
                 <MudTd DataLabel="قیمت واحد">@context.UnitPrice.ToString("N0")</MudTd>
                 <MudTd DataLabel="جمع">@((context.Qty * context.UnitPrice).ToString("N0"))</MudTd>
             </RowTemplate>
-            <NoRecordsContent><MudText Color="Color.Secondary">اقلامی نیست.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="اقلامی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
 
         <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">دفتر مشتری (کیف پول ریالی)</MudText>
@@ -41,7 +41,7 @@
                 <MudTd DataLabel="بدهکار">@context.DebitRial.ToString("N0")</MudTd>
                 <MudTd DataLabel="بستانکار">@context.CreditRial.ToString("N0")</MudTd>
             </RowTemplate>
-            <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="ردیفی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
         <MudText Typo="Typo.subtitle2" Class="mt-2">ماندهٔ مشتری: <b>@CustomerBalance.ToString("N0")</b> ریال</MudText>
     </DialogContent>

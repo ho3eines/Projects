@@ -47,7 +47,7 @@
             <MudTd DataLabel="شرح">@context.Description</MudTd>
             <MudTd DataLabel="وضعیت">@context.Status</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="حرکتی در این بازه ثبت نشده است." /></NoRecordsContent>
         <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 </MudPaper>

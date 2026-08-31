@@ -149,7 +149,7 @@
                 ["DueDate"] = r.DueDate?.ToString("yyyy/MM/dd") ?? "—",
                 ["AlertTitle"] = AlertLabel(r.AlertLevel),
                 ["Amount"] = r.Amount,
-                ["SourceReference"] = string.IsNullOrWhiteSpace(r.SourceReference) ? "—" : r.SourceReference
+                ["SourceReference"] = Tarazin.Models.TreasurySourceLabels.For(r.SourceReference)
             });
         }
 
@@ -232,11 +232,5 @@
         _ => Color.Success
     };
 
-    private static string SourceLabel(string? source) => source switch
-    {
-        null => "دستی",
-        var s when s.StartsWith("GoldInvoice:") => "فاکتور طلافروشی",
-        var s when s.StartsWith("Cheque:") => "وصول چک",
-        _ => source
-    };
+    private static string SourceLabel(string? source) => Tarazin.Models.TreasurySourceLabels.For(source);
 }

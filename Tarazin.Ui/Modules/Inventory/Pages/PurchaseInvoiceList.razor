@@ -1,0 +1,138 @@
+@page "/inventory/purchase-invoices"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>فاکتورهای خرید — انبار</PageTitle>
+
+<PageHeader Title="لیست فاکتورهای خرید" Subtitle="جستجوی فاکتورهای خرید با فیلتر تاریخ و وضعیت." />
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_fromDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_toDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined" Clearable="true">
+                <MudSelectItem Value="@("")">همه</MudSelectItem>
+                <MudSelectItem Value="@((string)"Draft")">پیش‌نویس</MudSelectItem>
+                <MudSelectItem Value="@((string)"Posted")">ثبت شده</MudSelectItem>
+                <MudSelectItem Value="@((string)"Cancelled")">ابطال شده</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Label="جستجو" @bind-Value="_search" Variant="Variant.Outlined" Immediate="true" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search" OnClick="SearchAsync">
+                جستجو
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Add"
+                       Href="/inventory/purchase-invoice" Class="ms-2">
+                فاکتور خرید جدید
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mt-4">
+    @if (_loading)
+    {
+        <TableSkeleton Columns="6" />
+    }
+    else
+    {
+        <MudSimpleTable Style="overflow-x: auto;">
+            <thead>
+                <tr>
+                    <th>شماره</th>
+                    <th>تاریخ</th>
+                    <th>تأمین‌کننده</th>
+                    <th>مبلغ ناخالص</th>
+                    <th>مالیات</th>
+                    <th>مبلغ نهایی</th>
+                    <th>وضعیت</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var inv in _results)
+                {
+                    <tr>
+                        <td>@inv.InvoiceNumber</td>
+                        <td>@inv.InvoiceDate.ToString("yyyy/MM/dd")</td>
+                        <td>@(inv.SupplierName ?? "-")</td>
+                        <td class="text-end">@inv.GrossAmount.ToString("#,##0")</td>
+                        <td class="text-end">@inv.TaxAmount.ToString("#,##0")</td>
+                        <td class="text-end font-weight-bold">@inv.NetAmount.ToString("#,##0")</td>
+                        <td>@StatusText(inv.Status)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3" class="text-end font-weight-bold">جمع کل:</td>
+                    <td class="font-weight-bold">@_results.Sum(i => i.GrossAmount).ToString("#,##0")</td>
+                    <td></td>
+                    <td class="font-weight-bold">@_results.Sum(i => i.NetAmount).ToString("#,##0")</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </MudSimpleTable>
+        @if (_results.Count == 0)
+        {
+            <EmptyState Title="فاکتور خریدی یافت نشد." />
+        }
+    }
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "inventory";
+
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private string _status = "";
+    private string _search = "";
+    private bool _loading;
+    private List<PurchaseInvoiceRow> _results = new();
+
+    protected override async Task OnInitializedAsync() => await SearchAsync();
+
+    private async Task SearchAsync()
+    {
+        _loading = true;
+        try
+        {
+            _results = (await Db.QueryAsync<PurchaseInvoiceRow>(Schema, "PurchaseInvoiceSearch", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                FromDate = _fromDate?.Date,
+                ToDate = _toDate?.Date,
+                Status = string.IsNullOrWhiteSpace(_status) ? null : _status,
+                SupplierPartyId = (int?)null,
+                Search = string.IsNullOrWhiteSpace(_search) ? null : _search
+            })).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string StatusText(string? status) => status switch
+    {
+        "Draft" => "پیش‌نویس",
+        "Pending" => "در انتظار",
+        "Approved" => "تأیید شده",
+        "Posted" => "ثبت شده",
+        "Cancelled" => "ابطال شده",
+        _ => status ?? "-"
+    };
+}

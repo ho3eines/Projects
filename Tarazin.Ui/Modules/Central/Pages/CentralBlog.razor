@@ -7,35 +7,31 @@
 
 <PageHeader Title="پست‌های وبلاگ" Subtitle="مدیریت پست‌های وبلاگ شرکت.">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromBlog()))">
+               OnClick="() => OpenEditorAsync(EntityEditorModel.FromBlog())">
         پست جدید
     </MudButton>
 </PageHeader>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
-        <HeaderContent>
-            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>نویسنده</MudTh><MudTh>برچسب‌ها</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="#">@context.PostId</MudTd>
-            <MudTd DataLabel="عنوان">@context.Title</MudTd>
-            <MudTd DataLabel="نویسنده">@context.Author</MudTd>
-            <MudTd DataLabel="برچسب‌ها">@context.Tags</MudTd>
-            <MudTd DataLabel="تاریخ انتشار">@(context.PublishedAt?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
-            <MudTd DataLabel="وضعیت">
-                <StatusChip IsActive="context.IsActive" />
-            </MudTd>
-            <MudTd DataLabel="عملیات">
-                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromBlog(context)))"
-                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromBlog(context)))" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <EmptyState Title="پستی ثبت نشده است." Description="برای شروع، یک پست جدید ایجاد کنید." Icon="@Icons.Material.Filled.Article" />
-        </NoRecordsContent>
-    </MudTable>
-</MudPaper>
+<TzDataTable T="BlogRow" Items="_items" Loading="_loading" ShowPager="true"
+             SkeletonColumns="7" EmptyTitle="پستی ثبت نشده است." EmptyIcon="@Icons.Material.Filled.Article">
+    <HeaderContent>
+        <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>نویسنده</MudTh><MudTh>برچسب‌ها</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="#">@item.PostId</MudTd>
+        <MudTd DataLabel="عنوان">@item.Title</MudTd>
+        <MudTd DataLabel="نویسنده">@item.Author</MudTd>
+        <MudTd DataLabel="برچسب‌ها">@item.Tags</MudTd>
+        <MudTd DataLabel="تاریخ انتشار">@(item.PublishedAt?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
+        <MudTd DataLabel="وضعیت">
+            <StatusChip IsActive="item.IsActive" />
+        </MudTd>
+        <MudTd DataLabel="عملیات">
+            <EntityActions EditClicked="() => OpenEditorAsync(EntityEditorModel.FromBlog(item))"
+                           DeleteClicked="() => DeleteAsync(EntityEditorModel.FromBlog(item))" />
+        </MudTd>
+    </RowTemplate>
+</TzDataTable>
 
 @code {
     private const string Schema = "central";
@@ -76,4 +72,4 @@
         if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
     }
-}
+}

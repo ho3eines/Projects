@@ -8,6 +8,8 @@
 
 <PageHeader Title="امکانات و جداول پایه" Subtitle="گروه کالا، واحد کالا، کالاها، انبارها و انبارک‌ها + اتصال به حساب انبار." />
 <MudTabs>
+    @if (CanCategories)
+    {
     <MudTabPanel Text="گروه کالا">
         <MudPaper Elevation="1" Class="pa-4">
             <PageToolbar AddText="گروه جدید" AddIcon="@Icons.Material.Filled.Add"
@@ -31,7 +33,10 @@
             </MudTable>
         </MudPaper>
     </MudTabPanel>
+    }
 
+    @if (CanSettings || CanUnits)
+    {
     <MudTabPanel Text="واحد کالا">
         <MudPaper Elevation="1" Class="pa-4">
             <PageToolbar AddText="واحد جدید" AddIcon="@Icons.Material.Filled.Add"
@@ -194,6 +199,7 @@
             </MudForm>
         </MudPaper>
     </MudTabPanel>
+    }
 </MudTabs>
 
 @code {
@@ -217,6 +223,18 @@
     private bool _settingsValid;
     private bool _loading = true;
     private bool _busy;
+
+    /// <summary>دسترسی کامل به تنظیمات انبار (همهٔ تب‌ها).</summary>
+    private bool CanSettings =>
+        Session.HasPermission(TarazinPermissions.For("inventory", TarazinActions.Settings));
+
+    /// <summary>دسترسی نازک «مدیریت گروه کالا» — تب گروه کالا را هم برای فروشندگان باز می‌کند.</summary>
+    private bool CanCategories =>
+        CanSettings || Session.HasPermission(TarazinPermissions.InventoryCategories);
+
+    /// <summary>دسترسی نازک «مدیریت واحد کالا» — تب واحد کالا را هم برای فروشندگان باز می‌کند.</summary>
+    private bool CanUnits =>
+        CanSettings || Session.HasPermission(TarazinPermissions.InventoryUnits);
 
     private Task OnInventoryAccountAsync(AccountPickerResult? v) { _inventoryAccount = v; return Task.CompletedTask; }
     private Task OnReceiptContraAccountAsync(AccountPickerResult? v) { _receiptContraAccount = v; return Task.CompletedTask; }

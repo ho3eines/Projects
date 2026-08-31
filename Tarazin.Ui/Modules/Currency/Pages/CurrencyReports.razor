@@ -50,7 +50,7 @@
                     <MudTd DataLabel="پاها">@context.LegCount</MudTd>
                     <MudTd DataLabel="وضعیت">@context.Status</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">معامله‌ای نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="معامله‌ای ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
             @if (_transactions.Count > 0)
@@ -83,7 +83,7 @@
                     <MudTd DataLabel="طرف">@context.CounterPartyName</MudTd>
                     <MudTd DataLabel="شرح">@context.Description</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">گردشی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="گردشی ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
         </MudPaper>
@@ -113,7 +113,7 @@
                         </MudText>
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="داده‌ای ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -182,7 +182,7 @@
                     <MudTd DataLabel="کاربر">@context.ChangedBy</MudTd>
                     <MudTd DataLabel="دلیل">@context.Reason</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">تاریخچه‌ای نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="تاریخچه‌ای ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
         </MudPaper>

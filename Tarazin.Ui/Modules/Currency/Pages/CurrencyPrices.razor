@@ -91,7 +91,7 @@
                     <MudTd DataLabel="سایر">@FormatNullableRate(context.OtherRate)</MudTd>
                     <MudTd DataLabel="سیستم"><b>@FormatRate(context.SystemRate)</b></MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">داده‌ای نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="داده‌ای ثبت نشده است." /></NoRecordsContent>
             </MudTable>
             </MudCardContent>
         </MudCard>
@@ -211,7 +211,7 @@
                         }
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">آیتمی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="آیتمی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
             </MudCardContent>
         </MudCard>;

@@ -27,9 +27,9 @@ SELECT N'Moein' AS [Level],
        SUM(l.Debit) AS Debit,
        SUM(l.Credit) AS Credit
 FROM [accounting].[DocumentLines] l
-JOIN [accounting].[BaseCol] c
-      ON c.ColCode = LEFT(l.AccountCode, 2)
-     AND c.CompanyId = @CompanyId AND c.IsDeleted = 0
+LEFT JOIN [accounting].[BaseCol] c
+       ON c.ColCode = LEFT(l.AccountCode, 2)
+      AND c.CompanyId = @CompanyId AND c.IsDeleted = 0
 LEFT JOIN [accounting].[BaseMoein] m
        ON m.ColId = c.ColId
       AND m.MoeinCode = SUBSTRING(l.AccountCode, 3, 3)

@@ -24,14 +24,14 @@
 | 9 | 3 | مستندسازی نهایی (PRD، PLATFORM_PRD، PROJECT، ADRها، skills، .agents) **کامل**؛ انتقال به تولید مانده | @arch |
 | 11 | 2 | **یکپارچه‌سازی طلافروشی + ارز + انبار + حسابداری + خزانه**: مشتری/تأمین‌کننده، دفتر بدهکار/بستانکار ریالی/طلا/ارز، فاکتور مالیاتی و اجرت، پرداخت خزانه، کاهش موجودی و تنظیمات لینک حسابداری؛ مسیرهای `/goldshop/parties` و `/goldshop/settings/integration` اضافه شد. picker تفصیلی گرافیکی و برگشت فاکتور هنوز مانده | @dev_e |
 | 10 | 3 | **ماژول ارز و معاملات ارزی (PRD §34–§63)**: اسکیمهٔ `currency` + مرکز نرخ‌ها، کیف پول، خرید/فروش ارز، معاملات ترکیبی، موتور تبدیل، دریافت آنلاین (TabloTala/Matisa)، ارزش لحظه‌ای دارایی، سود/زیان ارزی، دسترسی‌های `rates.*`؛ ایزولاسیون چندشرکتی و seed مستقل برای شرکت‌ها نیز تأیید شد — شرح کامل در `docs/CURRENCY_MODULE.md` | @dev_c |
-| 11 | 3 | **ماژول داشبورد و BI (PRD BI §1–§121)**: اسکیمهٔ `bi` (۲۸ اسکریپت) + مرکز فرماندهی `/bi` با ۱۴ تب (اجرایی/مالی/فروش/خزانه/طلا/ارز/انبار/مشتریان/بدهی‌ها/حقوق/فروشگاه/اهداف/هشدار/تحلیل هوشمند) + `BiAlerts` + **چاپ با Stimulsoft** (`Stimulsoft.Reports.Blazor` + `BiReportService` + `/bi/reports`) — شرح کامل در `docs/BI_MODULE.md` | @dev_a |
+| 11 | 3 | **ماژول داشبورد و BI (PRD BI §1–§121)**: اسکیمهٔ `bi` (۲۸ اسکریپت) + مرکز فرماندهی `/bi` با ۱۴ تب (اجرایی/مالی/فروش/خزانه/طلا/ارز/انبار/مشتریان/بدهی‌ها/حقوق/فروشگاه/اهداف/هشدار/تحلیل هوشمند) + `BiAlerts` + **چاپ گزارش با موتور عمومی (QuestPDF)** (`/bi/reports` + `TemplatePrintDialog`) — شرح کامل در `docs/BI_MODULE.md` | @dev_a |
 
 ## کارهای باز (Backlog)
 
 | # | کار | پیش‌نیاز |
 |---|-----|----------|
 | B1 | `dotnet build Tarazin.Web/Tarazin.Web.csproj` — تأیید build پنج‌پروژه (MudBlazor 9.8.0 روی net8.0) | محیط با SDK |
-| B2 | `dotnet workload install maui` + build MAUI (ویندوز) | build `net8.0-windows10.0.19041.0/win10-x64` موفق با ۰ خطا؛ دو هشدار MSB3277 مربوط به conflict Stimulsoft/WebUtilities باقی و publish/device test مانده |
+| B2 | `dotnet workload install maui` + build MAUI (ویندوز) | build `net8.0-windows10.0.19041.0/win10-x64` موفق با ۰ خطا؛ publish/device test مانده |
 | B3 | `docker compose up -d` با secretهای خارجی + تست E2E وب/MAUI با bootstrap password تزریق‌شده، ورود MAUI (رمز درست/غلط، API/SQL unavailable)، ثبت داده، گزارش و ممیزی. عیب‌یابی: `bash tools/test-connection.sh` و `/diag` امن | SQL Server + SDK |
 | B4 | تأیید build/runtime مسیر مستقیم SqlClient و endpoint ورود برای Android/iOS؛ بدون credential دائمی یا TLS bypassدر بسته | build Android موفق؛ runtime دستگاهی Android/iOS و بررسی endpoint در CI/device lab مانده |
 | B5 | انتقال `.github/workflows/ci.yml` به `.github/workflows/ci.yml` و سبز شدن | دسترسی workflows |
@@ -64,7 +64,7 @@
 | B13 | صورتحساب الکترونیکی مالیاتی (وضعیت ارسال/خطا) | 🟡 |
 | B14 | شعب/چندشرکتی + گزارش مقایسه | 🟡 | ماژول `branch` (CRUD + BranchId روی فاکتورها) + BI ساخته شد؛ انتخاب شعبه در فرم‌های فاکتور و چندشرکتی کامل مانده |
 | B15 | جستجوی سراسری + داشبورد مدیریتی جامع + BI | ❌ |
-| B16 | اعلان‌ها/هشدارها + چاپ و خروجی Excel/PDF | 🟡 | هشدارها و چاپ Stimulsoft در ماژول BI انجام شد؛ اعلان‌های Push/Email و خروجی‌های بیشتر مانده |
+| B16 | اعلان‌ها/هشدارها + چاپ و خروجی Excel/PDF | 🟡 | هشدارها و چاپ گزارش در ماژول BI انجام شد (موتور عمومی QuestPDF)؛ اعلان‌های Push/Email و خروجی‌های بیشتر مانده |
 
 ## Status Legend
 - 0 = برنامه‌ریزی نشده

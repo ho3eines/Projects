@@ -7,8 +7,8 @@ description: >
   a QuestPDF builder, or a print dialog. Covers the unified report skeleton
   (PageHeader + filter bar + MudTable + pager + summary), the print/PDF
   pipeline (ReportPrintDialog + PdfReportService.BuildTablePdf + IPdfSaver),
-  Shamsi date and fiscal-year conventions, when to use Stimulsoft vs QuestPDF,
-  and the copy-paste pattern with a complete example.
+  Shamsi date and fiscal-year conventions, and the copy-paste pattern with a
+  complete example.
 ---
 
 # SKILL.md — گزارش‌سازی در «ترازین» (نحوهٔ گزارش‌نویسی)
@@ -224,6 +224,21 @@ private byte[] BuildPdf(string paperSize)
 
 هیچ صفحه‌ای نباید مستقیم `IJSRuntime` را برای دانلود صدا بزند — همیشه `IPdfSaver.SaveAsync(fileName, bytes)`.
 
+### د) فونت Vazirmatn — از کجا می‌آید؟
+
+فونت مشترک همهٔ چاپ‌ها (QuestPDF) **Vazirmatn** است و **از کد می‌آید، نه از CDN یا فونت سیستمی** — تا خروجی وب و MAUI (اندروید/iOS) دقیقاً یکی باشد:
+
+1. **TTF جاسازی‌شده:** فایل‌های `wwwroot/fonts/Vazirmatn-{Regular,Bold}.ttf` به‌صورت `EmbeddedResource` همراه `Tarazin.Ui` هستند (LogicalName `Tarazin.Ui.fonts.Vazirmatn-*.ttf`، در `Tarazin.Ui.csproj`).
+2. **ثبت‌کنندهٔ مرکزی:** `VazirmatnFontRegistrar.Register()` (`Tarazin.Ui/Services/VazirmatnFontRegistrar.cs`) همان بایت‌های TTF را در QuestPDF ثبت می‌کند (`FontManager.RegisterFont`) و idempotent است. یک‌بار از دی‌آیِ استارتاپ (`ServiceCollectionExtensions`) و از static ctorِ `PdfReportService` فراخوانی می‌شود.
+3. **درخواست فونت:** کد فقط **نام** «Vazirmatn» را می‌خواهد (`PdfReportService.FontFamily = "Vazirmatn"`) و QuestPDF از بایتِ ثبت‌شده استفاده می‌کند.
+4. **چرا بدون این ثبت، لاتین می‌شود:** QuestPDF در سرورهای بدون فونت سیستمی Vazirmatn، خودکار به **فونت پیش‌فرض (Lato/SegoeUI)** فالتبک می‌کند (رندر هرگز نمی‌شکند ولی فارسی با فونت لاتین رسم می‌شود). با ثبت embedded، همیشه Vazirmatn واقعی روی همهٔ پلتفرم‌ها است.
+
+**تأیید فونتِ واقعاً resolveشده:** مطمئن‌ترین چک، `BaseFont` فایل PDF خروجی است — اگر `Vazirmatn` باشد یعنی TTF جاسازی‌شده استفاده شده؛ اگر `Lato/SegoeUI` باشد فالتبک رخ داده و `VazirmatnFontRegistrar.Register()` پیش از ساخت گزارش اجرا نشده است.
+
+**گارد:** تست `VazirmatnFontRegistrationTests` (وجود TTF‌های embedded + رندر یک سند QuestPDF با خانوادهٔ Vazirmatn و تأیید `BaseFont` حاوی Vazirmatn) برگشت به فالتبک را می‌گیرد — و در هر بیلد از طریق **گام ۳ب «گارد فونت Vazirmatn»ِ `tools/run-checks.sh`** (به‌همراه لینک ضد-حذف در `RunChecks_invokes_all_pymupdf_guard_modes`) اجرا می‌شود.
+
+> ⚠️ **قانون:** در هیچ صفحهٔ چاپی فونت دیگری را هاردکد نکن؛ همیشه `Vazirmatn`. برای رندر سمت سرور به CDN یا فونت نصب‌شدهٔ دستگاه تکیه نکن — مسیر ثبت مرکزی بالا را نگه دار.
+
 ---
 
 ## ۴. تاریخ شمسی و بازهٔ سال مالی
@@ -233,7 +248,7 @@ private byte[] BuildPdf(string paperSize)
    - اگر ماژول به `AccountingContextService` دسترسی دارد (حسابداری/خزانه/طلا): بازه = **سال مالی فعال** (`Context.GetActiveFiscalYearAsync()` → `StartDate`/`EndDate`).
    - بقیه: `DateTime.Today.AddMonths(-1)` تا `DateTime.Today`.
 3. **نام فایل PDF:** همیشه تاریخ شمسی (`PdfFileNames.ShamsiDate`) — نه میلادی.
-4. **گزارشات BI/Stimulsoft:** همان پارامترهای `FromDate`/`ToDate` را به اسکریپت می‌دهند (مقادیر nullable).
+4. **گزارشات BI:** همان پارامترهای `FromDate`/`ToDate` را به اسکریپت می‌دهند (مقادیر nullable).
 
 ---
 
@@ -256,17 +271,18 @@ private byte[] BuildPdf(string paperSize)
 
 ---
 
-## ۶. چه موقع Stimulsoft و چه موقع QuestPDF؟
+## ۶. موتور چاپ — فقط QuestPDF
 
-| نیاز | موتور | چرا |
-|------|-------|-----|
-| گزارش جدولی ساده (لیست + فیلتر + چاپ) | **QuestPDF + ReportPrintDialog** | سبک، سمت سرور/بومی، یکسان در وب و MAUI |
-| فاکتور/سند رسمی با چیدمان خاص | **QuestPDF** (`BuildInvoicePdf`) + دیالوگ اختصاصی | کنترل کامل چیدمان |
-| داشبورد BI با چند گزارش و خروجی PDF/Excel | **Stimulsoft** (`BiReportService` + `StiBlazorViewer`) | فقط صفحهٔ `/bi/reports` و فیش حقوق |
-| خروجی Excel | Stimulsoft Viewer یا دکمهٔ Excel آن | فقط BI |
+همهٔ چاپ‌ها و گزارش‌های سیستم با **یک موتور واحد (QuestPDF)** ساخته می‌شوند — موتور مشترک وب + MAUI، بدون هیچ وابستگی خارجی:
 
-- **قانون:** گزارش‌های ماژولی (حسابداری، خزانه، طلا، انبار، ارز، فروشگاه، حقوق، انبار) → QuestPDF. فقط BI و فیش حقوق Stimulsoft دارند.
-- لایسنس Stimulsoft: بدون کلید واترمارک trial می‌گیرد (مستند: `docs/BI_MODULE.md`).
+| نیاز | مسیر |
+|------|------|
+| گزارش جدولی ساده (لیست + فیلتر + چاپ) | `PdfReportService.BuildTablePdf` + `ReportPrintDialog` |
+| فاکتور/سند رسمی با چیدمان خاص | `PdfReportService.BuildInvoicePdf` / `BuildDocumentPdf` + دیالوگ اختصاصی |
+| قالب قابل‌طراحی (دیزاینر چاپ) | `PrintTemplateService` + `TemplatePrintDialog` + صفحهٔ دیزاینر |
+| گزارش‌های BI (`/bi/reports`) | همان موتور چاپ عمومی (`TemplatePrintDialog`) با قالب پویا از `BiReportDefinition` |
+
+- **قانون:** در هیچ‌جا موتور چاپ دیگری اضافه نشود؛ همهٔ چاپ‌ها از `PdfReportService`/قالب‌ها عبور می‌کنند تا خروجی چاپ و PDF همیشه یکسان باشد.
 
 ---
 
@@ -290,7 +306,7 @@ private byte[] BuildPdf(string paperSize)
 
 > **بعد از هر تغییر در `Tarazin.Ui`** (هر صفحهٔ گزارش، `PdfReportService`, دیالوگ چاپ) حتماً این زنجیره را طی کن، وگرنه سرورِ `--no-build` همان کد کهنه را سرو می‌کند (باگ «ستون‌ها درست شد ولی هدر نه»):
 > ۱. `dotnet test Tarazin.Tests` → ۲. `dotnet build Tarazin.Web/Tarazin.Web.csproj` → ۳. `bash tools/check-stale-build.sh` (خروجی باید `0` باشد) → ۴. ریاستارت dev server.
-> **سریع‌ترین راه:** `bash tools/run-checks.sh` همین زنجیره را پشت‌سرهم اجرا می‌کند (تست → بیلد وب → گارد stale).
+> **سریع‌ترین راه:** `bash tools/run-checks.sh` همین زنجیره را پشت‌سرهم اجرا می‌کند (تست → بیلد وب → گارد stale) + شش گارد pymupdf: **۴ب — هدر راست‌چین عمومی**، **۴ج — گارد A5L قالب چاپ** (`template-a5l.pdf`)، **۴د — گارد BuildTablePdf A5L** (`table-a5l.pdf`)، **۴هـ — بدون هدر** (`template-a5l-noheader.pdf`؛ QR مستقل جایگزین لوگو)، **۴و — گارد BuildTablePdf چندصفحه‌گی** (`table-a5l-many.pdf`: جدول ۶۵ ردیفی باید چندصفحه باشد و هدر در هر صفحه تکرار شود) و **۴ز — گارد BuildInvoicePdf A5L چندصفحه** (`invoice-a5l-many.pdf`: فاکتور ۲۵ ردیفی در A5L — MediaBox ۵۹۵×۴۲۰، چندصفحه، هدر در هر صفحه و بدون بیرون‌زدگی). گیت pymupdf اسکریپت `tools/check-rtl-headers.sh` (حالت‌ها `all|generic|a5l|table|noheader|table-many|invoice-a5l-many`) است و ورودی‌اش فایل‌های dump تست `Dump_rtl_header_pdfs_for_pymupdf` در `%TEMP%/tarazin-pdf/rtl-headers` است. هر گارد A5L: MediaBox افقی ≈ ۵۹۵×۴۲۰ و هدر RTL (یا جایگزینی QR). همگی بدون pymupdf رسماً SKIP می‌شوند نه Fail (محلی اختیاری). در CI، Python 3.12 + pymupdf نصب می‌شود و گارد A5L قالب علاوه بر گام‌های `run-checks.sh` به‌صورت **step جدا و نام‌دار** هم اجرا می‌شود: `Run A5L template guard (pymupdf — MediaBox + RTL header)` → `bash tools/check-rtl-headers.sh a5l`.
 
 ---
 
@@ -308,6 +324,7 @@ private byte[] BuildPdf(string paperSize)
 - [ ] بیلد بدون خطا: `dotnet build Tarazin.Web/Tarazin.Web.csproj --nologo -v q`.
 - [ ] **قانون طلایی بیلد:** بعد از هر تغییر در یک فایل `Tarazin.Ui` (صفحه/کامپوننت/سرویس PDF) حتماً `dotnet build Tarazin.Web` بزن، سپس `bash tools/check-stale-build.sh` (باید `0` بدهد) و بعد سرور را ریاستارت کن — چرا که `dotnet test` یا بیلدِ تکیِ `Tarazin.Ui` کپیِ `Tarazin.Web/bin` را به‌روز نمی‌کند و سرورِ `--no-build` کد کهنه را سرو می‌کند.
 - [ ] تست‌های PDF سبز: `dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo` — انازهٔ صفحهٔ فاکتور (پرتره) و گزارش چک‌ها (landscape) را MediaBox چک می‌کند و صفحه‌بندی/راست‌چینی را نگهبانی می‌کند. اگر قرمز شد، خروجی PDF تازت خراب است.
+- [ ] گاردهای pymupdf (۴ب هدر راست‌چین + ۴ج A5L قالب + ۴د A5L جدول عمومی/BuildTablePdf + ۴هـ بدون هدر/QR مستقل + ۴و چندصفحه‌گی BuildTablePdf + ۴ز A5L چندصفحه BuildInvoicePdf): `bash tools/check-rtl-headers.sh all` — ورودی‌شان فایل‌های dump تست `Dump_rtl_header_pdfs_for_pymupdf` در `%TEMP%/tarazin-pdf/rtl-headers` است؛ اگر pymupdf/فایل‌های dump نباشند رسماً SKIP می‌شوند (exit 0، نه Fail)؛ در CI الزامی‌اند و گارد A5L قالب آن‌جا به‌صورت step جدا (`Run A5L template guard`) اجرا می‌شود.
 
 ---
 
@@ -315,8 +332,11 @@ private byte[] BuildPdf(string paperSize)
 
 | سند | موضوع |
 |-----|-------|
+| [`README.md`](../../README.md) | مرجع اصلی پروژه — نقشهٔ ماژول‌ها، معماری، اجرا، RBAC |
+| [`docs/Handoff.md`](../../docs/Handoff.md) | دست‌نوشت و وضعیت ماژول‌ها + ارجاع‌های اسکیل |
 | `.claude/skills/tarazin-development/SKILL.md` | راهنمای عمومی کدنویسی پروژه (معماری، MudBlazor 9، RBAC) |
-| `docs/BI_MODULE.md` | موتور Stimulsoft، لایسنس، فونت و خروجی BI |
+| `.claude/skills/tarazin-ui-ux/SKILL.md` | کاتالوگ کامپوننت‌های مشترک + اسکلت صفحه + پالت TarazinAccents (قبل از ساخت هر `.razor`) |
+| `docs/BI_MODULE.md` | ماژول BI: مرکز فرماندهی، هشدارها و گزارش‌ها/چاپ (موتور عمومی QuestPDF) |
 | `docs/Handoff_ModuleBreakdown.md` | تفکیک ماژول‌ها و وضعیت هر بخش |
 | `Tarazin.Ui/Services/PdfReportService.cs` | موتور مشترک PDF (QuestPDF) — فاکتور، چک، جدول عمومی |
 | `Tarazin.Ui/Services/PdfFileNames.cs` | نام فایل استاندارد فارسی + پاک‌سازی |

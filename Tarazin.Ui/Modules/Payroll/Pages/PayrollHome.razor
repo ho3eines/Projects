@@ -27,7 +27,7 @@
             </MudTd>
             <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="دوره‌ای ثبت نشده است." /></NoRecordsContent>
         <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 </MudPaper>

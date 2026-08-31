@@ -7,45 +7,41 @@
 
 <PageHeader Title="مدیریت کاربران" Subtitle="ایجاد و ویرایش کاربر و نقش — همهٔ رمزها با PBKDF2 در سمت سرور هش می‌شوند.">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
-               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromUser()))">
+               OnClick="() => OpenEditorAsync(EntityEditorModel.FromUser())">
         کاربر جدید
     </MudButton>
 </PageHeader>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_users" Hover="true" Dense="true" Striped="true" Loading="_loading">
-        <HeaderContent>
-            <MudTh>#</MudTh><MudTh>نام کاربری</MudTh><MudTh>نام نمایشی</MudTh><MudTh>نقش</MudTh><MudTh>وضعیت</MudTh><MudTh>ایجاد</MudTh><MudTh>ویرایش</MudTh><MudTh>عملیات</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="#">@context.UserId</MudTd>
-            <MudTd DataLabel="نام کاربری">@context.Username</MudTd>
-            <MudTd DataLabel="نام نمایشی">@context.DisplayName</MudTd>
-            <MudTd DataLabel="نقش">@context.RoleTitle</MudTd>
-            <MudTd DataLabel="وضعیت">
-                <StatusChip IsActive="context.IsActive" />
-            </MudTd>
-            <MudTd DataLabel="ایجاد">@context.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
-            <MudTd DataLabel="ویرایش">
-                @if (context.UpdatedAt is DateTime updated)
-                {
-                    @updated.ToString("yyyy/MM/dd HH:mm")
-                }
-                else
-                {
-                    <MudText Typo="Typo.caption" Color="Color.Default">—</MudText>
-                }
-            </MudTd>
-            <MudTd DataLabel="عملیات">
-                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromUser(context)))"
-                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromUser(context)))" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <EmptyState Title="کاربری ثبت نشده است." Description="برای شروع، یک کاربر جدید ایجاد کنید." Icon="@Icons.Material.Filled.PeopleOutline" />
-        </NoRecordsContent>
-    </MudTable>
-</MudPaper>
+<TzDataTable T="UserRow" Items="_users" Loading="_loading" ShowPager="true"
+             SkeletonColumns="8" EmptyTitle="کاربری ثبت نشده است." EmptyIcon="@Icons.Material.Filled.PeopleOutline">
+    <HeaderContent>
+        <MudTh>#</MudTh><MudTh>نام کاربری</MudTh><MudTh>نام نمایشی</MudTh><MudTh>نقش</MudTh><MudTh>وضعیت</MudTh><MudTh>ایجاد</MudTh><MudTh>ویرایش</MudTh><MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="#">@item.UserId</MudTd>
+        <MudTd DataLabel="نام کاربری">@item.Username</MudTd>
+        <MudTd DataLabel="نام نمایشی">@item.DisplayName</MudTd>
+        <MudTd DataLabel="نقش">@item.RoleTitle</MudTd>
+        <MudTd DataLabel="وضعیت">
+            <StatusChip IsActive="item.IsActive" />
+        </MudTd>
+        <MudTd DataLabel="ایجاد">@item.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
+        <MudTd DataLabel="ویرایش">
+            @if (item.UpdatedAt is DateTime updated)
+            {
+                @updated.ToString("yyyy/MM/dd HH:mm")
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Color="Color.Default">—</MudText>
+            }
+        </MudTd>
+        <MudTd DataLabel="عملیات">
+            <EntityActions EditClicked="() => OpenEditorAsync(EntityEditorModel.FromUser(item))"
+                           DeleteClicked="() => DeleteAsync(EntityEditorModel.FromUser(item))" />
+        </MudTd>
+    </RowTemplate>
+</TzDataTable>
 
 @code {
     private List<UserRow> _users = new();
@@ -81,4 +77,4 @@
         if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
     }
-}
+}

@@ -17,7 +17,7 @@
                 <MudTd>@context.DebitRial.ToString("N0")</MudTd><MudTd>@context.CreditRial.ToString("N0")</MudTd>
                 <MudTd>@context.DebitGoldGram.ToString("N3")</MudTd><MudTd>@context.CreditGoldGram.ToString("N3")</MudTd><MudTd>@context.Description</MudTd>
             </RowTemplate>
-            <NoRecordsContent><MudText Color="Color.Secondary">گردشی ثبت نشده است.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="گردشی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
     </DialogContent>
     <DialogActions><MudButton OnClick="@(() => MudDialog.Cancel())">بستن</MudButton></DialogActions>

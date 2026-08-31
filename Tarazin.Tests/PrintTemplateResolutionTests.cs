@@ -209,6 +209,86 @@ public class PrintTemplateResolutionTests
         }
     }
 
+    /// <summary>
+    /// رفتارِ per-company تابعِ <c>SetDefaultForAsync</c> (سطح سرویس، نه اسکریپت خام):
+    /// دو شرکتِ متفاوت برای **همان گزارش** هر کدام قالبِ پیش‌فرضِ جدا و مستقل می‌گیرند،
+    /// هیچ‌کدام پیش‌فرضِ دیگری را آزاد/بازنویسی نمی‌کند، و ایندکسِ یکتای
+    /// (CompanyId, DefaultFor) در عمل برقرار می‌ماند — هر دو ردیف هم‌زمان در DB
+    /// (DefaultFor یکسان ولی CompanyId متفاوت) بدون هیچ خطای ایندکس ذخیره می‌شوند
+    /// و هر نشست دقیقاً قالبِ خودش را از وضوح برمی‌گرداند.
+    /// </summary>
+    [SkippableFact]
+    public async Task SetDefaultFor_is_per_company_two_defaults_coexist_unique_index_holds()
+    {
+        // SQL Server در دسترس نیست (مثلاً CI) → Skip نه Fail.
+        using var probe = await TestDb.OpenOrSkipAsync();
+
+        var catalog = new ScriptCatalog();
+        // همان گزارش برای هر دو شرکت — تفاوت فقط در دامنهٔ شرکت است
+        var reportId = "test.perco." + Guid.NewGuid().ToString("N")[..8];
+        var tplA = "tpl.pca." + Guid.NewGuid().ToString("N")[..8];
+        var tplB = "tpl.pcb." + Guid.NewGuid().ToString("N")[..8];
+        const int companyA = 900031;
+        const int companyB = 900032;
+
+        using var ensureCn = await TestDb.OpenOrSkipAsync();
+        await TestDb.EnsurePrintingAsync(ensureCn);
+
+        var sessionA = await NewSessionAsync(companyA, "شرکت A");
+        var sessionB = await NewSessionAsync(companyB, "شرکت B");
+        var svcA = NewService(sessionA, catalog);
+        var svcB = NewService(sessionB, catalog);
+
+        try
+        {
+            // ۱) هر شرکت قالبِ خودش را می‌سازد (بدون پیش‌فرض اولیه)
+            await svcA.SaveAsync(Tpl(tplA, "COMP-A-TPL", null));
+            await svcB.SaveAsync(Tpl(tplB, "COMP-B-TPL", null));
+
+            // ۲) هر شرکت همان گزارش را روی قالبِ خودش «پیش‌فرض» می‌کند
+            await svcA.SetDefaultForAsync(tplA, reportId);
+            await svcB.SetDefaultForAsync(tplB, reportId);
+
+            // ۳) ایندکس یکتای (CompanyId, DefaultFor) در عمل برقرار می‌ماند:
+            //    دو ردیف با DefaultFor یکسان ولی CompanyId متفاوت هم‌زمان ذخیره می‌شوند
+            //    (بدون خطای UQ) — یعنی وضوحِ هر شرکت از قالبِ خودش می‌آید نه از شرکتِ دیگر.
+            using var cn = await TestDb.OpenOrSkipAsync();
+            var rows = (await cn.QueryAsync<(string Id, int? CompanyId)>(
+                "SELECT [Id], [CompanyId] FROM [printing].[PrintTemplates] " +
+                "WHERE [DefaultFor] = @r ORDER BY [CompanyId]", new { r = reportId })).ToList();
+            Assert.Equal(2, rows.Count);
+            Assert.Contains((tplA, (int?)companyA), rows);
+            Assert.Contains((tplB, (int?)companyB), rows);
+
+            // ۴) ایزولاسیون در عمل: وضوحِ هر شرکت دقیقاً قالبِ خودش را برمی‌گرداند
+            Assert.Equal("COMP-A-TPL", (await svcA.GetOrCreateDefaultAsync(reportId)).Name);
+            Assert.Equal("COMP-B-TPL", (await svcB.GetOrCreateDefaultAsync(reportId)).Name);
+
+            // ۵) تنظیمِ پیش‌فرض در شرکت B، پیش‌فرضِ شرکت A را آزاد/بازنویسی نکرده
+            //    (دوباره‌تنظیمِ B روی قالبِ خودش → A دست‌نخورده می‌ماند)
+            await svcB.SetDefaultForAsync(tplB, reportId);
+            Assert.Equal("COMP-A-TPL", (await svcA.GetOrCreateDefaultAsync(reportId)).Name);
+
+            // ۶) برعکس: تنظیمِ A هم پیش‌فرضِ B را دست نمی‌زند
+            await svcA.SetDefaultForAsync(tplA, reportId);
+            Assert.Equal("COMP-B-TPL", (await svcB.GetOrCreateDefaultAsync(reportId)).Name);
+
+            // ۷) هنوز هر دو ردیفِ پیش‌فرضِ هم‌زمان سر جایش هستند — ایندکس سالم است
+            var still = await cn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM [printing].[PrintTemplates] WHERE [DefaultFor] = @r", new { r = reportId });
+            Assert.Equal(2, still);
+        }
+        finally
+        {
+            using var cn = await TestDb.OpenOrSkipAsync();
+            await cn.ExecuteAsync(@"
+                DELETE FROM [printing].[PrintTemplates]
+                WHERE [Id] IN (@tplA, @tplB)
+                   OR [DefaultFor] = @reportId;",
+                new { tplA, tplB, reportId });
+        }
+    }
+
     private static async Task<UserSession> NewSessionAsync(int? companyId, string? companyName)
     {
         var session = new UserSession(Array.Empty<ISessionStore>(), Array.Empty<ICredentialSessionRevoker>());

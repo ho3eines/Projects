@@ -9,8 +9,8 @@ description: >
   layout, MudDialog patterns, App Bar / NavMenu (TarazinModules) navigation,
   MudBlazor 9.8.0 version traps (MUD0002, ValidateAsync, ActivatorContent), the
   4-layer RBAC model, session and active company/fiscal-year context, RTL theme
-  and fonts, Stimulsoft reporting, code style rules, build/test commands, and
-  copy-paste patterns for CRUD tables, forms, menus, and dialogs.
+  and fonts, the print/PDF pipeline (QuestPDF), code style rules, build/test
+  commands, and copy-paste patterns for CRUD tables, forms, menus, and dialogs.
 ---
 
 # SKILL.md — توسعهٔ «ترازین» (راهنمای کدنویسی)
@@ -92,6 +92,7 @@ Tarazin.Ui/Modules/{Module}/
 الگوی ثابت هر ماژول: `Dashboard` / (لیست روز) / `Entry` (ثبت) / `Special` (عملیات ویژه) / `Reports` / `Settings`.
 
 ### افزودن یک صفحهٔ جدید (دستورالعمل گام‌به‌گام)
+> **ⓘ قبل از ساخت هر صفحهٔ Razor** اول `.claude/skills/tarazin-ui-ux/SKILL.md` را بخوان — کاتالوگ کامپوننت‌های مشترک (§‌۲) و اسکلت‌های کپی‌پذیر صفحه (لیست/CRUD، فرم، داشبورد، گزارش — §‌۳) آنجاست؛ همین سند فقط معماری/داده/RBAC را پوشش می‌دهد.
 1. **فایل صفحه:** `Modules/{Module}/Pages/{Name}.razor` با `@page "/{module}/{name}"` و `@inject` سرویس‌ها + `Db`.
 2. **دسترسی:** اگر دسترسی جدید لازم است، کلید را در `Tarazin.Share/Permissions.cs` (در `TarazinPermissions`) تعریف کن؛ نقش‌های پیش‌فرض در `TarazinRoles`؛ seed در استارت‌آپ همگام می‌شود.
 3. **ناوبری:** آیتم را در `Tarazin.Ui/Theme/TarazinModules.cs` → `All` اضافه کن (عنوان/آیکون/دسترسی). `HideInNav: true` برای صفحاتی که از داخل صفحات دیگر باز می‌شوند (اما گارد مسیر دارند).
@@ -333,19 +334,18 @@ _denyMessage = !Session.IsAuthenticated
 
 - تم: `Tarazin.Ui/Theme/TarazinTheme.cs` → `MudTheme` فارسی (پالت کاغذی + سبز + طلایی، حالت تیره).
 - RTL: در `App.razor` → `<MudRTLProvider RightToLeft="true">`؛ در HTML هاست `dir="rtl"`؛ در MAUI، `MainPage.xaml` عمداً `LeftToRight` می‌ماند (آینه‌ای شدن WebView).
-- فونت: Vazirmatn (گوگل‌فونتز در CSS). گزارش‌های Stimulsoft از فونت سیستمی دستگاه می‌خوانند — اگر Vazirmatn نصب نباشد فالتبک Roboto می‌شود (مستند: `docs/BI_MODULE.md` §۳).
+- فونت: Vazirmatn (گوگل‌فونتز در CSS برای UI؛ در PDF از TTF جاسازی‌شدهٔ `VazirmatnFontRegistrar` — هیچ وابستگی به فونت سیستمی نیست).
 - حالت تیره: `UiPreferences` (در حافظه) + سوئیچ نوار بالا.
 
 ---
 
-## ۱۰. گزارش‌ها و چاپ (Stimulsoft)
+## ۱۰. گزارش‌ها و چاپ (موتور چاپ عمومی — QuestPDF)
 
 > **⚠️ اسکیل جداگانهٔ گزارش‌سازی:** برای ساخت/ویرایش هر صفحهٔ گزارش، دیالوگ چاپ یا خروجی PDF، اول `.claude/skills/tarazin-reporting/SKILL.md` را بخوان — «یک روال واحد» برای همهٔ گزارش‌ها: اسکلت صفحه + `ReportPrintDialog` + `PdfReportService.BuildTablePdf` + `PdfFileNames`.
 
-- **فقط از `BiReportService`:** `BuildAsync(BiReportDefinition)` (دادهٔ واقعی از اسکریپت) یا `BuildDemoReport()` (تست، بدون دیتابیس).
-- نمایش با `StiBlazorViewer` (صفحهٔ `/bi/reports`). صفحهٔ تست: `/dev/bireport`.
-- **لایسنس:** بدون کلید، واترمارک trial؛ بعد از انقضا، Viewer مودال «Your trial has expired» می‌دهد (خروجی PNG/PDF کار می‌کند). لایسنس با `TARAZIN_STIMULSOFT_LICENSE_PATH` در `Program.cs` ثبت می‌شود.
-- فونت گزارش: `MakeFont` → «Vazirmatn»؛ موتور پیش‌فرض ImageSharp است (مستند IL در `docs/BI_MODULE.md`). برای دانستن فونت واقعی: `BiReportService.GetActualFontName(report)`.
+- **موتور واحد:** همهٔ چاپ‌ها (سند، فاکتور، چک، گزارش‌های ماژولی، BI) با **QuestPDF** (`PdfReportService`) و قالب‌های قابل‌طراحی (`PrintTemplateService`/صفحهٔ دیزاینر) انجام می‌شوند.
+- **صفحهٔ `/bi/reports`:** کاتالوگ گزارش‌های BI از اسکریپت‌های نامدار + چاپ/PDF با موتور چاپ عمومی (`TemplatePrintDialog`).
+- **فونت:** همیشه «Vazirmatn» از TTF جاسازی‌شده (`VazirmatnFontRegistrar.Register()` — idempotent؛ در static ctorِ `PdfReportService` و استارتاپ).
 
 ---
 
@@ -367,7 +367,7 @@ _denyMessage = !Session.IsAuthenticated
 ## ۱۲. بیلد و تست
 
 > **⚠️ قانون طلایی بیلد:** بعد از **هر تغییر در `Tarazin.Ui`** (صفحهٔ Razor، کامپوننت، سرویس، تم، …) حتماً `dotnet build Tarazin.Web/Tarazin.Web.csproj` را بزن.
-> `dotnet test` یا بیلدِ تکیِ `Tarazin.Ui` فقط `Tarazin.Ui/bin` را به‌روز می‌کند؛ کپیِ `Tarazin.Web/bin` **تازه نمی‌شود** و سروری که با `dotnet run --no-build` بالا می‌آید، همان کد کهنه را سرو می‌کند (باگ «ستون‌ها درست شد ولی هدر نه`). — **اسکریپت یک‌جا زنجیرهٔ کامل:** `bash tools/run-checks.sh` (تست + بیلد وب + گارد stale).
+> `dotnet test` یا بیلدِ تکیِ `Tarazin.Ui` فقط `Tarazin.Ui/bin` را به‌روز می‌کند؛ کپیِ `Tarazin.Web/bin` **تازه نمی‌شود** و سروری که با `dotnet run --no-build` بالا می‌آید، همان کد کهنه را سرو می‌کند (باگ «ستون‌ها درست شد ولی هدر نه`). — **اسکریپت یک‌جا زنجیرهٔ کامل:** `bash tools/run-checks.sh` (تست + بیلد وب + گارد stale + گاردهای pymupdf: **۴ب هدر راست‌چین**، **۴ج A5L قالب چاپ**، **۴د A5L جدول عمومی/BuildTablePdf**، **۴هـ بدون هدر/QR مستقل**، **۴و چندصفحه‌گی BuildTablePdf**، **۴ز A5L چندصفحه BuildInvoicePdf**). گیت pymupdf اسکریپت `tools/check-rtl-headers.sh` (حالت‌ها `all|generic|a5l|table|noheader|table-many|invoice-a5l-many`) است که فایل‌های dump تست `Dump_rtl_header_pdfs_for_pymupdf` را می‌خواند (`%TEMP%/tarazin-pdf/rtl-headers`). گام‌های pymupdf بدون نصب pymupdf رسماً SKIP می‌شوند نه Fail (محلی اختیاری)؛ در CI (Python 3.12 + pymupdf) الزامی‌اند و گارد A5L قالب به‌صورت **step جدا و نام‌دار** (`Run A5L template guard` → `bash tools/check-rtl-headers.sh a5l`) هم اجرا می‌شود.
 
 ```bash
 # بیلد کامل وب (هشدارها/خطاها را ببین)
@@ -403,85 +403,99 @@ dotnet run --project Tarazin.Web
 - **قفل DLL:** اگر dev server در حال اجراست، بیلد عادی با MSB3021/3027 خطا می‌دهد (فایل‌های قفل). از `-o /tmp/out` استفاده کن یا سرور را ریاستارت کن.
 - **هشدارها:** پروژه هدف «بدون هشدار» دارد — MUD0002/CS0618 را جدی بگیر (رفتار خراب)، CS8669/CS8618/CS8602 را هم پاک کن.
 - **پیش‌نمایش زنده:** بعد از تغییر، dev server را ریاستارت کن تا بیلد جدید لود شود — **قبل از ریاستارت `bash tools/check-stale-build.sh` را اجرا کن** (گارد ضد باگ «سرور با کد قدیمی»: اگر کپی `Tarazin.Web/bin/Tarazin.Ui.dll` قدیمی‌تر از `Tarazin.Ui/bin` بود، اول `dotnet build Tarazin.Web` را بزن؛ وگرنه سرورِ `--no-build` همان کد کهنه را سرو می‌کند).
+- **ریاستارت امن خودکار:** از `bash tools/start-dev-server.sh` برای ریاستارت استفاده کن — این اسکریپت **خودش اول گارد stale را اجرا می‌کند** و اگر stale بود از شروع سرویس جلوگیری می‌کند (`--force` فقط برای موارد اضطراری؛ به‌طور پیش‌فرض ممنوع).
 - **ترتیب استاندارد بعد از تغییر در `Tarazin.Ui`:** (۱) `dotnet test Tarazin.Tests` → (۲) `dotnet build Tarazin.Web` → (۳) `bash tools/check-stale-build.sh` (باید 0 بدهد) → (۴) ریاستارت dev server. این چهار قدم در بلاک بالا هم آمده است.
 
 ---
 
 ## ۱۳. الگوهای متداول کپی‌پذیر (Copy-Paste)
 
-چهار الگوی پرتکرار با کد کامل و **مطابق کد واقعی پروژه** (نمونه‌ها: `StoreSettings.razor`، `ProductCategoryDialog.razor`، `MainLayout.razor`). هر الگو را مستقیم کپی کن و فقط نام‌ها/اسکیمه/اسکریپت را عوض کن.
+پنج الگوی پرتکرار با کد کامل و **مطابق کد واقعی پروژه** (نمونه‌ها: `StoreSettings.razor`، `ProductCategoryDialog.razor`، `MainLayout.razor`، `InventoryWarehouses.razor`). هر الگو را مستقیم کپی کن و فقط نام‌ها/اسکیمه/اسکریپت را عوض کن — جزئیات کامپوننت‌ها در `tarazin-ui-ux` (§‌۲) و اسکلت کامل صفحه در `tarazin-reporting` است.
 
-### الف) جدول CRUD کامل (MudTable)
+### الف) جدول CRUD کامل — الگوی ترجیحی (`TzDataTable` + `EntityCrudService`)
+
+> برای جداول پایه/موجودیت (انبار، کالا، مشتری، کارمند، نرخ، …) از این الگو استفاده کن — کامپوننت مشترک `TzDataTable` (اسکلتون + حالت خالی + pager یکجا) + سرویس `EntityCrudService` (فرم MudDialog + تأیید حذف استاندارد). نمونهٔ بیلدشدهٔ واقعی: `Modules/Inventory/Pages/InventoryWarehouses.razor`.
+
 ```razor
-<PageHeader Title="امکانات و جداول پایه" Subtitle="مدیریت {داده}." />
+@page "/{module}/{name}"
+@inject DbService Db
+@inject UserSession Session
+@inject EntityCrudService Crud
+@inject ISnackbar Snackbar
 
-@* دکمهٔ افزودن — با گارد دسترسی (لایهٔ ۳) *@
-<div class="d-flex justify-end mb-4">
-    @if (Session.HasPermission(TarazinPermissions.{Permission}))
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="OpenNewAsync">
-            {عنوان} جدید
-        </MudButton>
-    }
-</div>
+<PageHeader Eyebrow="{ماژول}" Title="{عنوان جمع}" Subtitle="{شرح}" />
 
-<MudTable Items="_rows" Hover="true" Dense="true" Striped="true" Loading="_loading">
+<PageToolbar AddText="{ردیف} جدید" AddIcon="@Icons.Material.Filled.Add" OnAddClick="CreateAsync"
+             AddDisabled="@(!Session.HasPermission({PermissionKey}))">
+    <MudTextField @bind-Value="_search" Placeholder="جستجو..." Immediate="true"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-0" />
+</PageToolbar>
+
+<TzDataTable T="{Row}Row" Items="_filtered" Loading="_loading" ShowPager="true"
+             SkeletonColumns="4" EmptyTitle="{ردیفی} ثبت نشده است.">
     <HeaderContent>
-        <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+        <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>وضعیت</MudTh>
+        <MudTh Style="text-align:center">عملیات</MudTh>
     </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="کد">@context.{Code}</MudTd>
-        <MudTd DataLabel="عنوان">@context.Title</MudTd>
-        <MudTd DataLabel="وضعیت">
-            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
-                @(context.IsActive ? "فعال" : "غیرفعال")
-            </MudChip>
-        </MudTd>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="کد" Class="tz-num">@item.Code</MudTd>
+        <MudTd DataLabel="عنوان">@item.Title</MudTd>
+        <MudTd DataLabel="وضعیت"><StatusChip IsActive="item.IsActive" /></MudTd>
         <MudTd DataLabel="عملیات">
-            <MudTooltip Text="ویرایش">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                               OnClick="@(() => OpenEditAsync(context))" />
-            </MudTooltip>
-            <MudTooltip Text="حذف">
-                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                               OnClick="@(() => DeleteAsync(context))" />
-            </MudTooltip>
+            <EntityActions EditClicked="() => EditAsync(item)"
+                           DeleteClicked="() => DeleteAsync(item)"
+                           EditDisabled="!Session.HasPermission({PermissionKey})"
+                           DeleteDisabled="!Session.HasPermission({PermissionKey})" />
         </MudTd>
     </RowTemplate>
-    <NoRecordsContent><MudText Color="Color.Secondary">{داده‌ای} نیست.</MudText></NoRecordsContent>
-</MudTable>
-
-@* اگر جدول داخل تب است: <MudPaper Elevation="1" Class="pa-4"> دور همه‌چیز *@
-@* صفحه‌بندی (اگر ردیف زیاد است): RowsPerPage="25" + <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent> *@
+</TzDataTable>
 ```
 
 ```csharp
 @code {
     private const string Schema = "{schema}";
-    private List<{Row}Row> _rows = new();
+    private const string {PermissionKey} = "{module}.{action}";   // از Permissions.cs — حدس نزن
+
+    private IReadOnlyList<{Row}Row> _rows = Array.Empty<{Row}Row>();
+    private string _search = "";
     private bool _loading = true;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private IReadOnlyList<{Row}Row> _filtered =>
+        string.IsNullOrWhiteSpace(_search) ? _rows
+            : _rows.Where(r => (r.Title ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    private async Task LoadAsync()
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
     {
         _loading = true;
-        try
-        {
-            _rows = (await Db.QueryAsync<{Row}Row>(Schema, "{ScriptList}")).ToList();
-        }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        try { _rows = await Db.QueryAsync<{Row}Row>(Schema, "{ScriptList}", new { CompanyId = Db.CurrentCompanyId }); }
         finally { _loading = false; }
     }
 
-    private async Task OpenNewAsync() { /* الگوی «د» — دیالوگ */ }
-    private async Task OpenEditAsync({Row}Row row) { /* همان با Model = row */ }
-    private async Task DeleteAsync({Row}Row row) { /* الگوی «د» — تأیید حذف */ }
+    // از کارخانهٔ صحیح EntityEditorModel استفاده کن (نام دقیق را از Component/EntityEditorModel.cs بردار)
+    private async Task CreateAsync()
+    {
+        var model = EntityEditorModel.From{Entity}(null);
+        if (await Crud.ShowEditorAsync(model)) await ReloadAsync();
+    }
+    private async Task EditAsync({Row}Row row)
+    {
+        var model = EntityEditorModel.From{Entity}(row);
+        if (await Crud.ShowEditorAsync(model)) await ReloadAsync();
+    }
+    private async Task DeleteAsync({Row}Row row)
+    {
+        var model = EntityEditorModel.From{Entity}(row);
+        if (await Crud.ConfirmDeleteAsync(model)) await ReloadAsync();
+    }
 }
 ```
 
-**قوانین جدول:** `Hover + Dense + Striped` پیش‌فرض است؛ ستون‌ها `MudTd DataLabel="..."` (موبایل/وابسته)؛ وضعیت با `MudChip` رنگی؛ عملیات با `MudTooltip` دور `MudIconButton`؛ متن خالی با `NoRecordsContent`؛ بعد از هر موفقیت `await LoadAsync()`.
+> ⚠️ **نکته‌های الزامی:** (۱) نام کارخانهٔ `From{Entity}` را از `Tarazin.Ui/Components/EntityEditorModel.cs` و کلید دسترسی را از `Tarazin.Share/Permissions.cs` بردار — **حدس نزن**؛ `TarazinPermissions.InventoryEdit`‌ای در کاتالوگ نیست، فقط `{module}.{action}` است. (۲) `EntityActions` از پارامترهای **`EditClicked`/`DeleteClicked`** استفاده می‌کند (نه `OnEdit`/`OnDelete` که قدیمی‌اند) — اگر صفحه‌ای `OnEdit` دارد، آن را اصلاح کن. (۳) آیکون‌ها همیشه با `@Icons.Material.Filled.X` (با `@`).
+
+> **نسخهٔ ساده/ابزاری (MudTable دستی):** وقتی جدول خیلی ساده است و فیلتر/پکر دلخواه می‌خواهی، از `MudTable Hover Dense Striped` + `MudTd DataLabel` مستقیماً استفاده کن — اما برای CRUDهای موجودیت، الگوی بالا (`TzDataTable`) ترجیح دارد.
 
 ---
 
@@ -645,6 +659,36 @@ private async Task DeleteAsync({Row}Row row)
 
 ---
 
+### ه) گزارش (چاپ / PDF)
+
+> اسکیلِ اختصاصی گزارش‌سازی در `.claude/skills/tarazin-reporting/SKILL.md` است — برای ساخت هر صفحهٔ گزارش، دیالوگ چاپ یا خروجی PDF **اول آن را بخوان**. خلاصهٔ کپی‌پذیر، برگرفته از همان اسکیل:
+
+1. **صفحهٔ گزارش:** `Modules/{Module}/Pages/{Module}Reports.razor` با `@page "/{module}/reports"` → `PageHeader` (با دکمه‌های «بروزرسانی» و «چاپ / PDF») + فیلترها (`MudDatePicker` شمسی در `MudPaper`) + جدول (`MudTable Hover Dense Striped Breakpoint.Breakpoint.Sm RowsPerPage`) + جمع ستون.
+2. **داده:** `Db.QueryAsync<TRow>(schema, "{ScriptName}", new { FromDate, ToDate, CompanyId = Session.ActiveCompanyId, FiscalYearId = Session.ActiveFiscalYearId })` — هرگز SQL خام.
+3. **چاپ/PDF با روال واحد:**
+```csharp
+private async Task PrintAsync() => await Dialog.ShowAsync<ReportPrintDialog>("چاپ گزارش",
+    new DialogParameters<ReportPrintDialog>
+    {
+        { x => x.Title, "{عنوان}" },
+        { x => x.Body, TableBody },                     // RenderFragment جدول (بدون pager)
+        { x => x.Summary, ReportSummary },              // اختیاری
+        { x => x.BuildPdf, BuildPdf }                   // Func<string, byte[]>
+    }, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+
+private byte[] BuildPdf(string paperSize)
+{
+    var cols = new List<TableReportColumn> { new() { Header = "تاریخ" }, new() { Header = "مبلغ", AlignRight = true } };
+    var rows = _rows.Select(r => (IReadOnlyList<string>)new[] { r.Date.ToString("yyyy/MM/dd"), r.Amount.ToString("N0") }).ToList();
+    return Pdf.BuildTablePdf("{عنوان}", "{شرح}", $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", cols, rows, new[] { $"جمع: {_rows.Sum(r=>r.Amount):N0}" }, paperSize);
+}
+```
+4. **نام فایل PDF:** هرگز دستی — از `PdfFileNames` (شمسی + پاک‌سازی). **دانلود:** همیشه از `IPdfSaver.SaveAsync(fileName, bytes)`، نه `IJSRuntime` مستقیم.
+5. **موتور:** همهٔ گزارش‌ها و چاپ‌ها → **QuestPDF** (`PdfReportService`) — موتور واحد مشترک وب + MAUI؛ هیچ موتور دیگری وجود ندارد.
+6. **قانون طلایی بیلد:** بعد از هر تغییر صفحهٔ گزارش → `dotnet build Tarazin.Web` + `check-stale-build.sh`، یا `bash tools/run-checks.sh`.
+
+---
+
 ## ۱۴. نقشهٔ سریع فایل‌های کلیدی
 
 | فایل | نقش |
@@ -657,5 +701,16 @@ private async Task DeleteAsync({Row}Row row)
 | `Tarazin.Data/DbService.cs` | درگاه داده (اسکریپت نامدار + ممیزی) |
 | `Tarazin.Ui/Services/ServiceCollectionExtensions.cs` | ثبت همهٔ سرویس‌های UI |
 | `Tarazin.Ui/Components/EntityEditorDialog.razor` | الگوی مرجع مودال چندکِیند |
+| `Tarazin.Ui/Components/EntityEditorModel.cs` | ۱۳ کارخانهٔ `From{Entity}` (نام دقیق را از اینجا بردار، حدس نزن) |
+| `Tarazin.Ui/Services/EntityCrudService.cs` | CRUD مشترک: `ShowEditorAsync`/`ConfirmDeleteAsync` |
+| `Tarazin.Ui/Components/TzDataTable.razor` | جدول استاندارد (اسکلتون + خالی + pager) |
+| `Tarazin.Ui/Components/PageToolbar.razor` | نوار عملیات/فیلتر بالای جدول (`AddText`/`OnAddClick`) |
+| `Tarazin.Ui/Components/ReportPrintDialog.razor` | دیالوگ مشترک چاپ/پیش‌نمایش/دانلود PDF |
 | `Tarazin.Ui/_Imports.razor` | usingهای سراسری (Tarazin.Services، Tarazin.Data، MudBlazor) |
 | `docs/BI_MODULE.md` | مستند موتور رندر گزارش + لایسنس |
+
+---
+
+## 🔁 حلقهٔ ارجاع
+
+> مرجع اصلی پروژه: [`README.md`](../../README.md) — فهرست یک‌جای اسکیل‌ها: [`docs/SKILLS_INDEX.md`](../../docs/SKILLS_INDEX.md) — دست‌نوشت و وضعیت ماژول‌ها: [`docs/Handoff.md`](../../docs/Handoff.md) و [`docs/Handoff_ModuleBreakdown.md`](../../docs/Handoff_ModuleBreakdown.md).

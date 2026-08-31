@@ -1,0 +1,215 @@
+@page "/inventory/sales-invoice"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>فاکتور فروش — انبار</PageTitle>
+
+<PageHeader Title="ثبت فاکتور فروش" Subtitle="ثبت فاکتور فروش با اقلام، تخفیف، مالیات و حواله خودکار انبار + محاسبه سود." />
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تاریخ فاکتور" Culture="FaCulture" @bind-Date="_invoiceDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="int" Label="مشتری" @bind-Value="_customerPartyId" Variant="Variant.Outlined" Clearable="true">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var p in _parties)
+                {
+                    <MudSelectItem Value="p.PartyId">@p.FullName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var w in _warehouses)
+                {
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="نوع فروش" @bind-Value="_saleType" Variant="Variant.Outlined">
+                <MudSelectItem Value="@((string)"Retail")">خرده‌فروشی</MudSelectItem>
+                <MudSelectItem Value="@((string)"Wholesale")">عمده‌فروشی</MudSelectItem>
+                <MudSelectItem Value="@((string)"Special")">ویژه</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="شرایط پرداخت" @bind-Value="_paymentTerms" Variant="Variant.Outlined">
+                <MudSelectItem Value="@((string)"Cash")">نقدی</MudSelectItem>
+                <MudSelectItem Value="@((string)"Credit")">نسیه</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="سررسید" Culture="FaCulture" @bind-Date="_dueDate" />
+        </MudItem>
+        <MudItem xs="12" sm="12" md="6">
+            <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6">اقلام فاکتور</MudText>
+    <MudSimpleTable Style="overflow-x: auto;">
+        <thead>
+            <tr>
+                <th>کالا</th>
+                <th style="width:80px">تعداد</th>
+                <th style="width:80px">هدیه</th>
+                <th style="width:120px">قیمت واحد</th>
+                <th style="width:60px">تخفیف٪</th>
+                <th style="width:60px">مالیات٪</th>
+                <th style="width:60px">عوارض٪</th>
+                <th style="width:120px">مبلغ کل</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in _lines.Select((l, i) => new { l, i }))
+            {
+                <tr>
+                    <td>
+                        <MudSelect T="int" @bind-Value="line.l.ItemId" Variant="Variant.Text" Dense="true">
+                            <MudSelectItem Value="0">—</MudSelectItem>
+                            @foreach (var it in _items)
+                            {
+                                <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Dense="true" Min="0" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.GiftQty" Dense="true" Min="0" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.UnitPrice" Dense="true" Min="0" Format="#,##0.##" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.DiscountPercent" Dense="true" Min="0" Max="100" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.TaxPercent" Dense="true" Min="0" Max="100" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.DutyPercent" Dense="true" Min="0" Max="100" Variant="Variant.Text" /></td>
+                    <td class="text-end">@CalcLineTotal(line.l).ToString("#,##0")</td>
+                    <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="6" class="text-end font-weight-bold">جمع کل:</td>
+                <td colspan="2" class="font-weight-bold">@_lines.Sum(l => CalcLineTotal(l)).ToString("#,##0")</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </MudSimpleTable>
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new SalesLine()))">
+        افزودن قلم
+    </MudButton>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mt-4 d-flex gap-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">
+        ثبت فاکتور فروش
+    </MudButton>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "inventory";
+
+    private List<ItemRow> _items = new();
+    private List<PartyRow> _parties = new();
+    private List<WarehouseRow> _warehouses = new();
+    private DateTime? _invoiceDate = DateTime.Today;
+    private int _customerPartyId;
+    private int _warehouseId;
+    private string _saleType = "Retail";
+    private string _paymentTerms = "Cash";
+    private DateTime? _dueDate;
+    private string _description = "";
+    private List<SalesLine> _lines = new() { new() };
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var companyId = Session.ActiveCompanyId;
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = companyId, Search = "" })).ToList();
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = companyId })).ToList();
+        _parties = (await Db.QueryAsync<PartyRow>("treasury", "PartyList", new { CompanyId = companyId })).ToList();
+        var settings = await Db.QueryFirstOrDefaultAsync<InventorySettingsRow>(Schema, "InventorySettingsGet", new { CompanyId = companyId });
+        if (settings?.DefaultWarehouseId is int dw && dw > 0)
+            _warehouseId = dw;
+    }
+
+    private decimal CalcLineTotal(SalesLine l)
+    {
+        var gross = l.Qty * l.UnitPrice;
+        var disc = gross * l.DiscountPercent / 100;
+        var tax = (gross - disc) * l.TaxPercent / 100;
+        var duty = (gross - disc) * l.DutyPercent / 100;
+        return Math.Round(gross - disc + tax + duty, 0);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (_warehouseId == 0 || _lines.Count == 0 || _lines.All(l => l.ItemId == 0))
+        {
+            Snackbar.Add("انبار و حداقل یک قلم الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var linesJson = JsonSerializer.Serialize(_lines.Where(l => l.ItemId > 0 && l.Qty > 0).Select(l => new
+            {
+                ItemId = l.ItemId,
+                Qty = l.Qty,
+                GiftQty = l.GiftQty,
+                UnitPrice = l.UnitPrice,
+                DiscountPercent = l.DiscountPercent,
+                TaxPercent = l.TaxPercent,
+                DutyPercent = l.DutyPercent
+            }));
+
+            await Db.ExecuteAsync(Schema, "SalesInvoiceInsert", new
+            {
+                InvoiceDate = _invoiceDate?.Date ?? DateTime.Today,
+                CustomerPartyId = _customerPartyId == 0 ? (int?)null : _customerPartyId,
+                WarehouseId = _warehouseId,
+                SubWarehouseId = (int?)null,
+                ReferenceNumber = (string?)null,
+                PaymentTerms = _paymentTerms,
+                DueDate = _dueDate?.Date,
+                SaleType = _saleType,
+                Description = _description,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
+                CreatedBy = Session.UserName,
+                LinesJson = linesJson
+            });
+
+            Snackbar.Add("فاکتور فروش ثبت شد.", Severity.Success);
+            _lines = new() { new() };
+            _description = "";
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public class SalesLine
+    {
+        public int ItemId { get; set; }
+        public decimal Qty { get; set; } = 1;
+        public decimal GiftQty { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal DiscountPercent { get; set; }
+        public decimal TaxPercent { get; set; }
+        public decimal DutyPercent { get; set; }
+    }
+}

@@ -49,15 +49,22 @@ public static class TarazinDbInitializer
             if (!check.Ok)
                 throw new SafeDataException(check.Message);
 
+            Console.WriteLine("[initstage] EnsureSchema");
             await db.EnsureSchemaAsync();
+            Console.WriteLine("[initstage] Seed");
             await db.SeedAsync();
+            Console.WriteLine("[initstage] SyncAccess");
             await SyncAccessAsync(db);
+            Console.WriteLine("[initstage] BootstrapAdmin");
             await EnsureBootstrapAdminAsync(db, config);
             // Backfill CompanyId for existing business rows before mobile RLS migration.
+            Console.WriteLine("[initstage] MobileBackfill");
             await db.ExecuteAsync("central", "_MobileBackfill");
             // Apply RLS only after every schema and the control-plane tables
             // exist. This is idempotent and is never executed by MAUI.
+            Console.WriteLine("[initstage] MobileSecurity");
             await db.ExecuteAsync("central", "_MobileSecurity");
+            Console.WriteLine("[initstage] DONE");
         }
         catch (OperationCanceledException)
         {

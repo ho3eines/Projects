@@ -1,15 +1,12 @@
 @page "/bi/reports"
-@using Stimulsoft.Report
-@using Stimulsoft.Report.Blazor
 @inject DbService Db
-@inject BiReportService ReportService
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 @inject PrintTemplateService Tpl
 
-<PageTitle>گزارش‌ها و چاپ — داشبورد و BI</PageTitle>
+<PageTitle>گزارش‌ها — داشبورد و BI</PageTitle>
 
-<PageHeader Title="گزارش‌ها و چاپ (Stimulsoft)" Subtitle="هر گزارش از دادهٔ واقعی نرم‌افزار (اسکریپت‌های نامدار) ساخته می‌شود؛ چاپ/PDF/Excel از طریق Viewer استیمولسافت (§121)."
+<PageHeader Title="گزارش‌های سیستم" Subtitle="هر گزارش از دادهٔ واقعی نرم‌افزار (اسکریپت‌های نامدار) ساخته می‌شود و با موتور چاپ عمومی (قالب قابل‌طراحی) چاپ/PDF می‌شود."
             Eyebrow="داشبورد و BI" />
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
@@ -29,22 +26,16 @@
             <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
         </MudItem>
         <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="BuildAsync" Disabled="_busy"
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="PrintGenericAsync" Disabled="_busy"
                        StartIcon="@Icons.Material.Filled.Print">
-                ایجاد و نمایش
-            </MudButton>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" OnClick="PrintGenericAsync" Disabled="_busy"
-                       StartIcon="@Icons.Material.Filled.Print">
-                چاپ موتور عمومی
+                چاپ / PDF
             </MudButton>
         </MudItem>
     </MudGrid>
 
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
-        دکمه‌های نوار بالای Viewer امکان <b>چاپ</b>، خروجی <b>PDF</b>، <b>Excel</b> و ذخیره را فراهم می‌کنند.
-        بدون لایسنس Stimulsoft، خروجی با واترمارک آزمایشی همراه است (لایسنس: docs/BI_MODULE.md).
+        چاپ با <b>موتور چاپ عمومی</b> انجام می‌شود — قالب هر گزارش در «مدیریت چاپ» قابل طراحی است
+        (اندازه/جهت کاغذ، ستون‌ها، هدر شرکت، QR و…). خروجی چاپ و PDF از همان قالب یکسان ساخته می‌شوند.
     </MudAlert>
 </MudPaper>
 
@@ -65,89 +56,16 @@
     </MudPaper>
 }
 
-@if (!_busy)
-{
-    @* Viewer با اتصال پارامتری Report رندر می‌شود؛ پس از ساخت، تخصیص _report
-       باعث رندر مجدد والد و نمایش/چاپ گزارش در Viewer می‌شود (الگوی رسمی Stimulsoft). *@
-    <StiBlazorViewer Report="@_report" Width="100%" Height="820px" />
-}
-
 @code {
     private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
 
-    private StiReport _report = new();
     private string _selectedKey = "wallet";
     private DateTime? _from = DateTime.Today.AddMonths(-1);
     private DateTime? _to = DateTime.Today;
     private bool _busy;
     private string? _error;
 
-    private static readonly IReadOnlyList<BiReportDefinition> Reports = new List<BiReportDefinition>
-    {
-        new("wallet", "کیف پول و موجودی ارز", "هر ارز با واحد اصلی، ارزش ریالی و سود/زیان", "currency", "WalletList",
-            new() { ["FromDate"] = null, ["ToDate"] = null, ["OnlyNonZero"] = 0 },
-            Titles("CurrencyCode","ارز","CurrencyName","نام","Quantity","موجودی","AvgBuyRate","متوسط خرید","SystemRate","نرخ سیستم","RialValue","ارزش ریالی","UnrealizedPnl","سود/زیان")),
-        new("fx", "گزارش معاملات ارز", "خرید/فروش/تبدیل/ترکیبی", "currency", "FxTransactionList",
-            new() { ["FromDate"] = null, ["ToDate"] = null, ["TransactionType"] = null, ["SearchText"] = "", ["SkipRows"] = 0, ["TakeSize"] = 500 },
-            Titles("TransactionNumber","شماره","TransactionDate","تاریخ","TransactionType","نوع","PartyName","طرف حساب","TotalRial","مبلغ ریالی","DocumentNumber","سند","Status","وضعیت")),
-        new("asset", "ارزش لحظه‌ای دارایی", "ارزش هر دارایی به ریال بر اساس نرخ سیستم", "currency", "AssetValuation",
-            new(),
-            Titles("GroupKey","گروه","Title","دارایی","Unit","واحد","Quantity","مقدار","Rate","نرخ","RialValue","ارزش ریالی")),
-        new("rates", "مرکز نرخ‌ها و قیمت‌ها", "انواع نرخ هر آیتم (آنلاین/سیستم/خرید/فروش)", "currency", "RateBoard",
-            new() { ["ItemType"] = null, ["ItemKey"] = null },
-            Titles("ItemType","نوع","ItemKey","کلید","Title","عنوان","OnlineRate","آنلاین","SystemRate","سیستم","BuyRate","خرید","SellRate","فروش","SourceTitle","منبع","Status","وضعیت")),
-        new("pnl", "سود و زیان (طلا + ارز)", "تفکیک سود محقق‌شده و محقق‌نشده", "currency", "PnlSummary",
-            new() { ["FromDate"] = null, ["ToDate"] = null },
-            Titles("Title","عنوان","Amount","مبلغ (ریال)")),
-        new("trial", "تراز آزمایشی", "ماندهٔ همهٔ حساب‌ها در بازه", "accounting", "TrialBalanceReport",
-            new() { ["FromDate"] = null, ["ToDate"] = null },
-            Titles("AccountCode","کد","AccountTitle","حساب","AccountType","نوع","Debit","بدهکار","Credit","بستانکار","Balance","مانده")),
-        new("cashflow", "گردش نقدی", "دریافت‌ها و پرداخت‌ها در بازه", "treasury", "CashFlowReport",
-            new() { ["FromDate"] = null, ["ToDate"] = null },
-            Titles("MovementDate","تاریخ","MovementNumber","شماره","Direction","جهت","Amount","مبلغ","CurrencyCode","ارز","AccountName","حساب","Description","شرح")),
-        new("gold", "فروش روزانه طلا", "فاکتورهای طلافروشی", "goldshop", "DailySales",
-            new(),
-            Titles("InvoiceNumber","شماره","InvoiceDate","تاریخ","CustomerName","مشتری","ItemCode","کد جنس","ItemTitle","جنس","WeightGram","وزن","Workmanship","اجرت","Profit","سود","Tax","مالیات","TotalAmount","مبلغ کل")),
-        new("alerts", "هشدارهای سیستم", "ریسک‌ها و هشدارهای فعال از دادهٔ واقعی", "bi", "BiAlerts",
-            new(),
-            Titles("Severity","شدت","Title","عنوان","Detail","جزئیات","Amount","مبلغ","OccurredAt","زمان","Source","منبع","Action","اقدام")),
-        new("review", "گزارش جامع دوره (Monthly/Yearly Review)", "فروش/سود/هزینه/نقدینگی/طلا/ارز/موجودی/مطالبات/بدهی/چک — مقایسه با فیلتر سراسری (§113/§114)", "bi", "BiReviewSummary",
-            new() { ["FromDate"] = null, ["ToDate"] = null },
-            Titles("Title","عنوان","Amount","مبلغ (ریال)")),
-        new("ratios", "نسبت‌های مالی", "حاشیه سود، DSO، نسبت‌های نقدینگی و بدهی (§94)", "bi", "BiFinancialRatios",
-            new(),
-            Titles("Title","عنوان","Amount","مقدار","Unit","واحد","Formula","فرمول","Source","منبع")),
-        new("payablesaging", "Aging بدهی‌ها", "سن اسناد خرید (§22)", "bi", "BiPayablesAging",
-            new(),
-            Titles("Title","بازه","Value","مبلغ","SecondaryValue","درصد")),
-        new("income", "ترکیب درآمد", "سهم کانال‌های درآمد (§10)", "bi", "BiIncomeComposition",
-            new(),
-            Titles("Title","کانال","Value","مبلغ","SecondaryValue","درصد")),
-        new("tax", "گزارش مالیات", "مالیات وصولی فاکتورهای طلا (§89)", "bi", "BiTaxKpis",
-            new(),
-            Titles("Title","عنوان","Amount","مقدار","Unit","واحد")),
-        new("purchase", "گزارش خرید", "خرید و تأمین‌کنندگان (§31–§33)", "bi", "BiPurchaseKpis",
-            new(),
-            Titles("Title","عنوان","Amount","مقدار","Unit","واحد")),
-        new("expense", "گزارش هزینه‌ها", "هزینه به تفکیک حساب (§68–§70)", "bi", "BiExpenseComposition",
-            new() { ["FromDate"] = null, ["ToDate"] = null },
-            Titles("Title","عنوان","Value","مبلغ","SecondaryValue","درصد")),
-        new("assets", "اموال و دارایی ثابت", "ارزش/استهلاک/ارزش دفتری (§73)", "bi", "BiAssetKpis",
-            new(),
-            Titles("Title","عنوان","Amount","مقدار","Unit","واحد")),
-        new("branches", "شعب", "فروش هر شعبه (§86)", "bi", "BiBranchKpis",
-            new(),
-            Titles("Col1","شعبه","Col2","فروش طلا","Col3","فروش فروشگاه","Col4","توضیح","Amount","مجموع")),
-    };
-
-    private static IReadOnlyDictionary<string, string> Titles(params string[] pairs)
-    {
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < pairs.Length; i += 2)
-            map[pairs[i]] = pairs[i + 1];
-        return map;
-    }
-
+    private static IReadOnlyList<BiReportDefinition> Reports => BiReportCatalog.Reports;
     /// <summary>
     /// چاپ گزارش انتخاب‌شده با موتور چاپ عمومی (قالب پویا از تعریف گزارش + همان دادهٔ اسکریپت).
     /// ستون‌ها از ColumnTitles گزارش ساخته می‌شوند؛ مقدارها از خروجی اسکریپت نامدار می‌آیند.
@@ -170,62 +88,8 @@
 
             var rows = await Db.QueryAsync<dynamic>(def.Schema, def.Script, parameters);
 
-            // قالب پویا از ستون‌های تعریف‌شدهٔ گزارش
-            var tpl = new PrintTemplateDef
-            {
-                Id = "bi." + def.Key,
-                Name = def.Title,
-                Module = "bi",
-                PaperSize = PrintPaperSize.A4,
-                Orientation = rows.Count > 0 && def.ColumnTitles is { Count: > 6 }
-                    ? PrintOrientation.Landscape
-                    : PrintOrientation.Portrait,
-                MarginMm = 10,
-                FontSizePt = 8.5f,
-                ShowCompanyHeader = true,
-                ShowPageFooter = true,
-                ShowReportFooter = def.ColumnTitles is { Count: <= 4 },
-                QrEnabled = false,
-                ReportTitle = def.Title,
-                MetaFields = new List<PrintMetaField>
-                {
-                    new() { Label = "بازه", Bold = true },
-                    new() { Label = "تعداد ردیف", Bold = true }
-                },
-                Columns = def.ColumnTitles?.Select(kv => new PrintColumnDef
-                {
-                    Key = kv.Key,
-                    Title = kv.Value,
-                    Width = kv.Value.Contains("مبلغ") || kv.Value.Contains("ارزش") || kv.Value.Contains("سود") || kv.Value.Contains("درصد")
-                        ? 100 : 90,
-                    Align = kv.Value.Contains("مبلغ") || kv.Value.Contains("ارزش") || kv.Value.Contains("سود")
-                        ? PrintAlign.End : PrintAlign.Start,
-                    Format = kv.Value.Contains("مبلغ") || kv.Value.Contains("ارزش") || kv.Value.Contains("سود") || kv.Value.Contains("درصد") ? "N0" : null,
-                    Bold = kv.Value == "شماره"
-                }).ToList() ?? new()
-            };
-
-            var data = new PrintDataModel
-            {
-                CompanyName = "ترازین — سامانه یکپارچه مدیریت کسب‌وکار",
-                Title = def.Title,
-                Subtitle = def.Subtitle,
-                RangeText = $"{_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}",
-                QrEnabled = false
-            };
-            data.MetaFields.Add(new PrintMetaField { Label = "بازه", Value = $"{_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", Bold = true });
-            data.MetaFields.Add(new PrintMetaField { Label = "تعداد ردیف", Value = rows.Count.ToString("N0"), Bold = true });
-
-            foreach (var r in rows)
-            {
-                var row = new PrintRow();
-                foreach (var col in tpl.Columns)
-                {
-                    var val = GetDynamic(r, col.Key);
-                    row[col.Key] = val;
-                }
-                data.Rows.Add(row);
-            }
+            var tpl = BiPrintFactory.BuildTemplate(def, rows.Count);
+            var data = BiPrintFactory.BuildData(def, rows, _from, _to);
 
             await Dialog.ShowAsync<TemplatePrintDialog>($"چاپ — {def.Title}",
                 new DialogParameters<TemplatePrintDialog>
@@ -245,57 +109,4 @@
         }
     }
 
-    private static object? GetDynamic(dynamic row, string key)
-    {
-        try
-        {
-            var dict = (IDictionary<string, object>)row;
-            return dict.TryGetValue(key, out var v) ? v : null;
-        }
-        catch
-        {
-            try
-            {
-                var p = row.GetType().GetProperty(key);
-                return p?.GetValue(row);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-    }
-
-    private async Task BuildAsync()
-    {
-        if (_busy) return;
-        _busy = true;
-        _error = null;
-        try
-        {
-            var def = Reports.First(r => r.Key == _selectedKey);
-
-            // پارامترهای تاریخ (در صورت وجود در تعریف گزارش)
-            var parameters = new Dictionary<string, object?>(def.Params);
-            foreach (var key in new[] { "FromDate", "ToDate" })
-            {
-                if (parameters.ContainsKey(key))
-                    parameters[key] = key == "FromDate" ? _from : _to;
-            }
-            def = def with { Params = parameters };
-
-            var report = await ReportService.BuildAsync(def);
-            _report = report;
-            Snackbar.Add("گزارش ساخته شد — برای چاپ از دکمهٔ چاپ Viewer استفاده کنید.", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
 }

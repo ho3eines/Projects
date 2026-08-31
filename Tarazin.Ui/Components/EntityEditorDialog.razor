@@ -431,6 +431,9 @@
                     break;
 
                 case EntityEditorKind.InventoryItem:
+                    // ⚠️ ItemUpsert به @GroupId/@UnitId نیاز دارد (NULLIF(@GroupId,0));
+                    // فرم عمومی گروه/واحد را انتخاب نمی‌کند → صریحاً null می‌فرستیم
+                    // تا اسکریپت بدون خطای «متغیر اعلان‌نشده» کار کند.
                     await Db.ExecuteAsync("inventory", "ItemUpsert", new
                     {
                         ItemId = Model.Id,
@@ -438,6 +441,8 @@
                         ItemTitle = Model.Title.Trim(),
                         Category = NullIfWhiteSpace(Model.Text),
                         Unit = string.IsNullOrWhiteSpace(Model.ExtraText) ? "عدد" : Model.ExtraText.Trim(),
+                        GroupId = (int?)null,
+                        UnitId = (int?)null,
                         UnitPrice = Model.Amount ?? 0,
                         Model.IsActive,
                         CreatedBy = Session.UserName,

@@ -16,8 +16,9 @@
     <DialogContent>
         @if (_loading)
         {
-            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
-            <MudText>در حال بارگذاری گردش حساب...</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">در حال بارگذاری گردش حساب...</MudText>
+            <StatCardSkeleton Count="4" Md="6" Sm="6" />
+            <TableSkeleton Columns="8" Rows="5" />
         }
         else if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -31,20 +32,20 @@
         {
             @* <MudGrid Spacing="2" Class="mb-3">
                 <StatCard Label="@_summary.DetilCode" Value="@_summary.DetilTitle"
-                          Icon="@Icons.Material.Filled.AccountBalance" Accent="#1E4B73" />
+                          Icon="@Icons.Material.Filled.AccountBalance" Accent="@TarazinAccents.Steel" />
             </MudGrid> *@
             <MudGrid Spacing="2" Class="mb-3">
                 <StatCard Xs="12" Label="مانده اول دوره" Value="@SafeBalance(_summary.OpeningBalance)"
-                  Icon="@Icons.Material.Filled.AccountBalanceWallet" Accent="#1E4B73" />
+                  Icon="@Icons.Material.Filled.AccountBalanceWallet" Accent="@TarazinAccents.Steel" />
                 
                 <StatCard Xs="6" Label="جمع بدهکار" Value="@SafeMoney(_summary.Debit)"
-                          Icon="@Icons.Material.Filled.TrendingDown" Accent="#f10303" />
+                          Icon="@Icons.Material.Filled.TrendingDown" Accent="@TarazinAccents.Crimson" />
 
                 <StatCard Xs="6" Label="جمع بستانکار" Value="@SafeMoney(_summary.Credit)"
-                          Icon="@Icons.Material.Filled.TrendingUp" Accent="#0cfff3" />
+                          Icon="@Icons.Material.Filled.TrendingUp" Accent="@TarazinAccents.Jade" />
 
                 <StatCard Xs="12" Label="مانده نهایی" Value="@SafeBalance(_summary.FinalBalance)"
-                          Icon="@Icons.Material.Filled.AccountBalance" Accent="#1E4B73" />
+                          Icon="@Icons.Material.Filled.AccountBalance" Accent="@TarazinAccents.Steel" />
 
                 @* <MudItem xs="6" sm="6" md="3">
                     <MudPaper Elevation="0" Outlined="true" Class="pa-2">
@@ -97,7 +98,7 @@
                         <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@SafeStatus(context.Status)</MudChip>
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">گردشی در این بازه یافت نشد.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="گردشی در این بازه ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[]{10,25,50})" /></PagerContent>
             </MudTable>
 

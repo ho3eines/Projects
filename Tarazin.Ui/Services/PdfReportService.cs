@@ -27,7 +27,9 @@ public sealed class PdfReportService
     {
         // مجوز Community کوئست‌پی‌دی‌اف (رایگان برای شرکت‌های با درآمد کمتر از ۱ میلیون دلار).
         QuestPDF.Settings.License = LicenseType.Community;
-        RegisterVazirmatnFonts();
+        // ثبت متمرکز فونت Vazirmatn (QuestPDF) — idempotent است و
+        // اگر AddTarazinUiServices زودتر صدا زده باشد، دوباره کاری نمی‌کند.
+        VazirmatnFontRegistrar.Register();
     }
 
     public PdfReportService()
@@ -35,33 +37,16 @@ public sealed class PdfReportService
         // سازندهٔ عمومی برای DI — فونت‌ها در static ctor یک‌بار ثبت می‌شوند.
     }
 
-    private static void RegisterVazirmatnFonts()
-    {
-        try
-        {
-            var assembly = typeof(PdfReportService).Assembly;
-            using var regular = assembly.GetManifestResourceStream("Tarazin.Ui.fonts.Vazirmatn-Regular.ttf");
-            if (regular is not null)
-                QuestPDF.Drawing.FontManager.RegisterFont(regular);
-
-            using var bold = assembly.GetManifestResourceStream("Tarazin.Ui.fonts.Vazirmatn-Bold.ttf");
-            if (bold is not null)
-                QuestPDF.Drawing.FontManager.RegisterFont(bold);
-        }
-        catch
-        {
-            // اگر فونت ثبت نشود، QuestPDF به فونت پیش‌فرض (Helvetica) برمی‌گردد؛
-            // خطا نباید چاپ/دانلود را بشکند.
-        }
-    }
-
     // ─────────────────────────── فاکتور طلا ───────────────────────────
 
     /// <summary>ساخت PDF فاکتور خرید/فروش طلا (A4 یا A5 پرتره).</summary>
     public byte[] BuildInvoicePdf(GoldInvoicePrintModel model, string paperSize = "A4")
     {
-        var isA5 = string.Equals(paperSize, "A5", StringComparison.OrdinalIgnoreCase);
+        var isA5 = paperSize.StartsWith("A5", StringComparison.OrdinalIgnoreCase);
+        var landscape = paperSize.IndexOf("L", StringComparison.OrdinalIgnoreCase) >= 0;
         var pageSize = isA5 ? PageSizes.A5 : PageSizes.A4;
+        if (landscape)
+            pageSize = isA5 ? PageSizes.A5.Landscape() : PageSizes.A4.Landscape();
 
         return Document.Create(container =>
         {
@@ -69,6 +54,9 @@ public sealed class PdfReportService
             {
                 page.Size(pageSize);
                 page.Margin(isA5 ? 20 : 28);
+                // کل سند راست‌به‌چپ: متن‌ها RTL و ترتیب Row/Table معکوس می‌شود
+                // (اولین آیتم = راست‌ترین) — دیگر نیازی به شبیه‌سازی دستی RTL نیست.
+                page.ContentFromRightToLeft();
                 page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(9).FontColor("#1f2937"));
 
                 page.Header().Element(h => BuildOfficialHeader(h, isA5,
@@ -94,11 +82,12 @@ public sealed class PdfReportService
     {
         c.Border(0.8f).BorderColor("#d1d5db").Padding(8).Row(row =>
         {
-            // ترتیب RTL: «شماره فاکتور» باید راست‌ترین (اولینِ خوانده‌شده) باشد.
+            // کل سند RTL است (ContentFromRightToLeft): اولین ستون = راست‌ترین.
+            // «شماره فاکتور» راست‌ترین (اولینِ خوانده‌شده) و «سند حسابداری» چپ‌ترین.
             row.RelativeItem().Column(meta =>
             {
-                meta.Item().Text($"سند حسابداری: {model.DocumentId:N0}").Bold();
-                meta.Item().Text($"مالیات: ٪{model.TaxPct:0.#}");
+                meta.Item().Text($"شماره فاکتور: {model.InvoiceNumber}").Bold();
+                meta.Item().Text($"تاریخ: {model.InvoiceDate.ToString("yyyy/MM/dd", Fa)}");
             });
             row.RelativeItem().Column(meta =>
             {
@@ -106,10 +95,10 @@ public sealed class PdfReportService
                 if (!string.IsNullOrWhiteSpace(model.DetailCode))
                     meta.Item().Text($"کد تفصیلی: {model.DetailCode}");
             });
-            row.RelativeItem().AlignRight().Column(meta =>
+            row.RelativeItem().Column(meta =>
             {
-                meta.Item().Text($"شماره فاکتور: {model.InvoiceNumber}").Bold();
-                meta.Item().Text($"تاریخ: {model.InvoiceDate.ToString("yyyy/MM/dd", Fa)}");
+                meta.Item().Text($"سند حسابداری: {model.DocumentId:N0}").Bold();
+                meta.Item().Text($"مالیات: ٪{model.TaxPct:0.#}");
             });
         });
     }
@@ -118,45 +107,46 @@ public sealed class PdfReportService
     {
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
-            // ترتیب RTL: «ردیف» باید راست‌ترین ستون باشد → ستون‌ها برعکس تعریف می‌شوند.
+            // کل سند RTL است (ContentFromRightToLeft): اولین ستون تعریف‌شده = راست‌ترین.
+            // «ردیف» باید راست‌ترین و «جمع ردیف» چپ‌ترین باشد.
             table.ColumnsDefinition(cols =>
             {
-                cols.RelativeColumn(3);    // جمع ردیف
-                cols.RelativeColumn(2.5f); // سود
-                cols.RelativeColumn(2.5f); // اجرت
-                cols.RelativeColumn(3);    // نرخ / قیمت
-                cols.RelativeColumn(2);    // مقدار
-                cols.RelativeColumn(4);    // کالا / ارز
+                cols.ConstantColumn(24);   // ردیف (راست‌ترین)
                 cols.RelativeColumn(2);    // نوع
-                cols.ConstantColumn(24);   // ردیف
+                cols.RelativeColumn(4);    // کالا / ارز
+                cols.RelativeColumn(2);    // مقدار
+                cols.RelativeColumn(3);    // نرخ / قیمت
+                cols.RelativeColumn(2.5f); // اجرت
+                cols.RelativeColumn(2.5f); // سود
+                cols.RelativeColumn(3);    // جمع ردیف (چپ‌ترین)
             });
 
             table.Header(h =>
             {
-                h.Cell().Element(HeaderCell).Text("جمع ردیف").Bold();
-                h.Cell().Element(HeaderCell).Text("سود").Bold();
-                h.Cell().Element(HeaderCell).Text("اجرت").Bold();
-                h.Cell().Element(HeaderCell).Text("نرخ / قیمت").Bold();
-                h.Cell().Element(HeaderCell).Text("مقدار").Bold();
-                h.Cell().Element(HeaderCell).Text("کالا / ارز").Bold();
-                h.Cell().Element(HeaderCell).Text("نوع").Bold();
                 h.Cell().Element(HeaderCell).Text("ردیف").Bold();
+                h.Cell().Element(HeaderCell).Text("نوع").Bold();
+                h.Cell().Element(HeaderCell).Text("کالا / ارز").Bold();
+                h.Cell().Element(HeaderCell).Text("مقدار").Bold();
+                h.Cell().Element(HeaderCell).Text("نرخ / قیمت").Bold();
+                h.Cell().Element(HeaderCell).Text("اجرت").Bold();
+                h.Cell().Element(HeaderCell).Text("سود").Bold();
+                h.Cell().Element(HeaderCell).Text("جمع ردیف").Bold();
             });
 
             var i = 1;
             foreach (var line in model.Lines)
             {
                 var index = i++;
-                table.Cell().Element(BodyCell).AlignRight().Text(LineTotal(line).ToString("N0", Fa));
-                table.Cell().Element(BodyCell).AlignRight().Text(line.Profit.ToString("N0", Fa));
-                table.Cell().Element(BodyCell).AlignRight().Text(line.Workmanship.ToString("N0", Fa));
+                table.Cell().Element(BodyCell).Text(index.ToString());
+                table.Cell().Element(BodyCell).Text(line.RowType == "Gold" ? "طلا" : "ارز");
+                table.Cell().Element(BodyCell).Text(line.Title);
+                table.Cell().Element(BodyCell).Text(FormatQty(line));
                 table.Cell().Element(BodyCell).AlignRight().Text(line.RowType == "Gold"
                     ? line.Price.ToString("N0", Fa)
                     : line.ResolvedRate.ToString("N0", Fa));
-                table.Cell().Element(BodyCell).Text(FormatQty(line));
-                table.Cell().Element(BodyCell).Text(line.Title);
-                table.Cell().Element(BodyCell).Text(line.RowType == "Gold" ? "طلا" : "ارز");
-                table.Cell().Element(BodyCell).Text(index.ToString());
+                table.Cell().Element(BodyCell).AlignRight().Text(line.Workmanship.ToString("N0", Fa));
+                table.Cell().Element(BodyCell).AlignRight().Text(line.Profit.ToString("N0", Fa));
+                table.Cell().Element(BodyCell).AlignRight().Text(LineTotal(line).ToString("N0", Fa));
             }
         });
     }
@@ -182,7 +172,7 @@ public sealed class PdfReportService
     {
         c.PaddingTop(4).Row(row =>
         {
-            row.RelativeItem();
+            // RTL: کارت جمع‌ها راست‌ترین (اولین آیتم).
             row.ConstantItem(220).Border(0.8f).BorderColor("#d1d5db").Padding(8).Column(total =>
             {
                 total.Item().Row(r =>
@@ -201,6 +191,7 @@ public sealed class PdfReportService
                     r.RelativeItem().AlignRight().Text(model.TotalAmount.ToString("N0", Fa) + " ریال").Bold();
                 });
             });
+            row.RelativeItem();
         });
     }
 
@@ -226,9 +217,9 @@ public sealed class PdfReportService
 
         c.Row(row =>
         {
-            // RTL: برچسب «روش تسویه» راست‌ترین و مقدارها سمت چپ آن می‌نشینند.
-            row.RelativeItem().AlignRight().Text(string.Join("   |   ", parts));
+            // RTL (ContentFromRightToLeft): برچسب «روش تسویه» راست‌ترین (اولین آیتم).
             row.RelativeItem().AlignRight().Text("روش تسویه").Bold();
+            row.RelativeItem().AlignRight().Text(string.Join("   |   ", parts));
         });
     }
 
@@ -241,8 +232,12 @@ public sealed class PdfReportService
     /// </summary>
     public byte[] BuildDocumentPdf(AccountingDocumentPrintModel model, string paperSize = "A4")
     {
-        var isA5 = string.Equals(paperSize, "A5", StringComparison.OrdinalIgnoreCase);
+        // token «A5» = پیش‌فرض پرتره؛ «A5L»/«A5-L» = landscape (مثل گزارش چک).
+        var isA5 = paperSize.StartsWith("A5", StringComparison.OrdinalIgnoreCase);
+        var landscape = paperSize.IndexOf("L", StringComparison.OrdinalIgnoreCase) >= 0;
         var pageSize = isA5 ? PageSizes.A5 : PageSizes.A4;
+        if (landscape)
+            pageSize = isA5 ? PageSizes.A5.Landscape() : PageSizes.A4.Landscape();
 
         var qr = (!string.IsNullOrWhiteSpace(model.QrBaseUrl) || true)
             ? BuildQrPng(string.IsNullOrWhiteSpace(model.QrBaseUrl)
@@ -256,6 +251,8 @@ public sealed class PdfReportService
             {
                 page.Size(pageSize);
                 page.Margin(isA5 ? 18 : 22);
+                // کل سند راست‌به‌چپ (متن‌ها RTL + ترتیب Row/Table معکوس).
+                page.ContentFromRightToLeft();
                 page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(9).FontColor("#1f2937"));
 
                 page.Header().Element(h => BuildDocumentCompanyHeader(h, isA5, model, qr));
@@ -283,7 +280,9 @@ public sealed class PdfReportService
     {
         c.PaddingBottom(6).BorderBottom(2).BorderColor("#0f766e").Row(row =>
         {
-            // لوگو (سمت راست در RTL) — از data URL base64 یا لوگوی پیش‌فرض
+            // کل سند ContentFromRightToLeft است؛ پس اولین آیتم = راست‌ترین:
+            // لوگو راست‌ترین، نام/عنوان راست‌چین وسط، QR چپ‌ترین — مثل هدر HTML.
+            // لوگو — راست‌ترین عنصر هدر (RTL)
             row.AutoItem().Element(x =>
             {
                 var logo = TryLoadImage(model.LogoPath);
@@ -360,32 +359,33 @@ public sealed class PdfReportService
     {
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
+            // کل سند RTL است (ContentFromRightToLeft): اولین ستون = راست‌ترین.
+            // «کد حساب» باید راست‌ترین و «بستانکار» چپ‌ترین باشد (مثل HTML).
             table.ColumnsDefinition(cols =>
             {
-                cols.RelativeColumn(1.6f); // بستانکار (راست‌ترین در RTL → آخرین رندر)
-                cols.RelativeColumn(1.6f); // بدهکار
-                cols.RelativeColumn(2.4f); // شرح ردیف
+                cols.RelativeColumn(1.4f); // کد حساب (راست‌ترین)
                 cols.RelativeColumn(3);    // عنوان حساب
-                cols.RelativeColumn(1.4f); // کد حساب
+                cols.RelativeColumn(2.4f); // شرح ردیف
+                cols.RelativeColumn(1.6f); // بدهکار
+                cols.RelativeColumn(1.6f); // بستانکار (چپ‌ترین)
             });
 
-            // QuestPDF Row همیشه LTR است؛ برای نمایش RTL ستون راست‌ترین اول رندر می‌شود.
             table.Header(h =>
             {
-                h.Cell().Element(HeaderCell).Text("بستانکار").Bold();
-                h.Cell().Element(HeaderCell).Text("بدهکار").Bold();
-                h.Cell().Element(HeaderCell).Text("شرح ردیف").Bold();
-                h.Cell().Element(HeaderCell).Text("عنوان حساب").Bold();
                 h.Cell().Element(HeaderCell).Text("کد حساب").Bold();
+                h.Cell().Element(HeaderCell).Text("عنوان حساب").Bold();
+                h.Cell().Element(HeaderCell).Text("شرح ردیف").Bold();
+                h.Cell().Element(HeaderCell).Text("بدهکار").Bold();
+                h.Cell().Element(HeaderCell).Text("بستانکار").Bold();
             });
 
             foreach (var line in model.Lines)
             {
-                table.Cell().Element(BodyCell).AlignRight().Text(line.Credit > 0 ? line.Credit.ToString("N0", Fa) : "");
-                table.Cell().Element(BodyCell).AlignRight().Text(line.Debit > 0 ? line.Debit.ToString("N0", Fa) : "");
-                table.Cell().Element(BodyCell).Text(line.Description ?? "");
-                table.Cell().Element(BodyCell).Text(line.Title ?? "");
                 table.Cell().Element(BodyCell).Text(line.AccountCode);
+                table.Cell().Element(BodyCell).Text(line.Title ?? "");
+                table.Cell().Element(BodyCell).Text(line.Description ?? "");
+                table.Cell().Element(BodyCell).AlignRight().Text(line.Debit > 0 ? line.Debit.ToString("N0", Fa) : "");
+                table.Cell().Element(BodyCell).AlignRight().Text(line.Credit > 0 ? line.Credit.ToString("N0", Fa) : "");
             }
         });
     }
@@ -400,22 +400,24 @@ public sealed class PdfReportService
         var rows = BuildAdvancedDocRows(model);
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
+            // کل سند RTL است (ContentFromRightToLeft): اولین ستون = راست‌ترین.
+            // «کد» باید راست‌ترین و «بستانکار» چپ‌ترین باشد (مثل HTML).
             table.ColumnsDefinition(cols =>
             {
-                cols.RelativeColumn(1.4f); // بستانکار
-                cols.RelativeColumn(1.4f); // بدهکار
-                cols.RelativeColumn(0.8f); // تعداد
+                cols.RelativeColumn(1.3f); // کد (راست‌ترین)
                 cols.RelativeColumn(4.5f); // عنوان حساب
-                cols.RelativeColumn(1.3f); // کد
+                cols.RelativeColumn(0.8f); // تعداد
+                cols.RelativeColumn(1.4f); // بدهکار
+                cols.RelativeColumn(1.4f); // بستانکار (چپ‌ترین)
             });
 
             table.Header(h =>
             {
-                h.Cell().Element(HeaderCell).Text("بستانکار").Bold();
-                h.Cell().Element(HeaderCell).Text("بدهکار").Bold();
-                h.Cell().Element(HeaderCell).Text("تعداد").Bold();
-                h.Cell().Element(HeaderCell).Text("عنوان حساب").Bold();
                 h.Cell().Element(HeaderCell).Text("کد").Bold();
+                h.Cell().Element(HeaderCell).Text("عنوان حساب").Bold();
+                h.Cell().Element(HeaderCell).Text("تعداد").Bold();
+                h.Cell().Element(HeaderCell).Text("بدهکار").Bold();
+                h.Cell().Element(HeaderCell).Text("بستانکار").Bold();
             });
 
             foreach (var r in rows)
@@ -434,11 +436,7 @@ public sealed class PdfReportService
                     => color.Length > 0 ? BodyCell(cell).Background(color) : BodyCell(cell);
 
                 table.Cell().Element(cell => StyleCell(cell, bg))
-                    .AlignRight().Text(r.Credit > 0 ? r.Credit.ToString("N0", Fa) : "");
-                table.Cell().Element(cell => StyleCell(cell, bg))
-                    .AlignRight().Text(r.Debit > 0 ? r.Debit.ToString("N0", Fa) : "");
-                table.Cell().Element(cell => StyleCell(cell, bg))
-                    .AlignCenter().Text(r.LineCount > 0 ? r.LineCount.ToString() : "—");
+                    .Text(r.Code);
                 table.Cell().Element(cell => StyleCell(cell, bg))
                     .PaddingLeft(r.Level * 10).Text(t =>
                     {
@@ -447,7 +445,11 @@ public sealed class PdfReportService
                         else if (r.Level == 1) t.Span("  (معین)").FontColor("#0d9488");
                     });
                 table.Cell().Element(cell => StyleCell(cell, bg))
-                    .Text(r.Code);
+                    .AlignCenter().Text(r.LineCount > 0 ? r.LineCount.ToString() : "—");
+                table.Cell().Element(cell => StyleCell(cell, bg))
+                    .AlignRight().Text(r.Debit > 0 ? r.Debit.ToString("N0", Fa) : "");
+                table.Cell().Element(cell => StyleCell(cell, bg))
+                    .AlignRight().Text(r.Credit > 0 ? r.Credit.ToString("N0", Fa) : "");
             }
         });
     }
@@ -551,7 +553,7 @@ public sealed class PdfReportService
     {
         c.PaddingTop(2).Row(row =>
         {
-            row.RelativeItem();
+            // RTL: کارت جمع‌ها راست‌ترین (اولین آیتم).
             row.ConstantItem(240).Border(0.8f).BorderColor("#d1d5db").Padding(6).Column(total =>
             {
                 total.Item().Row(r =>
@@ -570,7 +572,44 @@ public sealed class PdfReportService
                         .FontColor(model.TotalDebit == model.TotalCredit ? "#059669" : "#dc2626");
                 });
             });
+            row.RelativeItem();
         });
+    }
+
+    /// <summary>
+    /// تعداد صفحهٔ PDF سند حسابداری برای اندازهٔ داده‌شده — بدون ذخیرهٔ فایل.
+    /// با همان بایت‌های BuildDocumentPdf ساخته و سپس صفحات از روی آبجکت‌های
+    /// /Type /Page شمارش می‌شود تا کاربر پیش از دانلود بداند چندصفحه خواهد شد.
+    /// </summary>
+    public int BuildDocumentPdfPageCount(AccountingDocumentPrintModel model, string paperSize = "A4")
+    {
+        try
+        {
+            var bytes = BuildDocumentPdf(model, paperSize);
+            return CountPdfPages(bytes);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>شمارش صفحات یک بایت‌آرایهٔ PDF — آبجکت‌های /Type /Page (نه والد /Type /Pages).</summary>
+    public static int CountPdfPages(byte[] pdf)
+    {
+        if (pdf is null || pdf.Length == 0) return 0;
+        var s = System.Text.Encoding.Latin1.GetString(pdf);
+        var count = 0;
+        var idx = 0;
+        var len = s.Length;
+        while ((idx = s.IndexOf("/Type", idx, StringComparison.Ordinal)) >= 0)
+        {
+            var rest = s.Substring(idx, Math.Min(24, len - idx));
+            if (System.Text.RegularExpressions.Regex.IsMatch(rest, @"^/Type\s*/Page\s"))
+                count++;
+            idx += 6;
+        }
+        return count;
     }
 
     private static string TypeDocLabel(string? t) => (t ?? "") switch
@@ -589,7 +628,8 @@ public sealed class PdfReportService
     public byte[] BuildChequeReportPdf(IEnumerable<ChequeDueRow> rows, string paperSize = "A4")
     {
         var list = rows?.ToList() ?? new List<ChequeDueRow>();
-        var isA5 = string.Equals(paperSize, "A5", StringComparison.OrdinalIgnoreCase);
+        // گزارش چک‌ها همیشه افقی است؛ «A5L»=A5 افقی، بقیه پیش‌فرض A4 افقی.
+        var isA5 = paperSize.StartsWith("A5", StringComparison.OrdinalIgnoreCase);
         var pageSize = isA5 ? PageSizes.A5.Landscape() : PageSizes.A4.Landscape();
 
         var overdue = list.Count(r => r.AlertLevel == "Overdue");
@@ -602,6 +642,8 @@ public sealed class PdfReportService
             {
                 page.Size(pageSize);
                 page.Margin(isA5 ? 18 : 24);
+                // کل سند راست‌به‌چپ (متن‌ها RTL + ترتیب Row/Table معکوس).
+                page.ContentFromRightToLeft();
                 page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(8.5f).FontColor("#1f2937"));
 
                 page.Header().Element(h => BuildOfficialHeader(h, isA5,
@@ -622,16 +664,11 @@ public sealed class PdfReportService
     {
         c.Border(0.8f).BorderColor("#d1d5db").Padding(8).Row(row =>
         {
-            // ترتیب RTL: «چک‌های باز» باید راست‌ترین کارت باشد.
+            // RTL (ContentFromRightToLeft): «چک‌های باز» راست‌ترین کارت (اولین آیتم).
             row.RelativeItem().Column(x =>
             {
-                x.Item().Text("جمع سررسیدشده").FontColor("#dc2626");
-                x.Item().Text(overdueAmount.ToString("N0", Fa) + " ریال").FontSize(14).Bold().FontColor("#dc2626");
-            });
-            row.RelativeItem().Column(x =>
-            {
-                x.Item().Text("سررسید نزدیک").FontColor("#d97706");
-                x.Item().Text(dueSoon.ToString("N0", Fa)).FontSize(14).Bold().FontColor("#d97706");
+                x.Item().Text("چک‌های باز").FontColor("#6b7280");
+                x.Item().Text(total.ToString("N0", Fa)).FontSize(14).Bold();
             });
             row.RelativeItem().Column(x =>
             {
@@ -640,8 +677,13 @@ public sealed class PdfReportService
             });
             row.RelativeItem().Column(x =>
             {
-                x.Item().Text("چک‌های باز").FontColor("#6b7280");
-                x.Item().Text(total.ToString("N0", Fa)).FontSize(14).Bold();
+                x.Item().Text("سررسید نزدیک").FontColor("#d97706");
+                x.Item().Text(dueSoon.ToString("N0", Fa)).FontSize(14).Bold().FontColor("#d97706");
+            });
+            row.RelativeItem().Column(x =>
+            {
+                x.Item().Text("جمع سررسیدشده").FontColor("#dc2626");
+                x.Item().Text(overdueAmount.ToString("N0", Fa) + " ریال").FontSize(14).Bold().FontColor("#dc2626");
             });
         });
     }
@@ -650,31 +692,32 @@ public sealed class PdfReportService
     {
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
-            // ترتیب RTL: «شماره چک» باید راست‌ترین ستون باشد → ستون‌ها برعکس تعریف می‌شوند.
+            // کل سند RTL است (ContentFromRightToLeft): اولین ستون تعریف‌شده = راست‌ترین.
+            // «شماره چک» باید راست‌ترین و «منبع» چپ‌ترین باشد.
             table.ColumnsDefinition(cols =>
             {
-                cols.RelativeColumn(1.8f); // منبع
-                cols.RelativeColumn(1.5f); // هشدار
-                cols.RelativeColumn(1.5f); // وضعیت
-                cols.RelativeColumn(1.8f); // مانده تا سررسید
-                cols.RelativeColumn(1.8f); // سررسید
-                cols.RelativeColumn(2);    // مبلغ
-                cols.RelativeColumn(1.2f); // جهت
+                cols.RelativeColumn(2);    // شماره (راست‌ترین)
                 cols.RelativeColumn(2);    // بانک
-                cols.RelativeColumn(2);    // شماره
+                cols.RelativeColumn(1.2f); // جهت
+                cols.RelativeColumn(2);    // مبلغ
+                cols.RelativeColumn(1.8f); // سررسید
+                cols.RelativeColumn(1.8f); // مانده تا سررسید
+                cols.RelativeColumn(1.5f); // وضعیت
+                cols.RelativeColumn(1.5f); // هشدار
+                cols.RelativeColumn(1.8f); // منبع (چپ‌ترین)
             });
 
             table.Header(h =>
             {
-                h.Cell().Element(HeaderCell).Text("منبع").Bold();
-                h.Cell().Element(HeaderCell).Text("هشدار").Bold();
-                h.Cell().Element(HeaderCell).Text("وضعیت").Bold();
-                h.Cell().Element(HeaderCell).Text("مانده تا سررسید").Bold();
-                h.Cell().Element(HeaderCell).Text("سررسید").Bold();
-                h.Cell().Element(HeaderCell).Text("مبلغ").Bold();
-                h.Cell().Element(HeaderCell).Text("جهت").Bold();
-                h.Cell().Element(HeaderCell).Text("بانک").Bold();
                 h.Cell().Element(HeaderCell).Text("شماره چک").Bold();
+                h.Cell().Element(HeaderCell).Text("بانک").Bold();
+                h.Cell().Element(HeaderCell).Text("جهت").Bold();
+                h.Cell().Element(HeaderCell).Text("مبلغ").Bold();
+                h.Cell().Element(HeaderCell).Text("سررسید").Bold();
+                h.Cell().Element(HeaderCell).Text("مانده تا سررسید").Bold();
+                h.Cell().Element(HeaderCell).Text("وضعیت").Bold();
+                h.Cell().Element(HeaderCell).Text("هشدار").Bold();
+                h.Cell().Element(HeaderCell).Text("منبع").Bold();
             });
 
             foreach (var chq in rows)
@@ -686,15 +729,15 @@ public sealed class PdfReportService
                     _ => "#059669"
                 };
 
-                table.Cell().Element(BodyCell).Text(SourceLabel(chq.SourceReference));
-                table.Cell().Element(BodyCell).Text(AlertLabel(chq.AlertLevel)).FontColor(alertColor).Bold();
-                table.Cell().Element(BodyCell).Text(StatusLabel(chq.Status));
-                table.Cell().Element(BodyCell).Text(DueLabel(chq.DaysToDue));
-                table.Cell().Element(BodyCell).Text(chq.DueDate?.ToString("yyyy/MM/dd", Fa) ?? "—");
-                table.Cell().Element(BodyCell).AlignRight().Text(chq.Amount.ToString("N0", Fa));
-                table.Cell().Element(BodyCell).Text(chq.Direction == "In" ? "دریافتی" : "پرداختی");
-                table.Cell().Element(BodyCell).Text(chq.BankName);
                 table.Cell().Element(BodyCell).Text(chq.ChequeNumber);
+                table.Cell().Element(BodyCell).Text(chq.BankName);
+                table.Cell().Element(BodyCell).Text(chq.Direction == "In" ? "دریافتی" : "پرداختی");
+                table.Cell().Element(BodyCell).AlignRight().Text(chq.Amount.ToString("N0", Fa));
+                table.Cell().Element(BodyCell).Text(chq.DueDate?.ToString("yyyy/MM/dd", Fa) ?? "—");
+                table.Cell().Element(BodyCell).Text(DueLabel(chq.DaysToDue));
+                table.Cell().Element(BodyCell).Text(StatusLabel(chq.Status));
+                table.Cell().Element(BodyCell).Text(AlertLabel(chq.AlertLevel)).FontColor(alertColor).Bold();
+                table.Cell().Element(BodyCell).Text(SourceLabel(chq.SourceReference));
             }
         });
     }
@@ -713,13 +756,22 @@ public sealed class PdfReportService
         IReadOnlyList<TableReportColumn> columns,
         IReadOnlyList<IReadOnlyList<string>> rows,
         IReadOnlyList<string>? summaryLines = null,
-        string paperSize = "A4")
+        string paperSize = "A4",
+        string? companyName = null,
+        string? companyAddress = null,
+        string? qrPayload = null)
     {
-        var isA5 = string.Equals(paperSize, "A5", StringComparison.OrdinalIgnoreCase);
-        var landscape = columns.Count > 6;
+        var isA5 = paperSize.StartsWith("A5", StringComparison.OrdinalIgnoreCase);
+        // «A5L»/اندازهٔ با پسوند L = افقی اجباری؛ وگرنه ستون‌های زیاد خودکار افقی می‌شوند.
+        var forceLandscape = paperSize.IndexOf("L", StringComparison.OrdinalIgnoreCase) >= 0;
+        var landscape = forceLandscape || columns.Count > 6;
         var pageSize = isA5 ? PageSizes.A5 : PageSizes.A4;
         if (landscape)
             pageSize = pageSize.Landscape();
+
+        // QR پیگیری گزارش — مثل بقیهٔ چاپ‌ها (فاکتور/سند/قالب). اگر payload بیاید
+        // و قابل ساخت باشد، در هدر رسمی درج می‌شود؛ وگرنه باند خاموش می‌ماند.
+        var qrPng = string.IsNullOrWhiteSpace(qrPayload) ? null : BuildQrPng(qrPayload!);
 
         return Document.Create(container =>
         {
@@ -727,9 +779,11 @@ public sealed class PdfReportService
             {
                 page.Size(pageSize);
                 page.Margin(isA5 ? 18 : 22);
+                // کل سند راست‌به‌چپ (متن‌ها RTL + ترتیب Row/Table معکوس).
+                page.ContentFromRightToLeft();
                 page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(8.5f).FontColor("#1f2937"));
 
-                page.Header().Element(h => BuildOfficialHeader(h, isA5, title));
+                page.Header().Element(h => BuildOfficialHeader(h, isA5, title, companyName, companyAddress, qrPng));
 
                 page.Content().Column(col =>
                 {
@@ -751,24 +805,24 @@ public sealed class PdfReportService
     {
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
-            // ترتیب RTL: اولین ستونِ منطقی باید راست‌ترین رندر شود → ستون‌ها و سلول‌ها
-            // از آخر به اول (برعکس) پیمایش می‌شوند تا جدولِ فارسی راست‌به‌چپ خوانده شود.
+            // کل سند RTL است (ContentFromRightToLeft): اولین ستون = راست‌ترین،
+            // پس ستون‌ها و سلول‌ها به ترتیب طبیعی (بدون Reverse) پیمایش می‌شوند.
             table.ColumnsDefinition(cols =>
             {
-                for (var i = columns.Count - 1; i >= 0; i--)
+                for (var i = 0; i < columns.Count; i++)
                     cols.RelativeColumn(1);
             });
 
             table.Header(h =>
             {
-                for (var i = columns.Count - 1; i >= 0; i--)
+                for (var i = 0; i < columns.Count; i++)
                     // هدر فارسی همیشه راست‌چین (RTL).
                     h.Cell().Element(HeaderCell).AlignRight().Text(columns[i].Header).Bold();
             });
 
             foreach (var row in rows)
             {
-                for (var i = columns.Count - 1; i >= 0; i--)
+                for (var i = 0; i < columns.Count; i++)
                 {
                     var text = i < row.Count ? row[i] ?? "" : "";
                     // متن فارسی و حتی ارقام باید راست‌چین رندر شوند تا ستون‌ها
@@ -790,22 +844,36 @@ public sealed class PdfReportService
 
     // ─────────────────────────── اجزای مشترک ───────────────────────────
 
-    private static void BuildOfficialHeader(IContainer c, bool isA5, string title)
+    private static void BuildOfficialHeader(IContainer c, bool isA5, string title,
+        string? companyName = null, string? companyAddress = null, byte[]? qrPng = null)
     {
-        // ترتیب RTL: لوگو راست‌ترین و عنوان (راست‌چین) سمت چپِ آن می‌نشیند.
+        // کل سند ContentFromRightToLeft است؛ پس اولین آیتم = راست‌ترین:
+        // لوگو راست‌ترین، نام/عنوان راست‌چین وسط، QR چپ‌ترین — مثل هدر HTML و هدر سند.
         c.PaddingBottom(6).BorderBottom(2).BorderColor("#0f766e").Row(row =>
         {
-            row.RelativeItem().Column(col =>
-            {
-                col.Item().AlignRight().Text("ترازین — سامانه یکپارچه مدیریت کسب‌وکار")
-                    .FontSize(isA5 ? 11 : 13).FontColor("#1a237e").Bold();
-                col.Item().PaddingTop(1).AlignRight().Text(title).FontSize(isA5 ? 8 : 9.5f).FontColor("#6b7280");
-            });
+            // لوگو — راست‌ترین عنصر هدر (RTL)
             row.AutoItem().PaddingLeft(isA5 ? 6 : 8).Element(x => x
                 .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
                 .Background("#0f766e")
                 .AlignCenter().AlignMiddle()
                 .Text("ت").FontColor(Colors.White).FontSize(isA5 ? 12 : 15).Bold());
+
+            row.RelativeItem().PaddingLeft(isA5 ? 6 : 8).Column(col =>
+            {
+                col.Item().AlignRight().Text(string.IsNullOrWhiteSpace(companyName)
+                        ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار"
+                        : companyName!)
+                    .FontSize(isA5 ? 11 : 13).FontColor("#1a237e").Bold();
+                if (!string.IsNullOrWhiteSpace(companyAddress))
+                    col.Item().PaddingTop(1).AlignRight().Text($"آدرس: {companyAddress}")
+                        .FontSize(isA5 ? 7 : 8).FontColor("#6b7280");
+                col.Item().PaddingTop(1).AlignRight().Text(title).FontSize(isA5 ? 8 : 9.5f).FontColor("#6b7280");
+            });
+
+            if (qrPng is not null)
+                row.AutoItem().Element(x => x
+                    .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
+                    .Image(qrPng));
         });
     }
 
@@ -816,10 +884,16 @@ public sealed class PdfReportService
     /// (عنوان + هدر داده)، جدول دیتیل، فوتر گزارش (جمع‌ها)، فوتر صفحه.
     /// چیدمان با رندرر HTML (PrintSheetRenderer) یکسان است.
     /// </summary>
-    public byte[] BuildTemplatePdf(PrintTemplateDef tpl, PrintDataModel data)
+    public byte[] BuildTemplatePdf(PrintTemplateDef tpl, PrintDataModel data, string? paperSizeOverride = null)
     {
-        var isA5 = tpl.PaperSize == PrintPaperSize.A5;
-        var landscape = tpl.Orientation == PrintOrientation.Landscape;
+        // override ران‌تایم (A4/A5/A5L) — مثل بقیهٔ چاپ‌ها؛ اگر خالی بود از تنظیمات قالب.
+        var size = paperSizeOverride;
+        var isA5 = string.IsNullOrEmpty(size)
+            ? tpl.PaperSize == PrintPaperSize.A5
+            : size.StartsWith("A5", StringComparison.OrdinalIgnoreCase);
+        var landscape = string.IsNullOrEmpty(size)
+            ? tpl.Orientation == PrintOrientation.Landscape
+            : size.IndexOf("L", StringComparison.OrdinalIgnoreCase) >= 0;
         var pageSize = isA5 ? PageSizes.A5 : PageSizes.A4;
         if (landscape)
             pageSize = isA5 ? PageSizes.A5.Landscape() : PageSizes.A4.Landscape();
@@ -838,6 +912,8 @@ public sealed class PdfReportService
             {
                 page.Size(pageSize);
                 page.Margin(margin);
+                // کل سند راست‌به‌چپ (متن‌ها RTL + ترتیب Row/Table معکوس).
+                page.ContentFromRightToLeft();
                 page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(tpl.FontSizePt).FontColor("#1f2937"));
 
                 if (tpl.ShowCompanyHeader)
@@ -867,10 +943,11 @@ public sealed class PdfReportService
     {
         c.Row(row =>
         {
-            row.RelativeItem(); // فاصلهٔ راست (جهت RTL) — QR به گوشهٔ بالای راست می‌چسبد
+            // RTL (ContentFromRightToLeft): QR راست‌ترین (اولین آیتم) — گوشهٔ بالای راست.
             row.AutoItem().Element(x => x
                 .Width(26).Height(26)
                 .Image(qrPng));
+            row.RelativeItem();
         });
     }
 
@@ -898,8 +975,16 @@ public sealed class PdfReportService
         var isA5 = tpl.PaperSize == PrintPaperSize.A5;
         c.PaddingBottom(6).BorderBottom(2).BorderColor("#0f766e").Row(row =>
         {
-            // ترتیب RTL: نام شرکت راست‌ترین و لوگو سمت چپِ آن.
-            row.RelativeItem().Column(col =>
+            // کل سند ContentFromRightToLeft است؛ پس اولین آیتم = راست‌ترین:
+            // لوگو راست‌ترین، نام/آدرس شرکت راست‌چین وسط، QR چپ‌ترین — مثل هدر HTML.
+            // لوگو — راست‌ترین عنصر هدر (RTL)
+            row.AutoItem().PaddingLeft(isA5 ? 6 : 8).Element(x => x
+                .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
+                .Background("#0f766e")
+                .AlignCenter().AlignMiddle()
+                .Text("ت").FontColor(Colors.White).FontSize(isA5 ? 12 : 15).Bold());
+
+            row.RelativeItem().PaddingLeft(isA5 ? 6 : 8).Column(col =>
             {
                 col.Item().AlignRight().Text(string.IsNullOrWhiteSpace(data.CompanyName)
                     ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار"
@@ -910,18 +995,12 @@ public sealed class PdfReportService
                         .FontSize(isA5 ? 7 : 8).FontColor("#6b7280");
                 // عنوان گزارش فقط یک‌بار (در هدر گزارش) چاپ می‌شود تا با رندرر HTML یکسان باشد.
             });
-            row.AutoItem().PaddingLeft(isA5 ? 6 : 8).Element(x => x
-                .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
-                .Background("#0f766e")
-                .AlignCenter().AlignMiddle()
-                .Text("ت").FontColor(Colors.White).FontSize(isA5 ? 12 : 15).Bold());
 
-            // QRCode پیگیری داخل هدر شرکت — سمت چپ، مثل .tpl-qr در رندرر HTML
             if (tpl.QrEnabled && data.QrEnabled && !string.IsNullOrWhiteSpace(data.QrPayload))
             {
                 var qr = BuildQrPng(data.QrPayload!);
                 if (qr is not null)
-                    row.AutoItem().PaddingLeft(isA5 ? 6 : 8).Element(x => x
+                    row.AutoItem().Element(x => x
                         .Width(isA5 ? 20 : 26).Height(isA5 ? 20 : 26)
                         .Image(qr));
             }
@@ -950,8 +1029,8 @@ public sealed class PdfReportService
                     {
                         for (var i = 0; i < fields.Count; i += 3)
                         {
-                            // RTL: اولین فیلد باید راست‌ترین بنشیند؛ Row در QuestPDF LTR است → معکوس.
-                            var chunk = fields.Skip(i).Take(3).Reverse().ToList();
+                            // RTL (ContentFromRightToLeft): اولین فیلد راست‌ترین → ترتیب طبیعی.
+                            var chunk = fields.Skip(i).Take(3).ToList();
                             grid.Item().Row(row =>
                             {
                                 foreach (var f in chunk)
@@ -1004,18 +1083,17 @@ public sealed class PdfReportService
     {
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
-            // برای هم‌خوانی با HTML (dir=rtl): اولین ستون راست‌ترین می‌شود
-            // → ترتیب تعریف ستون‌ها معکوس است.
-            var reversed = tpl.Columns.AsEnumerable().Reverse().ToList();
+            // کل سند RTL است (ContentFromRightToLeft): اولین ستون = راست‌ترین،
+            // پس ستون‌ها به ترتیب طبیعی (بدون Reverse) تعریف می‌شوند.
             table.ColumnsDefinition(cols =>
             {
-                foreach (var col in reversed)
+                foreach (var col in tpl.Columns)
                     cols.RelativeColumn(Math.Max(col.Width, 20));
             });
 
             table.Header(h =>
             {
-                foreach (var col in reversed)
+                foreach (var col in tpl.Columns)
                     h.Cell().Element(c => ColHeaderCell(c, col, tpl)).Text(col.Title);
             });
 
@@ -1027,9 +1105,9 @@ public sealed class PdfReportService
                 var boldRow = row.TryGetValue("__bold", out var bo) && bo is true;
                 var zebra = !string.IsNullOrWhiteSpace(bg) ? null : (rowIdx % 2 == 1 ? "#fafafa" : null);
 
-                foreach (var col in reversed)
+                foreach (var col in tpl.Columns)
                 {
-                    var isFirst = col == reversed[^1];
+                    var isFirst = col == tpl.Columns[0];
                     var value = RowValue(row, col);
                     // هر سلول فقط یک فرزند می‌گیرد → یک زنجیرهٔ واحد تا پایان با .Text
                     // (در QuestPDF نتیجهٔ هر fluent باید دوباره تخصیص شود تا اعمال گردد).
@@ -1099,9 +1177,9 @@ public sealed class PdfReportService
                     : sum.ToString(colDef.Format, Fa);
                 col.Item().Row(r =>
                 {
-                    // RTL: لیبل راست و مقدار سمت چپ آن (Row در QuestPDF LTR است → معکوس)
-                    r.RelativeItem().AlignLeft().Text(value).Bold();
+                    // RTL (ContentFromRightToLeft): لیبل راست‌ترین (اولین آیتم) و مقدار سمت چپ.
                     r.RelativeItem().AlignRight().Text(label).Bold();
+                    r.RelativeItem().AlignLeft().Text(value).Bold();
                 });
             }
 
@@ -1109,8 +1187,8 @@ public sealed class PdfReportService
             {
                 col.Item().Row(r =>
                 {
-                    r.RelativeItem().AlignLeft().Text(f.Value ?? "—").Bold();
                     r.RelativeItem().AlignRight().Text(f.Label).Bold();
+                    r.RelativeItem().AlignLeft().Text(f.Value ?? "—").Bold();
                 });
             }
         });
@@ -1120,8 +1198,9 @@ public sealed class PdfReportService
     {
         c.PaddingTop(4).BorderTop(0.8f).BorderColor("#d1d5db").Row(row =>
         {
-            row.RelativeItem().Text(rightText).FontSize(isA5 ? 7 : 8).FontColor("#9ca3af");
-            row.RelativeItem().AlignRight().Text(t =>
+            // RTL (ContentFromRightToLeft): عنوان راست‌ترین و «صفحه x از y» سمت چپ.
+            row.RelativeItem().AlignRight().Text(rightText).FontSize(isA5 ? 7 : 8).FontColor("#9ca3af");
+            row.RelativeItem().AlignLeft().Text(t =>
             {
                 t.Span("صفحه ").FontSize(isA5 ? 7 : 8).FontColor("#9ca3af");
                 t.CurrentPageNumber().FontSize(isA5 ? 7 : 8).FontColor("#9ca3af");
@@ -1135,7 +1214,7 @@ public sealed class PdfReportService
     // خروجی PDF چپ‌چین و به‌هم‌ریخته می‌شود. ستون‌های عددی هم راست‌چین‌اند
     // (طبق عرف گزارش‌های فارسی) بنابراین همین راست‌چینی سراسری کافی است.
     private static IContainer HeaderCell(IContainer c)
-        => c.Background("#f3f4f6").BorderBottom(1).BorderColor("#d1d5db").Padding(4)
+        => c.Background("#f3f4f6").Border(0.4f).BorderColor("#d1d5db").Padding(4)
             .AlignRight().DefaultTextStyle(t => t.FontSize(8.5f));
 
     /// <summary>
@@ -1155,7 +1234,7 @@ public sealed class PdfReportService
     }
 
     private static IContainer BodyCell(IContainer c)
-        => c.BorderBottom(0.5f).BorderColor("#e5e7eb").Padding(4)
+        => c.Border(0.4f).BorderColor("#d1d5db").Padding(4)
             .AlignRight().DefaultTextStyle(t => t.FontSize(8.5f));
 
     private static string DueLabel(int days) => days switch
@@ -1178,11 +1257,5 @@ public sealed class PdfReportService
         _ => "در مهلت"
     };
 
-    private static string SourceLabel(string? source) => source switch
-    {
-        null => "دستی",
-        var s when s.StartsWith("GoldInvoice:") => "فاکتور طلافروشی",
-        var s when s.StartsWith("Cheque:") => "وصول چک",
-        _ => source ?? ""
-    };
+    private static string SourceLabel(string? source) => Tarazin.Models.TreasurySourceLabels.For(source);
 }

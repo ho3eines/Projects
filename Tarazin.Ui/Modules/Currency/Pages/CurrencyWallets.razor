@@ -64,7 +64,7 @@
                     <MudTd DataLabel="ورود">@context.InQty.ToString("N2")</MudTd>
                     <MudTd DataLabel="خروج">@context.OutQty.ToString("N2")</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">کیف پولی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="کیف پولی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -94,7 +94,7 @@
                     <MudTd DataLabel="تسویه">@FundText(context)</MudTd>
                     <MudTd DataLabel="شرح">@context.Description</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">گردشی ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="گردشی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

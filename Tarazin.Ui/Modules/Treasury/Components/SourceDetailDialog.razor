@@ -1,0 +1,153 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@using Tarazin.Models
+
+@* دیالوگ «جزئیات منبع» — منبع یک چک (فاکتور طلا/سفارش فروشگاه/حقوق/…) را وضوح می‌کند،\n   سابقهٔ پشتنویس و سند حسابداری لینک‌شده را نشان می‌دهد و با کلیک، به همان سند/سفارش\n   با شناسهٔ خودش عمیق می‌شود. *@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Class="mr-2" Color="Color.Primary" />
+            جزئیات منبع
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_detail is null)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true">
+                نتوانستیم منبع «@_source» را وضوح کنیم.
+            </MudAlert>
+        }
+        else
+        {
+            <MudAlert Severity="@Severity.Info" Dense="true" Variant="Variant.Outlined" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Link" Class="mr-1" />
+                منبع چک:
+                <b>@TreasurySourceLabels.For(_detail.SourceReference)</b>
+                <MudChip T="string" Size="Size.Small" Class="mx-1">@(_detail.SourceType)</MudChip>
+                <MudChip T="string" Size="Size.Small" Class="mx-1">@_detail.SourceId</MudChip>
+            </MudAlert>
+
+            <MudSimpleTable Dense="true" Hover="true" Class="mb-3">
+                <tbody>
+                    <tr>
+                        <td><b>@(_detail.SourceType == "GoldPurchase" ? "فاکتور خرید" : _detail.SourceType == "GoldInvoice" ? "فاکتور فروش" : _detail.SourceType is "Order" or "StoreOrder" or "Invoice" ? "سفارش" : "کلید")</b></td>
+                        <td class="text-left">@(_detail.Key)</td>
+                    </tr>
+                    @if (!string.IsNullOrWhiteSpace(_detail.Detail))
+                    {
+                        <tr>
+                            <td><b>طرف / توضیح</b></td>
+                            <td class="text-left">@_detail.Detail</td>
+                        </tr>
+                    }
+                    <tr>
+                        <td><b>سند حسابداری</b></td>
+                        <td class="text-left">
+                            @if (_detail.DocumentId is > 0)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                    @(_detail.DocumentNumber) (#@_detail.DocumentId)
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <span class="text-caption text-secondary">سندی تخصیص داده نشده است</span>
+                            }
+                        </td>
+                    </tr>
+                </tbody>
+            </MudSimpleTable>
+
+            <div class="d-flex flex-wrap gap-2" style="gap:8px">
+                @if (_detail.DocumentId is > 0)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.AccountBalance"
+                               OnClick="@(() => OpenDocument())">
+                        باز کردن سند حسابداری
+                    </MudButton>
+                }
+                <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.OpenInNew"
+                           OnClick="@(() => OpenModule())">
+                    مشاهده در صفحهٔ ماژول
+                </MudButton>
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Close">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>مقدار خام SourceReference چک (مثل GoldInvoice:24 یا StoreOrder:4).</summary>
+    [Parameter] public string SourceReference { get; set; } = "";
+
+    private bool _loading = true;
+    private string _source = "";
+    private SourceDetailRow? _detail;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _source = SourceReference ?? "";
+        try
+        {
+            _detail = await Db.QueryFirstOrDefaultAsync<SourceDetailRow>("treasury", "SourceDetail", new
+            {
+                SourceReference = _source,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId
+            });
+
+            if (_detail is not null && string.IsNullOrEmpty(_detail.SourceReference))
+                _detail = null;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>عمیق‌شدن به سند حسابداری پشتنویس منبع با شناسه‌اش.</summary>
+    private void OpenDocument()
+    {
+        if (_detail?.DocumentId is > 0)
+            Nav.NavigateTo($"/accounting/document/{_detail.DocumentId}");
+        MudDialog.Close();
+    }
+
+    /// <summary>عمیق‌شدن به صفحهٔ ماژول دامنه که منبع در آن ثبت شده است.</summary>
+    private void OpenModule()
+    {
+        var type = _detail?.SourceType;
+        var module = type switch
+        {
+            "GoldInvoice" or "GoldPurchase" => "/goldshop",
+            "Order" or "StoreOrder" or "Invoice" => "/store",
+            "Payroll" => "/payroll",
+            "Cheque" => "/treasury/cheques",
+            _ => null
+        };
+        if (module is not null)
+            Nav.NavigateTo(module);
+        MudDialog.Close();
+    }
+
+    private void Close() => MudDialog.Close();
+}

@@ -16,13 +16,33 @@
     --tz-duration-fast: 160ms;
     --tz-duration: 280ms;
     --tz-duration-slow: 520ms;
-    /* توکن‌های رنگ از پالت واحدِ MudTheme (TarazinTheme.cs) مشتق می‌شوند تا منبعِ رنگ
-       یکی بماند و با حالت روشن/تیره هماهنگ شود؛ مقدار ثابت فقط فالبک است اگر متغیر
-       Mud هنوز در دسترس نباشد. */
+    /* ── توکن‌های رنگ از پالت واحدِ MudTheme (TarazinTheme.cs) مشتق می‌شوند تا منبعِ
+       رنگ یکی بماند و با حالت روشن/تیره هماهنگ شود؛ مقدار ثابت فقط فالبک است اگر
+       متغیر Mud هنوز در دسترس نباشد. */
     --tz-ink: var(--mud-palette-primary, #0e4d4a);
     --tz-gold: var(--mud-palette-secondary, #c49a3c);
     --tz-paper: var(--mud-palette-background, #f3eee3);
     --tz-radius: var(--mud-default-borderradius, 10px);
+
+    /* ── مقیاس سلسله‌مراتب تایپوگرافی (تن‌ها نقطهٔ تنظیم؛ عنوان‌ها در MudTheme هم ست شده‌اند) ── */
+    --tz-h1: clamp(1.9rem, 1.4rem + 1.2vw, 2.5rem);
+    --tz-h2: clamp(1.55rem, 1.2rem + 1vw, 2rem);
+    --tz-h3: clamp(1.3rem, 1.05rem + 0.8vw, 1.6rem);
+    --tz-h4: clamp(1.15rem, 1rem + 0.5vw, 1.4rem);
+    --tz-label: 0.86rem;
+    --tz-caption: 0.78rem;
+
+    /* ── ارتفاع (elevation) و سایه‌های کنترل‌شده: از عمیق/سنگین پرهیز، فقط ظرافت ── */
+    --tz-shadow-1: 0 1px 2px rgba(20, 17, 11, 0.05), 0 1px 3px rgba(20, 17, 11, 0.06);
+    --tz-shadow-2: 0 4px 10px rgba(20, 17, 11, 0.06), 0 2px 6px rgba(20, 17, 11, 0.05);
+    --tz-shadow-3: 0 12px 28px rgba(20, 17, 11, 0.10), 0 4px 12px rgba(20, 17, 11, 0.06);
+
+    /* ── ring فوکوس کیبورد (accessibility) ── */
+    --tz-focus-ring: 0 0 0 3px color-mix(in srgb, var(--mud-palette-primary) 28%, transparent);
+
+    /* ── ردیفِ انتخاب‌شدهٔ جدول ثبت سند — متغیرمحور تا در حالت تیره هم خوانا بماند ── */
+    --tz-row-selected-bg: color-mix(in srgb, var(--mud-palette-success) 16%, var(--mud-palette-surface));
+    --tz-row-selected-edge: var(--mud-palette-success);
 }
 
 html, body {
@@ -595,6 +615,129 @@ body {
     transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+/* ── Phase 4: dialog / backdrop / table chrome + dark-mode contrast ── */
+
+/* Backdrop: 加深遮罩并轻微模糊,弹窗层级感更清晰。
+   MudBlazor 的 .mud-overlay 使用 palette 的 OverlayDark;这里统一增强。 */
+.mud-overlay.mud-overlay-dark {
+    background: var(--mud-palette-overlay-dark, rgba(0, 0, 0, 0.6));
+    backdrop-filter: blur(2px);
+}
+
+/* Dialog chrome: 纸面质感 + 明确层级边框;标题与内容留白统一。 */
+.mud-dialog {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: var(--mud-default-borderradius, 14px);
+    box-shadow:
+        0 18px 50px rgba(0, 0, 0, 0.22),
+        0 4px 14px rgba(0, 0, 0, 0.10);
+}
+
+.mud-dialog .mud-dialog-title {
+    padding-bottom: 0.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.mud-dialog .mud-dialog-actions {
+    padding-top: 0.4rem;
+    gap: 0.5rem;
+}
+
+/* Dialog 内表格与 pager 与页面表格同一套 chrome(去双线、统一圆角)。 */
+.mud-dialog .mud-table,
+.mud-dialog .mud-table-container {
+    border-radius: calc(var(--mud-default-borderradius, 14px) - 6px);
+    overflow: hidden;
+}
+
+.mud-dialog .mud-table-pagination {
+    border-top: 1px solid var(--mud-palette-divider);
+}
+
+/* 暗色模式对比度修正:
+   - 暗色下 surface 与 background 接近,dialog/table 用更高一级 surface 提层级;
+   - 文本次级色在暗色下提升亮度,保证 ≥4.5:1;
+   - 表头与 striped 行在暗色下使用带透明度的金色,避免发灰。 */
+.mud-theme-dark .mud-dialog,
+.mud-theme-dark .mud-card,
+.mud-theme-dark .mud-paper {
+    background: var(--mud-palette-surface);
+    border-color: var(--mud-palette-divider);
+}
+
+.mud-theme-dark .mud-table-header,
+.mud-theme-dark .mud-table-head {
+    background: color-mix(in srgb, var(--mud-palette-secondary) 8%, var(--mud-palette-surface));
+}
+
+.mud-theme-dark .mud-table-striped > tbody > tr:nth-child(2n) {
+    background: var(--mud-palette-table-striped);
+}
+
+.mud-theme-dark .mud-table-row:hover {
+    background: var(--mud-palette-table-hover);
+}
+
+.mud-theme-dark .mud-dialog .mud-dialog-title,
+.mud-theme-dark .mud-card-header-title {
+    color: var(--mud-palette-text-primary);
+}
+
+.mud-theme-dark .tz-stat__label,
+.mud-theme-dark .tz-stat__hint,
+.mud-theme-dark .mud-input-label,
+.mud-theme-dark .mud-caption {
+    color: var(--mud-palette-text-secondary);
+    opacity: 1; /* MudBlazor 暗色下会叠 0.7 透明度 → 二次压暗,这里钉住 */
+}
+
+.mud-theme-dark .tz-stat {
+    border-color: color-mix(in srgb, var(--tz-accent, var(--tz-gold)) 30%, var(--mud-palette-divider));
+}
+
+.mud-theme-dark .tz-stat__icon {
+    background: color-mix(in srgb, var(--tz-accent, var(--tz-gold)) 22%, transparent);
+    color: var(--tz-accent, var(--tz-gold));
+}
+
+.mud-theme-dark .mud-input > input,
+.mud-theme-dark .mud-input > textarea,
+.mud-theme-dark .mud-input-slot {
+    color: var(--mud-palette-text-primary);
+    caret-color: var(--mud-palette-primary);
+}
+
+.mud-theme-dark .mud-table-pagination,
+.mud-theme-dark .mud-select,
+.mud-theme-dark .mud-picker {
+    color: var(--mud-palette-text-primary);
+}
+
+/* 焦点可见性:暗色下 focus ring 用金色,亮度足够。 */
+.mud-theme-dark :focus-visible {
+    outline: 2px solid var(--mud-palette-secondary);
+    outline-offset: 2px;
+}
+
+/* Skeleton 与 EmptyState 在暗色下同样可读。 */
+.mud-theme-dark .tz-skeleton-table__cell {
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 14%, transparent);
+}
+
+.mud-theme-dark .tz-empty-state {
+    background: var(--mud-palette-surface);
+}
+
+.mud-theme-dark .tz-empty-state__icon {
+    color: var(--mud-palette-secondary);
+    opacity: 0.85;
+}
+
+.mud-theme-dark .tz-empty-state__desc {
+    color: var(--mud-palette-text-secondary);
+}
+
 /* Snackbar: лёгкий подъём при появлении. */
 .mud-snackbar {
     animation: tz-card-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
@@ -663,7 +806,9 @@ body {
     .mud-autocomplete,
     .mud-picker,
     .tz-stat,
-    .tz-stat__icon {
+    .tz-stat__icon,
+    .tz-bi-kpi,
+    .tz-bi-insight {
         transition: none !important;
     }
     .tz-subnav__tab.is-active {
@@ -934,6 +1079,32 @@ body {
     background: color-mix(in srgb, var(--mud-palette-surface) 92%, var(--mud-palette-primary) 8%);
 }
 
+/* آیکون محصور در یک‌ظرف قرصی — حالت «empty» را معنادارتر و premium می‌کند */
+.tz-empty-state__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--mud-palette-secondary) 14%, transparent);
+    color: var(--mud-palette-secondary);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-secondary) 22%, transparent);
+}
+
+.tz-empty-state__icon .mud-icon-root {
+    font-size: 2.1rem;
+}
+
+.tz-empty-state__desc {
+    max-width: 34rem;
+    margin-inline: auto;
+    line-height: 1.75;
+}
+
+.tz-empty-state__actions .mud-button-root {
+    flex-shrink: 0;
+}
+
 .tz-form-section {
     padding: var(--tz-space-3);
     overflow: hidden;
@@ -958,15 +1129,87 @@ body {
     font-weight: 700 !important;
     font-size: 0.72rem !important;
     color: var(--mud-palette-text-secondary) !important;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 
 .mud-paper {
     border: 1px solid var(--mud-palette-divider);
 }
 
+/* ارتفاع سطح‌ها یکدست و بدون کلنگ روی page */
+.mud-paper.elevation-1,
+.mud-paper.mud-elevation-1 {
+    box-shadow: var(--tz-shadow-1);
+}
+
+/* هدر جدول چسبان برای جدول‌های بلند (کلاس بر روی خود جدول فعال می‌شود) */
+.mud-table-sticky-header .mud-table-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--mud-palette-surface);
+    box-shadow: 0 1px 0 var(--mud-palette-divider);
+}
+
+/* ردیف انتخاب‌شدهٔ جدول — پُررنگ‌تر از hover با حاشیهٔ لبهٔ راست */
+.mud-table-row.mud-table-row-selected,
+.mud-table-row.selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent) !important;
+    box-shadow: inset 3px 0 0 var(--mud-palette-primary);
+}
+
+/* سلول عددی جدول — اعداد را راست‌چین/LTR و با tabular-nums می‌کند */
+.mud-table-cell.tz-num, .tz-table-num {
+    font-variant-numeric: tabular-nums;
+}
+
+/* جمع/خطوط بین ردیف‌ها ظریف‌تر وقتی striped خاموش است */
+.mud-table:not(.mud-table-hover) .mud-table-body .mud-table-row + .mud-table-row .mud-table-cell {
+    border-top: 1px solid color-mix(in srgb, var(--mud-palette-divider) 60%, transparent);
+}
+
+/* کامپوننت صفحه‌بندی MudTablePager — فشرده و با بالان جدول هم‌تراز */
+.mud-table-pagination.toolbar {
+    min-height: 52px;
+}
+
+.mud-table-pagination.toolbar .mud-table-pagination-toolbar {
+    min-height: 0;
+    padding-block: 0.4rem;
+}
+
 .mud-input > input,
 .mud-input > textarea {
     text-align: start;
+}
+
+/* ── Snackbar / Dialog / Popover ──────────────────────────── */
+.mud-snackbar {
+    border-radius: 12px;
+    box-shadow: var(--tz-shadow-3);
+    font-weight: 500;
+}
+
+.mud-dialog-container .mud-dialog {
+    border: 1px solid var(--mud-palette-divider);
+    box-shadow: var(--tz-shadow-3);
+}
+
+.mud-dialog-title {
+    font-weight: 700 !important;
+}
+
+/* پاپ‌آورهای رنگ/منو/تاریخ — حاشیهٔ ظریف و ارتفاع یکدست */
+.mud-popover .mud-list,
+.mud-popover .mud-paper {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 10px;
+}
+
+/* فرم‌ها: چسبیدن یکدست فاصلهٔ بین آیتم‌های grid */
+.mud-grid.mud-grid-spacing-3 .mud-grid-item {
+    margin-bottom: 0.35rem;
 }
 
 /* ── Blazor error UI ─────────────────────────────────────── */
@@ -1183,6 +1426,94 @@ body {
     flex-shrink: 0;
 }
 
+/* ── Drawer: hover، منوی باز، و اسکرول‌بار یکدست ─────────────── */
+.tz-drawer .mud-nav-link:not(.active):hover {
+    background: color-mix(in srgb, var(--mud-palette-drawer-text) 7%, transparent);
+    color: var(--mud-palette-drawer-text);
+}
+
+.tz-drawer .mud-nav-group .mud-nav-link.active {
+    background: linear-gradient(90deg, rgba(212, 176, 106, 0.22), rgba(212, 176, 106, 0.08));
+    color: #f7f1e3;
+}
+
+/* اسکرول‌بار تم‌دار برای کل صفحه و کشو — ظریف و هماهنگ با پالت */
+::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 26%, transparent);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 42%, transparent);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+}
+
+
+/* ── BI: کارت‌های KPI، هشدارها و تب‌ها — هماهنگ با StatCard ──── */
+.tz-bi-kpi {
+    height: 100%;
+    border: 1px solid var(--mud-palette-divider);
+    background:
+        linear-gradient(135deg, rgba(94, 53, 177, 0.05), transparent 55%),
+        var(--mud-palette-surface);
+    transition: transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1),
+                box-shadow 0.18s ease,
+                border-color 0.18s ease;
+}
+
+.tz-bi-kpi:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 45%, var(--mud-palette-divider));
+    box-shadow: 0 10px 24px rgba(20, 17, 11, 0.08);
+}
+
+/* حالت وضعیت: لبهٔ رنگی خودش را دارد (border-top در markup ست می‌شود) —
+   این‌ها فقط پس‌زمینهٔ ملایم روی لبه اضافه می‌کنند تا وضعیت خوانا باشد. */
+.tz-bi-kpi--bad {
+    background:
+        linear-gradient(135deg, rgba(198, 40, 40, 0.05), transparent 58%),
+        var(--mud-palette-surface);
+}
+
+.tz-bi-kpi--good {
+    background:
+        linear-gradient(135deg, rgba(46, 125, 87, 0.05), transparent 58%),
+        var(--mud-palette-surface);
+}
+
+/* پنل «تحلیل هوشمند» و هشدارهای داخل آن */
+.tz-bi-insights,
+.tz-bi-insight {
+    border-radius: 14px;
+}
+
+.tz-bi-insight:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+}
+
+/* تب‌های متعدد BI — هدر چسبان و خوانا هنگام اسکرول */
+.tz-bi-tabs .mud-tabs-panels {
+    padding-top: 0.5rem;
+}
+
+.tz-bi-tabs .mud-tab {
+    min-height: 46px;
+    font-weight: 600;
+}
+
+
 /* ── قفل محیط، اسکلتون، دسترس‌پذیری، موبایل ───────────────────── */
 
 /* پوشش «ایجاد شرکت» — استایل به‌جای inline در MainLayout اینجا متمرکز شد. */
@@ -1227,6 +1558,39 @@ body {
 .tz-fy-menu__chip:focus-visible {
     outline: 2px solid var(--mud-palette-primary);
     outline-offset: 2px;
+}
+
+/* ── Global keyboard-focus ring (accessibility + حرکت کیبورد) ──
+   فقط زمانی دیده می‌شود که کاربر با کیبورد ناوبری کند (focus-visible)، نه کلیک/تاچ.
+   از box-shadow به‌جای outline استفاده شد چون با rounded گوشه‌ها بهتر می‌نشیند
+   و در حالت تیره هم با color-mix روی primary خوانا می‌ماند. ورودی‌های متنی excluded
+   هستند چون کادر خارجشان با قاعدهٔ notched-outline همرنگ می‌شود. */
+.mud-button-root:focus-visible,
+.mud-icon-button:focus-visible,
+.mud-nav-link:focus-visible,
+.mud-chip:focus-visible,
+.mud-menu-item:focus-visible,
+.mud-switch:focus-visible .mud-switch-base,
+.mud-table-sort-label:focus-visible,
+.tz-modcard:focus-visible,
+.tz-subnav__tab:focus-visible,
+.tz-stat-link:focus-visible,
+.tz-user .mud-avatar:focus-visible {
+    outline: none;
+    box-shadow: var(--tz-focus-ring);
+}
+
+/* ورودی‌های Outlined هنگام فوکوس: خط کانتور را با رنگ primary هماهنگ می‌کنیم
+   تا chart-of-accounts و فرم‌های ثبت حالتی «premium» و یکپارچه داشته باشند. */
+.mud-input-outlined:focus-within .mud-notched-outline,
+.mud-input-outlined:hover .mud-notched-outline {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 70%, var(--mud-palette-lines-inputs));
+}
+
+/* رنگ انتخاب متن — هماهنگ با پالت (جزئیات premium) */
+::selection {
+    background: color-mix(in srgb, var(--mud-palette-primary) 22%, transparent);
+    color: var(--mud-palette-text-primary);
 }
 
 /* موبایل: چیپ «سال مالی» جمع‌وجورتر و بدون سرریز در عرض کم */
@@ -1298,9 +1662,17 @@ body {
 
 /* ── Mobile interaction layer ────────────────────────────── */
 @media (max-width: 800px) {
+    /* پهنای drawer موبایل را با متغیرِ خودِ MudBlazor ست می‌کنیم، نه با width.
+       در MudBlazor 9 هم پهنای حالت باز و هم آفستِ حالت بسته از یک عبارت واحد
+       می‌آیند:  width: var(--mud-drawer-width, var(--mud-drawer-width-right))
+                 right: calc(-1 * var(--mud-drawer-width, var(--mud-drawer-width-right)))
+       اگر فقط width را override کنیم (رفتار قبلی)، drawer به پهنای
+       min(86vw,320px) رندر می‌شود ولی فقط ۳۰۰px (مقدار DrawerWidthRight در
+       TarazinTheme) به بیرون کشیده می‌شود؛ تفاضلِ این دو (تا ۲۰px) به‌صورت
+       یک باریکهٔ باقی‌مانده در لبهٔ صفحه دیده می‌شد. با ست‌کردن متغیر، هر دو
+       مقدار همیشه یکی‌اند و drawer بسته کامل از دید خارج می‌شود. */
     .tz-drawer--mobile {
-        width: min(86vw, 320px) !important;
-        max-width: 320px;
+        --mud-drawer-width: min(86vw, 320px);
     }
 
     .tz-drawer--mobile .mud-drawer-content {

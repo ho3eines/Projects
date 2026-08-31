@@ -7,34 +7,30 @@
 
 <PageHeader Title="اخبار شرکت" Subtitle="مدیریت اخبار نمایش‌داده‌شده در وبسایت مرکزی.">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromNews()))">
+               OnClick="() => OpenEditorAsync(EntityEditorModel.FromNews())">
         خبر جدید
     </MudButton>
 </PageHeader>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
-        <HeaderContent>
-            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>خلاصه</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="#">@context.NewsId</MudTd>
-            <MudTd DataLabel="عنوان">@context.Title</MudTd>
-            <MudTd DataLabel="خلاصه">@context.Summary</MudTd>
-            <MudTd DataLabel="تاریخ انتشار">@(context.PublishedAt?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
-            <MudTd DataLabel="وضعیت">
-                <StatusChip IsActive="context.IsActive" />
-            </MudTd>
-            <MudTd DataLabel="عملیات">
-                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromNews(context)))"
-                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromNews(context)))" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <EmptyState Title="خبری ثبت نشده است." Description="برای شروع، یک خبر جدید ایجاد کنید." Icon="@Icons.Material.Filled.Campaign" />
-        </NoRecordsContent>
-    </MudTable>
-</MudPaper>
+<TzDataTable T="NewsRow" Items="_items" Loading="_loading" ShowPager="true"
+             SkeletonColumns="6" EmptyTitle="خبری ثبت نشده است." EmptyIcon="@Icons.Material.Filled.Campaign">
+    <HeaderContent>
+        <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>خلاصه</MudTh><MudTh>تاریخ انتشار</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="#">@item.NewsId</MudTd>
+        <MudTd DataLabel="عنوان">@item.Title</MudTd>
+        <MudTd DataLabel="خلاصه">@item.Summary</MudTd>
+        <MudTd DataLabel="تاریخ انتشار">@(item.PublishedAt?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
+        <MudTd DataLabel="وضعیت">
+            <StatusChip IsActive="item.IsActive" />
+        </MudTd>
+        <MudTd DataLabel="عملیات">
+            <EntityActions EditClicked="() => OpenEditorAsync(EntityEditorModel.FromNews(item))"
+                           DeleteClicked="() => DeleteAsync(EntityEditorModel.FromNews(item))" />
+        </MudTd>
+    </RowTemplate>
+</TzDataTable>
 
 @code {
     private const string Schema = "central";
@@ -75,4 +71,4 @@
         if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
     }
-}
+}

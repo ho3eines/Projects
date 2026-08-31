@@ -72,6 +72,7 @@
                    Style="min-width:130px" Class="mr-1">
             <MudSelectItem Value="@("A4")">A4</MudSelectItem>
             <MudSelectItem Value="@("A5")">A5</MudSelectItem>
+            <MudSelectItem Value="@("A5L")">A5 افقی</MudSelectItem>
         </MudSelect>
         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TogglePreview"
                    StartIcon="@(_preview ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)">
@@ -150,15 +151,17 @@
         _ => Color.Success
     };
 
-    private static string SourceLabel(string? source) => source switch
-    {
-        null => "دستی",
-        var s when s.StartsWith("GoldInvoice:") => "فاکتور طلافروشی",
-        var s when s.StartsWith("Cheque:") => "وصول چک",
-        _ => source
-    };
+    private static string SourceLabel(string? source) => Tarazin.Models.TreasurySourceLabels.For(source);
 
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+    /// <summary>
+    /// چاپ از همان بایت‌های PDF (QuestPDF) که «دانلود PDF» تولید می‌کند —
+    /// ویوئر PDF مرورگر را باز می‌کند تا خروجی چاپ با PDF یکسان باشد.
+    /// </summary>
+    private async Task PrintAsync()
+    {
+        var bytes = Pdf.BuildChequeReportPdf(Rows, _paperSize);
+        await JS.InvokeVoidAsync("tarazin.printPdfBytes", Convert.ToBase64String(bytes));
+    }
 
     private void Close() => MudDialog.Close();
 

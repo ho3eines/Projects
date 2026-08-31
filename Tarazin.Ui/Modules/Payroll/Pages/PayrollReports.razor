@@ -1,10 +1,7 @@
 @page "/payroll/reports"
-@using Stimulsoft.Report
-@using Stimulsoft.Report.Blazor
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
-@inject BiReportService ReportService
 @inject IDialogService Dialog
 @inject PdfReportService Pdf
 @inject PrintTemplateService Tpl
@@ -37,7 +34,7 @@
                     </MudTd>
                     <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd")</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="دوره‌ای ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
             <MudText Typo="Typo.body2" Class="mt-4">
@@ -64,14 +61,7 @@
                         نمایش فیش‌ها
                     </MudButton>
                 </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.Print" OnClick="PrintSlipsAsync"
-                               Disabled="_busyPrint || _runId == 0">
-                        فیش (Stimulsoft)
-                    </MudButton>
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
+                <MudItem xs="12" sm="6" md="4">
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Print" OnClick="PrintSlipsListAsync"
                                Disabled="_loadingSlips || _slips.Count == 0">
@@ -88,7 +78,7 @@
                     <MudTd DataLabel="نام">@context.EmployeeName</MudTd>
                     <MudTd DataLabel="خالص پرداخت">@context.NetPay.ToString("N0")</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای انتخاب نشده یا فیشی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="فیشی برای این دوره صادر نشده است." /></NoRecordsContent>
             </MudTable>
             @if (_slips.Count > 0)
             {
@@ -97,29 +87,6 @@
                 </MudText>
             }
 
-            @if (_busyPrint)
-            {
-                <MudPaper Elevation="1" Class="pa-8 text-center mt-4">
-                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-                    <MudText Typo="Typo.body2" Class="mt-3">در حال ساخت فیش حقوق…</MudText>
-                </MudPaper>
-            }
-
-            @if (!_busyPrint && _printError is not null)
-            {
-                <MudPaper Elevation="1" Class="pa-4 mt-4">
-                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
-                        ساخت فیش حقوق ناموفق بود: @_printError
-                    </MudAlert>
-                </MudPaper>
-            }
-
-            @if (!_busyPrint && _printReport is not null)
-            {
-                <MudPaper Elevation="1" Class="mt-4">
-                    <StiBlazorViewer Report="@_printReport" Width="100%" Height="720px" />
-                </MudPaper>
-            }
         </MudPaper>
     </MudTabPanel>
 </MudTabs>
@@ -132,9 +99,6 @@
     private int _runId;
     private bool _loadingRuns;
     private bool _loadingSlips;
-    private StiReport? _printReport;
-    private bool _busyPrint;
-    private string? _printError;
 
     protected override async Task OnInitializedAsync() => await LoadRunsAsync();
 
@@ -180,34 +144,6 @@
         finally
         {
             _loadingSlips = false;
-        }
-    }
-
-    private async Task PrintSlipsAsync()
-    {
-        if (_busyPrint) return;
-        if (_runId == 0)
-        {
-            Snackbar.Add("ابتدا یک دوره انتخاب کنید.", Severity.Warning);
-            return;
-        }
-
-        _busyPrint = true;
-        _printError = null;
-        try
-        {
-            _printReport = await ReportService.BuildPaySlipReportAsync(_runId);
-            Snackbar.Add("فیش حقوق ساخته شد — برای چاپ/PDF از دکمه‌های Viewer استفاده کنید.", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            _printReport = null;
-            _printError = ex.Message;
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busyPrint = false;
         }
     }
 

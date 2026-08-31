@@ -46,6 +46,22 @@ public class ItemRow
     public DateTime? UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
+    // Phase 1 enrichment
+    public string? SKU { get; set; }
+    public string? Barcode { get; set; }
+    public string? Brand { get; set; }
+    public string? Model { get; set; }
+    public decimal MinStock { get; set; }
+    public decimal MaxStock { get; set; }
+    public decimal ReorderPoint { get; set; }
+    public bool HasBatch { get; set; }
+    public bool HasSerial { get; set; }
+    public bool HasExpiry { get; set; }
+    public string? LatinTitle { get; set; }
+    public decimal PurchasePrice { get; set; }
+    public decimal SalePrice { get; set; }
+    public string? Description { get; set; }
+    public string? ImageUrl { get; set; }
 }
 
 public class WarehouseRow
@@ -158,4 +174,195 @@ public class StockBalanceRow
     public decimal StockQty { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal StockValue { get; set; }
+}
+
+// ============================================================
+// Phase 1 — Purchase/Sales invoices, returns, transfers, barcodes
+// ============================================================
+
+/// <summary>فاکتور خرید — مستقل از فاکتور فروش.</summary>
+public class PurchaseInvoiceRow
+{
+    public int PurchaseInvoiceId { get; set; }
+    public string InvoiceNumber { get; set; } = "";
+    public DateTime InvoiceDate { get; set; }
+    public int? SupplierPartyId { get; set; }
+    public string? SupplierName { get; set; }
+    public int? WarehouseId { get; set; }
+    public string? WarehouseTitle { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public string? PaymentTerms { get; set; }
+    public DateTime? DueDate { get; set; }
+    public string? Description { get; set; }
+    public decimal GrossAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal ChargesAmount { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal DutyAmount { get; set; }
+    public decimal NetAmount { get; set; }
+    public string Status { get; set; } = "Draft";
+    public int? DocumentId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+/// <summary>قلم فاکتور خرید.</summary>
+public class PurchaseInvoiceLineRow
+{
+    public int PurchaseInvoiceLineId { get; set; }
+    public int PurchaseInvoiceId { get; set; }
+    public int ItemId { get; set; }
+    public string ItemCode { get; set; } = "";
+    public string ItemTitle { get; set; } = "";
+    public int? UnitId { get; set; }
+    public string? UnitTitle { get; set; }
+    public decimal Qty { get; set; }
+    public decimal GiftQty { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal GrossAmount { get; set; }
+    public decimal DiscountPercent { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal TaxPercent { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal DutyPercent { get; set; }
+    public decimal DutyAmount { get; set; }
+    public decimal ChargesAmount { get; set; }
+    public decimal CostPrice { get; set; }
+    public decimal NetAmount { get; set; }
+    public int SortOrder { get; set; }
+}
+
+/// <summary>فاکتور فروش — مستقل از فاکتور خرید.</summary>
+public class SalesInvoiceRow
+{
+    public int SalesInvoiceId { get; set; }
+    public string InvoiceNumber { get; set; } = "";
+    public DateTime InvoiceDate { get; set; }
+    public int? CustomerPartyId { get; set; }
+    public string? CustomerName { get; set; }
+    public int? WarehouseId { get; set; }
+    public string? WarehouseTitle { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public string? PaymentTerms { get; set; }
+    public DateTime? DueDate { get; set; }
+    public string? SaleType { get; set; }
+    public string? Description { get; set; }
+    public decimal GrossAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal ChargesAmount { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal DutyAmount { get; set; }
+    public decimal NetAmount { get; set; }
+    public decimal CostOfGoodsSold { get; set; }
+    public decimal GrossProfit { get; set; }
+    public string Status { get; set; } = "Draft";
+    public int? DocumentId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+/// <summary>قلم فاکتور فروش.</summary>
+public class SalesInvoiceLineRow
+{
+    public int SalesInvoiceLineId { get; set; }
+    public int SalesInvoiceId { get; set; }
+    public int ItemId { get; set; }
+    public string ItemCode { get; set; } = "";
+    public string ItemTitle { get; set; } = "";
+    public int? UnitId { get; set; }
+    public string? UnitTitle { get; set; }
+    public decimal Qty { get; set; }
+    public decimal GiftQty { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal GrossAmount { get; set; }
+    public decimal DiscountPercent { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal TaxPercent { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal DutyPercent { get; set; }
+    public decimal DutyAmount { get; set; }
+    public decimal ChargesAmount { get; set; }
+    public decimal CostPrice { get; set; }
+    public decimal NetAmount { get; set; }
+    public int SortOrder { get; set; }
+}
+
+/// <summary>برگشت خرید.</summary>
+public class PurchaseReturnRow
+{
+    public int PurchaseReturnId { get; set; }
+    public string ReturnNumber { get; set; } = "";
+    public DateTime ReturnDate { get; set; }
+    public int PurchaseInvoiceId { get; set; }
+    public string InvoiceNumber { get; set; } = "";
+    public int? WarehouseId { get; set; }
+    public string? WarehouseTitle { get; set; }
+    public string? Description { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = "Draft";
+    public int? DocumentId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
+/// <summary>برگشت فروش.</summary>
+public class SalesReturnRow
+{
+    public int SalesReturnId { get; set; }
+    public string ReturnNumber { get; set; } = "";
+    public DateTime ReturnDate { get; set; }
+    public int SalesInvoiceId { get; set; }
+    public string InvoiceNumber { get; set; } = "";
+    public int? WarehouseId { get; set; }
+    public string? WarehouseTitle { get; set; }
+    public string? Description { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = "Draft";
+    public int? DocumentId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
+/// <summary>انتقال بین انبارها.</summary>
+public class WarehouseTransferRow
+{
+    public int TransferId { get; set; }
+    public string TransferNumber { get; set; } = "";
+    public DateTime TransferDate { get; set; }
+    public int FromWarehouseId { get; set; }
+    public string FromWarehouseTitle { get; set; } = "";
+    public int ToWarehouseId { get; set; }
+    public string ToWarehouseTitle { get; set; } = "";
+    public string? Description { get; set; }
+    public string Status { get; set; } = "Draft";
+    public int? DocumentId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
+/// <summary>قلم انتقال بین انبارها.</summary>
+public class TransferLineRow
+{
+    public int TransferLineId { get; set; }
+    public int TransferId { get; set; }
+    public int ItemId { get; set; }
+    public string ItemCode { get; set; } = "";
+    public string ItemTitle { get; set; } = "";
+    public decimal Qty { get; set; }
+    public decimal UnitCost { get; set; }
+}
+
+/// <summary>بارکد کالا (یک کالا چند بارکد).</summary>
+public class ItemBarcodeRow
+{
+    public int BarcodeId { get; set; }
+    public int ItemId { get; set; }
+    public string Barcode { get; set; } = "";
+    public bool IsPrimary { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

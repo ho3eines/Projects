@@ -10,19 +10,19 @@
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+    <StatCardSkeleton Count="4" />
 }
 else
 {
     <MudGrid Class="mb-4">
         <StatCard Label="کارمندان فعال" Value="@_summary.ActiveEmployees.ToString("N0")"
-                  Icon="@Icons.Material.Filled.Groups" Accent="#9C3B2E" />
+                  Icon="@Icons.Material.Filled.Groups" Accent="@TarazinAccents.Wine" />
         <StatCard Label="کل دوره‌ها" Value="@_summary.TotalRuns.ToString("N0")"
-                  Icon="@Icons.Material.Filled.DateRange" Accent="#1E4B73" />
+                  Icon="@Icons.Material.Filled.DateRange" Accent="@TarazinAccents.Steel" />
         <StatCard Label="کل پرداختی" Value="@_summary.TotalPaid.ToString("N0")"
-                  Icon="@Icons.Material.Filled.Payments" Accent="#C49A3C" />
+                  Icon="@Icons.Material.Filled.Payments" Accent="@TarazinAccents.Gold" />
         <StatCard Label="آخرین دوره" Value="@(_summary.LatestPeriod ?? "—")"
-                  Icon="@Icons.Material.Filled.EventAvailable" Accent="#0E4D4A" />
+                  Icon="@Icons.Material.Filled.EventAvailable" Accent="@TarazinAccents.Ink" />
     </MudGrid>
 
     @if (_monthly is not null && _monthly.RunId > 0)

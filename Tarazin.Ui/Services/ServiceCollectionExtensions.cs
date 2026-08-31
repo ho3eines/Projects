@@ -16,6 +16,10 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddTarazinUiServices(this IServiceCollection services)
     {
+        // ثبت فونت Vazirmatn در موتور رندر PDF (QuestPDF) از بایت‌های
+        // EmbeddedResource — یک‌بار در استارتاپ؛ هم در هاست وب و هم در MAUI اجرا می‌شود.
+        VazirmatnFontRegistrar.Register();
+
         // Data layer (DbService, ScriptCatalog, AuditService)
         services.AddTarazinDataServices();
 
@@ -27,7 +31,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UserService>();
         services.AddScoped<AccountingContextService>();
         services.AddScoped<EntityCrudService>();
-        services.AddScoped<BiReportService>();   // چاپ و گزارش با Stimulsoft (BI)
         services.AddScoped<AccountPickerService>(); // انتخاب حساب (Account Picker)
         services.AddScoped<EntityPickerService>();  // pemilih entiti generik (bank/pelanggan/produk/dll)
 

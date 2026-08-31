@@ -32,6 +32,17 @@
     </DialogContent>
 
     <DialogActions>
+        @if (AllowResize)
+        {
+            <MudSelect T="string" Label="اندازهٔ کاغذ" Value="@_paperSize" ValueChanged="OnSizeChanged"
+                       Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
+                       Style="min-width:130px" Class="mr-1">
+                <MudSelectItem Value="@("")">طبق قالب</MudSelectItem>
+                <MudSelectItem Value="@("A4")">A4</MudSelectItem>
+                <MudSelectItem Value="@("A5")">A5</MudSelectItem>
+                <MudSelectItem Value="@("A5L")">A5 افقی</MudSelectItem>
+            </MudSelect>
+        }
         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="EditTemplateAsync"
                    StartIcon="@Icons.Material.Filled.Tune">
             ویرایش قالب
@@ -60,11 +71,39 @@
 
     private bool _downloading;
 
+    /// <summary>اجازهٔ تغییر اندازهٔ کاغذ هنگام چاپ (پیش‌فرض روشن؛ در صورت لزوم خاموش).</summary>
+    [Parameter] public bool AllowResize { get; set; } = true;
+
+    private string _paperSize = "";
+
     private string DisplayTitle
         => string.IsNullOrWhiteSpace(Data.Title) ? Template.Name : Data.Title;
 
+    /// <summary>
+    /// شناسهٔ اندازه برای <see cref="PdfReportService.BuildTemplatePdf"/>.
+    /// اگر کاربر دستی اندازه انتخاب نکرده باشد (طبق قالب) null برمی‌گرداند تا موتور
+    /// از «اندازه/جهتِ ذخیره‌شدهٔ خود قالب» (PaperSize + Orientation) استفاده کند —
+    /// یعنی هر قالب نقطهٔ شروع پیش‌فرض خود را دارد. وقتی کاربر override کند،
+    /// همان توکن (A4/A5/A5L) دقیقاً به موتور می‌رود.
+    /// </summary>
+    private string? ResolvedSizeOverride
+        => string.IsNullOrWhiteSpace(_paperSize) ? null : _paperSize;
+
+    /// <summary>برچسب نمایشیِ اندازهٔ فعلی‌ِ چاپ (برای پیش‌نمایش/نام فایل).</summary>
     private string PaperLabel
-        => $"{Template.PaperSize} {(Template.Orientation == PrintOrientation.Landscape ? "افقی" : "عمودی")}";
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(_paperSize))
+                return _paperSize == "A5L" ? "A5 افقی" : _paperSize;
+            return $"{Template.PaperSize}" + (Template.Orientation == PrintOrientation.Landscape ? " افقی" : "");
+        }
+    }
+
+    private void OnSizeChanged(string? size)
+    {
+        _paperSize = size ?? "";
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -77,8 +116,9 @@
         _downloading = true;
         try
         {
-            var bytes = Pdf.BuildTemplatePdf(Template, Data);
-            var fileName = $"{PdfFileNames.Sanitize(DisplayTitle)}-{PdfFileNames.ShamsiDate(DateTime.Now)}-{Template.PaperSize}.pdf";
+            var bytes = Pdf.BuildTemplatePdf(Template, Data, ResolvedSizeOverride);
+            var sizeToken = ResolvedSizeOverride ?? $"{Template.PaperSize}" + (Template.Orientation == PrintOrientation.Landscape ? "L" : "");
+            var fileName = $"{PdfFileNames.Sanitize(DisplayTitle)}-{PdfFileNames.ShamsiDate(DateTime.Now)}-{sizeToken}.pdf";
             await PdfSaver.SaveAsync(fileName, bytes);
         }
         finally
@@ -87,7 +127,15 @@
         }
     }
 
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+    /// <summary>
+    /// چاپ از همان بایت‌های PDF (QuestPDF) که «دانلود PDF» تولید می‌کند —
+    /// ویوئر PDF مرورگر را باز می‌کند تا خروجی چاپ با PDF یکسان باشد.
+    /// </summary>
+    private async Task PrintAsync()
+    {
+        var bytes = Pdf.BuildTemplatePdf(Template, Data, ResolvedSizeOverride);
+        await JS.InvokeVoidAsync("tarazin.printPdfBytes", Convert.ToBase64String(bytes));
+    }
 
     private void EditTemplateAsync()
     {

@@ -58,6 +58,8 @@ public static class TarazinPermissions
 
     // ── دسترسی‌های فروشگاه ───────────────────────────────────────────────
     public const string StoreCategories = "store.categories";   // مدیریت دسته‌بندی کالا (فروشگاه)
+    public const string InventoryCategories = "inventory.categories"; // مدیریت گروه کالا (انبار) — مجوز نازک برای فروشندگان
+    public const string InventoryUnits = "inventory.units";     // مدیریت واحد کالا (انبار) — مجوز نازک برای فروشندگان
 
     // ── دسترسی‌های «سند حسابداری» ────────────────────────────────────────
     // ویرایش/حذف سند و تغییر وضعیت آن (یادداشت → موقت → تأیید شده → تأیید نهایی).
@@ -70,6 +72,18 @@ public static class TarazinPermissions
     public const string DocumentFinalize = "accounting.document.finalize"; // تأیید شده → تأیید نهایی
     public const string DocumentRevert = "accounting.document.revert";     // برگشت وضعیت سند
     public const string AccountingClosedYear = "accounting.closedyear";    // ثبت سند در سال مالی بسته (با مجوز + دلیل در ممیزی)
+
+    // ── دسترسی‌های تخصصی انبار (فاز ۴) ───────────────────────────────────
+    // دسترسی‌های سندی برای ماژول انبار — قیمت خرید/سود نیازمند مجوز جداگانه است.
+    public const string InventoryPurchase = "inventory.purchase";          // ثبت فاکتور خرید
+    public const string InventorySales = "inventory.sales";               // ثبت فاکتور فروش
+    public const string InventoryPurchaseReturn = "inventory.purchaseReturn";  // برگشت خرید
+    public const string InventorySalesReturn = "inventory.salesReturn";        // برگشت فروش
+    public const string InventoryTransfer = "inventory.transfer";              // انتقال بین انبارها
+    public const string InventoryAdjustment = "inventory.adjustment";          // تعدیل موجودی
+    public const string InventoryStocktake = "inventory.stocktake";            // انبارگردانی
+    public const string InventoryViewPurchasePrice = "inventory.viewPurchasePrice";  // مشاهده قیمت خرید
+    public const string InventoryViewProfit = "inventory.viewProfit";              // مشاهده سود
 
     /// <summary>کلید ماژول‌های کسب‌وکار (همان اسکیمه‌ها).</summary>
     public static readonly string[] Modules =
@@ -144,6 +158,10 @@ public static class TarazinPermissions
 
         // دسترسی‌های ویژهٔ نرخ‌ها و قیمت‌ها (PRD §55) — منبع واحد برای seed و UI.
         list.Add(new PermissionDef(RateView, "مشاهده نرخ", "rates"));
+        // NOTE: InventoryCategories intentionally NOT in the catalog — it stays
+        // code-only (definition at the top of this file) so PermissionSync does
+        // NOT re-create it in the DB after a restart.
+        list.Add(new PermissionDef(InventoryUnits, "مدیریت واحد کالا (انبار)", "inventory"));
         list.Add(new PermissionDef(RateFetch, "دریافت نرخ (آنلاین/دستی)", "rates"));
         list.Add(new PermissionDef(RateChange, "تغییر نرخ سیستم", "rates"));
         list.Add(new PermissionDef(RateOverride, "Override نرخ آنلاین", "rates"));
@@ -173,6 +191,17 @@ public static class TarazinPermissions
         list.Add(new PermissionDef(DocumentFinalize, "حسابداری — تأیید نهایی سند", "accounting"));
         list.Add(new PermissionDef(DocumentRevert, "حسابداری — برگشت وضعیت سند", "accounting"));
         list.Add(new PermissionDef(AccountingClosedYear, "حسابداری — ثبت سند در سال مالی بسته (با مجوز)", "accounting"));
+
+        // دسترسی‌های تخصصی انبار (فاز ۴)
+        list.Add(new PermissionDef(InventoryPurchase, "انبار — ثبت فاکتور خرید", "inventory"));
+        list.Add(new PermissionDef(InventorySales, "انبار — ثبت فاکتور فروش", "inventory"));
+        list.Add(new PermissionDef(InventoryPurchaseReturn, "انبار — برگشت خرید", "inventory"));
+        list.Add(new PermissionDef(InventorySalesReturn, "انبار — برگشت فروش", "inventory"));
+        list.Add(new PermissionDef(InventoryTransfer, "انبار — انتقال بین انبارها", "inventory"));
+        list.Add(new PermissionDef(InventoryAdjustment, "انبار — تعدیل موجودی", "inventory"));
+        list.Add(new PermissionDef(InventoryStocktake, "انبار — انبارگردانی", "inventory"));
+        list.Add(new PermissionDef(InventoryViewPurchasePrice, "انبار — مشاهده قیمت خرید", "inventory"));
+        list.Add(new PermissionDef(InventoryViewProfit, "انبار — مشاهده سود", "inventory"));
 
         return list;
     }
@@ -302,16 +331,26 @@ public static class TarazinRoles
                 "انبار کامل + مشاهدهٔ حسابداری.", false,
                 Full("inventory").Concat(new[]
                 {
+                    TarazinPermissions.InventoryPurchase,
+                    TarazinPermissions.InventorySales,
+                    TarazinPermissions.InventoryPurchaseReturn,
+                    TarazinPermissions.InventorySalesReturn,
+                    TarazinPermissions.InventoryTransfer,
+                    TarazinPermissions.InventoryAdjustment,
+                    TarazinPermissions.InventoryStocktake,
                     TarazinPermissions.For("accounting", TarazinActions.View),
                     TarazinPermissions.For("store", TarazinActions.View),
                     TarazinPermissions.For("central", TarazinActions.View),
                 }).ToList()),
 
             new("Sales", "فروشنده",
-                "فروشگاه کامل + ثبت فاکتور طلا + مشاهده نرخ.", false,
+                "فروشگاه کامل + ثبت فاکتور فروش + مشاهده نرخ.", false,
                 Full("store").Concat(new[]
                 {
                     TarazinPermissions.StoreCategories,
+                    TarazinPermissions.InventoryUnits,
+                    TarazinPermissions.InventorySales,
+                    TarazinPermissions.InventorySalesReturn,
                     TarazinPermissions.For("goldshop", TarazinActions.View),
                     TarazinPermissions.For("goldshop", TarazinActions.Entry),
                     TarazinPermissions.For("currency", TarazinActions.View),

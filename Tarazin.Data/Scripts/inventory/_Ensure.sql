@@ -413,3 +413,437 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Movements_Company' AND object_id = OBJECT_ID(N'[inventory].[Movements]'))
     CREATE INDEX IX_Movements_Company ON [inventory].[Movements](CompanyId) WHERE CompanyId IS NOT NULL;
 GO
+-- =============================================
+-- Tarazin.Data/Scripts/inventory/_EnsurePhase1.sql
+-- Schema: inventory, store
+-- Endpoint: execute (startup)
+-- Phase 1: Items enrichment + PurchaseInvoices + SalesInvoices + Returns + Transfers + Barcodes
+-- Idempotent — safe to re-run; never drops existing data.
+-- =============================================
+
+-- ─────────────────────────────────────────────
+-- 1. Items: enrich with SKU, Barcode, Brand, Model, MinStock, MaxStock, ReorderPoint, Batch/Serial/Expiry
+-- ─────────────────────────────────────────────
+IF COL_LENGTH(N'inventory.Items', N'SKU') IS NULL
+    ALTER TABLE [inventory].[Items] ADD SKU NVARCHAR(100) NULL;
+IF COL_LENGTH(N'inventory.Items', N'Barcode') IS NULL
+    ALTER TABLE [inventory].[Items] ADD Barcode NVARCHAR(100) NULL;
+IF COL_LENGTH(N'inventory.Items', N'Brand') IS NULL
+    ALTER TABLE [inventory].[Items] ADD Brand NVARCHAR(100) NULL;
+IF COL_LENGTH(N'inventory.Items', N'Model') IS NULL
+    ALTER TABLE [inventory].[Items] ADD Model NVARCHAR(100) NULL;
+IF COL_LENGTH(N'inventory.Items', N'MinStock') IS NULL
+    ALTER TABLE [inventory].[Items] ADD MinStock DECIMAL(18,3) NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'MaxStock') IS NULL
+    ALTER TABLE [inventory].[Items] ADD MaxStock DECIMAL(18,3) NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'ReorderPoint') IS NULL
+    ALTER TABLE [inventory].[Items] ADD ReorderPoint DECIMAL(18,3) NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'HasBatch') IS NULL
+    ALTER TABLE [inventory].[Items] ADD HasBatch BIT NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'HasSerial') IS NULL
+    ALTER TABLE [inventory].[Items] ADD HasSerial BIT NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'HasExpiry') IS NULL
+    ALTER TABLE [inventory].[Items] ADD HasExpiry BIT NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'LatinTitle') IS NULL
+    ALTER TABLE [inventory].[Items] ADD LatinTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'inventory.Items', N'PurchasePrice') IS NULL
+    ALTER TABLE [inventory].[Items] ADD PurchasePrice DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'SalePrice') IS NULL
+    ALTER TABLE [inventory].[Items] ADD SalePrice DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH(N'inventory.Items', N'Description') IS NULL
+    ALTER TABLE [inventory].[Items] ADD Description NVARCHAR(500) NULL;
+IF COL_LENGTH(N'inventory.Items', N'ImageUrl') IS NULL
+    ALTER TABLE [inventory].[Items] ADD ImageUrl NVARCHAR(500) NULL;
+GO
+
+-- Index for barcode search
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Items_Barcode' AND object_id = OBJECT_ID(N'[inventory].[Items]'))
+    CREATE INDEX IX_Items_Barcode ON [inventory].[Items](Barcode) WHERE Barcode IS NOT NULL AND IsDeleted = 0;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Items_SKU' AND object_id = OBJECT_ID(N'[inventory].[Items]'))
+    CREATE INDEX IX_Items_SKU ON [inventory].[Items](SKU) WHERE SKU IS NOT NULL AND IsDeleted = 0;
+GO
+
+-- ─────────────────────────────────────────────
+-- 2. Barcodes (one item → many barcodes)
+-- ─────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'Barcodes')
+BEGIN
+    CREATE TABLE [inventory].[Barcodes] (
+        BarcodeId   INT IDENTITY(1,1) PRIMARY KEY,
+        ItemId      INT NOT NULL,
+        Barcode     NVARCHAR(100) NOT NULL,
+        IsPrimary   BIT NOT NULL DEFAULT 0,
+        IsActive    BIT NOT NULL DEFAULT 1,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_Barcodes_Items FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId)
+    );
+    CREATE UNIQUE INDEX UX_Barcodes_Code ON [inventory].[Barcodes](Barcode) WHERE IsActive = 1;
+    CREATE INDEX IX_Barcodes_Item ON [inventory].[Barcodes](ItemId);
+END
+
+-- ─────────────────────────────────────────────
+-- 3. Invoices (فاکتور یکپارچه خرید/فروش — تفکیک با OperationType)
+-- ─────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'Invoices')
+BEGIN
+    CREATE TABLE [inventory].[Invoices] (
+        InvoiceId         INT IDENTITY(1,1) PRIMARY KEY,
+        OperationType     NVARCHAR(10) NOT NULL DEFAULT N'Purchase', -- Purchase | Sales
+        InvoiceNumber     NVARCHAR(50) NOT NULL,
+        InvoiceDate       DATE NOT NULL,
+        SupplierPartyId   INT NULL,           -- خرید: تأمین‌کننده
+        SupplierName      NVARCHAR(200) NULL,
+        CustomerPartyId   INT NULL,           -- فروش: مشتری
+        CustomerName      NVARCHAR(200) NULL,
+        WarehouseId       INT NULL,
+        SubWarehouseId    INT NULL,
+        ReferenceNumber   NVARCHAR(100) NULL,
+        PaymentTerms      NVARCHAR(50) NULL,  -- Cash | Credit
+        DueDate           DATE NULL,
+        SaleType          NVARCHAR(30) NULL,  -- Retail | Wholesale | Special (فقط فروش)
+        Description       NVARCHAR(500) NULL,
+        GrossAmount       DECIMAL(18,2) NOT NULL DEFAULT 0,
+        DiscountAmount    DECIMAL(18,2) NOT NULL DEFAULT 0,
+        ChargesAmount     DECIMAL(18,2) NOT NULL DEFAULT 0,  -- freight, other charges
+        TaxAmount         DECIMAL(18,2) NOT NULL DEFAULT 0,
+        DutyAmount        DECIMAL(18,2) NOT NULL DEFAULT 0,   -- عوارض
+        NetAmount         DECIMAL(18,2) NOT NULL DEFAULT 0,
+        CostOfGoodsSold   DECIMAL(18,2) NOT NULL DEFAULT 0,   -- بهای تمام‌شده (فقط فروش)
+        GrossProfit       DECIMAL(18,2) NOT NULL DEFAULT 0,   -- سود ناخالص (فقط فروش)
+        Status            NVARCHAR(30) NOT NULL DEFAULT N'Draft', -- Draft | Pending | Approved | Posted | Cancelled
+        DocumentId        INT NULL,           -- link to accounting.Documents
+        CompanyId         INT NOT NULL,
+        FiscalYearId      INT NULL,
+        IsDeleted         BIT NOT NULL DEFAULT 0,
+        CreatedAt         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt         DATETIME2 NULL,
+        CreatedBy         NVARCHAR(100) NULL,
+        UpdatedBy         NVARCHAR(100) NULL,
+        CONSTRAINT FK_Invoices_Warehouse FOREIGN KEY (WarehouseId) REFERENCES [inventory].[Warehouses](WarehouseId),
+        CONSTRAINT FK_Invoices_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+    CREATE INDEX IX_Invoices_Type_Date ON [inventory].[Invoices](OperationType, InvoiceDate, IsDeleted);
+    CREATE INDEX IX_Invoices_Company ON [inventory].[Invoices](CompanyId) WHERE IsDeleted = 0;
+END
+GO
+
+-- ─────────────────────────────────────────────
+-- 4. InvoiceLines (اقلام فاکتور یکپارچه)
+-- ─────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'InvoiceLines')
+BEGIN
+    CREATE TABLE [inventory].[InvoiceLines] (
+        InvoiceLineId    INT IDENTITY(1,1) PRIMARY KEY,
+        InvoiceId        INT NOT NULL,
+        ItemId           INT NOT NULL,
+        UnitId           INT NULL,
+        Qty              DECIMAL(18,3) NOT NULL DEFAULT 0,
+        GiftQty          DECIMAL(18,3) NOT NULL DEFAULT 0,  -- تعداد هدیه
+        UnitPrice        DECIMAL(18,2) NOT NULL DEFAULT 0,
+        GrossAmount      DECIMAL(18,2) NOT NULL DEFAULT 0,
+        DiscountPercent  DECIMAL(5,2) NOT NULL DEFAULT 0,
+        DiscountAmount   DECIMAL(18,2) NOT NULL DEFAULT 0,
+        TaxPercent       DECIMAL(5,2) NOT NULL DEFAULT 0,
+        TaxAmount        DECIMAL(18,2) NOT NULL DEFAULT 0,
+        DutyPercent      DECIMAL(5,2) NOT NULL DEFAULT 0,
+        DutyAmount       DECIMAL(18,2) NOT NULL DEFAULT 0,
+        ChargesAmount    DECIMAL(18,2) NOT NULL DEFAULT 0,  -- prorated freight/other
+        CostPrice        DECIMAL(18,2) NOT NULL DEFAULT 0,  -- قیمت تمام‌شده قلم
+        NetAmount        DECIMAL(18,2) NOT NULL DEFAULT 0,
+        SortOrder        INT NOT NULL DEFAULT 0,
+        CONSTRAINT FK_InvoiceLines_Invoice FOREIGN KEY (InvoiceId) REFERENCES [inventory].[Invoices](InvoiceId),
+        CONSTRAINT FK_InvoiceLines_Item FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId)
+    );
+    CREATE INDEX IX_InvoiceLines_Invoice ON [inventory].[InvoiceLines](InvoiceId);
+END
+GO
+
+-- ─────────────────────────────────────────────
+-- 5. Migration: legacy split invoice tables → unified Invoices (یک‌بار اجرا)
+-- ─────────────────────────────────────────────
+IF OBJECT_ID(N'[inventory].[PurchaseInvoices]') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [inventory].[Invoices] WHERE OperationType = N'Purchase')
+BEGIN
+    -- Legacy tables carry mobile RLS policies (central.MobileCompanyPolicy_*) that
+    -- block DROP TABLE. Drop those policies first; they are rebuilt by
+    -- central._MobileSecurity.sql for the replacement tables on the next run.
+    DECLARE @LegacyPolicyName SYSNAME;
+    DECLARE legacy_policy_cur CURSOR LOCAL FAST_FORWARD FOR
+        SELECT DISTINCT sp.name
+        FROM sys.security_policies sp
+        JOIN sys.security_predicates spred ON spred.object_id = sp.object_id
+        WHERE OBJECT_NAME(spred.target_object_id) IN (
+            N'PurchaseInvoices', N'PurchaseInvoiceLines',
+            N'PurchaseReturns',  N'PurchaseReturnLines',
+            N'SalesInvoices',    N'SalesInvoiceLines',
+            N'SalesReturns',     N'SalesReturnLines');
+    OPEN legacy_policy_cur;
+    FETCH NEXT FROM legacy_policy_cur INTO @LegacyPolicyName;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        EXEC (N'DROP SECURITY POLICY [central].' + QUOTENAME(@LegacyPolicyName) + N';');
+        FETCH NEXT FROM legacy_policy_cur INTO @LegacyPolicyName;
+    END
+    CLOSE legacy_policy_cur;
+    DEALLOCATE legacy_policy_cur;
+
+    -- legacy return tables reference legacy invoice tables — drop them first
+    IF OBJECT_ID(N'[inventory].[PurchaseReturnLines]') IS NOT NULL DROP TABLE [inventory].[PurchaseReturnLines];
+    IF OBJECT_ID(N'[inventory].[PurchaseReturns]') IS NOT NULL DROP TABLE [inventory].[PurchaseReturns];
+    IF OBJECT_ID(N'[inventory].[SalesReturnLines]') IS NOT NULL DROP TABLE [inventory].[SalesReturnLines];
+    IF OBJECT_ID(N'[inventory].[SalesReturns]') IS NOT NULL DROP TABLE [inventory].[SalesReturns];
+
+    DECLARE @InvMap TABLE (OldId INT NOT NULL, NewId INT NOT NULL);
+
+    -- خرید
+    INSERT INTO [inventory].[Invoices]
+        (OperationType, InvoiceNumber, InvoiceDate, SupplierPartyId, SupplierName,
+         WarehouseId, SubWarehouseId, ReferenceNumber, PaymentTerms, DueDate, Description,
+         GrossAmount, DiscountAmount, ChargesAmount, TaxAmount, DutyAmount, NetAmount,
+         CostOfGoodsSold, GrossProfit, Status, DocumentId, CompanyId, FiscalYearId,
+         IsDeleted, CreatedAt, UpdatedAt, CreatedBy, UpdatedBy)
+    SELECT N'Purchase', InvoiceNumber, InvoiceDate, SupplierPartyId, SupplierName,
+           WarehouseId, SubWarehouseId, ReferenceNumber, PaymentTerms, DueDate, Description,
+           GrossAmount, DiscountAmount, ChargesAmount, TaxAmount, DutyAmount, NetAmount,
+           0, 0, Status, DocumentId, CompanyId, FiscalYearId,
+           IsDeleted, CreatedAt, UpdatedAt, CreatedBy, UpdatedBy
+    FROM [inventory].[PurchaseInvoices];
+
+    INSERT INTO @InvMap (OldId, NewId)
+    SELECT p.PurchaseInvoiceId, i.InvoiceId
+    FROM [inventory].[PurchaseInvoices] p
+    JOIN [inventory].[Invoices] i
+      ON i.CompanyId = p.CompanyId AND i.InvoiceNumber = p.InvoiceNumber AND i.OperationType = N'Purchase';
+
+    INSERT INTO [inventory].[InvoiceLines]
+        (InvoiceId, ItemId, UnitId, Qty, GiftQty, UnitPrice, GrossAmount,
+         DiscountPercent, DiscountAmount, TaxPercent, TaxAmount, DutyPercent, DutyAmount,
+         ChargesAmount, CostPrice, NetAmount, SortOrder)
+    SELECT m.NewId, l.ItemId, l.UnitId, l.Qty, l.GiftQty, l.UnitPrice, l.GrossAmount,
+           l.DiscountPercent, l.DiscountAmount, l.TaxPercent, l.TaxAmount, l.DutyPercent, l.DutyAmount,
+           l.ChargesAmount, l.CostPrice, l.NetAmount, l.SortOrder
+    FROM [inventory].[PurchaseInvoiceLines] l
+    JOIN @InvMap m ON m.OldId = l.PurchaseInvoiceId;
+
+    DROP TABLE [inventory].[PurchaseInvoiceLines];
+    DROP TABLE [inventory].[PurchaseInvoices];
+
+    -- فروش
+    DELETE FROM @InvMap;
+
+    INSERT INTO [inventory].[Invoices]
+        (OperationType, InvoiceNumber, InvoiceDate, SupplierPartyId, SupplierName,
+         CustomerPartyId, CustomerName, WarehouseId, SubWarehouseId, ReferenceNumber,
+         PaymentTerms, DueDate, SaleType, Description,
+         GrossAmount, DiscountAmount, ChargesAmount, TaxAmount, DutyAmount, NetAmount,
+         CostOfGoodsSold, GrossProfit, Status, DocumentId, CompanyId, FiscalYearId,
+         IsDeleted, CreatedAt, UpdatedAt, CreatedBy, UpdatedBy)
+    SELECT N'Sales', InvoiceNumber, InvoiceDate, NULL, NULL,
+           CustomerPartyId, CustomerName, WarehouseId, SubWarehouseId, ReferenceNumber,
+           PaymentTerms, DueDate, SaleType, Description,
+           GrossAmount, DiscountAmount, ChargesAmount, TaxAmount, DutyAmount, NetAmount,
+           CostOfGoodsSold, GrossProfit, Status, DocumentId, CompanyId, FiscalYearId,
+           IsDeleted, CreatedAt, UpdatedAt, CreatedBy, UpdatedBy
+    FROM [inventory].[SalesInvoices];
+
+    INSERT INTO @InvMap (OldId, NewId)
+    SELECT s.SalesInvoiceId, i.InvoiceId
+    FROM [inventory].[SalesInvoices] s
+    JOIN [inventory].[Invoices] i
+      ON i.CompanyId = s.CompanyId AND i.InvoiceNumber = s.InvoiceNumber AND i.OperationType = N'Sales';
+
+    INSERT INTO [inventory].[InvoiceLines]
+        (InvoiceId, ItemId, UnitId, Qty, GiftQty, UnitPrice, GrossAmount,
+         DiscountPercent, DiscountAmount, TaxPercent, TaxAmount, DutyPercent, DutyAmount,
+         ChargesAmount, CostPrice, NetAmount, SortOrder)
+    SELECT m.NewId, l.ItemId, l.UnitId, l.Qty, l.GiftQty, l.UnitPrice, l.GrossAmount,
+           l.DiscountPercent, l.DiscountAmount, l.TaxPercent, l.TaxAmount, l.DutyPercent, l.DutyAmount,
+           l.ChargesAmount, l.CostPrice, l.NetAmount, l.SortOrder
+    FROM [inventory].[SalesInvoiceLines] l
+    JOIN @InvMap m ON m.OldId = l.SalesInvoiceId;
+
+    DROP TABLE [inventory].[SalesInvoiceLines];
+    DROP TABLE [inventory].[SalesInvoices];
+END
+GO
+
+-- ─────────────────────────────────────────────
+-- 6. PurchaseReturns (برگشت خرید)
+-- ─────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'PurchaseReturns')
+BEGIN
+    CREATE TABLE [inventory].[PurchaseReturns] (
+        PurchaseReturnId    INT IDENTITY(1,1) PRIMARY KEY,
+        ReturnNumber        NVARCHAR(50) NOT NULL,
+        ReturnDate          DATE NOT NULL,
+        InvoiceId           INT NOT NULL,       -- original unified invoice (Purchase)
+        WarehouseId         INT NULL,
+        Description         NVARCHAR(500) NULL,
+        TotalAmount         DECIMAL(18,2) NOT NULL DEFAULT 0,
+        Status              NVARCHAR(30) NOT NULL DEFAULT N'Draft',
+        DocumentId          INT NULL,
+        CompanyId           INT NOT NULL,
+        FiscalYearId        INT NULL,
+        IsDeleted           BIT NOT NULL DEFAULT 0,
+        CreatedAt           DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt           DATETIME2 NULL,
+        CreatedBy           NVARCHAR(100) NULL,
+        UpdatedBy           NVARCHAR(100) NULL,
+        CONSTRAINT FK_PurchaseReturns_Invoice FOREIGN KEY (InvoiceId) REFERENCES [inventory].[Invoices](InvoiceId),
+        CONSTRAINT FK_PurchaseReturns_Warehouse FOREIGN KEY (WarehouseId) REFERENCES [inventory].[Warehouses](WarehouseId),
+        CONSTRAINT FK_PurchaseReturns_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+    CREATE INDEX IX_PurchaseReturns_Date ON [inventory].[PurchaseReturns](ReturnDate, IsDeleted);
+END
+GO
+
+-- PurchaseReturnLines
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'PurchaseReturnLines')
+BEGIN
+    CREATE TABLE [inventory].[PurchaseReturnLines] (
+        PurchaseReturnLineId INT IDENTITY(1,1) PRIMARY KEY,
+        PurchaseReturnId     INT NOT NULL,
+        InvoiceLineId        INT NOT NULL,       -- original line for returnable-qty check
+        ItemId               INT NOT NULL,
+        Qty                  DECIMAL(18,3) NOT NULL DEFAULT 0,
+        UnitPrice            DECIMAL(18,2) NOT NULL DEFAULT 0,
+        NetAmount            DECIMAL(18,2) NOT NULL DEFAULT 0,
+        CONSTRAINT FK_PurchaseRetLines_Return FOREIGN KEY (PurchaseReturnId) REFERENCES [inventory].[PurchaseReturns](PurchaseReturnId),
+        CONSTRAINT FK_PurchaseRetLines_InvLine FOREIGN KEY (InvoiceLineId) REFERENCES [inventory].[InvoiceLines](InvoiceLineId),
+        CONSTRAINT FK_PurchaseRetLines_Item FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId)
+    );
+    CREATE INDEX IX_PurchaseRetLines_Return ON [inventory].[PurchaseReturnLines](PurchaseReturnId);
+END
+GO
+
+-- ─────────────────────────────────────────────
+-- 7. SalesReturns (برگشت فروش)
+-- ─────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'SalesReturns')
+BEGIN
+    CREATE TABLE [inventory].[SalesReturns] (
+        SalesReturnId      INT IDENTITY(1,1) PRIMARY KEY,
+        ReturnNumber       NVARCHAR(50) NOT NULL,
+        ReturnDate         DATE NOT NULL,
+        InvoiceId          INT NOT NULL,       -- original unified invoice (Sales)
+        WarehouseId        INT NULL,
+        Description        NVARCHAR(500) NULL,
+        TotalAmount        DECIMAL(18,2) NOT NULL DEFAULT 0,
+        Status             NVARCHAR(30) NOT NULL DEFAULT N'Draft',
+        DocumentId         INT NULL,
+        CompanyId          INT NOT NULL,
+        FiscalYearId       INT NULL,
+        IsDeleted           BIT NOT NULL DEFAULT 0,
+        CreatedAt          DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt          DATETIME2 NULL,
+        CreatedBy          NVARCHAR(100) NULL,
+        UpdatedBy          NVARCHAR(100) NULL,
+        CONSTRAINT FK_SalesReturns_Invoice FOREIGN KEY (InvoiceId) REFERENCES [inventory].[Invoices](InvoiceId),
+        CONSTRAINT FK_SalesReturns_Warehouse FOREIGN KEY (WarehouseId) REFERENCES [inventory].[Warehouses](WarehouseId),
+        CONSTRAINT FK_SalesReturns_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+    CREATE INDEX IX_SalesReturns_Date ON [inventory].[SalesReturns](ReturnDate, IsDeleted);
+END
+GO
+
+-- SalesReturnLines
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'SalesReturnLines')
+BEGIN
+    CREATE TABLE [inventory].[SalesReturnLines] (
+        SalesReturnLineId INT IDENTITY(1,1) PRIMARY KEY,
+        SalesReturnId     INT NOT NULL,
+        InvoiceLineId     INT NOT NULL,
+        ItemId            INT NOT NULL,
+        Qty               DECIMAL(18,3) NOT NULL DEFAULT 0,
+        UnitPrice         DECIMAL(18,2) NOT NULL DEFAULT 0,
+        NetAmount         DECIMAL(18,2) NOT NULL DEFAULT 0,
+        CONSTRAINT FK_SalesRetLines_Return FOREIGN KEY (SalesReturnId) REFERENCES [inventory].[SalesReturns](SalesReturnId),
+        CONSTRAINT FK_SalesRetLines_InvLine FOREIGN KEY (InvoiceLineId) REFERENCES [inventory].[InvoiceLines](InvoiceLineId),
+        CONSTRAINT FK_SalesRetLines_Item FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId)
+    );
+    CREATE INDEX IX_SalesRetLines_Return ON [inventory].[SalesReturnLines](SalesReturnId);
+END
+GO
+-- ─────────────────────────────────────────────
+-- 9. WarehouseTransfers (انتقال بین انبارها)
+-- ─────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'WarehouseTransfers')
+BEGIN
+    CREATE TABLE [inventory].[WarehouseTransfers] (
+        TransferId         INT IDENTITY(1,1) PRIMARY KEY,
+        TransferNumber     NVARCHAR(50) NOT NULL,
+        TransferDate       DATE NOT NULL,
+        FromWarehouseId    INT NOT NULL,
+        ToWarehouseId      INT NOT NULL,
+        Description        NVARCHAR(500) NULL,
+        Status             NVARCHAR(30) NOT NULL DEFAULT N'Draft', -- Draft | Approved | Posted | Cancelled
+        DocumentId         INT NULL,
+        CompanyId          INT NOT NULL,
+        IsDeleted          BIT NOT NULL DEFAULT 0,
+        CreatedAt          DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt          DATETIME2 NULL,
+        CreatedBy          NVARCHAR(100) NULL,
+        UpdatedBy          NVARCHAR(100) NULL,
+        CONSTRAINT FK_Transfers_FromWh FOREIGN KEY (FromWarehouseId) REFERENCES [inventory].[Warehouses](WarehouseId),
+        CONSTRAINT FK_Transfers_ToWh FOREIGN KEY (ToWarehouseId) REFERENCES [inventory].[Warehouses](WarehouseId),
+        CONSTRAINT FK_Transfers_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+    CREATE INDEX IX_Transfers_Date ON [inventory].[WarehouseTransfers](TransferDate, IsDeleted);
+END
+GO
+
+-- TransferLines
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'TransferLines')
+BEGIN
+    CREATE TABLE [inventory].[TransferLines] (
+        TransferLineId INT IDENTITY(1,1) PRIMARY KEY,
+        TransferId     INT NOT NULL,
+        ItemId         INT NOT NULL,
+        Qty            DECIMAL(18,3) NOT NULL DEFAULT 0,
+        UnitCost       DECIMAL(18,2) NOT NULL DEFAULT 0,
+        CONSTRAINT FK_TransferLines_Transfer FOREIGN KEY (TransferId) REFERENCES [inventory].[WarehouseTransfers](TransferId),
+        CONSTRAINT FK_TransferLines_Item FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId)
+    );
+    CREATE INDEX IX_TransferLines_Transfer ON [inventory].[TransferLines](TransferId);
+END
+GO
+
+-- ─────────────────────────────────────────────
+-- 10. Multi-company scoping for new tables
+-- ─────────────────────────────────────────────
+IF COL_LENGTH(N'inventory.Invoices', N'CompanyId') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Invoices_Company')
+BEGIN
+    ALTER TABLE [inventory].[Invoices] WITH CHECK ADD CONSTRAINT FK_Invoices_Company
+        FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId);
+END
+GO
+

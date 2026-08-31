@@ -1,176 +1,172 @@
 @page "/dev/bireport"
-@using Stimulsoft.Report
-@using Stimulsoft.Report.Blazor
-@using Stimulsoft.Report.Export
-@inject BiReportService ReportService
 @inject DbService Db
+@inject PdfReportService Pdf
+@inject IPdfSaver PdfSaver
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
 
-<PageTitle>تست رندر گزارش BI</PageTitle>
+<PageTitle>تست رندر BI با موتور چاپ عمومی</PageTitle>
 
-<MudStack Spacing="3" Class="pa-4" Style="max-width:1000px;margin:auto">
-    <PageHeader Title="تست رندر گزارش (Stimulsoft)"
+<MudStack Spacing="3" Class="pa-4" Style="max-width:1100px;margin:auto">
+    <PageHeader Title="تست گزارش BI — موتور چاپ عمومی (QuestPDF)"
                 Eyebrow="توسعه و عیب‌یابی"
-                Subtitle="صفحهٔ آزمایشی: یک گزارش از دادهٔ ثابت می‌سازد و با همان Viewer تولیدی نمایش می‌دهد — بدون نیاز به ورود یا دیتابیس. هدف: دیدن خروجی واقعی رندر و فونت روی همین دستگاه (وب، ویندوز، اندروید، iOS)." />
+                Subtitle="یک گزارش از کاتالوگ BI را با دادهٔ واقعی می‌سازد، با موتور چاپ عمومی به PDF تبدیل می‌کند و فونت واقعی جاسازی‌شده در خروجی (Vazirmatn از TTF embedded) را نشان می‌دهد." />
 
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
-        فونت گزارش از فاساد <b>Stimulsoft.Drawing</b> ساخته می‌شود؛ روی ویندوز پشت آن
-        System.Drawing و روی اندروید/iOS موتور مدیریت‌شدهٔ SixLabors است. اگر متن فارسی
-        در این صفحه درست نمایش داده شد، یعنی مسیر رندر موبایل سالم است.
-        خروجی بدون لایسنس با واترمارک آزمایشی همراه است (طبیعی).
+        فونت چاپ‌ها «Vazirmatn» است که از TTF جاسازی‌شدهٔ <b>VazirmatnFontRegistrar</b> (QuestPDF) می‌آید.
+        این صفحه بایت‌های واقعی PDF را بازرسی می‌کند: اگر <code>/BaseFont</code> حاوی Vazirmatn باشد یعنی TTF embedded استفاده شده؛
+        اگر Lato/SegoeUI باشد یعنی فالتبک لاتین رخ داده است.
     </MudAlert>
 
     <MudPaper Class="pa-4" Elevation="1">
-        <MudText Typo="Typo.h6" GutterBottom="true">مشخصات میزبان و موتور رندر</MudText>
-        <MudSimpleTable Dense="true" Hover="true">
-            <tbody>
-                <tr>
-                    <td>میزبان</td>
-                    <td>@_platformLabel</td>
-                </tr>
-                <tr>
-                    <td>.NET Runtime</td>
-                    <td>@Environment.Version</td>
-                </tr>
-                <tr>
-                    <td>Stimulsoft.Drawing (فاساد cross-platform فونت)</td>
-                    <td>@_drawingAssembly</td>
-                </tr>
-                <tr>
-                    <td>StiReport (موتور رندر)</td>
-                    <td>@_reportAssembly</td>
-                </tr>
-                <tr>
-                    <td>فونت واقعی رندر (resolve شده)</td>
-                    <td>@_actualFontName</td>
-                </tr>
-            </tbody>
-        </MudSimpleTable>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="5">
+                <MudSelect T="string" Label="گزارش" @bind-Value="_selectedKey" Variant="Variant.Outlined">
+                    @foreach (var r in Reports)
+                    {
+                        <MudSelectItem Value="r.Key">@r.Title</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="2">
+                <MudDatePicker Label="تا تاریخ" Culture="FaCulture" @bind-Date="_to" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="BuildAsync" Disabled="_busy"
+                           StartIcon="@Icons.Material.Filled.FactCheck">
+                    ساخت و بررسی فونت
+                </MudButton>
+            </MudItem>
+        </MudGrid>
     </MudPaper>
-
-    <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RebuildDemoAsync" Disabled="_busy"
-                   StartIcon="@Icons.Material.Filled.Refresh">
-            ساخت دوبارهٔ گزارش آزمایشی
-        </MudButton>
-        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ExportPngAsync" Disabled="_busy || !_ready"
-                   StartIcon="@Icons.Material.Filled.Image">
-            خروجی تصویری (PNG صفحهٔ اول)
-        </MudButton>
-        @if (Db.IsConnectionAvailable)
-        {
-            <MudButton Variant="Variant.Outlined" Color="Color.Info" OnClick="BuildRealAsync" Disabled="_busy"
-                       StartIcon="@Icons.Material.Filled.Storage">
-                گزارش از دادهٔ واقعی (کیف پول ارز)
-            </MudButton>
-        }
-    </MudStack>
 
     @if (_busy)
     {
         <MudPaper Elevation="1" Class="pa-8 text-center">
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-            <MudText Typo="Typo.body2" Class="mt-3">در حال ساخت گزارش…</MudText>
+            <MudText Typo="Typo.body2" Class="mt-3">در حال ساخت گزارش و PDF…</MudText>
         </MudPaper>
     }
 
-    @if (_error is not null)
+    @if (!_busy && _error is not null)
     {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
-            خطا: @_error
-        </MudAlert>
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+                ساخت گزارش ناموفق بود: @_error
+            </MudAlert>
+        </MudPaper>
     }
 
-    @if (_ready && !_busy)
-    {
-        <StiBlazorViewer Report="@_report" Width="100%" Height="560px" />
-    }
-
-    @if (_pngDataUrl is not null)
+    @if (!_busy && _ready)
     {
         <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6" GutterBottom="true">
-                خروجی تصویری صفحهٔ اول (رندر سمت-سرور، بدون Viewer) — @_pngBytes بایت
-            </MudText>
-            <img src="@_pngDataUrl" alt="پیش‌نمایش PNG گزارش" style="max-width:100%;border:1px solid #d0d7dc;border-radius:8px" />
+            <MudText Typo="Typo.h6" GutterBottom="true">نتیجهٔ بازرسی فونت PDF (همان بایت‌های دانلودی)</MudText>
+            <MudSimpleTable Dense="true" Hover="true">
+                <tbody>
+                    <tr>
+                        <td>گزارش</td>
+                        <td>@_reportTitle</td>
+                    </tr>
+                    <tr>
+                        <td>اندازهٔ PDF</td>
+                        <td>@_pdfBytes!.Length.ToString("N0") بایت</td>
+                    </tr>
+                    <tr>
+                        <td>تعداد صفحات</td>
+                        <td>@_pageCount</td>
+                    </tr>
+                    <tr>
+                        <td>BaseFont های جاسازی‌شده</td>
+                        <td dir="ltr" style="text-align:left">@_baseFonts</td>
+                    </tr>
+                    <tr>
+                        <td>فونت واقعی رندر</td>
+                        <td>
+                            <MudText Class="@(_fontOk ? "cp-ok" : "cp-fallback")" Style="font-weight:600" Inline="false">
+                                @_fontStatus
+                            </MudText>
+                        </td>
+                    </tr>
+                </tbody>
+            </MudSimpleTable>
+            <MudStack Row="true" Spacing="2" Class="mt-4" Wrap="Wrap.Wrap">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenPrintDialogAsync"
+                           StartIcon="@Icons.Material.Filled.Print">چاپ (دیالوگ عمومی)</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync" Disabled="@_downloading"
+                           StartIcon="@Icons.Material.Filled.FileDownload">
+                    @(_downloading ? "در حال ساخت…" : "دانلود PDF")
+                </MudButton>
+            </MudStack>
         </MudPaper>
     }
 </MudStack>
 
+<style>
+    .cp-ok { color: #1b7f3b; }
+    .cp-fallback { color: #b01d28; }
+</style>
+
 @code {
-    private StiReport _report = new();
-    private bool _ready;
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+
+    private static IReadOnlyList<BiReportDefinition> Reports => BiReportCatalog.Reports;
+
+    private string _selectedKey = "wallet";
+    private DateTime? _from = DateTime.Today.AddMonths(-1);
+    private DateTime? _to = DateTime.Today;
     private bool _busy;
+    private bool _downloading;
+    private bool _ready;
     private string? _error;
-    private string? _pngDataUrl;
-    private long _pngBytes;
-    private string _platformLabel = "";
-    private string _drawingAssembly = "";
-    private string _reportAssembly = "";
-    private string _actualFontName = "—";
 
-    protected override void OnInitialized()
-    {
-        _platformLabel = OperatingSystem.IsAndroid() ? "Android"
-            : OperatingSystem.IsIOS() ? "iOS"
-            : OperatingSystem.IsMacCatalyst() ? "Mac Catalyst"
-            : OperatingSystem.IsWindows() ? "Windows (یا مرورگر — بلزور سرور)"
-            : "سایر";
-        _drawingAssembly = typeof(Stimulsoft.Drawing.Font).Assembly.GetName().Version?.ToString() ?? "?";
-        _reportAssembly = typeof(StiReport).Assembly.GetName().Version?.ToString() ?? "?";
+    private PrintTemplateDef? _tpl;
+    private PrintDataModel? _data;
+    private byte[]? _pdfBytes;
+    private int _pageCount;
+    private string _reportTitle = "";
+    private string _baseFonts = "—";
+    private string _fontStatus = "—";
+    private bool _fontOk;
 
-        // گزارش آزمایشی کاملاً هم‌زمان ساخته می‌شود (بدون I/O) تا در همان
-        // رندر اول، Viewer خالی نماند.
-        _report = ReportService.BuildDemoReport();
-        _ready = true;
-        RefreshActualFont();
-    }
-
-    private void RebuildDemoAsync() => RunSafe(() =>
-    {
-        _pngDataUrl = null;
-        _report = ReportService.BuildDemoReport();
-        _ready = true;
-        RefreshActualFont();
-    });
-
-    private void ExportPngAsync() => RunSafe(() =>
-    {
-        if (!_ready) return;
-
-        var settings = new StiImageExportSettings(StiImageType.Png)
-        {
-            PageRange = new StiPagesRange("1")
-        };
-        using var ms = new MemoryStream();
-        _report.ExportDocument(StiExportFormat.Image, ms, settings);
-
-        _pngBytes = ms.Length;
-        _pngDataUrl = "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
-    });
-
-    private async Task BuildRealAsync()
+    private async Task BuildAsync()
     {
         if (_busy) return;
         _busy = true;
         _error = null;
+        _ready = false;
         try
         {
-            var def = new BiReportDefinition(
-                "wallet", "کیف پول و موجودی ارز", "دادهٔ واقعی (اسکریپت WalletList)", "currency", "WalletList",
-                new Dictionary<string, object?> { ["FromDate"] = null, ["ToDate"] = null, ["OnlyNonZero"] = 0 },
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["CurrencyCode"] = "ارز", ["CurrencyName"] = "نام", ["Quantity"] = "موجودی",
-                    ["SystemRate"] = "نرخ سیستم", ["RialValue"] = "ارزش ریالی",
-                });
-            _pngDataUrl = null;
-            _report = await ReportService.BuildAsync(def);
+            var def = Reports.First(r => r.Key == _selectedKey);
+            _reportTitle = def.Title;
+
+            var parameters = new Dictionary<string, object?>(def.Params);
+            foreach (var key in new[] { "FromDate", "ToDate" })
+            {
+                if (parameters.ContainsKey(key))
+                    parameters[key] = key == "FromDate" ? _from : _to;
+            }
+
+            var rows = await Db.QueryAsync<dynamic>(def.Schema, def.Script, parameters);
+
+            _tpl = BiPrintFactory.BuildTemplate(def, rows.Count);
+            _data = BiPrintFactory.BuildData(def, rows, _from, _to);
+
+            // همان بایت‌هایی که «دانلود PDF»/چاپ تولید می‌کنند — بازرسی فونت از آرتیفکت واقعی.
+            var bytes = Pdf.BuildTemplatePdf(_tpl, _data);
+            _pdfBytes = bytes;
+            _pageCount = PdfReportService.CountPdfPages(bytes);
+            InspectFonts(bytes);
+
             _ready = true;
-            RefreshActualFont();
+            Snackbar.Add($"گزارش ساخته شد — {rows.Count:N0} ردیف، {_pageCount} صفحه.", Severity.Success);
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+            Snackbar.Add(ex.Message, Severity.Error);
         }
         finally
         {
@@ -178,19 +174,59 @@
         }
     }
 
-    private void RefreshActualFont()
-        => _actualFontName = BiReportService.GetActualFontName(_report) ?? "—";
-
-    private void RunSafe(Action action)
+    /// <summary>
+    /// بازرسی BaseFont های فایل PDF: اگر Vazirmatn جاسازی شده باشد یعنی TTF embedded
+    /// (VazirmatnFontRegistrar) استفاده شده؛ اگر Lato/SegoeUI باشد یعنی فالتبک لاتین.
+    /// </summary>
+    private void InspectFonts(byte[] bytes)
     {
-        _error = null;
+        var ascii = System.Text.Encoding.ASCII.GetString(bytes);
+        var baseFonts = new List<string>();
+        foreach (var line in ascii.Split('\n'))
+        {
+            var t = line.Trim();
+            if (t.StartsWith("/BaseFont", StringComparison.Ordinal))
+                baseFonts.Add(t.Split('/').LastOrDefault() ?? t);
+        }
+        _baseFonts = baseFonts.Count == 0 ? "شناسایی نشد" : string.Join("، ", baseFonts.Distinct());
+
+        var hasVazirmatn = baseFonts.Any(f => f.Contains("Vazirmatn", StringComparison.OrdinalIgnoreCase));
+        var hasFallback = baseFonts.Any(f => f.Contains("Lato", StringComparison.OrdinalIgnoreCase) || f.Contains("SegoeUI", StringComparison.OrdinalIgnoreCase));
+
+        _fontOk = hasVazirmatn && !hasFallback;
+        _fontStatus = _fontOk
+            ? "Vazirmatn — TTF جاسازی‌شده (embedded) — OK"
+            : hasFallback
+                ? $"فالتبک لاتین ({string.Join("، ", baseFonts)}) — Vazirmatn یافت نشد"
+                : hasVazirmatn
+                    ? "Vazirmatn (همراه فالتبک) — بررسی شود"
+                    : "فونت Vazirmatn در خروجی جاسازی نشده است";
+    }
+
+    private async Task OpenPrintDialogAsync()
+    {
+        if (_tpl is null || _data is null) return;
+        await Dialog.ShowAsync<TemplatePrintDialog>($"چاپ — {_reportTitle}",
+            new DialogParameters<TemplatePrintDialog>
+            {
+                { x => x.Template, _tpl }, { x => x.Data, _data }, { x => x.TemplateId, "bi." + _selectedKey }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task DownloadPdfAsync()
+    {
+        if (_pdfBytes is null) return;
+        _downloading = true;
         try
         {
-            action();
+            var sizeToken = $"{_tpl!.PaperSize}" + (_tpl.Orientation == PrintOrientation.Landscape ? "L" : "");
+            var fileName = $"{PdfFileNames.Sanitize(_reportTitle)}-{PdfFileNames.ShamsiDate(DateTime.Now)}-{sizeToken}.pdf";
+            await PdfSaver.SaveAsync(fileName, _pdfBytes);
         }
-        catch (Exception ex)
+        finally
         {
-            _error = ex.Message;
+            _downloading = false;
         }
     }
 }

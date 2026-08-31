@@ -18,8 +18,13 @@
   - Maui Windows: `dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-windows10.0.19041.0 -p:RuntimeIdentifier=win10-x64`
   - Maui Android: `dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-android -p:AndroidKeyStore=...`
   - Maui iOS: `dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-ios`
-- **Testing & CI**: `cross-schema-scan.sh` must pass; unit tests encouraged; smoke tests via manual run.
-- **FAQ & References**: See `docs/` for full layout, ADRs, and additional documentation.
+- **Testing & CI**: `cross-schema-scan.sh` must pass; unit tests encouraged; smoke tests via manual run. The one-shot gate `bash tools/run-checks.sh` runs the whole chain (scan → print-template guards → full test suite → **pymupdf guards: ۴ب RTL header, ۴ج A5L template, ۴د A5L table, ۴هـ no-header QR** → Web build → stale-build guard). The pymupdf gate is `tools/check-rtl-headers.sh` (modes `all|generic|a5l|table|noheader`), fed by the dump files the test `Dump_rtl_header_pdfs_for_pymupdf` writes to `%TEMP%/tarazin-pdf/rtl-headers` (`invoice.pdf`, `cheque.pdf`, `template.pdf`, `template-a5l.pdf`, `table.pdf`, `table-a5l.pdf`, `template-a5l-noheader.pdf`). These steps formally SKIP (exit 0) when pymupdf/dumps are missing — locally optional, in CI mandatory (Python 3.12 + pymupdf installed) where the A5L template guard also runs as its own named step (`Run A5L template guard (pymupdf — MediaBox + RTL header)` → `bash tools/check-rtl-headers.sh a5l`).
+- **FAQ & References** (developer-guide source of truth is the skill catalog in `.claude/skills/`, not this README):
+  - `.claude/skills/tarazin-development/SKILL.md` – mandatory coding guide (architecture, Data layer, RBAC, MudBlazor 9.8.0 pitfalls, golden build rule). Read before any change.
+  - `.claude/skills/tarazin-ui-ux/SKILL.md` – shared-component catalog (§2) + copy‑paste page skeletons (§3) + TarazinAccents palette + RTL/dark/responsive rules. Read before creating/editing any `.razor`.
+  - `.claude/skills/tarazin-reporting/SKILL.md` – single reporting routine (report skeleton + `ReportPrintDialog` + `BuildTablePdf` + `PdfFileNames` + `IPdfSaver`, single QuestPDF engine). Read before any report/print/PDF.
+  - `.claude/skills/windows-computer-control/SKILL.md` – `screen_windows` MCP workflow for real visual smoke/QA testing.
+  - See `docs/` for full layout, ADRs, and additional documentation.
 
 ### UI/UX component catalog (updated ۱۴۰۵/۰۶/۰۹)
 - **Mobile-first interaction layer**: `MainLayout` supports horizontal swipe gestures on the responsive drawer (48px threshold), while `app.css` provides compact navigation, touch scrolling, bounded horizontal table scrolling, no page-level horizontal overflow, full-width mobile actions, readable description columns, and compact dialogs at 480px. Full browser/device smoke testing remains environment-dependent when no interactive browser tool is available.

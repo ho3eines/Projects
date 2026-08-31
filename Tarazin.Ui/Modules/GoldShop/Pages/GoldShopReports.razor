@@ -39,7 +39,7 @@
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>مشتری</MudTh><MudTh>کالا</MudTh>
-                    <MudTh>وزن (گرم)</MudTh><MudTh>اجرت</MudTh><MudTh>سود</MudTh><MudTh>مالیات</MudTh><MudTh>جمع</MudTh>
+                    <MudTh>وزن (گرم)</MudTh><MudTh>اجرت</MudTh><MudTh>سود</MudTh><MudTh>مالیات</MudTh><MudTh>جمع</MudTh><MudTh>منبع</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="شماره">@context.InvoiceNumber</MudTd>
@@ -51,8 +51,16 @@
                     <MudTd DataLabel="سود">@context.Profit.ToString("N0")</MudTd>
                     <MudTd DataLabel="مالیات">@context.Tax.ToString("N0")</MudTd>
                     <MudTd DataLabel="جمع">@context.TotalAmount.ToString("N0")</MudTd>
+                    <MudTd DataLabel="منبع">
+                        <MudButton Variant="Variant.Text" Color="Color.Info" Size="Size.Small"
+                                   Class="px-1" Style="text-transform:none;white-space:nowrap"
+                                   OnClick="@(() => ShowSourceAsync(context))"
+                                   StartIcon="@Icons.Material.Filled.FolderOpen">
+                            @SourceReferenceLabel(context)
+                        </MudButton>
+                    </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">فاکتوری در این بازه نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="فاکتوری در این بازه ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
             @if (_sales.Count > 0)
@@ -82,7 +90,7 @@
                     <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
                     <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">قیمتی ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="قیمتی ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
             </MudTable>
         </MudPaper>
@@ -269,7 +277,8 @@
             new() { Header = "اجرت", AlignRight = true },
             new() { Header = "سود", AlignRight = true },
             new() { Header = "مالیات", AlignRight = true },
-            new() { Header = "جمع", AlignRight = true }
+            new() { Header = "جمع", AlignRight = true },
+            new() { Header = "منبع" }
         };
         var rows = _sales.Select(r => (IReadOnlyList<string>)new string[]
         {
@@ -281,12 +290,31 @@
             r.Workmanship.ToString("N0"),
             r.Profit.ToString("N0"),
             r.Tax.ToString("N0"),
-            r.TotalAmount.ToString("N0")
+            r.TotalAmount.ToString("N0"),
+            SourceReferenceLabel(r)
         }).ToList();
 
         return Pdf.BuildTablePdf("فروش روز طلا", "فاکتورهای فروش طلا و جواهرات در بازهٔ تاریخ",
             $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows,
             new[] { $"جمع فروش: {_sales.Sum(s => s.TotalAmount):N0} ریال" }, paperSize);
+    }
+
+    /// <summary>SourceReference یک فاکتور فروش — برای تعمیم «نمایش منبع قابل‌کلیک» از چک‌های خزانه.</summary>
+    private static string SourceReferenceOf(DailySaleRow row) => $"GoldInvoice:{row.InvoiceId}";
+
+    private static string SourceReferenceLabel(DailySaleRow row)
+        => Tarazin.Models.TreasurySourceLabels.For(SourceReferenceOf(row));
+
+    /// <summary>بازکردن «جزئیات منبع» فاکتور — وضوح سابقهٔ پشتنویس و سند حسابداری لینک‌شده (همان الگوی چک‌های خزانه).</summary>
+    private async Task ShowSourceAsync(DailySaleRow row)
+    {
+        var parameters = new DialogParameters<Tarazin.Modules.Treasury.Components.SourceDetailDialog>
+        {
+            { x => x.SourceReference, SourceReferenceOf(row) }
+        };
+        var dlg = await Dialog.ShowAsync<Tarazin.Modules.Treasury.Components.SourceDetailDialog>("جزئیات منبع", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        await dlg.Result;
     }
 
     private byte[] BuildPricesPdf(string paperSize)

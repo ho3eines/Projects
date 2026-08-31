@@ -17,12 +17,8 @@
     <!-- صفحهٔ /diag منبع رشتهٔ اتصال را از IConfiguration می‌خواند -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
-    <!-- چاپ و گزارش با Stimulsoft (PRD BI §121) — Viewer بلزور + موتور رندر؛
-         این نسخه (2024.3.2) تا net8.0 را پشتیبانی می‌کند (دلیل پایین آوردن
-         کل سولوشن روی net8.0). سازگار با هر دو هاست (وب + MAUI WebView).
-         لایسنس: docs/BI_MODULE.md -->
-	  <PackageReference Include="Stimulsoft.Reports.Blazor" Version="2024.3.2" />
-    <!-- PDF سمت سرور (QuestPDF) — جایگزین سبک html2pdf برای MAUI؛ در هاست وب همان‌جا روی سرور اجرا می‌شود. -->
+    <!-- PDF سمت سرور (QuestPDF) — موتور چاپ/گزارش مشترک وب + MAUI؛ همهٔ چاپ‌ها
+         (سند، فاکتور، گزارش‌ها، قالب‌ها) از این موتور استفاده می‌کنند. -->
     <PackageReference Include="QuestPDF" Version="2024.12.3" />
   </ItemGroup>
 

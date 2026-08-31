@@ -338,8 +338,17 @@ public sealed class DbService
         {
             if (_catalog.TryGet(schema, "_Ensure", out var ensure))
             {
-                await using var conn = await OpenConnectionAsync(ct);
-                await ExecuteBatchesAsync(conn, ensure, ct);
+                Console.WriteLine($"[init-ensure] {schema}");
+                try
+                {
+                    await using var conn = await OpenConnectionAsync(ct);
+                    await ExecuteBatchesAsync(conn, ensure, ct);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[init-ensure-FAIL] {schema}: {Describe(ex)}");
+                    throw;
+                }
             }
         }
     }
@@ -365,8 +374,17 @@ public sealed class DbService
         {
             if (_catalog.TryGet(schema, "_Seed", out var seed))
             {
-                await using var conn = await OpenConnectionAsync(ct);
-                await ExecuteBatchesAsync(conn, seed, ct);
+                try
+                {
+                    await using var conn = await OpenConnectionAsync(ct);
+                    await ExecuteBatchesAsync(conn, seed, ct);
+                    _logger.LogWarning("[seed-ok] {Schema} _Seed", schema);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError("[seed-fail] {Schema} _Seed: {Err}", schema, DbService.Describe(ex));
+                    throw;
+                }
             }
         }
     }

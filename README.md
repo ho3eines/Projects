@@ -3,7 +3,14 @@
 > **وضعیت:** فعال — آخرین به‌روزرسانی ۱۴۰۵/۰۵/۲۷ (2026-08-18) — نسخه 2.3
 > **معماری:** ۵ پروژهٔ تمیز با وابستگی یک‌طرفه — `Share ← Data ← Ui ← {Web, Maui}` — یک UI، دو هاست (وب + اپ بومی)
 >
-> 🧑‍💻 **توسعه‌دهنده؟ قبل از هر تغییر/دریافت پارامتر، اول `.claude/skills/tarazin-development/SKILL.md` را کامل بخوان** (اسکیل رسمی پروژه — با `/tarazin-development` هم قابل فراخوانی است) — معماری، لایهٔ داده، قواعد MudBlazor 9.8.0، دسترسی‌ها و الگوهای مودال/نوبار همه در آن سند است و هر تغییری باید مطابق آن باشد.
+> 🧑‍💻 **توسعه‌دهنده؟ قبل از هر تغییر/دریافت پارامتر، اول بخش «اسکیل‌های راهنما» پایین همین README را بخوان** — چهار اسکیل رسمی پروژه (توسعه، UI/UX، گزارش‌سازی، تست بصری ویندوز) منبع واحد الگوها و قوانین هستند و هر تغییری باید مطابق آن‌ها باشد:
+>
+> | اسکیل (SKILL.md) | موضوع | قبل از چه کاری بخوان |
+> |---|---|---|
+> | **development** | معماری، لایهٔ داده، RBAC، MudBlazor 9.8.0، الگوهای مودال/نوبار | هر تغییر کد |
+> | **ui-ux** | کاتالوگ کامپوننت‌های مشترک + اسکلت صفحه (جدول/فرم/داشبورد) | ساخت هر `.razor` |
+> | **reporting** | گزارش‌سازی، دیالوگ چاپ، خروجی PDF (QuestPDF) | ساخت گزارش/چاپ/PDF |
+> | **windows-computer-control** | تست بصری/UI-Automation ویندوز و دستگاه‌ها | تست چشمی/دستگاه |
 >
 > [![CI – main](https://github.com/ho3eines/Projects/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ho3eines/Projects/actions/workflows/ci.yml)
 > [![CI – develop](https://github.com/ho3eines/Projects/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ho3eines/Projects/actions/workflows/ci.yml)
@@ -12,21 +19,23 @@
 
 ---
 
-## ✨ چه چیزی داخل است (۹ ماژول)
+## ✨ نقشهٔ سریع — ۹ ماژول (صفحه + اسکیمهٔ SQL)
 
-| ماژول | اسکیمه | مسیر | ۴ بخش استاندارد |
-|-------|--------|------|-----------------|
-| حسابداری | `accounting` | `/accounting` | اسناد/دفتر کل/تراز/بستن دوره + درخت حساب‌ها |
-| انبار آمل | `inventory` | `/inventory` | رسید/حواله/کارتکس/انبارگردانی |
-| خزانه‌داری | `treasury` | `/treasury` | دریافت/پرداخت/گردش نقدی/نرخ ارز/بستن روز |
-| حقوق و دستمزد | `payroll` | `/payroll` | کارمندان/فیش/نهایی‌کردن دوره |
-| طلافروشی | `goldshop` | `/goldshop` | فاکتور طلا/قیمت لحظه‌ای/اجناس |
-| فروشگاه اینترنتی | `store` | `/store` | سبد/سفارش/محصولات/مشتریان |
-| **ارز و معاملات ارزی** | `currency` | `/currency` | تابلو ارز/کیف پول/خرید-فروش/تبدیل/معاملات ترکیبی/ارزش لحظه‌ای |
-| داشبورد BI | `bi` | `/bi` | ۱۴ تب اجرایی/مالی/طلا/ارز/انبار/... + هشدار + چاپ Stimulsoft |
-| پلتفرم مشترک | `central` | `/central` | کاربران/نقش‌ها/اخبار/بلاگ/گالری/ممیزی + شرکت مالی/سال مالی |
+> روی نام ماژول کلیک کن → صفحهٔ اصلی ماژول. روی اسکیمه کلیک کن → پوشهٔ اسکریپت‌های SQL همان ماژول (`Tarazin.Data/Scripts/{schema}/`). هر ماژول: `/dashboard` + `/entry` + `/special` + `/reports` + `/settings` — گزارش‌ها منبع طراحی مدل‌ها هستند (Report-first).
 
-*هر ماژول: `/dashboard` + `/entry` + `/special` + `/reports` + `/settings` — گزارش‌ها منبع طراحی مدل‌ها هستند (Report-first).*
+| ماژول | اسکیمهٔ SQL | صفحه | ۴ بخش استاندارد |
+|-------|-----------|------|-----------------|
+| [حسابداری](/accounting) | [`accounting/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/accounting) | [`/accounting`](/accounting) | اسناد/دفتر کل/تراز/بستن دوره + درخت حساب‌ها |
+| [انبار آمل](/inventory) | [`inventory/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/inventory) | [`/inventory`](/inventory) | رسید/حواله/کارتکس/انبارگردانی |
+| [خزانه‌داری](/treasury) | [`treasury/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/treasury) | [`/treasury`](/treasury) | دریافت/پرداخت/گردش نقدی/نرخ ارز/بستن روز |
+| [حقوق و دستمزد](/payroll) | [`payroll/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/payroll) | [`/payroll`](/payroll) | کارمندان/فیش/نهایی‌کردن دوره |
+| [طلافروشی](/goldshop) | [`goldshop/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/goldshop) | [`/goldshop`](/goldshop) | فاکتور طلا/قیمت لحظه‌ای/اجناس |
+| [فروشگاه اینترنتی](/store) | [`store/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/store) | [`/store`](/store) | سبد/سفارش/محصولات/مشتریان |
+| [ارز و معاملات ارزی](/currency) | [`currency/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/currency) | [`/currency`](/currency) | تابلو ارز/کیف پول/خرید-فروش/تبدیل/معاملات ترکیبی/ارزش لحظه‌ای |
+| [داشبورد BI](/bi) | [`bi/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/bi) | [`/bi`](/bi) | ۱۴ تب اجرایی/مالی/طلا/ارز/انبار/... + هشدار + چاپ گزارش (QuestPDF) |
+| [پلتفرم مشترک](/central) | [`central/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/central) | [`/central`](/central) | کاربران/نقش‌ها/اخبار/بلاگ/گالری/ممیزی + شرکت مالی/سال مالی |
+
+*اسکیمه‌های جانبی: [`printing/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/printing) (قالب‌های چاپ) و [`assets/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/assets) + [`branch/`](https://github.com/ho3eines/Projects/tree/main/Tarazin.Data/Scripts/branch) (ساختار چندشعبه‌ای BI).*
 
 **ماژول ارز (§34-§63) — درجه‌یک:**
 مرکز قیمت واحد (`PriceRates` با ۷ نرخ: آنلاین/دستی/سیستم/خرید/فروش/حسابداری/میانی)، کیف پول هر ارز، خرید/فروش هم‌زمان با طلا، معاملات ترکیبی، موتور تبدیل با کارمزد، دریافت آنلاین از `tablo tala` (ایران + جهانی) با نگاشت قابل ویرایش، ارزش لحظه‌ای کل دارایی و سود/زیان ارزی — جزئیات در `docs/CURRENCY_MODULE.md`.
@@ -162,6 +171,23 @@ Tarazin.slnx
 * `dotnet build Tarazin.Web/Tarazin.Web.csproj` — بدون خطا
 * `tools/cross-schema-scan.sh` — بدون ارجاع بین‌اسکیمه‌ای غیرمجاز
 * ورود: نام کاربری bootstrap و password تزریق‌شده از secret store → `/diag` برای عیب‌یابی امن اتصال
+
+## 🧭 اسکیل‌های راهنما (SKILL.md) — منبع اصلی قوانین کدنویسی
+
+> برای توسعه‌دهنده، **منبع راهنما در `.claude/skills/` است** (نه فقط همین README). این چهار اسکیل، قراردادهای الزامی معماری، UI و گزارش‌سازی را یک‌جا نگه می‌دارند؛ هر صفحه/داده/گزارش جدید باید مطابق آن‌ها باشد. همه از گیت در دسترس‌اند (هر یک در `.claude/skills/{name}/SKILL.md`).
+
+| اسکیل | فایل | موضوع آن | قبل از چه کاری بخوان |
+|---|---|---|---|
+| **توسعه** | `.claude/skills/tarazin-development/SKILL.md` | معماری ۵ لایه، لایهٔ داده (`DbService` + اسکریپت نامدار + اسکیمه)، RBAC، قواعد MudBlazor 9.8.0، الگوهای مودال/نوبار، قانون طلایی بیلد | هر تغییر کد |
+| **UI/UX** | `.claude/skills/tarazin-ui-ux/SKILL.md` | کاتالوگ کامپوننت‌های مشترک (`PageHeader/PageToolbar/TzDataTable/StatCard/...`)، اسکلت صفحهٔ لیست/فرم/داشبورد، پالت `TarazinAccents` و قراردادهای CSS/RTL | ساخت یا ویرایش هر صفحهٔ `.razor` |
+| **گزارش‌سازی** | `.claude/skills/tarazin-reporting/SKILL.md` | یک روال واحد برای گزارش‌ها (اسکلت صفحه + `ReportPrintDialog` + `PdfReportService.BuildTablePdf` + `PdfFileNames` + IPdfSaver)، قانون بیلد پس از تغییر گزارش | ساخت/ویرایش هر صفحهٔ گزارش، دیالوگ چاپ یا خروجی PDF |
+| **تست بصری ویندوز** | `.claude/skills/windows-computer-control/SKILL.md` | workflow اسکرین‌شات/تخته‌یui/OCR و UI-Automation برای تست چشمی و ریسپانسیو | تست چشمی/دستگاه |
+
+> 📇 **خلاصهٔ یک‌جای هر ۴ اسکیل + سناریوی استفاده:** [`docs/SKILLS_INDEX.md`](docs/SKILLS_INDEX.md).
+>
+> ⚠️ **قاعدهٔ طلایی:** اگر بین یک اسکیل و کد واقعی اختلاف دیدی، **اسکیل را به‌روز کن** نه اینکه برخلافش کد بزنی.
+
+---
 
 > **⚠️ قانون طلایی بیلد:** بعد از **هر تغییر در `Tarazin.Ui`** (رو `Tarazin.Ui` یا `Tarazin.Share`/`Tarazin.Data` اگر کد قرار است با `--no-build` اجرا شود) حتماً `dotnet build Tarazin.Web/Tarazin.Web.csproj` را بزن. `dotnet test` یا بیلدِ تکیِ `Tarazin.Ui` فقط `Tarazin.Ui/bin` را به‌روز می‌کند؛ کپیِ `Tarazin.Web/bin` **تازه نمی‌شود** و سرورِ `dotnet run --no-build` همان کد کهنه را سرو می‌کند (باگ «ستون‌ها درست شد ولی هدر نه»). تست/بیلد قبلی را پشت‌سرهم بگیر: `bash tools/run-checks.sh` (تست PDF + گارد `tools/check-stale-build.sh` + اسکن اسکیمه)
 

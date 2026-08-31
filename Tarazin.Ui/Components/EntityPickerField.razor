@@ -15,7 +15,10 @@
 @inject Tarazin.Services.EntityPickerService Picker
 
 <MudPaper Outlined="true" Class="@($"tz-entitypicker pa-3 {(Disabled ? "tz-entitypicker--disabled" : null)}")">
-    <MudGrid Spacing="2" AlignItems="AlignItems.Center">
+    @* MudGrid در MudBlazor 9 پارامتر AlignItems ندارد (MUD0002 → بی‌صدا نادیده
+       گرفته می‌شود). خودِ .mud-grid یک flex container است، پس تراز عمودی را با
+       کلاس کمکیِ align-center می‌دهیم. *@
+    <MudGrid Spacing="2" Class="align-center">
         <MudItem xs="12" sm="4" md="3">
             <MudButton Variant="Variant.Filled"
                        Color="Color.Primary"

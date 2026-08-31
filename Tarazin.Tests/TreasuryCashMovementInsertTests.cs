@@ -27,6 +27,16 @@ namespace Tarazin.Tests
                 VALUES (N'شرکت تست خزانه', 1, 0, SYSUTCDATETIME(), N'diag');
                 SELECT SCOPE_IDENTITY();");
 
+            // پاک‌سازی بقایای اجراهای قبلی که (معمولاً بعد از Crash) ناتمام مانده‌اند تا
+            // seed ایدمپوتنت شود و ایندکس‌های یکتا این چند اجرای تست را نکوبند. CASCADE باید
+            // دستی و با QUOTED_IDENTIFIER ON (sqlcmd -I) اجرا شود.
+            await cn.ExecuteAsync(@"
+                DELETE FROM treasury.CashMovements WHERE CashBoxId IN (SELECT CashBoxId FROM treasury.CashBoxes WHERE CashBoxCode=N'CB-1')
+                                           OR AccountId   IN (SELECT AccountId   FROM treasury.BankAccounts WHERE AccountNo =N'1000');
+                DELETE FROM treasury.CashBoxes     WHERE CashBoxCode=N'CB-1';
+                DELETE FROM treasury.BankAccounts  WHERE AccountNo=N'1000';
+                DELETE FROM treasury.Banks         WHERE BankCode=N'BK-TEST';");
+
             var bankId = await cn.ExecuteScalarAsync<int>(@"
                 INSERT INTO treasury.Banks (BankCode, Title, IsActive, IsDeleted) VALUES (N'BK-TEST', N'بانک تست', 1, 0);
                 SELECT SCOPE_IDENTITY();");

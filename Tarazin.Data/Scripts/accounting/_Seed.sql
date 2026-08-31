@@ -37,7 +37,19 @@ BEGIN
             (N'5000', N'هزینه حقوق',         N'Expense',  1, SYSUTCDATETIME(), @SeedCompanyId);
     END
 
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[Documents] WHERE CompanyId = @SeedCompanyId)
+    -- سند نمونهٔ Journal: گارد باید دقیقاً روی خودِ سند (CompanyId+FiscalYearId+شماره+نوع)
+    -- باشد تا idempotent بماند. گاردِ «هر سندی از شرکت» اشتباه است؛ چون وقتی شرکت
+    -- اسناد دیگری دارد (مثلاً Opening به شمارهٔ 00000001) و UX_Documents_Number روی
+    -- (شرکت+سال+شماره) بدون توجه به نوع یکتاست، درجِ دوبارهٔ 00000001 خطای duplicate می‌دهد.
+    -- گارد NULL-safe: برای شرکتی که سال مالی ندارد (@SeedFiscalYearId = NULL)،
+    -- مقایسهٔ «= NULL» همیشه false است و سند هر اجرا دوباره درج می‌شد (خطای
+    -- duplicate کلید یکتای UX_Documents_Number روی (شرکت+سال+شماره)).
+    IF NOT EXISTS (
+        SELECT 1 FROM [accounting].[Documents]
+        WHERE CompanyId = @SeedCompanyId
+          AND ((@SeedFiscalYearId IS NULL AND FiscalYearId IS NULL) OR (FiscalYearId = @SeedFiscalYearId))
+          AND DocumentNumber = N'00000001'
+          AND IsDeleted = 0)
     BEGIN
         INSERT INTO [accounting].[Documents] (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy, CompanyId, FiscalYearId)
         VALUES
@@ -45,7 +57,14 @@ BEGIN
     END
 
     -- Two balanced journal lines for the seeded document (بدهکار صندوق / بستانکار فروش).
-    IF NOT EXISTS (SELECT 1 FROM [accounting].[DocumentLines])
+    -- گارد فقط روی ردیف‌های همین سند نمونه است (نه سراسری) تا idempotent بماند.
+    -- همانطور گارد NULL-safe (مخصوص شرکت‌های بدون سال مالی).
+    IF NOT EXISTS (
+        SELECT 1 FROM [accounting].[DocumentLines] dl
+        JOIN [accounting].[Documents] d ON d.DocumentId = dl.DocumentId
+        WHERE d.CompanyId = @SeedCompanyId
+          AND ((@SeedFiscalYearId IS NULL AND d.FiscalYearId IS NULL) OR (d.FiscalYearId = @SeedFiscalYearId))
+          AND d.DocumentNumber = N'00000001')
     BEGIN
         INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
         SELECT d.DocumentId, a.AccountId, a.AccountCode, a.Title, N'درآمد فروش', 250000000, 0
@@ -187,7 +206,8 @@ BEGIN
         INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
         SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
         FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
-        WHERE d.DetilCode = N'0000001'
+        WHERE d.CompanyId = @SeedCompanyId -- شرکتِ خودِ تفصیلی (جلوگیری از انفجار چندشرکتی)
+          AND d.DetilCode = N'0000001'
           AND c.CompanyId = @SeedCompanyId
           AND c.ColCode   = N'10'
           AND m.MoeinCode = N'001'
@@ -203,7 +223,8 @@ BEGIN
         INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
         SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
         FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
-        WHERE d.DetilCode = N'0000123'
+        WHERE d.CompanyId = @SeedCompanyId -- شرکتِ خودِ تفصیلی (جلوگیری از انفجار چندشرکتی)
+          AND d.DetilCode = N'0000123'
           AND c.CompanyId = @SeedCompanyId
           AND c.ColCode   = N'10'
           AND m.MoeinCode = N'001'
@@ -219,7 +240,8 @@ BEGIN
         INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
         SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
         FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
-        WHERE d.DetilCode = N'0000456'
+        WHERE d.CompanyId = @SeedCompanyId -- شرکتِ خودِ تفصیلی (جلوگیری از انفجار چندشرکتی)
+          AND d.DetilCode = N'0000456'
           AND c.CompanyId = @SeedCompanyId
           AND c.ColCode   = N'10'
           AND m.MoeinCode = N'001'
@@ -235,7 +257,8 @@ BEGIN
         INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
         SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
         FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
-        WHERE d.DetilCode = N'0000789'
+        WHERE d.CompanyId = @SeedCompanyId -- شرکتِ خودِ تفصیلی (جلوگیری از انفجار چندشرکتی)
+          AND d.DetilCode = N'0000789'
           AND c.CompanyId = @SeedCompanyId
           AND c.ColCode   = N'10'
           AND m.MoeinCode = N'001'
@@ -251,7 +274,8 @@ BEGIN
         INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
         SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
         FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
-        WHERE d.DetilCode = N'0000123'
+        WHERE d.CompanyId = @SeedCompanyId -- شرکتِ خودِ تفصیلی (جلوگیری از انفجار چندشرکتی)
+          AND d.DetilCode = N'0000123'
           AND c.CompanyId = @SeedCompanyId
           AND c.ColCode   = N'20'
           AND m.MoeinCode = N'001'
@@ -267,7 +291,8 @@ BEGIN
         INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
         SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
         FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
-        WHERE d.DetilCode = N'0000123'
+        WHERE d.CompanyId = @SeedCompanyId -- شرکتِ خودِ تفصیلی (جلوگیری از انفجار چندشرکتی)
+          AND d.DetilCode = N'0000123'
           AND c.CompanyId = @SeedCompanyId
           AND c.ColCode   = N'30'
           AND m.MoeinCode = N'001'
@@ -283,7 +308,8 @@ BEGIN
         INSERT INTO [accounting].[BaseDetilLink] (DetilId, MoeinId, IsActive, CreatedBy, CompanyId)
         SELECT d.DetilId, m.MoeinId, 1, N'seed', @SeedCompanyId
         FROM [accounting].[BaseDetil] d, [accounting].[BaseMoein] m, [accounting].[BaseCol] c
-        WHERE d.DetilCode = N'0000002'
+        WHERE d.CompanyId = @SeedCompanyId -- شرکتِ خودِ تفصیلی (جلوگیری از انفجار چندشرکتی)
+          AND d.DetilCode = N'0000002'
           AND c.CompanyId = @SeedCompanyId
           AND c.ColCode   = N'40'
           AND m.MoeinCode = N'001'

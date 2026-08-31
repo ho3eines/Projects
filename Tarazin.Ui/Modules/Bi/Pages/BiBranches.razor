@@ -8,7 +8,7 @@
 
 <PageHeader Title="شعب" Subtitle="تعریف شعب و تحلیل فروش هر شعبه (§86–§88)."
             Eyebrow="داشبورد و BI">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="(() => OpenEditorAsync())"
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => OpenEditorAsync()"
                StartIcon="@Icons.Material.Filled.Add">
         شعبه جدید
     </MudButton>
@@ -19,27 +19,23 @@
     هنگام ثبت فاکتور، شعبه انتخاب شود تا داشبورد شعب پر شود (Backlog B14 — تکمیل فرم‌ها).
 </MudAlert>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_branches" Hover="true" Dense="true" Striped="true" Loading="_loading">
-        <HeaderContent>
-            <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>آدرس</MudTh><MudTh>مدیر</MudTh><MudTh>فعال</MudTh><MudTh>عملیات</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="کد">@context.BranchCode</MudTd>
-            <MudTd DataLabel="عنوان"><b>@context.Title</b></MudTd>
-            <MudTd DataLabel="آدرس">@context.Location</MudTd>
-            <MudTd DataLabel="مدیر">@context.Manager</MudTd>
-            <MudTd DataLabel="فعال"><StatusChip IsActive="context.IsActive" /></MudTd>
-            <MudTd DataLabel="عملیات">
-                <EntityActions OnEdit="@(() => OpenEditorAsync(context))"
-                               OnDelete="@(() => DeleteAsync(context))" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <EmptyState Title="شعبه‌ای ثبت نشده است." Description="برای شروع، یک شعبهٔ جدید اضافه کنید." Icon="@Icons.Material.Filled.Store" />
-        </NoRecordsContent>
-    </MudTable>
-</MudPaper>
+<TzDataTable T="BranchRow" Items="_branches" Loading="_loading" ShowPager="true"
+             SkeletonColumns="6" EmptyTitle="شعبه‌ای ثبت نشده است." EmptyIcon="@Icons.Material.Filled.Store">
+    <HeaderContent>
+        <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>آدرس</MudTh><MudTh>مدیر</MudTh><MudTh>فعال</MudTh><MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="کد">@item.BranchCode</MudTd>
+        <MudTd DataLabel="عنوان"><b>@item.Title</b></MudTd>
+        <MudTd DataLabel="آدرس">@item.Location</MudTd>
+        <MudTd DataLabel="مدیر">@item.Manager</MudTd>
+        <MudTd DataLabel="فعال"><StatusChip IsActive="item.IsActive" /></MudTd>
+        <MudTd DataLabel="عملیات">
+            <EntityActions EditClicked="() => OpenEditorAsync(item)"
+                           DeleteClicked="() => DeleteAsync(item)" />
+        </MudTd>
+    </RowTemplate>
+</TzDataTable>
 
 @code {
     private const string Schema = "branch";
@@ -97,4 +93,4 @@
             Snackbar.Add(ex.Message, Severity.Error);
         }
     }
-}
+}

@@ -36,7 +36,7 @@
             <MudTd DataLabel="نام">@context.EmployeeName</MudTd>
             <MudTd DataLabel="خالص پرداخت">@context.NetPay.ToString("N0")</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">دوره‌ای انتخاب نشده یا فیشی نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="فیشی برای این دوره صادر نشده است." /></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

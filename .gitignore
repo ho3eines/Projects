@@ -27,3 +27,6 @@ Tarazin.*/CrackDLL/
 
 # scratch/diagnostic files (preview logs, throwaway SQL/python)
 .freebuff/
+
+# Local Telegram agent credentials and runtime state
+.telegram-agent.env

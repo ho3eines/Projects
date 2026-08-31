@@ -150,7 +150,13 @@
                    Style="min-width:110px" Class="mr-1">
             <MudSelectItem Value="@("A4")">A4</MudSelectItem>
             <MudSelectItem Value="@("A5")">A5</MudSelectItem>
+            <MudSelectItem Value="@("A5L")">A5 افقی</MudSelectItem>
         </MudSelect>
+        <MudChip T="string" Size="Size.Small" Class="align-self-center mr-2"
+                 Color="@(_pageCount > 0 ? Color.Info : Color.Default)"
+                 Icon="@Icons.Material.Filled.Description">
+            @(_pageCount > 0 ? $"≈ {_pageCount:N0} صفحه" : "محاسبهٔ صفحه…")
+        </MudChip>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync"
                    StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync" Disabled="@_downloading"
@@ -172,6 +178,8 @@
     private List<AccountRollupRow> _moeinRows = new();
     private string _paperSize = "A4";
     private bool _downloading;
+    private int _pageCount;
+    private bool _countingPages;
 
     /// <summary>ردیف چاپ پیشرفته — یک سطح از سلسله‌مراتب کل/معین/تفصیل.</summary>
     private class DocRow
@@ -213,6 +221,7 @@
             }
             catch { /* عنوان‌ها اختیاری‌اند — جمع‌ها از ردیف‌ها محاسبه می‌شود */ }
         }
+        await UpdatePageCountAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -297,7 +306,30 @@
         _ => t ?? ""
     };
 
-    private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+    private async Task OnSizeChanged(string? size)
+    {
+        _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+        await UpdatePageCountAsync();
+    }
+
+    /// <summary>محاسبهٔ تعداد صفحهٔ PDF برای اندازهٔ فعلی — برچسب زیرانداز کاغذ.</summary>
+    private async Task UpdatePageCountAsync()
+    {
+        if (_countingPages) return;
+        _countingPages = true;
+        try
+        {
+            _pageCount = await Task.Run(() => Pdf.BuildDocumentPdfPageCount(Model, _paperSize));
+        }
+        catch
+        {
+            _pageCount = 0;
+        }
+        finally
+        {
+            _countingPages = false;
+        }
+    }
 
     private async Task DownloadPdfAsync()
     {
@@ -316,10 +348,18 @@
 
     private async Task PrintAsync()
     {
-        // چاپ از خودِ دیالوگ (window.print) تا CSS مودال/جدول MudBlazor در دسترس باشد؛
-        // اندازهٔ کاغذ (A4/A5) با کلاس gp-print-area--a5 + قانون page: در CSS تنظیم می‌شود.
-        try { await JS.InvokeVoidAsync("tarazinQr.fillAll"); } catch { }
-        await JS.InvokeVoidAsync("window.print");
+        // چاپ از همان بایت‌های PDF (QuestPDF) که «دانلود PDF» تولید می‌کند —
+        // ویوئر PDF مرورگر را باز می‌کند تا خروجی چاپ با PDF یکسان باشد.
+        _downloading = true;
+        try
+        {
+            var bytes = Pdf.BuildDocumentPdf(Model, _paperSize);
+            await JS.InvokeVoidAsync("tarazin.printPdfBytes", Convert.ToBase64String(bytes));
+        }
+        finally
+        {
+            _downloading = false;
+        }
     }
 
     private void Close() => MudDialog.Close();

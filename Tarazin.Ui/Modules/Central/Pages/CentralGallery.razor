@@ -7,34 +7,30 @@
 
 <PageHeader Title="گالری تصاویر" Subtitle="مدیریت آیتم‌های گالری وبسایت.">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGallery(nextSortOrder: NextSortOrder)))">
+               OnClick="() => OpenEditorAsync(EntityEditorModel.FromGallery(nextSortOrder: NextSortOrder))">
         آیتم جدید
     </MudButton>
 </PageHeader>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_items" Hover="true" Dense="true" Striped="true" Loading="_loading">
-        <HeaderContent>
-            <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>توضیح</MudTh><MudTh>ترتیب</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="#">@context.GalleryItemId</MudTd>
-            <MudTd DataLabel="عنوان">@context.Title</MudTd>
-            <MudTd DataLabel="توضیح">@context.Caption</MudTd>
-            <MudTd DataLabel="ترتیب">@context.SortOrder</MudTd>
-            <MudTd DataLabel="وضعیت">
-                <StatusChip IsActive="context.IsActive" />
-            </MudTd>
-            <MudTd DataLabel="عملیات">
-                <EntityActions OnEdit="@(() => OpenEditorAsync(EntityEditorModel.FromGallery(context)))"
-                               OnDelete="@(() => DeleteAsync(EntityEditorModel.FromGallery(context)))" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <EmptyState Title="آیتمی در گالری ثبت نشده است." Description="برای شروع، یک آیتم جدید اضافه کنید." Icon="@Icons.Material.Filled.Collections" />
-        </NoRecordsContent>
-    </MudTable>
-</MudPaper>
+<TzDataTable T="GalleryItemRow" Items="_items" Loading="_loading" ShowPager="true"
+             SkeletonColumns="6" EmptyTitle="آیتمی در گالری ثبت نشده است." EmptyIcon="@Icons.Material.Filled.Collections">
+    <HeaderContent>
+        <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>توضیح</MudTh><MudTh>ترتیب</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="#">@item.GalleryItemId</MudTd>
+        <MudTd DataLabel="عنوان">@item.Title</MudTd>
+        <MudTd DataLabel="توضیح">@item.Caption</MudTd>
+        <MudTd DataLabel="ترتیب">@item.SortOrder</MudTd>
+        <MudTd DataLabel="وضعیت">
+            <StatusChip IsActive="item.IsActive" />
+        </MudTd>
+        <MudTd DataLabel="عملیات">
+            <EntityActions EditClicked="() => OpenEditorAsync(EntityEditorModel.FromGallery(item))"
+                           DeleteClicked="() => DeleteAsync(EntityEditorModel.FromGallery(item))" />
+        </MudTd>
+    </RowTemplate>
+</TzDataTable>
 
 @code {
     private const string Schema = "central";
@@ -76,4 +72,4 @@
         if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
     }
-}
+}

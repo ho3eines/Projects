@@ -179,7 +179,7 @@
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+    <TableSkeleton Columns="8" Rows="8" />
 }
 else if (_report == "hierarchy" && _detailSummary is null)
 {
@@ -213,17 +213,17 @@ else if (_report == "hierarchy" && _detailSummary is null)
                 <MudTd DataLabel="مانده">@BalanceText(context.Balance)</MudTd>
                 <MudTd><MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Color="Color.Primary" Size="Size.Small" /></MudTd>
             </RowTemplate>
-            <NoRecordsContent><MudText Color="Color.Secondary">در این سطح و بازه، گردش مرتبطی وجود ندارد.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="در این سطح و بازه، گردش مرتبطی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
     </MudPaper>
 }
 else if ((_report is "detail" or "hierarchy") && _detailSummary is not null)
 {
     <MudGrid Spacing="2" Class="mb-4">
-        <StatCard Label="مانده اول دوره" Value="@BalanceText(_detailSummary.OpeningBalance)" Icon="@Icons.Material.Filled.FirstPage" Accent="#607D8B" />
-        <StatCard Label="جمع بدهکار" Value="@Money(_detailSummary.Debit)" Icon="@Icons.Material.Filled.SouthWest" Accent="#1E4B73" />
-        <StatCard Label="جمع بستانکار" Value="@Money(_detailSummary.Credit)" Icon="@Icons.Material.Filled.NorthEast" Accent="#C49A3C" />
-        <StatCard Label="مانده نهایی" Value="@BalanceText(_detailSummary.FinalBalance)" Icon="@Icons.Material.Filled.Balance" Accent="#0E4D4A" />
+        <StatCard Label="مانده اول دوره" Value="@BalanceText(_detailSummary.OpeningBalance)" Icon="@Icons.Material.Filled.FirstPage" Accent="@TarazinAccents.Slate" />
+        <StatCard Label="جمع بدهکار" Value="@Money(_detailSummary.Debit)" Icon="@Icons.Material.Filled.SouthWest" Accent="@TarazinAccents.Steel" />
+        <StatCard Label="جمع بستانکار" Value="@Money(_detailSummary.Credit)" Icon="@Icons.Material.Filled.NorthEast" Accent="@TarazinAccents.Gold" />
+        <StatCard Label="مانده نهایی" Value="@BalanceText(_detailSummary.FinalBalance)" Icon="@Icons.Material.Filled.Balance" Accent="@TarazinAccents.Ink" />
     </MudGrid>
     <MudPaper Elevation="1" Class="pa-4 mb-4">
         <div class="d-flex align-center justify-space-between flex-wrap" style="gap:8px">
@@ -258,7 +258,7 @@ else if ((_report is "detail" or "hierarchy") && _detailSummary is not null)
                 <MudTd><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@AccountingDocumentStatus.Title(context.Status)</MudChip></MudTd>
                 <MudTd><MudIcon Icon="@Icons.Material.Filled.OpenInNew" Color="Color.Primary" Size="Size.Small" /></MudTd>
             </RowTemplate>
-            <NoRecordsContent><MudText Color="Color.Secondary">در این بازه گردشی ثبت نشده است.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="در این بازه گردشی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
         <div class="d-flex align-center justify-end mt-3" style="gap:8px">
             <MudText Typo="Typo.caption">@DetailPageCaption</MudText>
@@ -332,7 +332,7 @@ else if (_report == "daily")
                 <MudTd><MudIcon Icon="@Icons.Material.Filled.OpenInNew" Color="Color.Primary" Size="Size.Small" /></MudTd>
             </RowTemplate>
             <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
-            <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="ردیفی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
     </MudPaper>
 }
@@ -349,7 +349,7 @@ else if (_report == "ledger")
                 <MudTd><MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Color="Color.Primary" Size="Size.Small" /></MudTd>
             </RowTemplate>
             <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
-            <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="ردیفی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
     </MudPaper>
 }
@@ -366,7 +366,7 @@ else
                 <MudTd><MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Color="Color.Primary" Size="Size.Small" /></MudTd>
             </RowTemplate>
             <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" /></PagerContent>
-            <NoRecordsContent><MudText Color="Color.Secondary">ردیفی نیست.</MudText></NoRecordsContent>
+            <NoRecordsContent><EmptyState Title="ردیفی ثبت نشده است." /></NoRecordsContent>
         </MudTable>
     </MudPaper>
 }
@@ -404,6 +404,7 @@ else
     private DateTime? _from;
     private DateTime? _to;
     private FiscalYearRow? _fiscalYear;
+    private CompanyAccountSettingsRow? _company;
     private int _hierarchyLevel = 1;
     private int _detailPage;
     private long _detailTotalRows;
@@ -442,6 +443,19 @@ else
         // پیش‌فرض بازهٔ تاریخ = کل بازهٔ سال مالی فعال (نه «امروز» یا «امروز منهای یک ماه»).
         if (_fiscalYear is null)
             _fiscalYear = await Context.GetActiveFiscalYearAsync();
+        // تنظیمات شرکت مالی برای سربرگ چاپ (نام/لوگو/آدرس/QR).
+        if (_company is null && Session.ActiveCompanyId > 0)
+        {
+            try
+            {
+                _company = await Db.QueryFirstOrDefaultAsync<CompanyAccountSettingsRow>("accounting",
+                    "CompanyAccountSettingsGet", new { CompanyId = Session.ActiveCompanyId });
+            }
+            catch
+            {
+                _company = null;
+            }
+        }
         if (_from is null)
             _from = _fiscalYear?.StartDate ?? DateTime.Today.AddMonths(-1);
         if (_to is null)
@@ -1120,13 +1134,20 @@ else
         string title, subtitle;
         RenderFragment body;
         Func<string, byte[]> pdf;
+        var companyName = _company?.CompanyName;
+        var companyAddress = _company?.Address;
+        var qrBase = _company?.QrBaseUrl;
+
+        string QrPayload(string key) => string.IsNullOrWhiteSpace(qrBase)
+            ? $"tarazin:report:{key}"
+            : $"{qrBase.TrimEnd('/')}/report/{key}";
 
         if (_detailSummary is not null)
         {
             title = "گردش تفصیلی";
             subtitle = $"{_detailSummary.DetilCode} — {_detailSummary.DetilTitle} (کل: {_detailSummary.ColTitle} | معین: {_detailSummary.MoeinTitle})";
             body = DetailTableBody;
-            pdf = BuildDetailPdf;
+            pdf = s => BuildDetailPdf(s, companyName, companyAddress, QrPayload("detail-ledger"));
         }
         else
         {
@@ -1134,23 +1155,23 @@ else
             {
                 case "daily":
                     title = "دفتر روزنامه"; subtitle = "روزنامهٔ کل در بازهٔ تاریخ";
-                    body = DailyTableBody; pdf = BuildDailyPdf;
+                    body = DailyTableBody; pdf = s => BuildDailyPdf(s, companyName, companyAddress, QrPayload("daily"));
                     break;
                 case "ledger":
                     title = "دفتر کل"; subtitle = "ماندهٔ حساب‌های کل در بازهٔ تاریخ";
-                    body = LedgerTableBody; pdf = BuildLedgerPdf;
+                    body = LedgerTableBody; pdf = s => BuildLedgerPdf(s, companyName, companyAddress, QrPayload("ledger"));
                     break;
                 case "trial":
                     title = "تراز آزمایشی"; subtitle = "ماندهٔ همهٔ حساب‌ها در بازهٔ تاریخ";
-                    body = TrialTableBody; pdf = BuildTrialPdf;
+                    body = TrialTableBody; pdf = s => BuildTrialPdf(s, companyName, companyAddress, QrPayload("trial"));
                     break;
                 case "detail":
                     title = "مرور گردش تفصیلی"; subtitle = "سلسله‌مراتب تفصیلی در بازهٔ تاریخ";
-                    body = DrillTableBody; pdf = BuildDrillPdf;
+                    body = DrillTableBody; pdf = s => BuildDrillPdf(s, companyName, companyAddress, QrPayload("hierarchy-drill"));
                     break;
                 default:
                     title = "مرور کل تا سند"; subtitle = "سلسله‌مراتب حساب‌ها در بازهٔ تاریخ";
-                    body = HierarchyTableBody; pdf = BuildHierarchyPdf;
+                    body = HierarchyTableBody; pdf = s => BuildHierarchyPdf(s, companyName, companyAddress, QrPayload("hierarchy"));
                     break;
             }
         }
@@ -1256,11 +1277,14 @@ else
         </RowTemplate>
     </MudTable>;
 
-    private byte[] BuildHierarchyPdf(string paperSize) => BuildHierarchyPdfCore(_hierarchy, paperSize);
+    private byte[] BuildHierarchyPdf(string paperSize, string? companyName, string? companyAddress, string? qrPayload)
+        => BuildHierarchyPdfCore(_hierarchy, paperSize, companyName, companyAddress, qrPayload);
 
-    private byte[] BuildDrillPdf(string paperSize) => BuildHierarchyPdfCore(_detilDrill, paperSize);
+    private byte[] BuildDrillPdf(string paperSize, string? companyName, string? companyAddress, string? qrPayload)
+        => BuildHierarchyPdfCore(_detilDrill, paperSize, companyName, companyAddress, qrPayload);
 
-    private byte[] BuildHierarchyPdfCore(List<AccountingHierarchyRow> rows, string paperSize)
+    private byte[] BuildHierarchyPdfCore(List<AccountingHierarchyRow> rows, string paperSize,
+        string? companyName, string? companyAddress, string? qrPayload)
     {
         var columns = new List<TableReportColumn>
         {
@@ -1276,10 +1300,11 @@ else
         }).ToList();
 
         return Pdf.BuildTablePdf("مرور کل تا سند", "سلسله‌مراتب حساب‌ها در بازهٔ تاریخ",
-            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, data, null, paperSize);
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, data, null, paperSize,
+            companyName, companyAddress, qrPayload);
     }
 
-    private byte[] BuildDailyPdf(string paperSize)
+    private byte[] BuildDailyPdf(string paperSize, string? companyName, string? companyAddress, string? qrPayload)
     {
         var columns = new List<TableReportColumn>
         {
@@ -1296,10 +1321,11 @@ else
         }).ToList();
 
         return Pdf.BuildTablePdf("دفتر روزنامه", "روزنامهٔ کل در بازهٔ تاریخ",
-            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize,
+            companyName, companyAddress, qrPayload);
     }
 
-    private byte[] BuildLedgerPdf(string paperSize)
+    private byte[] BuildLedgerPdf(string paperSize, string? companyName, string? companyAddress, string? qrPayload)
     {
         var columns = new List<TableReportColumn>
         {
@@ -1313,10 +1339,11 @@ else
         }).ToList();
 
         return Pdf.BuildTablePdf("دفتر کل", "ماندهٔ حساب‌های کل در بازهٔ تاریخ",
-            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize,
+            companyName, companyAddress, qrPayload);
     }
 
-    private byte[] BuildTrialPdf(string paperSize)
+    private byte[] BuildTrialPdf(string paperSize, string? companyName, string? companyAddress, string? qrPayload)
     {
         var columns = new List<TableReportColumn>
         {
@@ -1331,10 +1358,11 @@ else
         }).ToList();
 
         return Pdf.BuildTablePdf("تراز آزمایشی", "ماندهٔ همهٔ حساب‌ها در بازهٔ تاریخ",
-            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize);
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, null, paperSize,
+            companyName, companyAddress, qrPayload);
     }
 
-    private byte[] BuildDetailPdf(string paperSize)
+    private byte[] BuildDetailPdf(string paperSize, string? companyName, string? companyAddress, string? qrPayload)
     {
         var columns = new List<TableReportColumn>
         {
@@ -1359,6 +1387,7 @@ else
 
         return Pdf.BuildTablePdf("گردش تفصیلی",
             $"{_detailSummary?.DetilCode} — {_detailSummary?.DetilTitle} (کل: {_detailSummary?.ColTitle} | معین: {_detailSummary?.MoeinTitle})",
-            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, summary, paperSize);
+            $"از {_from:yyyy/MM/dd} تا {_to:yyyy/MM/dd}", columns, rows, summary, paperSize,
+            companyName, companyAddress, qrPayload);
     }
 }

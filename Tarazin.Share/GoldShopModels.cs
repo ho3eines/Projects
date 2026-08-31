@@ -97,7 +97,7 @@ public class GoldShopSettingsRow
     public DateTime? UpdatedAt { get; set; }
 }
 
-/// <summary>مدل چاپ فاکتور خرید/فروش طلا — ورودی ساخت گزارش Stimulsoft.</summary>
+/// <summary>مدل چاپ فاکتور خرید/فروش طلا — ورودی موتور چاپ عمومی (QuestPDF).</summary>
 public class GoldInvoicePrintModel
 {
     public string InvoiceType { get; set; } = "Sale";

@@ -42,7 +42,7 @@
                                    OnClick="@(() => LinkAsync(context))" Disabled="_busy">انتخاب</MudButton>
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Class="pa-3">موردی یافت نشد.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="موردی یافت نشد." /></NoRecordsContent>
             </MudTable>
         }
         else

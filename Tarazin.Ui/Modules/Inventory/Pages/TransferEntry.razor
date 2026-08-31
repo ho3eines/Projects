@@ -1,0 +1,152 @@
+@page "/inventory/transfer"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>انتقال بین انبارها — انبار</PageTitle>
+
+<PageHeader Title="انتقال بین انبارها" Subtitle="انتقال کالا از یک انبار به انبار دیگر با خروج خودکار از مبدأ و ورود به مقصد." />
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudDatePicker Label="تاریخ انتقال" Culture="FaCulture" @bind-Date="_transferDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="انبار مبدأ" @bind-Value="_fromWarehouseId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var w in _warehouses)
+                {
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int" Label="انبار مقصد" @bind-Value="_toWarehouseId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var w in _warehouses)
+                {
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+            <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6">اقلام انتقال</MudText>
+    <MudSimpleTable Style="overflow-x: auto;">
+        <thead>
+            <tr>
+                <th>کالا</th>
+                <th style="width:100px">تعداد</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in _lines.Select((l, i) => new { l, i }))
+            {
+                <tr>
+                    <td>
+                        <MudSelect T="int" @bind-Value="line.l.ItemId" Variant="Variant.Text" Dense="true">
+                            <MudSelectItem Value="0">—</MudSelectItem>
+                            @foreach (var it in _items)
+                            {
+                                <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Dense="true" Min="0" Variant="Variant.Text" /></td>
+                    <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new TransferLineDto()))">
+        افزودن قلم
+    </MudButton>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mt-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">
+        ثبت انتقال
+    </MudButton>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "inventory";
+
+    private List<ItemRow> _items = new();
+    private List<WarehouseRow> _warehouses = new();
+    private DateTime? _transferDate = DateTime.Today;
+    private int _fromWarehouseId;
+    private int _toWarehouseId;
+    private string _description = "";
+    private List<TransferLineDto> _lines = new() { new() };
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var companyId = Session.ActiveCompanyId;
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = companyId, Search = "" })).ToList();
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = companyId })).ToList();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (_fromWarehouseId == 0 || _toWarehouseId == 0 || _fromWarehouseId == _toWarehouseId)
+        {
+            Snackbar.Add("انبار مبدأ و مقصد باید متفاوت باشند.", Severity.Warning);
+            return;
+        }
+        if (_lines.Count == 0 || _lines.All(l => l.ItemId == 0))
+        {
+            Snackbar.Add("حداقل یک قلم الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var linesJson = JsonSerializer.Serialize(_lines.Where(l => l.ItemId > 0 && l.Qty > 0).Select(l => new
+            {
+                ItemId = l.ItemId,
+                Qty = l.Qty
+            }));
+
+            await Db.ExecuteAsync(Schema, "TransferInsert", new
+            {
+                TransferDate = _transferDate?.Date ?? DateTime.Today,
+                FromWarehouseId = _fromWarehouseId,
+                ToWarehouseId = _toWarehouseId,
+                Description = _description,
+                CompanyId = Session.ActiveCompanyId,
+                CreatedBy = Session.UserName,
+                LinesJson = linesJson
+            });
+
+            Snackbar.Add("انتقال ثبت شد.", Severity.Success);
+            _lines = new() { new() };
+            _description = "";
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public class TransferLineDto
+    {
+        public int ItemId { get; set; }
+        public decimal Qty { get; set; } = 1;
+    }
+}

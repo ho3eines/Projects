@@ -1,0 +1,148 @@
+@page "/inventory/sales-return"
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+<PageTitle>برگشت فروش — انبار</PageTitle>
+
+<PageHeader Title="ثبت برگشت فروش" Subtitle="برگشت بخشی یا کامل فاکتور فروش با اصلاح خودکار موجودی." />
+
+<MudPaper Elevation="1" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تاریخ برگشت" Culture="FaCulture" @bind-Date="_returnDate" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="int" Label="شماره فاکتور فروش" @bind-Value="_invoiceId" Variant="Variant.Outlined" Min="1" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined">
+                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
+                @foreach (var w in _warehouses)
+                {
+                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+            <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6">اقلام برگشتی</MudText>
+    <MudSimpleTable Style="overflow-x: auto;">
+        <thead>
+            <tr>
+                <th style="width:100px">شناسه قلم</th>
+                <th>کالا</th>
+                <th style="width:100px">تعداد</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in _lines.Select((l, i) => new { l, i }))
+            {
+                <tr>
+                    <td><MudNumericField T="int" @bind-Value="line.l.InvoiceLineId" Dense="true" Variant="Variant.Text" /></td>
+                    <td>
+                        <MudSelect T="int" @bind-Value="line.l.ItemId" Variant="Variant.Text" Dense="true">
+                            <MudSelectItem Value="0">—</MudSelectItem>
+                            @foreach (var it in _items)
+                            {
+                                <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Dense="true" Min="0" Variant="Variant.Text" /></td>
+                    <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new ReturnLine()))">
+        افزودن قلم
+    </MudButton>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mt-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">
+        ثبت برگشت فروش
+    </MudButton>
+</MudPaper>
+
+@code {
+    private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
+    private const string Schema = "inventory";
+    private const string ReturnType = "Sales";
+
+    private List<ItemRow> _items = new();
+    private List<WarehouseRow> _warehouses = new();
+    private DateTime? _returnDate = DateTime.Today;
+    private int _invoiceId;
+    private int _warehouseId;
+    private string _description = "";
+    private List<ReturnLine> _lines = new() { new() };
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var companyId = Session.ActiveCompanyId;
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = companyId, Search = "" })).ToList();
+        _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = companyId })).ToList();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        if (_invoiceId == 0 || _warehouseId == 0 || _lines.Count == 0)
+        {
+            Snackbar.Add("فاکتور اصلی، انبار و حداقل یک قلم الزامی است.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var linesJson = JsonSerializer.Serialize(_lines.Where(l => l.InvoiceLineId > 0 && l.Qty > 0).Select(l => new
+            {
+                InvoiceLineId = l.InvoiceLineId,
+                Qty = l.Qty
+            }));
+
+            await Db.ExecuteAsync(Schema, "ReturnInsert", new
+            {
+                ReturnType,
+                ReturnDate = _returnDate?.Date ?? DateTime.Today,
+                InvoiceId = _invoiceId,
+                WarehouseId = _warehouseId,
+                Description = _description,
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
+                CreatedBy = Session.UserName,
+                LinesJson = linesJson
+            });
+
+            Snackbar.Add("برگشت فروش ثبت شد.", Severity.Success);
+            _lines = new() { new() };
+            _description = "";
+            _invoiceId = 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public class ReturnLine
+    {
+        public int InvoiceLineId { get; set; }
+        public int ItemId { get; set; }
+        public decimal Qty { get; set; } = 1;
+    }
+}

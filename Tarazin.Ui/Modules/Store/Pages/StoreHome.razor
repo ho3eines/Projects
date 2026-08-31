@@ -57,7 +57,7 @@
                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Primary" OnClick="() => OpenDetailAsync(context)" />
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">سفارشی در این بازه نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="سفارشی در این بازه ثبت نشده است." /></NoRecordsContent>
     </MudTable>
 </MudPaper>
 

@@ -1,0 +1,82 @@
+@page "/inventory/items"
+@inject DbService Db
+@inject UserSession Session
+@inject EntityCrudService Crud
+@inject ISnackbar Snackbar
+
+<PageHeader Eyebrow="انبار" Title="کالاها" Subtitle="فهرست کالاهای شرکت فعال" />
+
+<PageToolbar AddText="کالای جدید" AddIcon="@Icons.Material.Filled.Add" OnAddClick="CreateAsync"
+             AddDisabled="@(!Session.HasPermission(ItemsEditPermission))">
+    <MudTextField @bind-Value="_search" Placeholder="جستجو در کد/عنوان/گروه..." Immediate="true"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-0" />
+</PageToolbar>
+
+<TzDataTable T="ItemRow" Items="_filtered" Loading="_loading" ShowPager="true"
+             SkeletonColumns="5" EmptyTitle="کالایی ثبت نشده است."
+             EmptyDescription="با دکمهٔ «کالای جدید» اولین کالا را بسازید.">
+    <HeaderContent>
+        <MudTh>کد</MudTh>
+        <MudTh>عنوان</MudTh>
+        <MudTh>گروه</MudTh>
+        <MudTh>وضعیت</MudTh>
+        <MudTh Style="text-align:center">عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate Context="item">
+        <MudTd DataLabel="کد" Class="tz-num">@item.ItemCode</MudTd>
+        <MudTd DataLabel="عنوان">@item.ItemTitle</MudTd>
+        <MudTd DataLabel="گروه">@(item.GroupTitle ?? item.Category)</MudTd>
+        <MudTd DataLabel="وضعیت"><StatusChip IsActive="item.IsActive" /></MudTd>
+        <MudTd DataLabel="عملیات">
+            <EntityActions EditClicked="() => EditAsync(item)"
+                           DeleteClicked="() => DeleteAsync(item)"
+                           EditDisabled="!Session.HasPermission(ItemsEditPermission)"
+                           DeleteDisabled="!Session.HasPermission(ItemsEditPermission)" />
+        </MudTd>
+    </RowTemplate>
+</TzDataTable>
+
+@code {
+    private const string Schema = "inventory";
+    private const string ItemsViewPermission = "inventory.view";
+    private const string ItemsEditPermission = "inventory.admin";
+
+    private IReadOnlyList<ItemRow> _rows = Array.Empty<ItemRow>();
+    private string _search = "";
+    private bool _loading = true;
+
+    private IReadOnlyList<ItemRow> _filtered =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _rows
+            : _rows.Where(r => (r.ItemCode ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+                            || (r.ItemTitle ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+                            || (r.Category ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try { _rows = await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Db.CurrentCompanyId }); }
+        finally { _loading = false; }
+    }
+
+    private async Task CreateAsync()
+    {
+        var model = EntityEditorModel.FromInventoryItem();
+        if (await Crud.ShowEditorAsync(model)) await ReloadAsync();
+    }
+
+    private async Task EditAsync(ItemRow row)
+    {
+        var model = EntityEditorModel.FromInventoryItem(row);
+        if (await Crud.ShowEditorAsync(model)) await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(ItemRow row)
+    {
+        var model = EntityEditorModel.FromInventoryItem(row);
+        if (await Crud.ConfirmDeleteAsync(model)) await ReloadAsync();
+    }
+}

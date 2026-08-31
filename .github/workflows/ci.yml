@@ -53,6 +53,17 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      # pymupdf برای گارد هدر راست‌چین (step 3b در run-checks.sh) لازم است:
+      # بدون آن، tools/check-rtl-headers.sh SKIP می‌شود نه Fail می‌شود. با
+      # نصب‌کردنش این‌جا، آن گام واقعاً اجرا و لوگوی هدر راست‌ترین (RTL) را
+      # روی خروجیِ PDF های برون‌ریزی‌شده (فاکتور/چک/جدول/قالب) در CI تأیید می‌کند.
+      - name: Setup Python + pymupdf (RTL header check)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pymupdf
+        run: python -m pip install --upgrade pip pymupdf
+
       # آمادگی SQL را می‌سنجد ولی job را fail نمی‌کند — خروجی ready برای
       # گام‌های شرطی DB استفاده می‌شود (SQL نبود → Skip، مثل محلی).
       - name: Wait for SQL Server (optional — DB steps skip if unavailable)
@@ -81,6 +92,15 @@ jobs:
           TARAZIN_TEST_CONN: "Server=localhost;Database=TarazinMaster;User Id=sa;Password=Tarazin#CI2026!;TrustServerCertificate=True;Encrypt=False"
         run: bash tools/run-checks.sh
 
+      # ══ گارد A5L قالب چاپ — صریح و جدا ══
+      # همان گام «۴ج» run-checks.sh که این‌جا به‌صورت یک step نام‌دار اجرا می‌شود
+      # تا در لیست job دیده شود: خروجی BuildTemplatePdf با override «A5L» باید
+      # MediaBox افقی ≈ ۵۹۵×۴۲۰ (نه پرتره و نه A4) و هدر RTL (لوگو راست‌ترین) داشته
+      # باشد. به فایل‌های dump تولیدشدهٔ step «Run full check gate» و pymupdf
+      # نصب‌شدهٔ بالا وابسته است؛ بدون آن‌ها SKIP می‌شود نه Fail.
+      - name: Run A5L template guard (pymupdf — MediaBox + RTL header)
+        run: bash tools/check-rtl-headers.sh a5l
+
       # ══ step شرطی DB (ادغامِ job سابق db-guards) ══
       # اسکیمای واقعی از روی _Ensure های منبع (idempotent) — معادل init هاست
       - name: Initialize schemas from source (_Ensure, idempotent)
@@ -100,10 +120,10 @@ jobs:
           done
           echo "All schemas initialized"
 
-      - name: Run DB-backed guards (print templates + close year)
+      - name: Run DB-backed guards (print templates + close year + multi-invoice gate)
         if: steps.wait-sql.outputs.ready == 'true'
         env:
           TARAZIN_TEST_CONN: "Server=localhost;Database=TarazinMaster;User Id=sa;Password=Tarazin#CI2026!;TrustServerCertificate=True;Encrypt=False"
         run: |
           dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo \
-            --filter "FullyQualifiedName~PrintTemplate|FullyQualifiedName~AccountingCloseYearTests"
+            --filter "FullyQualifiedName~PrintTemplate|FullyQualifiedName~AccountingCloseYearTests|FullyQualifiedName~MultiInvoiceGateTests"

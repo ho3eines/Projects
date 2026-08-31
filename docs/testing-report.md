@@ -30,7 +30,7 @@
 
 اسکریپت‌های کمکی در `tools/`:
 `ocr_text.py`, `nav.py`, `test_modules.py`, `capture_to_file.py`, `png_teal_scan.py`, `png_boxes.py`,
-`run-checks.sh` (gate خودکار ۶ گامی)، `refresh-test-report.sh` (بازنویسی خودکار بخش نتایج gate در گزارش).
+`run-checks.sh` (gate خودکار: اسکن کراس‌اسکیما → گاردهای قالب چاپ → گارد برچسب منبع → کل سویت تست → **گاردهای pymupdf ۴ب هدر راست‌چین و ۴ج A5L قالب چاپ** → بیلد وب → گارد stale)، `refresh-test-report.sh` (بازنویسی خودکار بخش نتایج gate در گزارش).
 
 ---
 
@@ -159,11 +159,11 @@
 ## ۱۰. نتایج آخرین اجرای gate خودکار
 
 <!-- AUTO-GATE:START -->
-#### نتایج آخرین اجرای gate خودکار — 2026-08-30 18:44
+#### نتایج آخرین اجرای gate خودکار — 2026-08-31 06:30
 - وضعیت: **✅ پاس**
-- مجموع تست‌ها: **51**
-- موفقی: **51** | ناموفق: **0**
-- خلاصهٔ dotnet test: `Passed!  - Failed:     0, Passed:    51, Skipped:     0, Total:    51, Duration: 10 s - Tarazin.Tests.dll (net8.0)`
-- این بخش به‌صورت خودکار توسط `tools/run-checks.sh` (step ۶) از خروجی واقعی بازنویسی می‌شود؛ عدد‌های بخش‌های ۵.۴–۵.۶ دستی‌اند الهام از همین اجرا.
+- مجموع تست‌ها: **63**
+- موفقی: **63** | ناموفق: **0**
+- خلاصهٔ dotnet test: `Passed!  - Failed:     0, Passed:    63, Skipped:     0, Total:    63, Duration: 5 s - Tarazin.Tests.dll (net8.0)`
+- این بخش به‌صورت خودکار توسط `tools/run-checks.sh` (step ۷) از خروجی واقعی بازنویسی می‌شود؛ عدد‌های بخش‌های ۵.۴–۵.۶ دستی‌اند الهام از همین اجرا. گاردهای pymupdf (۴ب هدر راست‌چین، ۴ج A5L قالب، ۴د A5L جدول عمومی/BuildTablePdf، ۴هـ بدون هدر/QR مستقل، ۴و چندصفحه‌گی BuildTablePdf، ۴ز A5L چندصفحه BuildInvoicePdf) در CI نصب‌شده‌اند و به‌صورت واقعی اجرا می‌شوند؛ گارد A5L قالب (۴ج) آن‌جا step جدا و نام‌دار است (`Run A5L template guard` → `bash tools/check-rtl-headers.sh a5l`). ورودی همه، فایل‌های dump تست `Dump_rtl_header_pdfs_for_pymupdf` در `%TEMP%/tarazin-pdf/rtl-headers` است.
 
 <!-- AUTO-GATE:END -->

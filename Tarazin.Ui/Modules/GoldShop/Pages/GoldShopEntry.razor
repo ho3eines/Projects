@@ -133,7 +133,7 @@
                         <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.Remove(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText>ریزی ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="ریزی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
 
             <MudGrid Spacing="2">

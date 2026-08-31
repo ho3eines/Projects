@@ -91,8 +91,8 @@
                 <MudPaper Elevation="1" Class="pa-2 tz-charttree">
                     @if (_loading)
                     {
-                        <div class="pa-4 d-flex justify-center">
-                            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                        <div class="pa-2">
+                            <TableSkeleton Columns="3" Rows="8" />
                         </div>
                     }
                     @if (_searchResults.Count > 0 && !string.IsNullOrEmpty(_search))

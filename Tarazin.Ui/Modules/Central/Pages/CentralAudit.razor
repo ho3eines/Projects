@@ -73,7 +73,7 @@
             <MudTd DataLabel="تاریخ">@context.CreatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
             <MudTd DataLabel="هش" Style="direction:ltr; font-size:.7rem">@context.RowHash[..Math.Min(12, context.RowHash.Length)]…</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">رویدادی نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="رویدادی ثبت نشده است." /></NoRecordsContent>
     </MudTable>
 
     <MudGrid Class="mt-2">

@@ -43,6 +43,7 @@ window.tarazin.printHtml = function (html, title) {
 
         // صبر تا فونت و CSS لود شوند، سپس چاپ
         const win = frame.contentWindow;
+        const doPrint = function () {
             // در WebView/headless بدون دیالوگ چاپ، window.print مسدود می‌شود —
             // اگر صفحه از پیش اعلام کرده که print را هندل می‌کند (stub)، از آن استفاده کن.
             const fn = (typeof window.tarazinPrintOverride === 'function')
@@ -63,23 +64,75 @@ window.tarazin.printHtml = function (html, title) {
 
 // دانلود بایت‌های PDF ساخته‌شده توسط PdfReportService (QuestPDF) به‌صورت بلاب —
 // روی وب (Blazor Server) و WebView هر دو کار می‌کند؛ بدون دیالوگ پرینتر.
+//
+// ضد-تکرار: همهٔ درخواست‌های دانلود از یک صف سریالی می‌گذرند تا دو کلیک متوالی هم‌زمان
+// (در WebView پیش‌نمایش یا مرورگر واقعی) بایکدیگر تداخل نکنند و نام فایل را خراب نکنند
+// (مشکل «فایل فقط و.pdf می‌شود» که از race دو دانلود موازی ناشی بود).
+// - اگر هم‌زمان دو دانلود با همان نام درخواست شود، دومی dedupe می‌شود (نادیده) چون
+//   خروجی بایتی یکسانی دارد و فقط یک فایل برای همان نام کافی است.
+// - در غیر این صورت درخواست صف می‌شود و پس از پایان قبلی اجرا می‌شود؛ برنگشت داده نمی‌شود.
+window.tarazin._downloadQueue = window.tarazin._downloadQueue || Promise.resolve();
+window.tarazin._lastDownloadName = null;
 window.tarazin.downloadPdfBytes = async function (fileName, base64) {
+    const file = fileName || 'document.pdf';
+    // dedupe: همان نام هنوز در حال دانلود/در صف است — بیت‌ها یکسان‌اند، رد کن.
+    if (window.tarazin._lastDownloadName === file) return true;
+
+    const run = async function () {
+        try {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 3000);
+            return true;
+        } catch (e) {
+            console.error('downloadPdfBytes failed', e);
+            return false;
+        }
+    };
+
+    // نام فعلی ثبت می‌شود تا dedupe همان کلیکِ الکی تکراری را بگیرد.
+    window.tarazin._lastDownloadName = file;
+    window.tarazin._downloadQueue = window.tarazin._downloadQueue.then(run, run);
+    try { return await window.tarazin._downloadQueue; }
+    finally { window.tarazin._lastDownloadName = null; }
+};
+
+// چاپ از همان بایت‌های PDF (QuestPDF) — ویوئر PDF مرورگر را در تب جدید باز می‌کند تا
+// خروجی چاپ دقیقاً همان خروجی «دانلود PDF» باشد (بدون هیچ اختلاف HTML/PDF).
+// روی دسکتاپ تب جدید باز می‌شود؛ در WebView/headless به iframe مخفی با window.print فالبک می‌کند.
+window.tarazin.printPdfBytes = function (base64) {
     try {
         const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         const blob = new Blob([bytes], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        const w = window.open(url, '_blank');
+        if (w) {
+            // تب جدید ویوئر PDF مرورگر را نشان می‌دهد؛ کاربر از همانجا چاپ می‌کند.
+            setTimeout(() => URL.revokeObjectURL(url), 120000);
+            return true;
+        }
+        // پاپ‌آپ مسدود شد (WebView/headless) — چاپ مستقیم از iframe مخفی.
+        const frame = document.createElement('iframe');
+        frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+        frame.src = url;
+        document.body.appendChild(frame);
+        frame.onload = function () {
+            try { frame.contentWindow.print(); } catch (e) { console.error('iframe print failed', e); }
+        };
+        setTimeout(() => { try { frame.remove(); } catch (e) {} }, 60000);
         return true;
     } catch (e) {
-        console.error('downloadPdfBytes failed', e);
+        console.error('printPdfBytes failed', e);
         return false;
     }
 };

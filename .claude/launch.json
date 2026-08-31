@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tarazin-web",
+      "runtimeExecutable": "D:/Hermes/tarazin-preview/web/Tarazin.Web.exe",
+      "runtimeArgs": [
+        "--environment",
+        "Development",
+        "--contentRoot",
+        "D:/Hermes/tarazin-preview/web",
+        "--urls",
+        "https://localhost:65320;http://localhost:65321",
+        "--Tarazin:HttpsPort=65320"
+      ],
+      "port": 65321,
+      "autoPort": false,
+      "url": "http://localhost:65321"
+    }
+  ]
+}

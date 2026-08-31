@@ -65,7 +65,7 @@
                 <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Posted" ? Color.Success : Color.Default)">@context.Status</MudChip>
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">حرکتی در این بازه نیست.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="حرکتی در این بازه ثبت نشده است." /></NoRecordsContent>
         <PagerContent><MudTablePager PageSizeOptions="(new int[] { 25, 50, 100 })" /></PagerContent>
     </MudTable>
 </MudPaper>
