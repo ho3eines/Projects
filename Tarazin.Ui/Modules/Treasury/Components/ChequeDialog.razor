@@ -11,14 +11,17 @@
                                   RequiredError="شماره چک الزامی است." Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="int?" Label="بانک" @bind-Value="_bankId" Variant="Variant.Outlined" Required="true"
-                               RequiredError="بانک الزامی است.">
-                        <MudSelectItem Value="@((int?)null)">— انتخاب بانک —</MudSelectItem>
-                        @foreach (var b in _banks)
-                        {
-                            <MudSelectItem Value="@((int?)b.BankId)">@b.Title</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <EntityPickerField T="BankRow"
+                                   @bind-Value="_selectedBank"
+                                   Options="_bankOptions"
+                                   ButtonLabel="انتخاب بانک"
+                                   ButtonIcon="@Icons.Material.Filled.AccountBalance"
+                                   Display="@(b => b.Title)"
+                                   EmptyText="بانک انتخاب نشده است." />
+                @if (_selectedBank is null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Error">بانک الزامی است.</MudText>
+                }
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudSelect T="string" Label="جهت" @bind-Value="_direction" Variant="Variant.Outlined">
@@ -47,8 +50,20 @@
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     private List<BankRow> _banks = new();
+    private BankRow? _selectedBank;
+    private EntityPickerOptions<BankRow> _bankOptions = new()
+    {
+        Title = "انتخاب بانک",
+        SearchPlaceholder = "جستجوی نام بانک...",
+        Columns = new()
+        {
+            new("کد", b => b.BankCode),
+            new("عنوان", b => b.Title),
+        },
+        DisplayText = b => b.Title,
+        RowsPerPage = 10,
+    };
     private string _number = "";
-    private int? _bankId;
     private string _direction = "In";
     private decimal _amount;
     private DateTime? _dueDate = DateTime.Today;
@@ -79,7 +94,7 @@
             await Db.ExecuteAsync("treasury", "ChequeInsert", new
             {
                 ChequeNumber = _number.Trim(),
-                BankId = _bankId,
+                BankId = _selectedBank?.BankId,
                 Amount = _amount,
                 DueDate = _dueDate?.Date,
                 Direction = _direction,

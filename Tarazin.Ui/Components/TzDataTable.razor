@@ -1,0 +1,59 @@
+@typeparam T
+@namespace Tarazin.Components
+
+@* ─────────────────────────────────────────────────────────────
+   TzDataTable<T> — پوچ مشترک جدول‌ها
+   ─────────────────────────────────────────────────────────────
+   همهٔ جدول‌های پروژه باید از این کامپوننت استفاده کنند تا
+   chrome (کاغذ)، skeleton بارگذاری، empty state و pager در یک‌جا
+   یکدست بمانند. RowTemplate و HeaderContent را پاس بدهید.
+*@<MudPaper Elevation="1" Class="@(string.IsNullOrWhiteSpace(Class) ? "pa-4" : $"pa-4 {Class}")">
+    @if (Loading)
+    {
+        <TableSkeleton Columns="SkeletonColumns" Rows="SkeletonRows" />
+    }
+    else
+    {
+        <MudTable Items="Items" Hover="true" Dense="true" Striped="true"
+                  RowsPerPage="RowsPerPage" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>@HeaderContent</HeaderContent>
+            <RowTemplate Context="item">@RowTemplate(item)</RowTemplate>
+            <NoRecordsContent>
+                <EmptyState Title="@EmptyTitle" Description="@EmptyDescription" Icon="@EmptyIcon" />
+            </NoRecordsContent>
+            <PagerContent>
+                @if (ShowPager)
+                {
+                    <MudTablePager PageSizeOptions="@(new int[] { 25, 50, 100 })" />
+                }
+            </PagerContent>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    /// <summary>ردیف‌های جدول؛ null یعنی هنوز بارگذاری نشده (اسکلتون نمایش داده می‌شود).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<T>? Items { get; set; }
+
+    /// <summary>وضعیت بارگذاری — true یعنی اسکلتون به‌جای جدول نمایش داده شود.</summary>
+    [Parameter] public bool Loading { get; set; }
+
+    [Parameter, EditorRequired] public RenderFragment HeaderContent { get; set; } = default!;
+    [Parameter, EditorRequired] public RenderFragment<T> RowTemplate { get; set; } = default!;
+
+    /// <summary>عنوان empty state (مثلاً «محصولی ثبت نشده است.»).</summary>
+    [Parameter] public string EmptyTitle { get; set; } = "داده‌ای برای نمایش وجود ندارد.";
+    [Parameter] public string? EmptyDescription { get; set; }
+    [Parameter] public string EmptyIcon { get; set; } = Icons.Material.Filled.Inbox;
+
+    /// <summary>Pager را فقط وقتی ردیف‌ها زیادند روشن کنید (پیش‌فرض: خاموش).</summary>
+    [Parameter] public bool ShowPager { get; set; }
+    [Parameter] public int RowsPerPage { get; set; } = 25;
+
+    /// <summary>تعداد ستون/ردیف اسکلتون بارگذاری (حدوداً برابر ستون‌های واقعی).</summary>
+    [Parameter] public int SkeletonColumns { get; set; } = 4;
+    [Parameter] public int SkeletonRows { get; set; } = 6;
+
+    /// <summary>کلاس اضافی روی MudPaper بیرونی (مثلاً mb-4).</summary>
+    [Parameter] public string? Class { get; set; }
+}

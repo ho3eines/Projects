@@ -22,26 +22,22 @@
             <MudNumericField T="decimal" Label="مبلغ" @bind-Value="_amount" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="صندوق / حساب بانکی" @bind-Value="_accountId" Variant="Variant.Outlined">
-                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
-                @foreach (var c in _cashBoxes)
-                {
-                    <MudSelectItem Value="c.CashBoxId">صندوق: @c.Title</MudSelectItem>
-                }
-                @foreach (var b in _bankAccounts)
-                {
-                    <MudSelectItem Value="b.AccountId">بانک: @b.AccountName</MudSelectItem>
-                }
-            </MudSelect>
+            <EntityPickerField T="TreasuryAccountOption"
+                               @bind-Value="_account"
+                               Options="_accountOptions"
+                               ButtonLabel="صندوق / حساب بانکی"
+                               ButtonIcon="@Icons.Material.Filled.AccountBalanceWallet"
+                               Display="@(a => a.Label)"
+                               EmptyText="صندوق یا حساب بانکی انتخاب نشده است." />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="طرف حساب (اختیاری)" @bind-Value="_partyId" Variant="Variant.Outlined">
-                <MudSelectItem Value="0">— بدون طرف حساب —</MudSelectItem>
-                @foreach (var p in _parties)
-                {
-                    <MudSelectItem Value="p.PartyId">@(p.PartyType == "Vendor" ? "تأمین‌کننده" : "مشتری"): @p.FullName</MudSelectItem>
-                }
-            </MudSelect>
+            <EntityPickerField T="TreasuryPartyRow"
+                               @bind-Value="_party"
+                               Options="_partyOptions"
+                               ButtonLabel="طرف حساب (اختیاری)"
+                               ButtonIcon="@Icons.Material.Filled.PeopleAlt"
+                               Display="@(p => (p.PartyType == "Vendor" ? "تأمین‌کننده" : "مشتری") + ": " + p.FullName)"
+                               EmptyText="بدون طرف حساب — برای انتخاب کلیک کنید." />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
             <MudTextField Label="شرح" @bind-Value="_description" Variant="Variant.Outlined" />
@@ -62,17 +58,48 @@
     private static readonly CultureInfo FaCulture = CultureInfo.GetCultureInfo("fa-IR");
     private const string Schema = "treasury";
 
+    /// <summary>گزینهٔ مشترک صندوق/حساب بانکی برای EntityPickerField.</summary>
+    private sealed record TreasuryAccountOption(int Id, string Label, bool IsCashBox);
+
     private List<CashBoxRow> _cashBoxes = new();
     private List<BankAccountRow> _bankAccounts = new();
     private List<TreasuryPartyRow> _parties = new();
+    private TreasuryAccountOption? _account;
+    private TreasuryPartyRow? _party;
     private string _direction = "In";
     private DateTime? _date = DateTime.Today;
     private decimal _amount;
-    private int _accountId;
-    private int _partyId;
     private string _description = "";
     private string _reference = "";
     private bool _busy;
+
+    private EntityPickerOptions<TreasuryAccountOption> _accountOptions = new()
+    {
+        Title = "انتخاب صندوق / حساب بانکی",
+        SearchPlaceholder = "جستجوی صندوق یا بانک...",
+        Columns = new()
+        {
+            new("نوع", a => a.IsCashBox ? "صندوق" : "بانک"),
+            new("عنوان", a => a.Label),
+        },
+        DisplayText = a => a.Label,
+        RowsPerPage = 10,
+    };
+
+    private EntityPickerOptions<TreasuryPartyRow> _partyOptions = new()
+    {
+        Title = "انتخاب طرف حساب",
+        SearchPlaceholder = "جستجوی نام یا کد طرف حساب...",
+        Columns = new()
+        {
+            new("کد", p => p.PartyCode),
+            new("نوع", p => p.PartyType == "Vendor" ? "تأمین‌کننده" : "مشتری"),
+            new("نام", p => p.FullName),
+            new("تلفن", p => p.Phone ?? ""),
+        },
+        DisplayText = p => p.FullName,
+        RowsPerPage = 10,
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -86,12 +113,17 @@
             SkipRows = 0,
             TakeSize = 200
         })).ToList();
+
+        _accountOptions.Items = _cashBoxes.Select(c => new TreasuryAccountOption(c.CashBoxId, "صندوق: " + c.Title, true))
+                .Concat(_bankAccounts.Select(b => new TreasuryAccountOption(b.AccountId, "بانک: " + b.AccountName, false)))
+                .ToList();
+        _partyOptions.Items = _parties;
     }
 
     private async Task SaveAsync()
     {
         if (_busy) return;
-        if (_accountId == 0 || _amount <= 0)
+        if (_account is null || _amount <= 0)
         {
             Snackbar.Add("صندوق/بانک و مبلغ معتبر الزامی است.", Severity.Warning);
             return;
@@ -100,27 +132,27 @@
         _busy = true;
         try
         {
-            var cash = _cashBoxes.FirstOrDefault(c => c.CashBoxId == _accountId);
+            var cash = _cashBoxes.FirstOrDefault(c => c.CashBoxId == _account!.Id);
             await Db.ExecuteAsync(Schema, "CashMovementInsert", new
             {
                 Direction = _direction,
                 Amount = _amount,
                 CurrencyCode = "IRR",
                 CashBoxId = cash?.CashBoxId,
-                AccountId = cash is null ? _accountId : (int?)null,
+                AccountId = cash is null ? _account!.Id : (int?)null,
                 MovementDate = _date?.Date ?? DateTime.Today,
                 Description = _description,
                 SourceReference = _reference,
                 CreatedBy = Session.UserName,
                 CompanyId = Session.ActiveCompanyId,
                 FiscalYearId = Session.ActiveFiscalYearId,
-                PartyId = _partyId == 0 ? (int?)null : _partyId
+                PartyId = _party?.PartyId
             });
             Snackbar.Add("حرکت نقدی ثبت شد.", Severity.Success);
             _amount = 0;
             _description = "";
             _reference = "";
-            _partyId = 0;
+            _party = null;
         }
         catch (Exception ex)
         {

@@ -1,16 +1,20 @@
 @namespace Tarazin.Components
 
 <MudPaper Class="tz-empty-state pa-6" Elevation="0" Outlined="true">
-    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="1">
-        <MudIcon Icon="@Icon" Color="Color.Secondary" Size="Size.Large" />
-        <MudText Typo="Typo.subtitle1">@Title</MudText>
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="2">
+        <div class="tz-empty-state__icon" aria-hidden="true">
+            <MudIcon Icon="@Icon" Color="Color.Secondary" Size="Size.Large" />
+        </div>
+        <div class="text-center">
+            <MudText Typo="Typo.subtitle1">@Title</MudText>
+        </div>
         @if (!string.IsNullOrWhiteSpace(Description))
         {
-            <MudText Typo="Typo.body2" Color="Color.Secondary">@Description</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center tz-empty-state__desc">@Description</MudText>
         }
         @if (ChildContent is not null)
         {
-            <MudStack Row="true" Class="mt-2">
+            <MudStack Row="true" Class="mt-1 tz-empty-state__actions">
                 @ChildContent
             </MudStack>
         }

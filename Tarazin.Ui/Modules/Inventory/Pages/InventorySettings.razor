@@ -27,7 +27,7 @@
                                        DeleteClicked="@(() => DeleteGroupAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">گروهی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="گروهی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -49,7 +49,7 @@
                                        DeleteClicked="@(() => DeleteUnitAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">واحدی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="واحدی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -73,7 +73,7 @@
                                        DeleteClicked="@(() => DeleteItemAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">کالایی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="کالایی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -96,7 +96,7 @@
                                        DeleteClicked="@(() => DeleteWarehouseAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">انباری نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="انباری ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -120,7 +120,7 @@
                                        DeleteClicked="@(() => DeleteSubWarehouseAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">انبارکی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="انبارکی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

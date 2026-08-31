@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<EntityCrudService>();
         services.AddScoped<BiReportService>();   // چاپ و گزارش با Stimulsoft (BI)
         services.AddScoped<AccountPickerService>(); // انتخاب حساب (Account Picker)
+        services.AddScoped<EntityPickerService>();  // pemilih entiti generik (bank/pelanggan/produk/dll)
 
         // PDF سمت سرور (QuestPDF) — موتور مشترک وب + MAUI. ذخیره‌کننده (IPdfSaver)
         // را هاست ثبت می‌کند (وب: WebPdfSaver، MAUI: MauiPdfSaver).

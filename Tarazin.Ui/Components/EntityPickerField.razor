@@ -1,0 +1,95 @@
+@* ─────────────────────────────────────────────────────────────
+   EntityPickerField<T> — فیلد فرم عمومی برای انتخاب موجودیت
+   ─────────────────────────────────────────────────────────────
+   الگوی AccountPickerField تعمیم‌یافته: دکمهٔ انتخاب + نمایش
+   انتخاب فعلی + دکمهٔ پاک کردن. برای بانک، مشتری، طرف حساب،
+   کالا، جنس طلا و هر موجودیت دیگر استفاده شود.
+
+   استفاده:
+     <EntityPickerField T="BankRow"
+                        @bind-Value="_selectedBank"
+                        Options="_bankOptions"
+                        ButtonLabel="انتخاب بانک" />
+*@
+@typeparam T
+@inject Tarazin.Services.EntityPickerService Picker
+
+<MudPaper Outlined="true" Class="@($"tz-entitypicker pa-3 {(Disabled ? "tz-entitypicker--disabled" : null)}")">
+    <MudGrid Spacing="2" AlignItems="AlignItems.Center">
+        <MudItem xs="12" sm="4" md="3">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@ButtonIcon"
+                       OnClick="OpenAsync"
+                       Disabled="@(Disabled || _busy)"
+                       FullWidth="true">
+                @ButtonLabel
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="8" md="9">
+            @if (Value is null)
+            {
+                <MudText Color="Color.Secondary" Typo="Typo.body2">@EmptyText</MudText>
+            }
+            else
+            {
+                <div class="d-flex align-center flex-wrap" style="gap:6px">
+                    <MudIcon Icon="@ValueIcon" Size="Size.Small" Color="Color.Primary" />
+                    <b>@(Display is not null ? Display(Value) : Value!.ToString())</b>
+                    @if (!ReadOnly)
+                    {
+                        <MudTooltip Text="پاک کردن">
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           Color="Color.Error" OnClick="Clear" Disabled="@Disabled" />
+                        </MudTooltip>
+                    }
+                </div>
+            }
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public EntityPickerOptions<T> Options { get; set; } = default!;
+
+    /// <summary>مقدار فعلی (آیتم انتخاب‌شده) — null یعنی انتخاب نشده.</summary>
+    [Parameter] public T? Value { get; set; }
+    [Parameter] public EventCallback<T?> ValueChanged { get; set; }
+
+    [Parameter] public string ButtonLabel { get; set; } = "انتخاب";
+    [Parameter] public string ButtonIcon { get; set; } = Icons.Material.Filled.Search;
+    [Parameter] public string ValueIcon { get; set; } = Icons.Material.Filled.CheckCircle;
+    [Parameter] public string EmptyText { get; set; } = "هنوز انتخاب نشده است.";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>متن نمایشی برای آیتم انتخاب‌شده (پیش‌فرض: ToString).</summary>
+    [Parameter] public Func<T, string>? Display { get; set; }
+
+    private bool _busy;
+
+    private async Task OpenAsync()
+    {
+        if (Disabled || ReadOnly || _busy) return;
+        _busy = true;
+        try
+        {
+            var picked = await Picker.PickAsync(Options);
+            if (picked is not null)
+            {
+                Value = picked;
+                await ValueChanged.InvokeAsync(picked);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Clear()
+    {
+        Value = default;
+        await ValueChanged.InvokeAsync(default);
+    }
+}

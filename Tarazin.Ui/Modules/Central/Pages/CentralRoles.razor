@@ -13,8 +13,8 @@
     </MudButton>
 </PageHeader>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_roles" Hover="true" Dense="true" Striped="true" Loading="_loading">
+<TzDataTable Items="_roles" Loading="_loading" EmptyTitle="نقشی تعریف نشده است."
+             EmptyIcon="@Icons.Material.Filled.AdminPanelSettings" SkeletonColumns="8">
         <HeaderContent>
             <MudTh>#</MudTh><MudTh>عنوان</MudTh><MudTh>کلید</MudTh><MudTh>توضیح</MudTh><MudTh>کاربران</MudTh><MudTh>نوع</MudTh><MudTh>ایجاد</MudTh><MudTh>عملیات</MudTh>
         </HeaderContent>
@@ -49,9 +49,7 @@
                 }
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">نقشی تعریف نشده است.</MudText></NoRecordsContent>
-    </MudTable>
-</MudPaper>
+    </TzDataTable>
 
 @code {
     private List<RoleRow> _roles = new();

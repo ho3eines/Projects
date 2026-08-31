@@ -12,29 +12,29 @@
     <MudText Typo="Typo.subtitle1" Class="mb-3">۱) انتخاب مشتری و کالا</MudText>
     <MudGrid>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="مشتری" Value="_customerId" ValueChanged="OnCustomerChanged" Variant="Variant.Outlined">
-                <MudSelectItem Value="0">— انتخاب مشتری —</MudSelectItem>
-                @foreach (var c in _customers)
-                {
-                    <MudSelectItem Value="c.CustomerId">@c.FullName @(c.Balance != 0 ? $"({(c.Balance > 0 ? "بدهکار" : "بستانکار")} {Math.Abs(c.Balance):N0})" : "")</MudSelectItem>
-                }
-            </MudSelect>
+            <EntityPickerField T="CustomerRow"
+                               @bind-Value="_selectedCustomer"
+                               Options="_customerOptions"
+                               ButtonLabel="انتخاب مشتری"
+                               ButtonIcon="@Icons.Material.Filled.PersonSearch"
+                               Display="@(c => c.FullName + (c.Balance != 0 ? $" ({(c.Balance > 0 ? "بدهکار" : "بستانکار")} {Math.Abs(c.Balance):N0})" : ""))"
+                               EmptyText="مشتری انتخاب نشده است." />
         </MudItem>
         <MudItem xs="12" sm="6" md="4">
-            <MudSelect T="int" Label="محصول" @bind-Value="_productId" Variant="Variant.Outlined">
-                <MudSelectItem Value="0">— انتخاب محصول —</MudSelectItem>
-                @foreach (var p in _products)
-                {
-                    <MudSelectItem Value="p.ProductId">@p.Title — @p.Price.ToString("N0")</MudSelectItem>
-                }
-            </MudSelect>
+            <EntityPickerField T="ProductRow"
+                               @bind-Value="_selectedProduct"
+                               Options="_productOptions"
+                               ButtonLabel="انتخاب محصول"
+                               ButtonIcon="@Icons.Material.Filled.Inventory2"
+                               Display="@(p => p.Title + " — " + p.Price.ToString("N0"))"
+                               EmptyText="محصول انتخاب نشده است." />
         </MudItem>
         <MudItem xs="12" sm="6" md="2">
             <MudNumericField T="decimal" Label="تعداد" @bind-Value="_qty" Variant="Variant.Outlined" Min="1" />
         </MudItem>
         <MudItem xs="12" sm="6" md="2">
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
-                       OnClick="AddToCartAsync" Disabled="_customerId == 0 || _productId == 0">
+                       OnClick="AddToCartAsync" Disabled="_selectedCustomer is null || _selectedProduct is null">
                 افزودن
             </MudButton>
         </MudItem>
@@ -42,7 +42,7 @@
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudText Typo="Typo.subtitle1" Class="mb-3">۲) سبد خرید — @(_customerId == 0 ? "مشتری را انتخاب کنید" : CustomerName)</MudText>
+    <MudText Typo="Typo.subtitle1" Class="mb-3">۲) سبد خرید — @(_selectedCustomer is null ? "مشتری را انتخاب کنید" : CustomerName)</MudText>
     <MudTable Items="_cart" Hover="true" Dense="true" Striped="true" Loading="_loadingCart">
         <HeaderContent>
             <MudTh>کالا</MudTh><MudTh>تعداد</MudTh><MudTh>قیمت</MudTh><MudTh>جمع</MudTh>
@@ -53,7 +53,7 @@
             <MudTd DataLabel="قیمت">@context.Price.ToString("N0")</MudTd>
             <MudTd DataLabel="جمع">@context.LineTotal.ToString("N0")</MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">سبد خالی است.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="سبد خالی است." Description="کالا انتخاب کنید تا به سبد اضافه شود." /></NoRecordsContent>
     </MudTable>
     <MudText Typo="Typo.subtitle1" Class="mt-3">جمع کل: <b>@CartTotal.ToString("N0")</b> ریال</MudText>
 </MudPaper>
@@ -104,12 +104,40 @@
     private List<ProductRow> _products = new();
     private List<CartItemRow> _cart = new();
     private List<BankRow> _banks = new();
-    private int _customerId;
-    private int _productId;
+    private CustomerRow? _selectedCustomer;
+    private ProductRow? _selectedProduct;
     private decimal _qty = 1;
     private bool _loadingCart;
     private bool _busy;
     private DateTime? _orderDate = DateTime.Today;
+
+    private EntityPickerOptions<CustomerRow> _customerOptions = new()
+    {
+        Title = "انتخاب مشتری",
+        SearchPlaceholder = "جستجوی نام مشتری...",
+        Columns = new()
+        {
+            new("کد", c => c.CustomerCode),
+            new("نام", c => c.FullName),
+            new("تلفن", c => c.Phone),
+        },
+        DisplayText = c => c.FullName,
+        RowsPerPage = 10,
+    };
+
+    private EntityPickerOptions<ProductRow> _productOptions = new()
+    {
+        Title = "انتخاب محصول",
+        SearchPlaceholder = "جستجوی محصول...",
+        Columns = new()
+        {
+            new("کد", p => p.ProductCode),
+            new("عنوان", p => p.Title),
+            new("قیمت", p => p.Price.ToString("N0")),
+        },
+        DisplayText = p => p.Title,
+        RowsPerPage = 10,
+    };
 
     private decimal _payCash;
     private decimal _payBank;
@@ -118,7 +146,7 @@
     private int _payChequeBankId;
     private DateTime? _payChequeDueDate;
 
-    private string CustomerName => _customers.FirstOrDefault(c => c.CustomerId == _customerId)?.FullName ?? "";
+    private string CustomerName => _selectedCustomer?.FullName ?? "";
     private string OrderDateText => _orderDate?.ToString("yyyy/MM/dd") ?? "";
     private decimal CartTotal => _cart.Sum(x => x.LineTotal);
     private decimal TotalPayments => _payCash + _payBank + _payChequeAmount;
@@ -129,17 +157,14 @@
         _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
         _banks = (await Db.QueryAsync<BankRow>("treasury", "BankList", new { CompanyId = Session.ActiveCompanyId })).ToList();
-    }
-
-    private async Task OnCustomerChanged(int id)
-    {
-        _customerId = id;
-        await LoadCartAsync();
+        _customerOptions.Items = _customers;
+        _productOptions.Items = _products;
     }
 
     private async Task LoadCartAsync()
     {
-        if (_customerId == 0)
+        var cid = _selectedCustomer?.CustomerId ?? 0;
+        if (cid == 0)
         {
             _cart = new();
             return;
@@ -148,7 +173,7 @@
         _loadingCart = true;
         try
         {
-            _cart = (await Db.QueryAsync<CartItemRow>(Schema, "CartView", new { CustomerId = _customerId })).ToList();
+            _cart = (await Db.QueryAsync<CartItemRow>(Schema, "CartView", new { CustomerId = cid })).ToList();
         }
         finally
         {
@@ -162,8 +187,8 @@
         {
             await Db.ExecuteAsync(Schema, "CartUpsert", new
             {
-                CustomerId = _customerId,
-                ProductId = _productId,
+                CustomerId = _selectedCustomer!.CustomerId,
+                ProductId = _selectedProduct!.ProductId,
                 Qty = _qty
             });
             Snackbar.Add("به سبد اضافه شد.", Severity.Success);
@@ -178,7 +203,7 @@
     private async Task PlaceOrderAsync()
     {
         if (_busy) return;
-        if (_customerId == 0 || _cart.Count == 0)
+        if (_selectedCustomer is null || _cart.Count == 0)
         {
             Snackbar.Add("سبد خالی است.", Severity.Warning);
             return;
@@ -199,7 +224,7 @@
         {
             var result = await Db.ExecuteReturningAsync<OrderResultRow>(Schema, "OrderPlace", new
             {
-                CustomerId = _customerId,
+                CustomerId = _selectedCustomer!.CustomerId,
                 OrderDate = _orderDate?.Date ?? DateTime.Today,
                 CompanyId = Session.ActiveCompanyId,
                 FiscalYearId = Session.ActiveFiscalYearId,
@@ -214,7 +239,7 @@
             Snackbar.Add($"سفارش {result?.OrderNumber} ثبت شد. کل: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
             _cart = new();
             _payCash = 0; _payBank = 0; _payChequeAmount = 0; _payChequeNumber = ""; _payChequeBankId = 0; _payChequeDueDate = null;
-            _customerId = 0;
+            _selectedCustomer = null;
         }
         catch (Exception ex)
         {

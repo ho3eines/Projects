@@ -24,7 +24,7 @@
             <MudTd>@(context.DetailAccountCode ?? (context.DetailLinkId?.ToString() ?? "تنظیم نشده"))</MudTd>
             <MudTd><MudTooltip Text="ویرایش"><MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => EditAsync(ToModel(context)))" /></MudTooltip><MudTooltip Text="حذف"><MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(() => DeleteAsync(context))" /></MudTooltip></MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText>طرف حسابی ثبت نشده است.</MudText></NoRecordsContent>
+        <NoRecordsContent><EmptyState Title="طرف حسابی ثبت نشده است." /></NoRecordsContent>
     </MudTable>
 </MudPaper>
 @code {

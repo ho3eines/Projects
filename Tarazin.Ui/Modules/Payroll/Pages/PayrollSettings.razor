@@ -34,7 +34,7 @@
                                        DeleteClicked="@(() => DeleteEmployeeAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">کارمندی ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="کارمندی ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50 })" /></PagerContent>
             </MudTable>
         </MudPaper>
@@ -67,7 +67,7 @@
                                        DeleteClicked="@(() => DeleteOrderAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">حکمی ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="حکمی ثبت نشده است." /></NoRecordsContent>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 25, 50 })" /></PagerContent>
             </MudTable>
         </MudPaper>
@@ -104,7 +104,7 @@
                                        DeleteClicked="@(() => DeleteTemplateAsync(context))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">الگویی ثبت نشده است.</MudText></NoRecordsContent>
+                <NoRecordsContent><EmptyState Title="الگویی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

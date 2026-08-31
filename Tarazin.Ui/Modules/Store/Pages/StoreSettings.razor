@@ -27,7 +27,9 @@
                                        DeleteClicked="@(() => DeleteAsync(EntityEditorModel.FromProduct(context)))" />
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">محصولی نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.Inventory2" Title="محصولی ثبت نشده است." />
+                </NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>
@@ -57,7 +59,9 @@
                             </MudTooltip>
                         </MudTd>
                     </RowTemplate>
-                    <NoRecordsContent><MudText Color="Color.Secondary">دسته‌ای نیست.</MudText></NoRecordsContent>
+                    <NoRecordsContent>
+                        <EmptyState Icon="@Icons.Material.Filled.Category" Title="دسته‌ای تعریف نشده است." />
+                    </NoRecordsContent>
                 </MudTable>
             </MudPaper>
         }
@@ -130,7 +134,9 @@
                         </MudTooltip>
                     </MudTd>
                 </RowTemplate>
-                <NoRecordsContent><MudText Color="Color.Secondary">مشتری‌ای نیست.</MudText></NoRecordsContent>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.PeopleAlt" Title="مشتری‌ای ثبت نشده است." />
+                </NoRecordsContent>
             </MudTable>
         </MudPaper>
     </MudTabPanel>

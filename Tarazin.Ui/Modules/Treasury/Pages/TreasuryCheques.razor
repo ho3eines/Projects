@@ -48,9 +48,8 @@
     </MudGrid>
 </MudPaper>
 
-<MudPaper Elevation="1" Class="pa-4">
-    <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true"
-              Breakpoint="Breakpoint.Sm">
+<TzDataTable Items="_rows" Loading="_loading" EmptyTitle="چکی ثبت نشده است."
+             EmptyIcon="@Icons.Material.Filled.ReceiptLong" ShowPager="true" SkeletonColumns="9">
         <HeaderContent>
             <MudTh>شماره چک</MudTh><MudTh>بانک</MudTh><MudTh>جهت</MudTh><MudTh>مبلغ</MudTh><MudTh>سررسید</MudTh>
             <MudTh>وضعیت</MudTh><MudTh>وصول/برگشت</MudTh><MudTh>منبع</MudTh><MudTh>عملیات</MudTh>
@@ -123,9 +122,7 @@
                 }
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Color="Color.Secondary">چکی ثبت نشده است.</MudText></NoRecordsContent>
-    </MudTable>
-</MudPaper>
+    </TzDataTable>
 
 @code {
     private const string Schema = "treasury";
