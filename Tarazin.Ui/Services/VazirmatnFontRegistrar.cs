@@ -24,6 +24,33 @@ public static class VazirmatnFontRegistrar
 
     private static int _registered;
 
+    /// <summary>
+    /// رکورد «نام و منبع فونتِ resolveشده» برای نمایش در UI/گاردها.
+    /// <c>Source</c> یک‌سره از جنس «embedded» یا «fallback» است؛ <c>Label</c> همان
+    /// چیزی است که کاربر می‌بیند (مثلاً «Vazirmatn embedded» یا «fallback → Lato»).
+    /// </summary>
+    public readonly record struct FontSourceInfo(string Name, string Source)
+    {
+        public bool IsEmbedded => Source == "embedded";
+
+        public string Label => IsEmbedded
+            ? $"{Name} embedded"
+            : $"fallback → {Name}";
+    }
+
+    /// <summary>
+    /// تشخیص منبع فونت از روی نامِ resolveشدهٔ فونت (همان که در BaseFont خروجی PDF
+    /// جاسازی می‌شود یا family درخواستی): اگر Vazirmatn باشد یعنی TTF جاسازی‌شدهٔ
+    /// همین کلاس استفاده شده («embedded»)؛ در غیر این صورت QuestPDF به فونت
+    /// پیش‌فرض فالتبک کرده («fallback» — معمولاً Lato یا SegoeUI).
+    /// </summary>
+    public static FontSourceInfo GetFontSourceInfo(string? resolvedFontName)
+    {
+        var name = string.IsNullOrWhiteSpace(resolvedFontName) ? "default" : resolvedFontName;
+        var isVazirmatn = name.Contains(FamilyName, System.StringComparison.OrdinalIgnoreCase);
+        return new FontSourceInfo(name, isVazirmatn ? "embedded" : "fallback");
+    }
+
     /// <summary>ثبت فونت Vazirmatn در QuestPDF — یک‌بار در فرایند.</summary>
     public static void Register()
     {

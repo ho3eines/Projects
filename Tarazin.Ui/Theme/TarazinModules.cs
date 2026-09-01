@@ -58,7 +58,6 @@ public static class TarazinModules
                 new("اسناد روز", "/inventory", Icons.Material.Filled.Today, Perm("inventory", TarazinActions.View)),
                 new("انبارها", "/inventory/warehouses", Icons.Material.Filled.Inventory2, Perm("inventory", TarazinActions.View)),
                 new("کالاها", "/inventory/items", Icons.Material.Filled.Inventory, Perm("inventory", TarazinActions.View)),
-                new("حرکت جدید", "/inventory/entry", Icons.Material.Filled.MoveUp, Perm("inventory", TarazinActions.Entry)),
                 new("فاکتور خرید", "/inventory/purchase-invoice", Icons.Material.Filled.ShoppingCartCheckout, TarazinPermissions.InventoryPurchase),
                 new("لیست فاکتورهای خرید", "/inventory/purchase-invoices", Icons.Material.Filled.ReceiptLong, TarazinPermissions.InventoryPurchase),
                 new("فاکتور فروش", "/inventory/sales-invoice", Icons.Material.Filled.PointOfSale, TarazinPermissions.InventorySales),

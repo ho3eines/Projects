@@ -92,6 +92,14 @@ jobs:
           TARAZIN_TEST_CONN: "Server=localhost;Database=TarazinMaster;User Id=sa;Password=Tarazin#CI2026!;TrustServerCertificate=True;Encrypt=False"
         run: bash tools/run-checks.sh
 
+      # ══ گارد ۳ب فونت Vazirmatn — صریح و جدا ══
+      # همان گام «۳ب» run-checks.sh که این‌جا به‌صورت یک step نام‌دار اجرا می‌شود:
+      # VazirmatnFontRegistrationTests ضمانت می‌دهد فونت همهٔ چاپ‌ها «Vazirmatn» از
+      # TTF جاسازی‌شده (VazirmatnFontRegistrar.Register → QuestPDF BaseFont) resolve
+      # می‌شود نه فالتبک لاتین؛ تست خالص است و هرگز Skip نمی‌شود.
+      - name: Run Vazirmatn font guard (3b — embedded, not fallback)
+        run: dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo --filter "FullyQualifiedName~VazirmatnFontRegistrationTests"
+
       # ══ گارد A5L قالب چاپ — صریح و جدا ══
       # همان گام «۴ج» run-checks.sh که این‌جا به‌صورت یک step نام‌دار اجرا می‌شود
       # تا در لیست job دیده شود: خروجی BuildTemplatePdf با override «A5L» باید
@@ -100,6 +108,36 @@ jobs:
       # نصب‌شدهٔ بالا وابسته است؛ بدون آن‌ها SKIP می‌شود نه Fail.
       - name: Run A5L template guard (pymupdf — MediaBox + RTL header)
         run: bash tools/check-rtl-headers.sh a5l
+
+      # ══ گارد ۴و چندصفحه‌گی جدول عمومی — صریح و جدا ══
+      # همان گام «۴و» run-checks.sh که این‌جا به‌صورت یک step نام‌دار اجرا می‌شود:
+      # خروجی BuildTablePdf با ۶۰+ ردیف در A5L باید MediaBox افقی ≈ ۵۹۵×۴۲۰ داشته
+      # باشد، قطعاً چندصفحه شود و هدر جدول در هر صفحه تکرار شود (گارد pymupdf
+      # «table-many» روی table-a5l-many.pdf). به فایل‌های dump تولیدشدهٔ step
+      # «Run full check gate» و pymupdf نصب‌شدهٔ بالا وابسته است؛ بدون آن‌ها
+      # رسماً SKIP می‌شود نه Fail.
+      - name: Run BuildTablePdf multi-page guard (pymupdf — table-many)
+        run: bash tools/check-rtl-headers.sh table-many
+
+      # ══ گارد ۴ز چندصفحه‌گی فاکتور طلا — صریح و جدا ══
+      # همان گام «۴ز» run-checks.sh که این‌جا به‌صورت یک step نام‌دار اجرا می‌شود:
+      # خروجی BuildInvoicePdf با ۲۵ ردیف در A5L باید MediaBox افقی ≈ ۵۹۵×۴۲۰ داشته
+      # باشد، قطعاً چندصفحه شود و هدرِ جدول در هر صفحه تکرار شود (گارد pymupdf
+      # «invoice-a5l-many» روی invoice-a5l-many.pdf؛ ساختارش هم با xUnitِ نام‌دار
+      # BuildInvoicePdf_a5l_many_rows_multipage_no_overflow در run-checks قفل است).
+      # به فایل‌های dump تولیدشدهٔ step «Run full check gate» و pymupdf نصب‌شدهٔ
+      # بالا وابسته است؛ بدون آن‌ها رسماً SKIP می‌شود نه Fail.
+      - name: Run BuildInvoicePdf multi-page guard (pymupdf — invoice-a5l-many)
+        run: bash tools/check-rtl-headers.sh invoice-a5l-many
+
+      # ══ گارد ۴ط هدر فقط روی صفحاتِ دارای ردیف — صریح و جدا ══
+      # همان گام «۴ط» run-checks.sh که این‌جا به‌صورت یک step نام‌دار اجرا می‌شود:
+      # خروجی BuildTablePdf با ۲۰ ردیف در A5 پرتوره (table-a5-summary.pdf) طوری‌ست
+      # که صفحهٔ آخر فقط جمع‌بندی دارد — هدرِ جدول باید روی هر صفحهٔ دارای ردیف
+      # تکرار شود ولی صفحهٔ جمع‌بندی بدون هدر رسماً معتبر است («هدر فقط روی
+      # صفحاتِ حاوی جدول»؛ اشتباه قدیمی «هدر در هر صفحه» این حالت را Fail می‌کرد).
+      - name: Run table-header-on-table-pages guard (pymupdf — table-summary-pages)
+        run: bash tools/check-rtl-headers.sh table-summary-pages
 
       # ══ step شرطی DB (ادغامِ job سابق db-guards) ══
       # اسکیمای واقعی از روی _Ensure های منبع (idempotent) — معادل init هاست

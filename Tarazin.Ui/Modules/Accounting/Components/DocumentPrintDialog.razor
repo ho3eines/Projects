@@ -181,17 +181,6 @@
     private int _pageCount;
     private bool _countingPages;
 
-    /// <summary>ردیف چاپ پیشرفته — یک سطح از سلسله‌مراتب کل/معین/تفصیل.</summary>
-    private class DocRow
-    {
-        public int Level { get; set; }
-        public string Code { get; set; } = "";
-        public string Title { get; set; } = "";
-        public int LineCount { get; set; }
-        public decimal Debit { get; set; }
-        public decimal Credit { get; set; }
-    }
-
     protected override async Task OnInitializedAsync()
     {
         if (Model.Advanced)
@@ -230,53 +219,13 @@
             await JS.InvokeVoidAsync("tarazinQr.fillAll");
     }
 
-    /// <summary>ساخت ردیف‌های تودرتوی چاپ پیشرفته به ترتیب کل ← معین ← تفصیل.</summary>
-    private List<DocRow> AdvancedRows => BuildAdvancedRows();
-
-    private List<DocRow> BuildAdvancedRows()
-    {
-        var result = new List<DocRow>();
-
-        foreach (var kol in _kolRows.OrderBy(k => k.Code, StringComparer.Ordinal))
-        {
-            var moeins = _moeinRows
-                .Where(m => m.Code.Length >= 2 && m.Code.StartsWith(kol.Code, StringComparison.Ordinal))
-                .OrderBy(m => m.Code, StringComparer.Ordinal).ToList();
-
-            decimal kolDebit = 0, kolCredit = 0;
-            int kolCount = 0;
-
-            // ابتدا بن‌بست هر معین کِ رسید تا جمع کل صحیح باشد.
-            var moeinBlock = new List<DocRow>();
-            foreach (var moein in moeins)
-            {
-                var moeinLines = Model.Lines
-                    .Where(l => l.AccountCode.StartsWith(moein.Code, StringComparison.Ordinal))
-                    .OrderBy(l => l.AccountCode, StringComparer.Ordinal).ToList();
-                var mDebit = moeinLines.Sum(l => l.Debit);
-                var mCredit = moeinLines.Sum(l => l.Credit);
-                kolDebit += mDebit; kolCredit += mCredit; kolCount += moeinLines.Count;
-
-                moeinBlock.Add(new DocRow { Level = 1, Code = moein.Code, Title = moein.Title,
-                    Debit = mDebit, Credit = mCredit, LineCount = moeinLines.Count });
-
-                foreach (var line in moeinLines)
-                {
-                    moeinBlock.Add(new DocRow { Level = 2, Code = line.AccountCode,
-                        Title = string.IsNullOrWhiteSpace(line.Description)
-                            ? line.Title
-                            : $"{line.Title} — {line.Description}",
-                        Debit = line.Debit, Credit = line.Credit, LineCount = 0 });
-                }
-            }
-
-            // ردیف کل اول، سپس بلوک معین/تفصیل زیر همان کل (ترتیب حفظ می‌شود).
-            result.Add(new DocRow { Level = 0, Code = kol.Code, Title = kol.Title,
-                Debit = kolDebit, Credit = kolCredit, LineCount = kolCount });
-            result.AddRange(moeinBlock);
-        }
-        return result;
-    }
+    /// <summary>
+    /// ردیف‌های تودرتوی چاپ پیشرفته به ترتیب کل ← معین ← تفصیل — از Builder مشترک
+    /// (AdvancedDocRowsBuilder) که هم PDF و هم گاردهای تست از همان استفاده می‌کنند،
+    /// تا چاپ/PDF/تست هرگز از هم جدا نشوند.
+    /// </summary>
+    private List<AdvancedPrintRow> AdvancedRows
+        => AdvancedDocRowsBuilder.Build(_kolRows, _moeinRows, Model.Lines);
 
     private static string CellStyle(int level) => level switch
     {

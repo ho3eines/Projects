@@ -15,7 +15,7 @@ namespace Tarazin.Tests;
 ///     خاموش بود و فقط با بازرسی ساختاری (pymupdf) دیده می‌شد)،
 ///  ۲) خروجی برای بازرسی بصری/ساختاری برون‌ریزی شود.
 /// </summary>
-public class TemplateDumpHarness
+public class TemplateRenderGuards
 {
     /// <summary>
     /// همهٔ قالب‌های سیستمی با دادهٔ واقعی نمونه هم از رندرر HTML (PrintSheetRenderer)

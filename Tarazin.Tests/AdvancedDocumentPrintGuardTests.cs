@@ -6,20 +6,22 @@ using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Tarazin.Models;
-using Tarazin.Services;
 using Xunit;
 
 namespace Tarazin.Tests
 {
     /// <summary>
-    /// گارد–برون‌ریزی لایو چاپ پیشرفتهٔ سند: سند واقعی دیتابیس (32 ردیف، DocumentId=1547)
-    /// را از طریق همان اسکریپت‌های UI (DocumentById + DocumentLines + DocumentPrintRollup)
-    /// بارگذاری می‌کند، مدل چاپ پیشرفته (Kol←Moein←تفصیل) می‌سازد، در A5 و A5L PDF تولید
-    /// می‌کند، چندصفحه بودن/نبودن و MediaBox را با PdfSurfaceGeometry می‌سنجد و PDFها را
-    /// در %TEMP%/tarazin-doc-a5 برون‌ریزی می‌کند تا بتوان با pymupdf ساختار را تأیید کرد.
+    /// گارد ترتیبی چاپ پیشرفتهٔ سند با دادهٔ زنده: سند واقعی دیتابیس (32 ردیف،
+    /// DocumentId=1547) را از طریق همان اسکریپت‌های UI (DocumentById + DocumentLines +
+    /// DocumentPrintRollup) بارگذاری می‌کند و قفل می‌کند که در مدل چاپ پیشرفته
+    /// (Kol←Moein←تفصیل) هر تفصیل دقیقاً زیر معین خودش و هر معین زیر کل خودش بیاید و
+    /// جمع هر سطح با جمع ردیف‌های زیرمجموعه‌اش برابر باشد.
+    /// دو گارد: (۱) چیدمان دستی با همان قواعد GROUP BY اسکریپت، (۲) صدازدنِ خودِ
+    /// <c>AdvancedDocRowsBuilder.Build</c> — همان متدی که DocumentPrintDialog و
+    /// PdfReportService.BuildDocumentPdf هر دو استفاده می‌کنند (منبع واحد حقیقت).
     /// نیازمند SQL Server زنده است؛ اگر در دسترس نبود Skip می‌شود.
     /// </summary>
-    public class DumpLiveAdvDocA5
+    public class AdvancedDocumentPrintGuardTests
     {
         private const string ScriptsDir = "../../../../Tarazin.Data/Scripts/accounting";
         private const int TargetDoc = 1547; // سند واقعی 32 ردیفی در دیتابیس توسعه
@@ -28,45 +30,6 @@ namespace Tarazin.Tests
 
         private static string Script(string name)
             => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, ScriptsDir, name));
-
-        private static string OutDir()
-        {
-            var dir = Path.Combine(Path.GetTempPath(), "tarazin-doc-a5");
-            Directory.CreateDirectory(dir);
-            return dir;
-        }
-
-        [SkippableFact]
-        public async Task Dump_advanced_A5_both_orientations()
-        {
-            using var cn = await TestDb.OpenOrSkipAsync();
-            var loaded = await LoadDoc1547Async(cn);
-            var model = loaded.BuildModel();
-            var svc = new PdfReportService();
-
-            var dir = OutDir();
-
-            foreach (var size in new[] { "A5", "A5L" })
-            {
-                var bytes = svc.BuildDocumentPdf(model, size);
-                var w = size == "A5L" ? 595.28 : 419.53;
-                var h = size == "A5L" ? 419.53 : 595.28;
-                var geo = PdfSurfaceGeometry.Check(bytes);
-                Assert.InRange(geo.PageWidth, w - 0.6, w + 0.6);
-                Assert.InRange(geo.PageHeight, h - 0.6, h + 0.6);
-                Assert.True(geo.PageCount >= 2,
-                    $"[{size}] سند ۳۲ ردیفی باید چندصفحه باشد، ولی PageCount={geo.PageCount}");
-
-                var file = Path.Combine(dir, $"doc-{TargetDoc}-advanced-{size}.pdf");
-                File.WriteAllBytes(file, bytes);
-
-                // گارد «از لبه بیرون نزند» — محتوای واقعی درون MediaBox
-                const double tol = 2.0;
-                Assert.True(geo.MaxDeviceX.HasValue, $"[{size}] هیچ محتوایی قابل سنجش نیست");
-                Assert.InRange(geo.MaxDeviceX!.Value, -tol, w + tol);
-                Assert.InRange(geo.MaxDeviceY!.Value, -tol, h + tol);
-            }
-        }
 
         /// <summary>بارگذاری سند 1547 با همان اسکریپت‌های UI (سرصفحه + ردیف‌ها + رول‌آپ).</summary>
         private static async Task<LoadedDoc> LoadDoc1547Async(Microsoft.Data.SqlClient.SqlConnection cn)
@@ -97,7 +60,7 @@ namespace Tarazin.Tests
         /// برابر باشد (معین = جمع ردیف‌هایش، کل = جمع معین‌هایش = جمع همهٔ ردیف‌هایش).
         /// </summary>
         [SkippableFact]
-        public async Task Dump_advanced_ordering_and_level_sums_guard()
+        public async Task Advanced_ordering_and_level_sums_guard()
         {
             using var cn = await TestDb.OpenOrSkipAsync();
             var loaded = await LoadDoc1547Async(cn);
@@ -236,6 +199,108 @@ namespace Tarazin.Tests
             Assert.Equal(totalDeb, totalCred); // سند متوازن
             Assert.Equal(totalDeb, kols.Sum(k => k.Debit));
             Assert.Equal(totalCred, kols.Sum(k => k.Credit));
+        }
+
+        /// <summary>
+        /// گارد ترتیبی «خود متد تولید ردیف»: برخلاف گارد بالا (که منطق را دستی می‌چیند)،
+        /// اینجا AdvancedDocRowsBuilder.Build — همان متدی که DocumentPrintDialog و
+        /// PdfReportService.BuildDocumentPdf هر دو از آن استفاده می‌کنند — با دادهٔ زندهٔ
+        /// سند ۳۲ ردیفی صدا زده می‌شود و قفل می‌کند که هر تفصیل دقیقاً زیر معین خودش، هر
+        /// معین زیر کل خودش، بدون ردیف خارجی، و جمع هر سطح با جمع ردیف‌های زیرمجموعه‌اش
+        /// برابر باشد. اگر کسی ترتیب/جمع‌بندی Builder را خراب کند، هم دیالوگ و هم PDF و
+        /// هم این گارد یک‌جا می‌شکنند (منبع واحد حقیقت).
+        /// </summary>
+        [SkippableFact]
+        public async Task AdvancedDocRowsBuilder_live_hierarchy_and_level_sums_guard()
+        {
+            using var cn = await TestDb.OpenOrSkipAsync();
+            var loaded = await LoadDoc1547Async(cn);
+            var model = loaded.BuildModel();
+
+            // ── خود متد واقعی تولید ردیف (دیالوگ/PDF) با دادهٔ زنده ──
+            var rows = AdvancedDocRowsBuilder.Build(model.KolRows, model.MoeinRows, model.Lines);
+            var kols = model.KolRows;
+            var moeins = model.MoeinRows;
+            var lines = model.Lines;
+
+            // هر ردیف باید کد معین/کل قابل استخراج داشته باشد
+            static string KolCode(string accountCode)
+                => accountCode.Substring(0, Math.Min(2, accountCode.Length));
+            static string MoeinCode(string accountCode)
+                => accountCode.Substring(0, Math.Min(5, accountCode.Length));
+
+            foreach (var l in lines)
+            {
+                Assert.True(l.AccountCode.Length >= 2, $"کد حساب خیلی کوتاه: «{l.AccountCode}»");
+                Assert.Contains(kols, k => k.Code == KolCode(l.AccountCode));
+                Assert.Contains(moeins, m => m.Code == MoeinCode(l.AccountCode));
+            }
+
+            // ── (۱) ساختار/تعداد: دقیقاً کل + معین + تفصیل ──
+            Assert.Equal(kols.Count + moeins.Count + lines.Count, rows.Count);
+            Assert.True(rows.Count > 0, "Builder هیچ ردیفی نساخت");
+
+            // ── (۲) ترتیب: ردیف‌های کل سپس بلاک معین/تفصیل زیر همان کل ──
+            // مسیر حرکت: هر Level 0 شروع یک بلاک است؛ داخل بلاک، Level 1 معین و Level 2
+            // تفصیلِ زیر همان معین تا رسیدن به Level 1/0 بعدی (بدون ردیف خارجی).
+            var kolsSorted = kols.OrderBy(k => k.Code, StringComparer.Ordinal).ToList();
+            int pos = 0;
+            foreach (var kol in kolsSorted)
+            {
+                // ردیف اولِ این بلاک باید خودِ کل باشد
+                Assert.True(pos < rows.Count, $"کل {kol.Code} در ردیف‌های Builder پیدا نشد");
+                Assert.Equal(0, rows[pos].Level);
+                Assert.Equal(kol.Code, rows[pos].Code);
+                pos++;
+
+                var moeinsOfKol = moeins
+                    .Where(m => m.Code.Length >= 2 && m.Code.StartsWith(kol.Code, StringComparison.Ordinal))
+                    .OrderBy(m => m.Code, StringComparer.Ordinal).ToList();
+                foreach (var moein in moeinsOfKol)
+                {
+                    Assert.True(pos < rows.Count, $"معین {moein.Code} بعد از کل {kol.Code} یافت نشد");
+                    Assert.Equal(1, rows[pos].Level);
+                    Assert.Equal(moein.Code, rows[pos].Code);
+                    pos++;
+
+                    while (pos < rows.Count && rows[pos].Level == 2)
+                    {
+                        Assert.True(rows[pos].Code.StartsWith(moein.Code, StringComparison.Ordinal),
+                            $"تفصیل {rows[pos].Code} باید زیر معین {moein.Code} بیاید (ردیف خارجی بینشان است).");
+                        pos++;
+                    }
+                }
+                Assert.True(pos == rows.Count || rows[pos].Level == 0,
+                    $"بعد از کل {kol.Code} نباید ردیف سرگردانی باشد.");
+            }
+            Assert.Equal(rows.Count, pos); // همهٔ ردیف‌ها مصرف شدند
+
+            // ── (۳) جمع هر سطح با جمع ردیف‌های زیرمجموعه‌اش برابر است ──
+            // معین: مقدار رول‌آپ == جمع تفصیل‌های Build شده == مقدار خود Builder
+            foreach (var moein in moeins)
+            {
+                var moeinRows = rows.Where(r => r.Level == 2 && r.Code.StartsWith(moein.Code, StringComparison.Ordinal));
+                Assert.Equal(moein.Debit, moeinRows.Sum(r => r.Debit));
+                Assert.Equal(moein.Credit, moeinRows.Sum(r => r.Credit));
+                Assert.Equal(moein.LineCount, moeinRows.Count());
+            }
+            // کل: جمع معین‌هایش == جمع همهٔ ردیف‌هایش == مقدار خود Builder
+            foreach (var kol in kols)
+            {
+                var kolMoeins = rows.Where(r => r.Level == 1 && r.Code.StartsWith(kol.Code, StringComparison.Ordinal));
+                var kolDetails = rows.Where(r => r.Level == 2 && r.Code.StartsWith(kol.Code, StringComparison.Ordinal));
+                Assert.Equal(kol.Debit, kolMoeins.Sum(r => r.Debit));
+                Assert.Equal(kol.Credit, kolMoeins.Sum(r => r.Credit));
+                Assert.Equal(kol.LineCount, kolDetails.Count());
+                Assert.Equal(kol.Debit, kolDetails.Sum(r => r.Debit));
+                Assert.Equal(kol.Credit, kolDetails.Sum(r => r.Credit));
+            }
+            // سراسری: سند متوازن است و جمع کل‌ها == جمع ردیف‌ها
+            var totalDeb = lines.Sum(l => l.Debit);
+            var totalCred = lines.Sum(l => l.Credit);
+            Assert.Equal(totalDeb, totalCred);
+            Assert.Equal(totalDeb, rows.Where(r => r.Level == 0).Sum(r => r.Debit));
+            Assert.Equal(totalCred, rows.Where(r => r.Level == 0).Sum(r => r.Credit));
         }
 
         /// <summary>دادهٔ بارگذاری‌شدهٔ سند + ساخت مدل چاپ (مثل دیالوگ).</summary>

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using QuestPDF.Fluent;
@@ -72,4 +74,76 @@ public class VazirmatnFontRegistrationTests
         var vaz = ascii.IndexOf("Vazirmatn", StringComparison.OrdinalIgnoreCase);
         Assert.True(vaz >= 0, "BaseFont باید حاوی Vazirmatn باشد.");
     }
+
+    /// <summary>
+    /// گارد «گزارش BI واقعی»: تعریف واقعی گزارش «فروش روزانه طلا» از کاتالوگ BI را با
+    /// مسیرِ همان صفحهٔ /bi/reports (BiPrintFactory → BuildTemplatePdf) رندر می‌کند،
+    /// سپس BaseFont واقعیِ جاسازی‌شدهٔ PDF را می‌خواند و تأیید می‌کند که
+    /// <c>GetFontSourceInfo</c> نام «Vazirmatn» و منبع «embedded» را برمی‌گرداند
+    /// (نه فالتبک Lato/SegoeUI).
+    /// </summary>
+    [Fact]
+    public void GetFontSourceInfo_real_bi_report_is_vazirmatn_embedded()
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+        VazirmatnFontRegistrar.Register();
+
+        var def = BiReportCatalog.Reports.First(r => r.Key == "gold");
+        var rows = new List<dynamic>
+        {
+            Dict("GINV-0001", "مشتری الف", "گلد ۱۸ عیار", 12.5m, 150000m, 80000m, 7500000m),
+            Dict("GINV-0002", "مشتری ب", "گلد ۱۸ عیار", 8.2m, 90000m, 45000m, 4900000m),
+            Dict("GINV-0003", "مشتری ج", "زنجیر", 15.0m, 200000m, 100000m, 9000000m)
+        };
+        var tpl = BiPrintFactory.BuildTemplate(def, rows.Count);
+        var data = BiPrintFactory.BuildData(def, rows, new DateTime(2026, 8, 23), new DateTime(2026, 8, 25));
+
+        var bytes = new PdfReportService().BuildTemplatePdf(tpl, data);
+        Assert.True(bytes.Length > 0, "گزارش BI واقعی باید PDF تولید کند.");
+
+        // BaseFont واقعی PDF باید Vazirmatn جاسازی‌شده باشد — نه لِتین فالتبک.
+        var ascii = Encoding.ASCII.GetString(bytes);
+        Assert.Contains("Vazirmatn", ascii, StringComparison.OrdinalIgnoreCase);
+
+        // نام و منبع گزارش‌شده برای UI/گارد باید «Vazirmatn» + «embedded» باشد.
+        var info = VazirmatnFontRegistrar.GetFontSourceInfo("Vazirmatn");
+        Assert.Equal("Vazirmatn", info.Name);
+        Assert.Equal("embedded", info.Source);
+        Assert.True(info.IsEmbedded);
+        Assert.Contains("embedded", info.Label, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// حالت فالتبک: هر نام فونت غیر-Vazirmatn (Lato/SegoeUI — همان‌هایی که QuestPDF
+    /// در نبود ثبت‌کننده به آن‌ها برمی‌گردد) باید «fallback» شناخته شود تا UI بتواند
+    /// برچسب درست «فالتبک» را نمایش دهد.
+    /// </summary>
+    [Theory]
+    [InlineData("Lato")]
+    [InlineData("SegoeUI")]
+    [InlineData("Helvetica")]
+    [InlineData(null)]
+    public void GetFontSourceInfo_non_vazirmatn_is_marked_fallback(string? fontName)
+    {
+        var info = VazirmatnFontRegistrar.GetFontSourceInfo(fontName);
+        Assert.Equal("fallback", info.Source);
+        Assert.False(info.IsEmbedded);
+        Assert.Contains("fallback", info.Label, StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, object> Dict(string num, string customer, string item,
+        decimal weight, decimal workmanship, decimal profit, decimal total)
+        => new()
+        {
+            ["InvoiceNumber"] = num,
+            ["InvoiceDate"] = "1405/06/0" + num[^1],
+            ["CustomerName"] = customer,
+            ["ItemCode"] = "G18",
+            ["ItemTitle"] = item,
+            ["WeightGram"] = weight,
+            ["Workmanship"] = workmanship,
+            ["Profit"] = profit,
+            ["Tax"] = 12000m,
+            ["TotalAmount"] = total
+        };
 }

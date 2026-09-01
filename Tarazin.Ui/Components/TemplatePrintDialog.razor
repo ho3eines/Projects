@@ -20,6 +20,12 @@
             <MudIcon Icon="@Icons.Material.Filled.Print" />
             <MudText Typo="Typo.h6">چاپ — @DisplayTitle</MudText>
             <MudChip T="string" Size="Size.Small" Color="Color.Primary">@PaperLabel</MudChip>
+            @if (_pageCount > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Filled.Description">
+                    ≈ @(_pageCount == 1 ? "۱ صفحه" : $"{_pageCount} صفحه")
+                </MudChip>
+            }
         </div>
     </TitleContent>
 
@@ -70,6 +76,8 @@
     [Parameter] public string? TemplateId { get; set; }
 
     private bool _downloading;
+    private int _pageCount;
+    private bool _countingPages;
 
     /// <summary>اجازهٔ تغییر اندازهٔ کاغذ هنگام چاپ (پیش‌فرض روشن؛ در صورت لزوم خاموش).</summary>
     [Parameter] public bool AllowResize { get; set; } = true;
@@ -103,12 +111,39 @@
     private void OnSizeChanged(string? size)
     {
         _paperSize = size ?? "";
+        _ = UpdatePageCountAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
             await JS.InvokeVoidAsync("tarazinQr.fillAll");
+            await UpdatePageCountAsync();
+        }
+    }
+
+    /// <summary>
+    /// چیپ «تعداد صفحه» را از همان بایت‌های BuildTemplatePdf می‌سازد تا کاربر
+    /// پیش از دانلود بداند چندصفحه خواهد شد — هم‌دهان با دیالوگ‌های اسناد/فاکتور.
+    /// </summary>
+    private async Task UpdatePageCountAsync()
+    {
+        if (_countingPages) return;
+        _countingPages = true;
+        try
+        {
+            var count = Pdf.BuildTemplatePdfPageCount(Template, Data, ResolvedSizeOverride);
+            if (_pageCount != count)
+            {
+                _pageCount = count;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        finally
+        {
+            _countingPages = false;
+        }
     }
 
     private async Task DownloadPdfAsync()

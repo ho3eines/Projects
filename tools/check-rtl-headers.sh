@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # check-rtl-headers.sh — pymupdf verification of the RTL header guard.
 #
-# The xUnit guard (DumpAdvDoc.Page_methods_wire_rtl_header_builders) locks the
+# The xUnit guard (PrintRtlGuards.Page_methods_wire_rtl_header_builders) locks the
 # source wiring (page → header builder + ContentFromRightToLeft ordering). This
 # script verifies the actual rendered PDFs: in the header of every dumped PDF
 # (invoice, cheque report, template) the teal logo block must be the rightmost
 # element — its x near the right edge of the page — proving real RTL output,
 # not just source structure.
 #
-# Usage: bash tools/check-rtl-headers.sh [all|generic|a5l|table|noheader|table-many|invoice-a5l-many]   (from project root)
+# Usage: bash tools/check-rtl-headers.sh [all|generic|a5l|table|noheader|table-many|invoice-a5l-many|table-summary-pages]   (from project root)
 #   all     (default) — generic logo-rightmost check on every dumped PDF,
 #                       PLUS the A5L guards: BuildTemplatePdf (template-a5l.pdf),
 #                       BuildTablePdf (table-a5l.pdf), the no-header QR guard
@@ -29,10 +29,13 @@
 #   invoice-a5l-many   — BuildInvoicePdf with 25 rows in A5L must be multi-page,
 #                       the table header must repeat on every page, MediaBox must be
 #                       A5 landscape ≈ 595×420 and nothing may overflow the page edge.
-#   The «a5l»/«table»/«noheader»/«table-many»/«invoice-a5l-many» modes let
+#   table-summary-pages — BuildTablePdf with 20 rows in A5 portrait: the header must
+#                       appear on every page that has table rows; the summary-only last
+#                       page (no rows) is legitimately header-less (table-a5-summary.pdf).
+#   The «a5l»/«table»/«noheader»/«table-many»/«invoice-a5l-many»/«table-summary-pages» modes let
 #   run-checks.sh / CI name each guard as its own step.
 #
-# Requires the dump files produced by `dotnet test` (DumpAdvDoc.Dump_rtl_header_pdfs_for_pymupdf)
+# Requires the dump files produced by `dotnet test` (PrintRtlGuards.Dump_rtl_header_pdfs_for_pymupdf)
 # and Python 3 + pymupdf. If either is missing, the step is SKIPPED (optional).
 #
 # Exit:  0 = verified (or skipped), 1 = a header is NOT right-aligned.
@@ -244,6 +247,79 @@ PYEOF
   return 0
 }
 
+# ───── گارد «هدر فقط روی صفحاتِ حاوی جدول» (BuildTablePdf در A5 پرتوره) ─────
+# جدول عمومی با ۲۰ ردیف در A5 **پرتوره** (فایل table-a5-summary.pdf ساخته‌شده توسط
+# Dump_rtl_header_pdfs_for_pymupdf) طوری‌ست که صفحهٔ ۱ = جدول (هدر + ردیف‌ها) و
+# صفحهٔ آخر = فقط جمع‌بندی (بدون هدر جدول و بدون ردیف). این گارد «هدرِ جدول فقط
+# روی صفحاتِ حاوی جدول» را می‌سنجد: هر صفحه‌ای که ردیفِ جدول دارد باید هدرِ جدول
+# («شماره چک») هم داشته باشد — ولی صفحهٔ جمع‌بندی که ردیفی ندارد، رسماً معتبر است
+# که هدر نداشته باشد (اشتباه قدیمی: چکِ «هدر در هر صفحه» این حالت را Fail می‌کرد).
+run_table_summary_pages() {
+  local F="$DIR/table-a5-summary.pdf"
+  if [ ! -f "$F" ]; then
+    echo "⏭️  BuildTablePdf summary-page step skipped — table-a5-summary.pdf not found (run the full test suite first)."
+    return 0
+  fi
+
+  if ! "$PY" -X utf8 - "$F" <<'PYEOF'
+import sys, pymupdf, unicodedata
+f = sys.argv[1]
+doc = pymupdf.open(f)
+page0 = doc[0]
+W, H = page0.rect.width, page0.rect.height
+
+# ۱) MediaBox باید A5 پرتوره باشد (عرض < ارتفاع، حدود ۴۲۰×۵۹۵).
+if not (400 < W < 440 and 560 < H < 620 and W < H):
+    print(f"  table-a5-summary: FAIL MediaBox={W:.0f}x{H:.0f} — انتظار A5 پرتوره ~420x595")
+    sys.exit(2)
+
+def texts(p):
+    return unicodedata.normalize('NFKC', p.get_text())
+
+# ۲) ساختار دو-صفحه‌ای لازم است: صفحهٔ ۱ = جدول (هدردارد + ردیف CHQ)، صفحهٔ ۲ = فقط جمع‌بندی.
+n = doc.page_count
+if n < 2:
+    print(f"  table-a5-summary: FAIL فقط {n} صفحه — انتظار جدول در صفحهٔ ۱ و جمع‌بندی در صفحهٔ آخر")
+    sys.exit(2)
+
+# ۳) «هدر فقط روی صفحاتِ حاوی جدول»: هر صفحه‌ای که ردیفِ جدول (CHQ-) دارد باید هدر
+#    («شماره چک») هم داشته باشد؛ صفحه‌های بدون ردیف (جمع‌بندی) معاف‌اند — یعنی اگر
+#    صفحه‌ای ردیف دارد ولی هدر ندارد، Fail؛ و اگر صفحهٔ جمع‌بندی هدر نداشته باشد، OK.
+missing_header_on_row_pages = []
+for i, page in enumerate(doc):
+    t = texts(page)
+    has_rows = "CHQ-" in t
+    has_header = "شماره چک" in t
+    if has_rows and not has_header:
+        missing_header_on_row_pages.append(i + 1)
+
+# ۴) صفحهٔ جمع‌بندی باید واقعاً جمع‌بندی داشته باشد و ردیف نداشته باشد (ضد-تهی).
+summary_pages = []
+for i, page in enumerate(doc):
+    t = texts(page)
+    if "جمع مبلغ" in t and "CHQ-" not in t:
+        summary_pages.append(i + 1)
+
+print(f"  table-a5-summary: MediaBox={W:.0f}x{H:.0f} portrait pages={n} missing_header_on_row_pages={missing_header_on_row_pages} summary_only_pages={summary_pages}")
+if missing_header_on_row_pages:
+    print(f"  FAIL — صفحاتِ دارای ردیف که هدر جدول ندارند: {missing_header_on_row_pages}")
+    sys.exit(2)
+if not summary_pages:
+    print("  FAIL — هیچ صفحهٔ جمع‌بندی‌ای (بدون ردیف، دارای جمع مبلغ) پیدا نشد — ساختار تست درست نیست")
+    sys.exit(2)
+if summary_pages[-1] != n:
+    print(f"  FAIL — صفحهٔ جمع‌بندی باید آخرین صفحه باشد نه {summary_pages[-1]} از {n}")
+    sys.exit(2)
+sys.exit(0)
+PYEOF
+  then
+    echo "❌ BuildTablePdf summary-page pymupdf check failed — هدرِ جدول روی صفحه‌های دارای ردیف تکرار نشده یا ساختار جمع‌بندی درست نیست."
+    return 1
+  fi
+  echo "✅ BuildTablePdf summary-page pymupdf check — هدر فقط روی صفحاتِ دارای ردیف؛ صفحهٔ جمع‌بندی بدون هدر معتبر است."
+  return 0
+}
+
 # ─────── گارد چندصفحه‌گی جدول عمومی (BuildTablePdf): هدر در هر صفحه تکرار شود ───────
 # جدول عمومی با ۶۵ ردیف در A5L (فایل table-a5l-many.pdf ساخته‌شده توسط
 # Dump_rtl_header_pdfs_for_pymupdf) باید: (۱) چندصفحه باشد (PageCount >= 2)،
@@ -375,11 +451,13 @@ case "$MODE" in
   noheader) run_a5l_noheader || OK=1 ;;
   table-many) run_table_many || OK=1 ;;
   invoice-a5l-many) run_invoice_a5l_many || OK=1 ;;
+  table-summary-pages) run_table_summary_pages || OK=1 ;;
   *)       run_generic || OK=1
            run_a5l || OK=1
            run_table_a5l || OK=1
            run_a5l_noheader || OK=1
            run_table_many || OK=1
-           run_invoice_a5l_many || OK=1 ;;
+           run_invoice_a5l_many || OK=1
+           run_table_summary_pages || OK=1 ;;
 esac
 exit $OK

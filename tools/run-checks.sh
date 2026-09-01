@@ -26,6 +26,16 @@
 #                             invoice-a5l-many) — BuildInvoicePdf with 25 rows in
 #                             A5L: MediaBox 595x420 landscape, multi-page, table
 #                             header repeats on every page, no edge overflow
+#   4h. BuildDocumentPdf 32-row no-overflow guard (named xUnit step —
+#                             BuildDocumentPdf_a5_32plus_lines_multipage_no_overflow):
+#                             the long document (32+ detail rows, advanced AND
+#                             simple) in A5/A5L must be multi-page with zero
+#                             content outside the MediaBox edge — mirrors 4g for
+#                             the accounting document instead of the gold invoice
+#   4i. BuildTablePdf summary-page guard (pymupdf — table-summary-pages): the
+#                             header must appear on every page that has table
+#                             rows; the summary-only last page in A5 portrait is
+#                             legitimately header-less (table-a5-summary.pdf)
 #   5. Web build              (dotnet build Tarazin.Web)  — refreshes Web/bin copy
 #   6. Stale-build guard      (tools/check-stale-build.sh)
 #   7. Test-report refresh    (tools/refresh-test-report.sh) — regenerates the
@@ -132,6 +142,19 @@ else
   fail "فونت گزارش برگشته — VazirmatnFontRegistrar/ثبت فونت را بررسی کن."
 fi
 
+# ── 3ج. Double-UTF8 guard (unit + DB scan; skips when SQL unavailable) ──
+# همان ۴ ستونی که با کدگذاری دوبل خراب شده بودند (treasury.CashMovements.Description،
+# accounting.Documents.CounterPartyName، goldshop.InvoiceLines.Title،
+# goldshop.GoldPartyLedger.Description) — اگر موژیمیکِ U+0080–U+00FFِ قابل‌تعمیر
+# برگردد، تست Fail می‌شود (ابزار تعمیر: tools/fix-double-utf8.ps1 -Apply).
+step "۳ج) گارد دوبل-UTF8 (DoubleUtf8GuardTests — اسکن ۴ ستون خراب قبلی)"
+if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo \
+     --filter "FullyQualifiedName~DoubleUtf8GuardTests" 2>&1 | tail -1 | grep -qE "Passed!|Skipped!"; then
+  pass "هیچ ردیف دوبل-UTF8 در ۴ ستون شناخته‌شده نیست"
+else
+  fail "کدگذاری دوبل برگشته — tools/fix-double-utf8.ps1 -Apply و سپس اسکریپت‌های درج را بررسی کن."
+fi
+
 # ── 4. Full test suite (PDF regression + close-year + rest) ───────────
 # خروجی کامل ذخیره می‌شود تا گام ۷ (تولید گزارش نهایی) از همان عددِ واقعی بخواند.
 step "۴) کل سویت تست (PDF/حسابداری/چاپ)"
@@ -200,15 +223,61 @@ else
   fail "گارد BuildTablePdf چندصفحه‌گی خراب شد — هدر در همهٔ صفحه‌ها تکرار نشده یا صفحه‌بندی بریده."
 fi
 
-# ── 4g. BuildInvoicePdf A5L multi-page guard (named pymupdf step) ────────
-# فاکتور طلا با ۲۵ ردیف در A5L (invoice-a5l-many.pdf) باید: MediaBox A5 landscape
-# ≈ ۵۹۵×۴۲۰، چندصفحه، هدرِ جدول در هر صفحه و بدون بیرون‌زدگی از لبه. اگر اندازه/جهت
-# صفحه برگردد، هدر از صفحهٔ ۲ به بعد نیفتد، یا محتوایی از لبه بیرون بزند → Fail.
-step "۴ز) گارد BuildInvoicePdf A5L چندصفحه (pymupdf — MediaBox و بدون بیرون‌زدگی)"
-if bash tools/check-rtl-headers.sh invoice-a5l-many; then
-  pass "BuildInvoicePdf ۲۵ ردیفی در A5L — MediaBox=595x420 landscape، چندصفحه، هدر در هر صفحه، بدون بیرون‌زدگی"
+# ── 4g. BuildInvoicePdf A5L multi-page guard (named xUnit + pymupdf) ────
+# فاکتور طلا با ۲۵ ردیف در A5L باید: MediaBox A5 landscape ≈ ۵۹۵×۴۲۰، چندصفحه،
+# هدرِ جدول در **هر** صفحه و بدون بیرون‌زدگی از لبه. دو لایه:
+#   (الف) xUnit ساختاری (BuildInvoicePdf_a5l_many_rows_multipage_no_overflow) —
+#         MediaBox/چندصفحه/بیرون‌زدگی را با PdfSurfaceGeometry قفل می‌کند؛
+#   (ب) pymupdf (invoice-a5l-many — روی فایل dumpِ همان ۲۵ ردیف) — تکرارِ هدرِ
+#        جدول در هر صفحه را با استخراج متنِ هر صفحه («ردیف») تأیید می‌کند.
+# اگر هر کدام خراب شود (اندازه/جهت، یک‌صفحه‌گیِ بریده، افتادن هدر از صفحهٔ ۲، بیرون‌زدگی) → Fail.
+step "۴ز) گارد BuildInvoicePdf A5L چندصفحه (xUnit + pymupdf — هدر در هر صفحه)"
+if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo --filter "FullyQualifiedName~BuildInvoicePdf_a5l_many_rows_multipage_no_overflow" 2>&1 | tail -1 | grep -qE "Passed!"; then
+  pass "xUnit ساختاری BuildInvoicePdf — MediaBox=595x420 landscape، چندصفحه، بدون بیرون‌زدگی"
 else
-  fail "گارد BuildInvoicePdf A5L چندصفحه خراب شد — MediaBox، چندصفحه‌گی، تکرار هدر یا بیرون‌زدگی."
+  fail "xUnit ساختاری BuildInvoicePdf خراب شد — MediaBox، چندصفحه‌گی یا بیرون‌زدگی."
+fi
+if bash tools/check-rtl-headers.sh invoice-a5l-many; then
+  pass "pymupdf BuildInvoicePdf (invoice-a5l-many) — هدرِ جدول در هر صفحه تکرار شده، بدون بیرون‌زدگی"
+else
+  fail "pymupdf BuildInvoicePdf خراب شد — تکرار هدر در هر صفحه یا بیرون‌زدگی برگشته."
+fi
+
+# ── helperهای چیپ «تعداد صفحه» (فاکتور + چک) — xUnit نام‌دار ──
+# چیپ پیش‌بینی تعداد صفحه در دیالوگ‌های فاکتور طلا و گزارش چک‌ها باید دقیقاً
+# CountPdfPagesِ همان بایت‌های دکمهٔ «دانلود PDF» را بدهد (helper == مستقیم) و با
+# گزینهٔ «همهٔ ردیف‌ها در یک صفحه» هم‌راستا بماند — حذفِ اتفاقیِ helper خروجیِ این
+# تستِ نام‌دار را Fail می‌کند (وگرنه فقط داخل تست کاملِ step ۴ پنهان می‌ماند).
+step "۴ی) چیپ تعداد صفحه فاکتور/چک با همان بایت‌های دانلود هم‌راستا است (xUnit)"
+if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo --filter "FullyQualifiedName~Invoice_and_cheque_page_count_helpers_match_the_direct_builders" 2>&1 | tail -1 | grep -qE "Passed!"; then
+  pass "helperهای BuildInvoicePdfPageCount/BuildChequeReportPdfPageCount == بایت‌های مستقیم در A4/A5/A5L (+ گزینهٔ یک‌صفحه)"
+else
+  fail "گارد چیپ تعداد صفحه خراب شد — helperها از بایت‌های واقعی دانلود جدا شده‌اند."
+fi
+
+# ── 4h. BuildDocumentPdf 32-row A5L no-overflow guard (named xUnit step) ─
+# سند حسابداریِ بلند (۳۲+ ردیف) در A5/A5L — هم حالت پیشرفته و هم ساده — باید قطعاً
+# چندصفحه شود و هیچ محتوایی (پس از CTM/FlateDecode) از لبهٔ MediaBox بیرون نزند.
+# معادلِ گارد ۴ز برای فاکتور طلا؛ این‌جا فیلترِ xUnit به‌صورت نام‌دار صدا زده می‌شود
+# تا حذفِ اتفاقیِ گارد دوباره تکرار نشود (وگرنه فقط داخل تست کاملِ step ۴ پنهان می‌ماند).
+step "۴ح) گارد BuildDocumentPdf ۳۲ ردیفه بدون بیرون‌زدگی (xUnit — A5 و A5L)"
+if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo --filter "FullyQualifiedName~BuildDocumentPdf_a5_32plus_lines_multipage_no_overflow" 2>&1 | tail -1 | grep -qE "Passed!"; then
+  pass "سند ۳۲ ردیفی (پیشرفته/ساده) در A5/A5L — MediaBox درست، چندصفحه، بدون بیرون‌زدگی"
+else
+  fail "گارد سند ۳۲ ردیفه خراب شد — MediaBox، چندصفحه‌گی یا بیرون‌زدگی بازگشته."
+fi
+
+# ── 4i. BuildTablePdf summary-page guard (pymupdf — header only on table pages) ─
+# جدول عمومی ۲۰ ردیفی در A5 **پرتوره** (table-a5-summary.pdf) طوری‌ست که صفحهٔ ۱ =
+# جدول و صفحهٔ آخر = فقط جمع‌بندی. این گام «هدرِ جدول فقط روی صفحاتِ دارای ردیف»
+# را می‌سنجد: هر صفحهٔ دارای ردیف (CHQ-) باید هدر («شماره چک») داشته باشد، ولی
+# صفحهٔ جمع‌بندی بدون ردیف رسماً می‌تواند هدر نداشته باشد — اشتباه قدیمی «هدر در
+# هر صفحه» بود که این حالتِ درست را Fail می‌کرد.
+step "۴ط) گارد هدر فقط روی صفحاتِ دارای جدول (pymupdf — A5 پرتوره با صفحهٔ جمع‌بندی)"
+if bash tools/check-rtl-headers.sh table-summary-pages; then
+  pass "هدرِ جدول روی همهٔ صفحاتِ دارای ردیف هست و صفحهٔ جمع‌بندی بدون هدر معتبر است"
+else
+  fail "گارد هدر/صفحهٔ جمع‌بندی خراب شد — هدر روی صفحهٔ دارای ردیف نیفتاده یا ساختار جمع‌بندی درست نیست."
 fi
 
 # ── 5. Web build (refreshes Tarazin.Web/bin — REQUIRED before restart) ─

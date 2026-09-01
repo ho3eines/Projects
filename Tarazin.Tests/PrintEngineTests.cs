@@ -666,6 +666,77 @@ public sealed class PrintEngineTests
     }
 
     [Fact]
+    public void BuildDocumentPdf_consecutive_clicks_dont_stick_simple_advanced()
+    {
+        // گارد «هش چسبیده روی دو PDF» برای سند حسابداری: باگِ کلاینت قبلی باعث می‌شد
+        // دانلودِ دوم بایت‌های دانلودِ قبلی را بگیرد (race دو دانلودِ هم‌زمان → «هش روی
+        // دو PDF چسبیده»). اینجا همان مسیر بایت‌سازیِ UI (BuildDocumentPdf با حالت
+        // ساده/پیشرفته × A4/A5/A5L) را با کلیک‌های متوالیِ درهم صدا می‌زنیم — همان
+        // نقطه‌ای که قبلاً چسب می‌خورد: تکرارِ پشت‌سرهمِ یک حالت + تغییرِ ناگهانی.
+        var svc = new PdfReportService();
+
+        var combos = new (string Label, bool Advanced, string Size)[]
+        {
+            ("ADV-A4", true, "A4"),
+            ("SMP-A4", false, "A4"),
+            ("ADV-A5", true, "A5"),
+            ("SMP-A5", false, "A5"),
+            ("ADV-A5L", true, "A5L"),
+            ("SMP-A5L", false, "A5L"),
+        };
+
+        // هش مرجعِ هر ترکیب — تعیین‌پذیری (بدون تایم‌استمپ، همان StableHash دیزاینر).
+        var reference = new Dictionary<string, string>();
+        foreach (var (label, advanced, size) in combos)
+        {
+            var model = SampleAdvancedModel();
+            model.Advanced = advanced;
+            var bytes = svc.BuildDocumentPdf(model, size);
+            Assert.True(bytes.Length > 1000, $"[{label}] PDF too small: {bytes.Length}");
+            reference[label] = StableHash(bytes);
+        }
+
+        // شبیه‌سازی کلیک‌های متوالی — مخلوط حالت/اندازه + تکرارِ همان و تغییرِ ناگهانی.
+        var clicks = new (string Label, bool Advanced, string Size)[]
+        {
+            ("ADV-A4", true, "A4"),
+            ("SMP-A4", false, "A4"),
+            ("ADV-A5", true, "A5"),
+            ("SMP-A5", false, "A5"),
+            ("ADV-A5", true, "A5"),   // تکرارِ پشت‌سرهم (dedupe در کلاینت)
+            ("SMP-A5", false, "A5"),   // تغییرِ ناگهانی — نقطهٔ چسبیدنِ قبلی
+            ("ADV-A5L", true, "A5L"),
+            ("SMP-A5L", false, "A5L"),
+            ("ADV-A4", true, "A4"),   // بازگشت به ترکیب اول
+        };
+
+        var clickHashes = new List<string>();
+        for (var i = 0; i < clicks.Length; i++)
+        {
+            var (label, advanced, size) = clicks[i];
+            var model = SampleAdvancedModel();
+            model.Advanced = advanced;
+            var bytes = svc.BuildDocumentPdf(model, size);
+            var hash = StableHash(bytes);
+
+            // هر کلیک باید هشِ مرجعِ خودش را بدهد (تعیین‌پذیری + عدم چسبیدن به قبلی).
+            Assert.Equal(reference[label], hash);
+            clickHashes.Add(hash);
+        }
+
+        // دو کلیکِ متوالیِ متفاوت باید هشِ متفاوتی داشته باشند — اگر حالت/اندازهٔ دوم
+        // بایت‌های کلیکِ قبلی را می‌گرفت، همین‌جا Fail می‌شد (هشِ چسبیده).
+        for (var i = 1; i < clicks.Length; i++)
+        {
+            if (clicks[i].Label != clicks[i - 1].Label)
+                Assert.NotEqual(clickHashes[i - 1], clickHashes[i]);
+        }
+
+        // شش ترکیبِ متفاوت، شش هشِ یکتا — هیچ دو ترکیبی هشِ مشترک ندارند.
+        Assert.Equal(combos.Length, reference.Values.Distinct().Count());
+    }
+
+    [Fact]
     public void BuildTablePdf_a5l_60plus_rows_multipage_no_overflow()
     {
         // گارد چندصفحه‌گی خط لولهٔ جدول عمومی (BuildTablePdf): ۶۰+ ردیف در A5L باید
@@ -716,6 +787,218 @@ public sealed class PrintEngineTests
         // QR در هدر رسمی هم باید باشد.
         Assert.Contains("/Subtype /Image", PdfAscii(bytes));
     }
+
+    [Fact]
+    public void BuildInvoicePdf_a5l_many_rows_multipage_no_overflow()
+    {
+        // گارد چندصفحه‌گی فاکتور طلا (BuildInvoicePdf): ۲۵+ ردیف در A5L باید قطعاً
+        // چندصفحه شود و هیچ محتوایی از لبهٔ MediaBox بیرون نزند — دقیقاً همان گارد
+        // «invoice-a5l-many» که فایلِ dump را می‌سازد و گام pymupdf در
+        // tools/check-rtl-headers.sh هدرِ جدول را در هر صفحه جدا استخراج و تأیید می‌کند؛
+        // این گام ساختار چندصفحه‌گی/بیرون‌زدگی/MediaBox را در همان xUnit قفل می‌کند.
+        var svc = new PdfReportService();
+
+        const string size = "A5L";
+        var bytes = svc.BuildInvoicePdf(SampleInvoice(25), size);
+
+        // وضوح: A5 landscape ≈ ۵۹۵×۴۲۰ (نه پرتره و نه A4).
+        const double w = 595.28, h = 419.53;
+        var geometry = PdfSurfaceGeometry.Check(bytes);
+        Assert.InRange(geometry.PageWidth, w - 0.6, w + 0.6);
+        Assert.InRange(geometry.PageHeight, h - 0.6, h + 0.6);
+        // ۲۵ ردیف فاکتور در A5L هرگز در یک صفحه جا نمی‌شود — صفحه‌بندی درست نه بریده.
+        Assert.True(geometry.PageCount >= 2,
+            $"۲۵ ردیف در A5L باید چندصفحه باشد، ولی PageCount={geometry.PageCount}");
+
+        // بدون بیرون‌زدگی: مختصاتِ دستگاهِ واقعیِ رسم‌شده (پس از CTM/FlateDecode) درون MediaBox.
+        const double tol = 2.0;
+        Assert.True(geometry.MaxDeviceX.HasValue,
+            $"هیچ محتوایی قابل سنجش نیست objects={geometry.ObjectsParsed} pages={geometry.PagesFound} streams={geometry.ContentStreamsRun} bt={geometry.BtCount}");
+        Assert.InRange(geometry.MaxDeviceX!.Value, -tol, w + tol);
+        Assert.InRange(geometry.MaxDeviceY!.Value, -tol, h + tol);
+        Assert.InRange(geometry.MinDeviceX!.Value, -tol, w + tol);
+        Assert.InRange(geometry.MinDeviceY!.Value, -tol, h + tol);
+        Assert.True(geometry.MaxDeviceX.Value > 10,
+            $"MaxDeviceX محتوای واقعی نیست maxX={geometry.MaxDeviceX.Value}");
+
+        // (فاکتور طلا QR در هدر رسمی تعبیه نمی‌کند — برخلاف سند/قالب؛ گارد pymupdfِ
+        // «invoice-a5l-many» هم فقط MediaBox/چندصفحه/هدر/بیرون‌زدگی را می‌سنجد.)
+    }
+
+    [Fact]
+    public void BuildInvoicePdf_a5_portrait_40rows_no_overflow_and_negative_guard_detects()
+    {
+        // (الف) فاکتور واقعی ۴۰ ردیفی در A5 **پرتره** — پوششِ مرز صفحه در هر دو محور:
+        // گاردِ landscape (A5L) فقط ۲۵ ردیف و جهت افقی را می‌سنجید؛ این‌جا ۴۰ ردیف در
+        // A5 پرتره (۴۱۹٫۵۳×۵۹۵٫۲۸) ساخته می‌شود تا چندصفحه بودن، صفحه‌بندی درست و
+        // عدم بیرون‌زدگی در هر دو محور X و Y هم تحت پوشش باشد.
+        var svc = new PdfReportService();
+        var bytes = svc.BuildInvoicePdf(SampleInvoice(40), "A5");
+
+        const double w = 419.53, h = 595.28;
+        var geometry = PdfSurfaceGeometry.Check(bytes);
+        Assert.InRange(geometry.PageWidth, w - 0.6, w + 0.6);
+        Assert.InRange(geometry.PageHeight, h - 0.6, h + 0.6);
+        Assert.True(geometry.PageCount >= 2,
+            $"۴۰ ردیف در A5 پرتره باید چندصفحه باشد، ولی PageCount={geometry.PageCount}");
+
+        const double tol = 2.0;
+        Assert.True(geometry.MaxDeviceX.HasValue,
+            $"هیچ محتوایی قابل سنجش نیست objects={geometry.ObjectsParsed} pages={geometry.PagesFound} streams={geometry.ContentStreamsRun} bt={geometry.BtCount}");
+        Assert.InRange(geometry.MaxDeviceX!.Value, -tol, w + tol);
+        Assert.InRange(geometry.MaxDeviceY!.Value, -tol, h + tol);
+        Assert.InRange(geometry.MinDeviceX!.Value, -tol, w + tol);
+        Assert.InRange(geometry.MinDeviceY!.Value, -tol, h + tol);
+        Assert.True(geometry.MaxDeviceX.Value > 10,
+            $"MaxDeviceX محتوای واقعی نیست maxX={geometry.MaxDeviceX.Value}");
+
+        // (ب) گاردِ منفی (نگهبانِ خودِ گارد): اگر هندسهٔ «بدون بیرون‌زدگی» واقعاً چیزی
+        // را می‌سنجد، باید بیرون‌زدگیِ عمدی را در هر دو محور تشخیص دهد وگرنه همهٔ تست‌های
+        // بالا به‌صورت vacuous سبز می‌ماندند. یک PDF دست‌ساز با متنِ فراتر از هر دو لبهٔ
+        // A5 پرتره می‌سازیم (x=500>w و y=700>h) — MaxDeviceX/Y باید مرز را بشکند.
+        var over = PdfSurfaceGeometry.Check(CraftOverflowingA5PortraitPdf(w, h));
+        Assert.True(over.MaxDeviceX.HasValue && over.MaxDeviceX.Value > w + 2,
+            $"گاردِ منفی باید بیرون‌زدگی X را ببیند (maxX={over.MaxDeviceX})");
+        Assert.True(over.MaxDeviceY.HasValue && over.MaxDeviceY.Value > h + 2,
+            $"گاردِ منفی باید بیرون‌زدگی Y را ببیند (maxY={over.MaxDeviceY})");
+    }
+
+    [Fact]
+    public void BuildInvoicePdf_a4_fit_one_page_all_rows_compressed()
+    {
+        // گزینهٔ «همهٔ ردیف‌ها در یک صفحه» (فشرده‌سازی خودکار): فاکتور ۴۰ ردیفی در A4
+        // بدون گزینه چندصفحه‌ای است (گارد قبلی همین را قفل کرد)، ولی با fitOnePage=true
+        // باید دقیقاً یک صفحهٔ A4 پرتره شود و هیچ محتوایی از لبه بیرون نزند.
+        var svc = new PdfReportService();
+
+        // (الف) کنترل: بدون گزینه، ۴۰ ردیف قطعاً چندصفحه‌ای است.
+        var normal = svc.BuildInvoicePdf(SampleInvoice(40), "A4");
+        Assert.True(PdfReportService.CountPdfPages(normal) >= 2,
+            $"کنترل: ۴۰ ردیف بدون fit باید چندصفحه باشد ولی {PdfReportService.CountPdfPages(normal)} صفحه است");
+
+        // (ب) با گزینه: دقیقاً یک صفحهٔ A4 پرتره (۵۹۵×۸۴۲) بدون بیرون‌زدگی.
+        // (تعداد صفحه را با CountPdfPages می‌سنجیم نه geometry.PageCount — آن regex
+        // گرهٔ والد /Type /Pages را هم می‌شمارد و یک صفحهٔ واقعی را ۲ نشان می‌دهد.)
+        var fit = svc.BuildInvoicePdf(SampleInvoice(40), "A4", fitOnePage: true);
+        const double w = 595.28, h = 841.89;
+        var geometry = PdfSurfaceGeometry.Check(fit);
+        Assert.Equal(1, PdfReportService.CountPdfPages(fit));
+        Assert.InRange(geometry.PageWidth, w - 0.6, w + 0.6);
+        Assert.InRange(geometry.PageHeight, h - 0.6, h + 0.6);
+
+        const double tol = 2.0;
+        Assert.True(geometry.MaxDeviceX.HasValue,
+            $"هیچ محتوایی قابل سنجش نیست objects={geometry.ObjectsParsed} pages={geometry.PagesFound} streams={geometry.ContentStreamsRun} bt={geometry.BtCount}");
+        Assert.InRange(geometry.MaxDeviceX!.Value, -tol, w + tol);
+        Assert.InRange(geometry.MaxDeviceY!.Value, -tol, h + tol);
+        Assert.InRange(geometry.MinDeviceX!.Value, -tol, w + tol);
+        Assert.InRange(geometry.MinDeviceY!.Value, -tol, h + tol);
+        Assert.True(geometry.MaxDeviceX.Value > 10,
+            $"MaxDeviceX محتوای واقعی نیست maxX={geometry.MaxDeviceX.Value}");
+
+        // (ج) fallback: حتی تعداد ردیف غیرقابل‌جمع‌شدن (۲۰۰ تا) هم بدون خطا خروجی می‌دهد؛
+        // فقط ممکن است فشرده‌ترین حالت هم چندصفحه بماند — اما هرگز exception/تهی نیست.
+        var huge = svc.BuildInvoicePdf(SampleInvoice(200), "A4", fitOnePage: true);
+        Assert.NotNull(huge);
+        Assert.True(huge.Length > 1000, "خروجی fallback باید PDF واقعی باشد");
+        Assert.True(PdfReportService.CountPdfPages(huge) >= 1);
+
+        // (د) گزینه باید برای A5 بی‌اثر باشد (فقط A4 پرتره) — همان رفتار قبل.
+        var a5 = svc.BuildInvoicePdf(SampleInvoice(25), "A5", fitOnePage: true);
+        Assert.Equal(PdfReportService.CountPdfPages(svc.BuildInvoicePdf(SampleInvoice(25), "A5")),
+            PdfReportService.CountPdfPages(a5));
+    }
+
+    [Fact]
+    public void Invoice_and_cheque_page_count_helpers_match_the_direct_builders()
+    {
+        // چیپ «تعداد صفحه» دیالوگ‌های فاکتور طلا و گزارش چک‌ها از این helperها پر می‌شود:
+        // هر helper باید دقیقاً CountPdfPagesِ همان بایت‌هایی را بدهد که دکمهٔ «دانلود PDF»
+        // می‌سازد — بخواند و همان را برگرداند، نه تخمین/تعداد متفاوت.
+        var svc = new PdfReportService();
+
+        // فاکتور: سه اندازه + گزینهٔ یک‌صفحه‌ای — helper == شمارش مستقیم بایت‌ها.
+        foreach (var (size, fit) in new[]
+        {
+            ("A4", false), ("A5", false), ("A5L", false), ("A4", true),
+        })
+        {
+            var direct = PdfReportService.CountPdfPages(svc.BuildInvoicePdf(SampleInvoice(40), size, fit));
+            Assert.Equal(direct, svc.BuildInvoicePdfPageCount(SampleInvoice(40), size, fit));
+        }
+        // ۴۰ ردیف بدون گزینه چندصفحه است؛ با گزینهٔ یک‌صفحه‌ای دقیقاً ۱ — helper باید همین را بفهمد.
+        Assert.True(svc.BuildInvoicePdfPageCount(SampleInvoice(40), "A4") >= 2,
+            $"۴۰ ردیف بدون fit باید چندصفحه باشد ولی helper={svc.BuildInvoicePdfPageCount(SampleInvoice(40), "A4")}");
+        Assert.Equal(1, svc.BuildInvoicePdfPageCount(SampleInvoice(40), "A4", fitOnePage: true));
+
+        // گزارش چک‌ها: همیشه افقی — اندازه فقط تعداد صفحه را تغییر می‌دهد نه جهت.
+        var cheques = new System.Collections.Generic.List<ChequeDueRow>
+        {
+            new() { ChequeNumber = "CHQ-50001", BankName = "بانک صادرات ایران", Amount = 500_000_000,
+                Direction = "In", Status = "Pending", SourceReference = "GoldInvoice:SL-1001", DaysToDue = -4, AlertLevel = "Overdue" },
+            new() { ChequeNumber = "CHQ-10001", BankName = "بانک ملی ایران", Amount = 75_000_000,
+                Direction = "In", Status = "Pending", DaysToDue = 26, AlertLevel = "OnTime" },
+        };
+        foreach (var size in new[] { "A4", "A5", "A5L" })
+        {
+            var direct = PdfReportService.CountPdfPages(svc.BuildChequeReportPdf(cheques, size));
+            Assert.Equal(direct, svc.BuildChequeReportPdfPageCount(cheques, size));
+        }
+    }
+
+    /// <summary>
+    /// PDF دست‌سازِ A5 پرتره با یک متن که در هر دو محور از لبه بیرون زده است
+    /// (مبدأ متن در فضای کاربر x=500، y=700؛ CTM همانی است، پس مختصاتِ دستگاه
+    /// همان ۵۰۰/۷۰۰ می‌شود > عرض/ارتفاع صفحه). برای گاردِ منفی استفاده می‌شود تا
+    /// ثابت شود PdfSurfaceGeometry واقعاً بیرون‌زدگی را می‌سنجد نه اینکه همیشه سبز بماند.
+    /// </summary>
+    private static byte[] CraftOverflowingA5PortraitPdf(double w, double h)
+    {
+        var stream = "BT /F1 24 Tf 500 700 Td (OVERFLOW) Tj ET\n";
+        var pdf = $@"%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w.ToString(System.Globalization.CultureInfo.InvariantCulture)} {h.ToString(System.Globalization.CultureInfo.InvariantCulture)}] /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length {stream.Length} >>
+stream
+{stream}endstream
+endobj
+%%EOF
+";
+        return System.Text.Encoding.ASCII.GetBytes(pdf);
+    }
+
+    private static GoldInvoicePrintModel SampleInvoice(int nLines) => new()
+    {
+        InvoiceType = "Sale",
+        InvoiceNumber = "SL-1001",
+        InvoiceDate = new DateTime(1405, 6, 6),
+        PartyName = "مشتری نمونه",
+        DetailCode = "2000000",
+        TaxPct = 10,
+        TotalBase = 1_000_000,
+        TotalTax = 100_000,
+        TotalAmount = 1_100_000,
+        PayCash = 600_000,
+        BalanceRial = 500_000,
+        Lines = Enumerable.Range(1, nLines).Select(i => new GoldInvoicePrintLine
+        {
+            RowType = "Gold",
+            Title = $"گلد ۱۸ عیار سری {i}",
+            Qty = 8.5m,
+            Price = 4_000_000,
+            Workmanship = 250_000,
+            Profit = 120_000,
+            TaxEnabled = true
+        }).ToList()
+    };
 
     private static AccountingDocumentPrintModel SampleAdvancedModel(int detailLines = 24)
     {
@@ -801,6 +1084,25 @@ public sealed class PrintEngineTests
         foreach (var b in bytes)
             sb.Append(b is >= 32 and <= 126 ? (char)b : ' ');
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// هشِ پایدارِ محتوای PDF (بدون تایم‌استمپ) — دقیقاً همان نرمال‌سازیِ
+    /// <c>DesignerMatrixTests.StableHash</c>: QuestPDF در Info دیکشنریِ هر خروجی
+    /// <c>CreationDate/ModDate</c> (با دقت ثانیه) می‌گذارد، پس هشِ خام بین دو اجرا — حتی
+    /// برای محتوای کاملاً یکسان — همیشه فرق دارد. آن دو کلید با مقدار ثابت جایگزین
+    /// می‌شوند تا هش فقط به محتوای واقعی بستگی داشته باشد. همین نرمال‌سازی باید در
+    /// هر ابزار مقایسهٔ لایو (<c>tools/compare-designer-downloads.sh</c>) هم یکی باشد.
+    /// </summary>
+    private static string StableHash(byte[] bytes)
+    {
+        // Latin1 نگاشت ۱:۱ بایت→کاراکتر دارد، پس round-trip بدون تغییر است.
+        var text = System.Text.Encoding.Latin1.GetString(bytes);
+        var norm = System.Text.RegularExpressions.Regex.Replace(text,
+            @"/CreationDate\s*\([^)]*\)|/ModDate\s*\([^)]*\)",
+            "/CreationDate (D:0+00'00')/ModDate (D:0+00'00')");
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.Latin1.GetBytes(norm)));
     }
 }
 
@@ -935,7 +1237,7 @@ public sealed class PdfSurfaceGeometry
     private sealed class ContentGraph
     {
         private readonly System.Collections.Generic.Stack<(double A, double B, double C, double D, double E, double F)> _stack = new();
-        private double A = 1, B, C, D, E, F;
+        private double A = 1, D = 1, B, C, E, F;
         private double _maxX = double.MinValue, _maxY = double.MinValue, _minX = double.MaxValue, _minY = double.MaxValue;
         private bool _any;
         // مکان‌نمای متن در فضای کاربر (برای BT/ET و Td/Tm)
@@ -1055,7 +1357,15 @@ public sealed class PdfSurfaceGeometry
                 }
                 if (ch == '(') // رشتهٔ متنی (Tj) — فقط لیتری ساده
                 {
-                    i++; int depth = 1; while (i < n && depth > 0) { if (s[i] == '\\') i += 2; else if (s[i] == '(') depth++; else if (s[i] == ')') depth--; else i++; } continue;
+                    i++; int depth = 1;
+                    while (i < n && depth > 0)
+                    {
+                        if (s[i] == '\\') i += 2;
+                        else if (s[i] == '(') { depth++; i++; }
+                        else if (s[i] == ')') { depth--; i++; }
+                        else i++;
+                    }
+                    continue;
                 }
                 // نام ( /Name ) یا اعداد
                 if (ch == '/' )

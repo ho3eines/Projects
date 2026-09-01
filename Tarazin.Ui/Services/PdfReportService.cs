@@ -39,8 +39,20 @@ public sealed class PdfReportService
 
     // ─────────────────────────── فاکتور طلا ───────────────────────────
 
-    /// <summary>ساخت PDF فاکتور خرید/فروش طلا (A4 یا A5 پرتره).</summary>
-    public byte[] BuildInvoicePdf(GoldInvoicePrintModel model, string paperSize = "A4")
+    /// <summary>
+    /// مقیاس‌های فشرده‌سازی خودکار برای گزینهٔ «همهٔ ردیف‌ها در یک صفحه».
+    /// از ۱ (بی‌تغییر) به‌تدریج کوچک‌تر می‌شود تا فاکتور در یک صفحهٔ A4 جا شود.
+    /// </summary>
+    private static readonly float[] FitOnePageScales = { 1f, 0.94f, 0.88f, 0.82f, 0.76f, 0.70f, 0.64f, 0.58f, 0.52f, 0.46f };
+
+    /// <summary>
+    /// ساخت PDF فاکتور خرید/فروش طلا (A4 یا A5 پرتره).
+    /// <paramref name="fitOnePage"/> — وقتی true و اندازه A4 باشد، ابتدا با مقیاس ۱ رندر
+    /// می‌شود؛ اگر خروجی بیش از یک صفحه شد، فونت/فاصله‌ها به‌صورت خودکار کوچک‌تر می‌شوند
+    /// (نردبان FitOnePageScales) تا همهٔ ردیف‌ها در یک صفحه جا شوند. اگر حتی کوچک‌ترین
+    /// مقیاس هم نتوانست (تعداد ردیف غیرقابل جمع‌شدن)، فشرده‌ترین خروجی ممکن برگردانده می‌شود.
+    /// </summary>
+    public byte[] BuildInvoicePdf(GoldInvoicePrintModel model, string paperSize = "A4", bool fitOnePage = false)
     {
         var isA5 = paperSize.StartsWith("A5", StringComparison.OrdinalIgnoreCase);
         var landscape = paperSize.IndexOf("L", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -48,6 +60,33 @@ public sealed class PdfReportService
         if (landscape)
             pageSize = isA5 ? PageSizes.A5.Landscape() : PageSizes.A4.Landscape();
 
+        // «همهٔ ردیف‌ها در یک صفحه» فقط برای A4 پرتره منطقی است.
+        if (fitOnePage && !isA5 && !landscape)
+            return BuildInvoicePdfFitOnePage(model, pageSize);
+
+        return BuildInvoicePdfCore(model, pageSize, isA5, 1f);
+    }
+
+    /// <summary>
+    /// رندرهای فزاینده‌فشرده تا رسیدن به یک صفحه. هر رندر بایت‌های واقعی QuestPDF است و
+    /// تعداد صفحه با همان شمارشِ <c>CountPdfPages</c> سنجیده می‌شود — بنابراین تضمینِ
+    /// «همهٔ ردیف‌ها در یک صفحه» بر اساس خروجی واقعی است، نه تخمین ارتفاع.
+    /// </summary>
+    private byte[] BuildInvoicePdfFitOnePage(GoldInvoicePrintModel model, PageSize pageSize)
+    {
+        byte[]? last = null;
+        foreach (var s in FitOnePageScales)
+        {
+            last = BuildInvoicePdfCore(model, pageSize, false, s);
+            if (CountPdfPages(last) <= 1)
+                return last;
+        }
+        // حتی کوچک‌ترین مقیاس هم چندصفحه شد — فشرده‌ترین خروجی را برگردان (بهترین تلاش).
+        return last!;
+    }
+
+    private byte[] BuildInvoicePdfCore(GoldInvoicePrintModel model, PageSize pageSize, bool isA5, float s)
+    {
         return Document.Create(container =>
         {
             container.Page(page =>
@@ -57,17 +96,17 @@ public sealed class PdfReportService
                 // کل سند راست‌به‌چپ: متن‌ها RTL و ترتیب Row/Table معکوس می‌شود
                 // (اولین آیتم = راست‌ترین) — دیگر نیازی به شبیه‌سازی دستی RTL نیست.
                 page.ContentFromRightToLeft();
-                page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(9).FontColor("#1f2937"));
+                page.DefaultTextStyle(t => t.FontFamily(FontFamily).FontSize(9 * s).FontColor("#1f2937"));
 
                 page.Header().Element(h => BuildOfficialHeader(h, isA5,
                     $"{TypeTitle(model.InvoiceType)} طلا و جواهرات — {model.InvoiceNumber}"));
 
                 page.Content().Column(col =>
                 {
-                    col.Item().Element(c => BuildInvoiceMeta(c, model));
-                    col.Item().PaddingTop(8).Element(c => BuildInvoiceLines(c, model));
-                    col.Item().PaddingTop(8).Element(c => BuildInvoiceTotals(c, model));
-                    col.Item().PaddingTop(8).Element(c => BuildSettlement(c, model));
+                    col.Item().Element(c => BuildInvoiceMeta(c, model, s));
+                    col.Item().PaddingTop(8 * s).Element(c => BuildInvoiceLines(c, model, s));
+                    col.Item().PaddingTop(8 * s).Element(c => BuildInvoiceTotals(c, model, s));
+                    col.Item().PaddingTop(8 * s).Element(c => BuildSettlement(c, model, s));
                 });
 
                 page.Footer().Element(f => BuildOfficialFooter(f, isA5, $"فاکتور {model.InvoiceNumber}"));
@@ -78,9 +117,9 @@ public sealed class PdfReportService
     private static string TypeTitle(string type)
         => string.Equals(type, "Purchase", StringComparison.OrdinalIgnoreCase) ? "فاکتور خرید" : "فاکتور فروش";
 
-    private static void BuildInvoiceMeta(IContainer c, GoldInvoicePrintModel model)
+    private static void BuildInvoiceMeta(IContainer c, GoldInvoicePrintModel model, float s = 1f)
     {
-        c.Border(0.8f).BorderColor("#d1d5db").Padding(8).Row(row =>
+        c.Border(0.8f).BorderColor("#d1d5db").Padding(8 * s).Row(row =>
         {
             // کل سند RTL است (ContentFromRightToLeft): اولین ستون = راست‌ترین.
             // «شماره فاکتور» راست‌ترین (اولینِ خوانده‌شده) و «سند حسابداری» چپ‌ترین.
@@ -103,7 +142,7 @@ public sealed class PdfReportService
         });
     }
 
-    private static void BuildInvoiceLines(IContainer c, GoldInvoicePrintModel model)
+    private static void BuildInvoiceLines(IContainer c, GoldInvoicePrintModel model, float s = 1f)
     {
         c.Border(0.8f).BorderColor("#d1d5db").Table(table =>
         {
@@ -123,30 +162,30 @@ public sealed class PdfReportService
 
             table.Header(h =>
             {
-                h.Cell().Element(HeaderCell).Text("ردیف").Bold();
-                h.Cell().Element(HeaderCell).Text("نوع").Bold();
-                h.Cell().Element(HeaderCell).Text("کالا / ارز").Bold();
-                h.Cell().Element(HeaderCell).Text("مقدار").Bold();
-                h.Cell().Element(HeaderCell).Text("نرخ / قیمت").Bold();
-                h.Cell().Element(HeaderCell).Text("اجرت").Bold();
-                h.Cell().Element(HeaderCell).Text("سود").Bold();
-                h.Cell().Element(HeaderCell).Text("جمع ردیف").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("ردیف").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("نوع").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("کالا / ارز").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("مقدار").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("نرخ / قیمت").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("اجرت").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("سود").Bold();
+                h.Cell().Element(c => HeaderCellScaled(c, s)).Text("جمع ردیف").Bold();
             });
 
             var i = 1;
             foreach (var line in model.Lines)
             {
                 var index = i++;
-                table.Cell().Element(BodyCell).Text(index.ToString());
-                table.Cell().Element(BodyCell).Text(line.RowType == "Gold" ? "طلا" : "ارز");
-                table.Cell().Element(BodyCell).Text(line.Title);
-                table.Cell().Element(BodyCell).Text(FormatQty(line));
-                table.Cell().Element(BodyCell).AlignRight().Text(line.RowType == "Gold"
+                table.Cell().Element(c => BodyCellScaled(c, s)).Text(index.ToString());
+                table.Cell().Element(c => BodyCellScaled(c, s)).Text(line.RowType == "Gold" ? "طلا" : "ارز");
+                table.Cell().Element(c => BodyCellScaled(c, s)).Text(line.Title);
+                table.Cell().Element(c => BodyCellScaled(c, s)).Text(FormatQty(line));
+                table.Cell().Element(c => BodyCellScaled(c, s)).AlignRight().Text(line.RowType == "Gold"
                     ? line.Price.ToString("N0", Fa)
                     : line.ResolvedRate.ToString("N0", Fa));
-                table.Cell().Element(BodyCell).AlignRight().Text(line.Workmanship.ToString("N0", Fa));
-                table.Cell().Element(BodyCell).AlignRight().Text(line.Profit.ToString("N0", Fa));
-                table.Cell().Element(BodyCell).AlignRight().Text(LineTotal(line).ToString("N0", Fa));
+                table.Cell().Element(c => BodyCellScaled(c, s)).AlignRight().Text(line.Workmanship.ToString("N0", Fa));
+                table.Cell().Element(c => BodyCellScaled(c, s)).AlignRight().Text(line.Profit.ToString("N0", Fa));
+                table.Cell().Element(c => BodyCellScaled(c, s)).AlignRight().Text(LineTotal(line).ToString("N0", Fa));
             }
         });
     }
@@ -168,12 +207,12 @@ public sealed class PdfReportService
             ? $"{line.Qty:N3} گرم"
             : $"{line.Qty:N2} {line.CurrencyCode}";
 
-    private static void BuildInvoiceTotals(IContainer c, GoldInvoicePrintModel model)
+    private static void BuildInvoiceTotals(IContainer c, GoldInvoicePrintModel model, float s = 1f)
     {
-        c.PaddingTop(4).Row(row =>
+        c.PaddingTop(4 * s).Row(row =>
         {
             // RTL: کارت جمع‌ها راست‌ترین (اولین آیتم).
-            row.ConstantItem(220).Border(0.8f).BorderColor("#d1d5db").Padding(8).Column(total =>
+            row.ConstantItem(220).Border(0.8f).BorderColor("#d1d5db").Padding(8 * s).Column(total =>
             {
                 total.Item().Row(r =>
                 {
@@ -195,7 +234,7 @@ public sealed class PdfReportService
         });
     }
 
-    private static void BuildSettlement(IContainer c, GoldInvoicePrintModel model)
+    private static void BuildSettlement(IContainer c, GoldInvoicePrintModel model, float s = 1f)
     {
         var parts = new List<string>();
         if (model.PayCash > 0) parts.Add($"نقدی: {model.PayCash:N0} ریال");
@@ -454,97 +493,13 @@ public sealed class PdfReportService
         });
     }
 
-    /// <summary>ساخت ردیف‌های تودرتوی چاپ پیشرفته از رول‌آپ مدل — ترتیب کل ← معین ← تفصیل.</summary>
-    private static List<DocPdfRow> BuildAdvancedDocRows(AccountingDocumentPrintModel model)
-    {
-        var result = new List<DocPdfRow>();
-        var kols = model.KolRows.Count > 0
-            ? model.KolRows
-            : model.Lines
-                .GroupBy(l => l.AccountCode.Length >= 2 ? l.AccountCode[..2] : l.AccountCode)
-                .Select(g => new AccountRollupRow
-                {
-                    Code = g.Key,
-                    Title = g.First().Title,
-                    Debit = g.Sum(x => x.Debit),
-                    Credit = g.Sum(x => x.Credit),
-                    LineCount = g.Count()
-                }).ToList();
-
-        foreach (var kol in kols.OrderBy(k => k.Code, StringComparer.Ordinal))
-        {
-            var moeins = (model.MoeinRows.Count > 0 ? model.MoeinRows : new List<AccountRollupRow>())
-                .Where(m => m.Code.Length >= 2 && m.Code.StartsWith(kol.Code, StringComparison.Ordinal))
-                .OrderBy(m => m.Code, StringComparer.Ordinal).ToList();
-
-            // اگر معین‌ها از رول‌آپ نیامدند، از روی ردیف‌ها تجمیع کن
-            if (moeins.Count == 0)
-            {
-                moeins = model.Lines
-                    .Where(l => l.AccountCode.StartsWith(kol.Code, StringComparison.Ordinal))
-                    .GroupBy(l => l.AccountCode.Length >= 5 ? l.AccountCode[..5] : l.AccountCode)
-                    .Select(g => new AccountRollupRow
-                    {
-                        Code = g.Key,
-                        Title = g.First().Title,
-                        Debit = g.Sum(x => x.Debit),
-                        Credit = g.Sum(x => x.Credit),
-                        LineCount = g.Count()
-                    }).OrderBy(m => m.Code, StringComparer.Ordinal).ToList();
-            }
-
-            decimal kolDebit = 0, kolCredit = 0;
-            int kolCount = 0;
-            var moeinBlock = new List<DocPdfRow>();
-
-            foreach (var moein in moeins)
-            {
-                var moeinLines = model.Lines
-                    .Where(l => l.AccountCode.StartsWith(moein.Code, StringComparison.Ordinal))
-                    .OrderBy(l => l.AccountCode, StringComparer.Ordinal).ToList();
-                var mDebit = moeinLines.Sum(l => l.Debit);
-                var mCredit = moeinLines.Sum(l => l.Credit);
-                kolDebit += mDebit; kolCredit += mCredit; kolCount += moeinLines.Count;
-
-                moeinBlock.Add(new DocPdfRow
-                {
-                    Level = 1, Code = moein.Code, Title = moein.Title,
-                    Debit = mDebit, Credit = mCredit, LineCount = moeinLines.Count
-                });
-
-                foreach (var line in moeinLines)
-                {
-                    moeinBlock.Add(new DocPdfRow
-                    {
-                        Level = 2, Code = line.AccountCode,
-                        Title = string.IsNullOrWhiteSpace(line.Description)
-                            ? line.Title
-                            : $"{line.Title} — {line.Description}",
-                        Debit = line.Debit, Credit = line.Credit, LineCount = 0
-                    });
-                }
-            }
-
-            result.Add(new DocPdfRow
-            {
-                Level = 0, Code = kol.Code, Title = kol.Title,
-                Debit = kolDebit, Credit = kolCredit, LineCount = kolCount
-            });
-            result.AddRange(moeinBlock);
-        }
-        return result;
-    }
-
-    /// <summary>ردیف چاپ پیشرفتهٔ PDF — سطح سلسله‌مراتب (۰=کل، ۱=معین، ۲=تفصیل).</summary>
-    private sealed class DocPdfRow
-    {
-        public int Level { get; set; }
-        public string Code { get; set; } = "";
-        public string Title { get; set; } = "";
-        public int LineCount { get; set; }
-        public decimal Debit { get; set; }
-        public decimal Credit { get; set; }
-    }
+    /// <summary>
+    /// ردیف‌های تودرتوی چاپ پیشرفته از رول‌آپ مدل — ترتیب کل ← معین ← تفصیل.
+    /// از Builder مشترک <see cref="AdvancedDocRowsBuilder"/> استفاده می‌کند تا PDF با
+    /// چاپ HTML دیالوگ و گاردهای تست هرگز از هم جدا نشوند (منبع واحد حقیقت).
+    /// </summary>
+    private static List<AdvancedPrintRow> BuildAdvancedDocRows(AccountingDocumentPrintModel model)
+        => AdvancedDocRowsBuilder.Build(model.KolRows, model.MoeinRows, model.Lines);
 
     private static string LineLabel(DocumentLineRow line)
         => string.IsNullOrWhiteSpace(line.Description) ? line.Title : $"{line.Title} — {line.Description}";
@@ -586,6 +541,62 @@ public sealed class PdfReportService
         try
         {
             var bytes = BuildDocumentPdf(model, paperSize);
+            return CountPdfPages(bytes);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// تعداد صفحهٔ PDF فاکتور طلا برای اندازهٔ داده‌شده — بدون ذخیرهٔ فایل.
+    /// با همان بایت‌های BuildInvoicePdf (و همان گزینهٔ «همهٔ ردیف‌ها در یک صفحه»)
+    /// ساخته و با <see cref="CountPdfPages"/> شمرده می‌شود تا کاربر پیش از دانلود
+    /// بداند چندصفحه خواهد شد — هم‌دهان با BuildDocumentPdfPageCount.
+    /// </summary>
+    public int BuildInvoicePdfPageCount(GoldInvoicePrintModel model, string paperSize = "A4", bool fitOnePage = false)
+    {
+        try
+        {
+            var bytes = BuildInvoicePdf(model, paperSize, fitOnePage);
+            return CountPdfPages(bytes);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// تعداد صفحهٔ PDF گزارش چک‌ها برای اندازهٔ داده‌شده — بدون ذخیرهٔ فایل.
+    /// با همان بایت‌های BuildChequeReportPdf ساخته و شمرده می‌شود (گزارش همیشه افقی).
+    /// </summary>
+    public int BuildChequeReportPdfPageCount(IEnumerable<ChequeDueRow> rows, string paperSize = "A4")
+    {
+        try
+        {
+            var bytes = BuildChequeReportPdf(rows, paperSize);
+            return CountPdfPages(bytes);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// تعداد صفحهٔ PDF قالب عمومی برای اندازهٔ داده‌شده — بدون ذخیرهٔ فایل.
+    /// با همان بایت‌های BuildTemplatePdf (و همان اندازه‌override که کاربر انتخاب کرده)
+    /// ساخته و با <see cref="CountPdfPages"/> شمرده می‌شود تا دیالوگ چاپ عمومی
+    /// (TemplatePrintDialog — گزارش چک‌ها و بقیهٔ گزارش‌های قالب‌محور) پیش از دانلود
+    /// تعداد صفحه را نشان دهد.
+    /// </summary>
+    public int BuildTemplatePdfPageCount(PrintTemplateDef template, PrintDataModel data, string? sizeOverride = null)
+    {
+        try
+        {
+            var bytes = BuildTemplatePdf(template, data, sizeOverride);
             return CountPdfPages(bytes);
         }
         catch
@@ -1214,8 +1225,12 @@ public sealed class PdfReportService
     // خروجی PDF چپ‌چین و به‌هم‌ریخته می‌شود. ستون‌های عددی هم راست‌چین‌اند
     // (طبق عرف گزارش‌های فارسی) بنابراین همین راست‌چینی سراسری کافی است.
     private static IContainer HeaderCell(IContainer c)
-        => c.Background("#f3f4f6").Border(0.4f).BorderColor("#d1d5db").Padding(4)
-            .AlignRight().DefaultTextStyle(t => t.FontSize(8.5f));
+        => HeaderCellScaled(c, 1f);
+
+    /// <summary>نسخهٔ مقیاس‌پذیر هدر ستون — برای فشرده‌سازی خودکار فاکتور (گزینهٔ «یک صفحه»).</summary>
+    private static IContainer HeaderCellScaled(IContainer c, float s)
+        => c.Background("#f3f4f6").Border(0.4f).BorderColor("#d1d5db").Padding(4 * s)
+            .AlignRight().DefaultTextStyle(t => t.FontSize(8.5f * s));
 
     /// <summary>
     /// هدر ستون قالب‌محور — ترازِ هر ستون همانند رندرر HTML (RTL: Start=راست، End=چپ)
@@ -1234,8 +1249,12 @@ public sealed class PdfReportService
     }
 
     private static IContainer BodyCell(IContainer c)
-        => c.Border(0.4f).BorderColor("#d1d5db").Padding(4)
-            .AlignRight().DefaultTextStyle(t => t.FontSize(8.5f));
+        => BodyCellScaled(c, 1f);
+
+    /// <summary>نسخهٔ مقیاس‌پذیر سلول بدنه — برای فشرده‌سازی خودکار فاکتور (گزینهٔ «یک صفحه»).</summary>
+    private static IContainer BodyCellScaled(IContainer c, float s)
+        => c.Border(0.4f).BorderColor("#d1d5db").Padding(4 * s)
+            .AlignRight().DefaultTextStyle(t => t.FontSize(8.5f * s));
 
     private static string DueLabel(int days) => days switch
     {

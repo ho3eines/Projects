@@ -230,6 +230,14 @@ IF COL_LENGTH(N'inventory.Items', N'CreatedBy') IS NULL
 IF COL_LENGTH(N'inventory.Items', N'UpdatedBy') IS NULL
     ALTER TABLE [inventory].[Items] ADD UpdatedBy NVARCHAR(100) NULL;
 
+-- حساب مقابل تعدیل (انبارگردانی) — سند حسابداری مغایرت.
+IF COL_LENGTH(N'inventory.InventorySettings', N'AdjustmentAccountId') IS NULL
+    ALTER TABLE [inventory].[InventorySettings] ADD AdjustmentAccountId INT NULL;
+IF COL_LENGTH(N'inventory.InventorySettings', N'AdjustmentAccountCode') IS NULL
+    ALTER TABLE [inventory].[InventorySettings] ADD AdjustmentAccountCode NVARCHAR(4000) NULL;
+IF COL_LENGTH(N'inventory.InventorySettings', N'AdjustmentAccountTitle') IS NULL
+    ALTER TABLE [inventory].[InventorySettings] ADD AdjustmentAccountTitle NVARCHAR(200) NULL;
+
 -- گروه کالا / واحد کالا (ارجاع به جداول پایه جدید؛ فیلدهای متنی قدیمی نگه داشته می‌شوند).
 IF COL_LENGTH(N'inventory.Items', N'GroupId') IS NULL
     ALTER TABLE [inventory].[Items] ADD GroupId INT NULL;
@@ -591,7 +599,8 @@ BEGIN
     FETCH NEXT FROM legacy_policy_cur INTO @LegacyPolicyName;
     WHILE @@FETCH_STATUS = 0
     BEGIN
-        EXEC (N'DROP SECURITY POLICY [central].' + QUOTENAME(@LegacyPolicyName) + N';');
+        DECLARE @DropPolicySql NVARCHAR(MAX) = N'DROP SECURITY POLICY [central].' + QUOTENAME(@LegacyPolicyName) + N';';
+        EXEC sys.sp_executesql @DropPolicySql;
         FETCH NEXT FROM legacy_policy_cur INTO @LegacyPolicyName;
     END
     CLOSE legacy_policy_cur;

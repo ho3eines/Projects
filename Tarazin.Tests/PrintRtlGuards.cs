@@ -14,7 +14,7 @@ namespace Tarazin.Tests
     /// سپس متن، و QR آخر (چپ‌ترین) ساخته شود. باگ قبلی (ترتیب LTR دستی) لوگو را
     /// چپ‌ترین می‌کرد. این گارد ترتیب صحیح را در هر سه سازندهٔ هدر قفل می‌کند.
     /// </summary>
-    public class DumpAdvDoc
+    public class PrintRtlGuards
     {
         [Fact]
         public void Header_builders_emit_logo_before_text_rtl()
@@ -79,9 +79,11 @@ namespace Tarazin.Tests
             Assert.NotNull(source);
 
             // صفحه → سازندهٔ هدری که باید صدا بزند (همان ترتیب RTL: لوگو راست‌ترین).
+            // BuildInvoicePdf اکنون به BuildInvoicePdfCore delegate می‌کند (گزینهٔ
+            // «همهٔ ردیف‌ها در یک صفحه» با فشرده‌سازی خودکار) — پس RTL در Core است.
             var wiring = new Dictionary<string, string>
             {
-                ["BuildInvoicePdf"] = "BuildOfficialHeader",
+                ["BuildInvoicePdfCore"] = "BuildOfficialHeader",
                 ["BuildDocumentPdf"] = "BuildDocumentCompanyHeader",
                 ["BuildChequeReportPdf"] = "BuildOfficialHeader",
                 ["BuildTablePdf"] = "BuildOfficialHeader",
@@ -167,8 +169,10 @@ namespace Tarazin.Tests
         private static List<string> ExtractHeaderLabels(string tableBody)
         {
             var labels = new List<string>();
+            // هم شکل قدیمی «Element(HeaderCell).Text("...")» و هم مقیاس‌پذیرِ جدید
+            // «Element(c => HeaderCellScaled(c, s)).Text("...")» (فشرده‌سازی یک صفحه).
             var pattern = new System.Text.RegularExpressions.Regex(
-                "HeaderCell\\)\\.Text\\(\"([^\"]+)\"\\)");
+                "HeaderCell\\w*(?:\\([^)]*\\))?\\)?\\.Text\\(\"([^\"]+)\"\\)");
             foreach (System.Text.RegularExpressions.Match m in pattern.Matches(tableBody))
                 labels.Add(m.Groups[1].Value);
             return labels;
@@ -185,6 +189,33 @@ namespace Tarazin.Tests
                 "print-pdf.js باید _lastDownloadName برای dedupe داشته باشد");
             Assert.True(source.Contains("Promise.resolve()", StringComparison.Ordinal),
                 "صف دانلود باید از Promise.resolve() شروع شود تا سریالی باشد");
+
+            // ۱) زنجیرهٔ سریالی: هر دانلود به انتهای صف با then(run, run) الحاق می‌شود —
+            //    نه Promise.all موازی (که race دو دانلود و خراب‌شدن نام فایل را برمی‌گرداند).
+            const string Chain = "window.tarazin._downloadQueue.then(run, run)";
+            var first = source.IndexOf(Chain, StringComparison.Ordinal);
+            Assert.True(first >= 0,
+                "صف باید با _downloadQueue.then(run, run) زنجیره شود تا دانلودها سریالی باشند (نه Promise.all موازی)");
+            var second = source.IndexOf(Chain, first + Chain.Length, StringComparison.Ordinal);
+            Assert.True(second < 0,
+                "زنجیرهٔ _downloadQueue.then(run, run) باید دقیقاً یک بار باشد — دو بار یعنی موازی‌سازیِ race برگشته است");
+
+            // ۲) ترتیب: ثبت نام (dedupe) قبل از زنجیره — تا همان لحظهٔ درخواستِ تکراری رد شود.
+            var dedupeSet = source.IndexOf("_lastDownloadName = file", StringComparison.Ordinal);
+            Assert.True(dedupeSet >= 0 && dedupeSet < first,
+                "ترتیب باید باشد: _lastDownloadName = file (ثبت dedupe) قبل از _downloadQueue.then(run, run)");
+
+            // ۳) await روی خودِ صف + ریست نام در finally بعد از آن — dedupe فقط همان کلیکِ
+            //    تکراری را می‌گیرد و پس از پایان دانلود، نام برای درخواست بعدی آزاد می‌شود.
+            var awaitIdx = source.IndexOf("return await window.tarazin._downloadQueue", StringComparison.Ordinal);
+            Assert.True(awaitIdx >= 0,
+                "دانلود باید روی خودِ صف await کند تا نتیجهٔ سریالی برگردد");
+            var finallyIdx = source.IndexOf("finally", awaitIdx, StringComparison.Ordinal);
+            Assert.True(finallyIdx >= 0,
+                "بعد از await صف باید بلوک finally برای ریست dedupe وجود داشته باشد");
+            var reset = source.IndexOf("_lastDownloadName = null", finallyIdx, StringComparison.Ordinal);
+            Assert.True(reset >= 0,
+                "finally باید _lastDownloadName را null کند تا dedupe فقط همان کلیک تکراری را بگیرد");
         }
 
         /// <summary>
@@ -210,7 +241,19 @@ namespace Tarazin.Tests
             // گام ۴و — گارد چندصفحه‌گی جدول عمومی (BuildTablePdf با ۶۰+ ردیف، هدر در هر صفحه)
             Assert.Contains("check-rtl-headers.sh table-many", runChecks, StringComparison.Ordinal);
             // گام ۴ز — گارد A5L فاکتور طلا (BuildInvoicePdf با ردیف‌های زیاد: MediaBox و بدون بیرون‌زدگی)
+            // دو لایه: xUnit ساختاری نام‌دار + pymupdf (هدر در هر صفحه) — حذفِ هر کدام Fail می‌شود.
             Assert.Contains("check-rtl-headers.sh invoice-a5l-many", runChecks, StringComparison.Ordinal);
+            Assert.Contains("FullyQualifiedName~BuildInvoicePdf_a5l_many_rows_multipage_no_overflow", runChecks, StringComparison.Ordinal);
+            Assert.Contains("۴ز) گارد BuildInvoicePdf A5L چندصفحه", runChecks, StringComparison.Ordinal);
+            // گام ۴ح — گارد بدون بیرون‌زدگی سند ۳۲ ردیفه (xUnit نام‌دار، A5 و A5L)
+            Assert.Contains("FullyQualifiedName~BuildDocumentPdf_a5_32plus_lines_multipage_no_overflow", runChecks, StringComparison.Ordinal);
+            Assert.Contains("۴ح) گارد BuildDocumentPdf ۳۲ ردیفه", runChecks, StringComparison.Ordinal);
+            // گام ۴ط — گارد «هدر فقط روی صفحاتِ حاوی جدول» (pymupdf — A5 پرتوره با صفحهٔ جمع‌بندی)
+            Assert.Contains("check-rtl-headers.sh table-summary-pages", runChecks, StringComparison.Ordinal);
+            Assert.Contains("۴ط) گارد هدر فقط روی صفحاتِ دارای جدول", runChecks, StringComparison.Ordinal);
+            // گام ۴ی — چیپ تعداد صفحهٔ فاکتور/چک: helperها باید با همان بایت‌های دانلود هم‌راستا باشند
+            Assert.Contains("FullyQualifiedName~Invoice_and_cheque_page_count_helpers_match_the_direct_builders", runChecks, StringComparison.Ordinal);
+            Assert.Contains("۴ی) چیپ تعداد صفحه فاکتور/چک", runChecks, StringComparison.Ordinal);
             // گام ۳ب — گارد فونت Vazirmatn (VazirmatnFontRegistrationTests) — نباید روثبت‌نشده حذف شود
             Assert.Contains("FullyQualifiedName~VazirmatnFontRegistrationTests", runChecks, StringComparison.Ordinal);
             Assert.Contains("۳ب) گارد فونت Vazirmatn", runChecks, StringComparison.Ordinal);
@@ -218,14 +261,15 @@ namespace Tarazin.Tests
             var headers = ReadRepoFile("tools", "check-rtl-headers.sh");
             Assert.NotNull(headers);
 
-            // هر هفت حالت باید تعریف‌شده باشند: all (پیش‌فرض، همهٔ گاردها) و گام‌های نام‌دار
-            Assert.Contains("[all|generic|a5l|table|noheader|table-many|invoice-a5l-many]", headers!, StringComparison.Ordinal);
+            // هر هشت حالت باید تعریف‌شده باشند: all (پیش‌فرض، همهٔ گاردها) و گام‌های نام‌دار
+            Assert.Contains("[all|generic|a5l|table|noheader|table-many|invoice-a5l-many|table-summary-pages]", headers!, StringComparison.Ordinal);
             Assert.Contains("generic) run_generic", headers, StringComparison.Ordinal);
             Assert.Contains("a5l)     run_a5l", headers, StringComparison.Ordinal);
             Assert.Contains("table)   run_table_a5l", headers, StringComparison.Ordinal);
             Assert.Contains("noheader) run_a5l_noheader", headers, StringComparison.Ordinal);
             Assert.Contains("table-many) run_table_many", headers, StringComparison.Ordinal);
             Assert.Contains("invoice-a5l-many) run_invoice_a5l_many", headers, StringComparison.Ordinal);
+            Assert.Contains("table-summary-pages) run_table_summary_pages", headers, StringComparison.Ordinal);
             // حالت پیش‌فرض «all» (case *) هر شش گارد را اجرا می‌کند
             Assert.Contains("*)", headers, StringComparison.Ordinal);
             Assert.Contains("run_generic || OK=1", headers, StringComparison.Ordinal);
@@ -234,6 +278,7 @@ namespace Tarazin.Tests
             Assert.Contains("run_a5l_noheader || OK=1", headers, StringComparison.Ordinal);
             Assert.Contains("run_table_many || OK=1", headers, StringComparison.Ordinal);
             Assert.Contains("run_invoice_a5l_many || OK=1", headers, StringComparison.Ordinal);
+            Assert.Contains("run_table_summary_pages || OK=1", headers, StringComparison.Ordinal);
         }
 
         private static string? ReadRepoFile(params string[] segments)
@@ -340,6 +385,27 @@ namespace Tarazin.Tests
                     companyName: "ترازین — سامانه یکپارچه",
                     companyAddress: "تهران، خیابان آزادی",
                     qrPayload: "https://tarazin.app/trace/table"));
+
+            // جدول عمومی در A5 **پرتره** با جمع‌بندی که به‌تنهایی صفحهٔ آخر را می‌گیرد:
+            // ۲۰ ردیف طوری‌ست که صفحهٔ ۱ = جدول (هدر + ردیف‌ها) و صفحهٔ ۲ = فقط جمع‌بندی
+            // (بدون هدر جدول و بدون ردیف). این فایل ورودیِ step «table-summary-pages» در
+            // tools/check-rtl-headers.sh است که «هدر فقط روی صفحاتِ حاوی جدول» را می‌سنجد
+            // — صفحهٔ جمع‌بندی بدون هدر باید رسماً معتبر باشد نه Fail.
+            var summaryRows = new List<IReadOnlyList<string>>();
+            for (var i = 1; i <= 20; i++)
+                summaryRows.Add(new[] { $"CHQ-{i:00000}", "بانک صادرات ایران", "دریافتی", "1405/06/02", (i * 1_000_000L).ToString("N0") });
+            File.WriteAllBytes(Path.Combine(dir, "table-a5-summary.pdf"),
+                svc.BuildTablePdf(
+                    "گزارش چک‌ها",
+                    "چک‌های در جریان و سررسیدشده",
+                    "از 1405/05/07 تا 1405/06/07",
+                    tableColumns,
+                    summaryRows,
+                    summaryLines: new[] { "جمع مبلغ: ۲۱۰٬۰۰۰٬۰۰۰", "خط دوم جمع‌بندی برای اطمینان از جا نماندن" },
+                    paperSize: "A5",
+                    companyName: "ترازین — سامانه یکپارچه",
+                    companyAddress: "تهران، خیابان آزادی",
+                    qrPayload: "https://tarazin.app/trace/table-summary"));
 
             // جدول عمومی بلند (۶۵ ردیف) در A5 افقی: باید چندصفحه شود و **هدرِ جدول در هر
             // صفحه تکرار شود** — ورودیِ step «table-many» در tools/check-rtl-headers.sh که

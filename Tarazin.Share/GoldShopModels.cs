@@ -34,6 +34,7 @@ public class GoldItemRow
     public string Title { get; set; } = "";
     public decimal? Purity { get; set; }
     public string? InventoryItemCode { get; set; }
+    public string? InventoryItemTitle { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }

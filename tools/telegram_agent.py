@@ -95,7 +95,12 @@ def now():
 
 def log(message):
     line = f"{now()} {message}"
-    print(line, flush=True)
+    try:
+        print(line, flush=True)
+    except (UnicodeError, OSError):
+        # stdout may be redirected to a non-UTF-8 sink (Task Scheduler,
+        # Windows console codepage) — logging must never crash the daemon.
+        pass
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as handle:
             handle.write(line + "\n")
@@ -125,10 +130,29 @@ def write_offset(value):
 
 
 def pid_exists(pid):
+    """Robust process-existence check.
+
+    On Windows, os.kill(pid, 0) can raise OSError 22 (ERROR_INVALID_PARAMETER)
+    even for live processes spawned through launcher shims (e.g. a uv re-exec
+    parented by the hermes venv python). That made the lock check treat the
+    running agent as dead, so a second instance stole the lock and the two
+    pollers fought over getUpdates (Telegram 409). OpenProcess with
+    PROCESS_QUERY_LIMITED_INFORMATION is reliable for same-user processes and
+    returns ERROR_INVALID_PARAMETER (87) only for really dead PIDs.
+    """
+    if os.name == "nt":
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return ctypes.windll.kernel32.GetLastError() != 87
     try:
         os.kill(pid, 0)
         return True
-    except (OSError, ProcessLookupError):
+    except (OSError, ProcessLookupError, SystemError):
         return False
 
 
@@ -170,6 +194,29 @@ def acquire_lock():
         return acquire_lock()
 
 
+# ────────────────────────────────────────────
+# API primitives
+# ────────────────────────────────────────────
+
+def callback_data_safe(label, limit=60):
+    """Truncate a label to `limit` UTF-8 bytes at a char boundary.
+
+    Telegram rejects callback_data > 64 bytes (BUTTON_DATA_INVALID); emoji and
+    Persian text are multi-byte, so character-length checks are not enough.
+    """
+    label = str(label)
+    encoded = label.encode("utf-8")
+    if len(encoded) <= limit:
+        return label
+    cut = encoded[:limit]
+    while cut:
+        try:
+            return cut.decode("utf-8")
+        except UnicodeDecodeError:
+            cut = cut[:-1]
+    return label[: limit // 2]
+
+
 def api(method, params, timeout=25):
     query = urllib.parse.urlencode(params)
     request = urllib.request.Request(
@@ -189,7 +236,13 @@ def send(text, reply_markup=None):
         text = text[:3800] + "\n[پیام کوتاه شد؛ رکورد کامل در صف محلی است]"
     params = {"chat_id": CHAT_ID, "text": text}
     if reply_markup:
-        params["reply_markup"] = json.dumps(reply_markup)
+        # Sanitize stale records: clamp every callback_data to the 64-byte limit.
+        markup = json.loads(json.dumps(reply_markup))
+        for row in markup.get("inline_keyboard", []):
+            for button in row:
+                if "callback_data" in button:
+                    button["callback_data"] = callback_data_safe(button["callback_data"])
+        params["reply_markup"] = json.dumps(markup)
     try:
         api("sendMessage", params)
         return True
@@ -205,18 +258,33 @@ def answer_callback(callback_query_id, text=""):
         log(f"answer_callback failed: {exc}")
 
 
-PHASE_BUTTONS = {
-    "inline_keyboard": [
-        [{"text": "🚀 فاز ۳ — UI صفحات", "callback_data": "phase:3"}],
-        [{"text": "🔒 فاز ۴ — Permissions", "callback_data": "phase:4"}],
-        [{"text": "🧪 فاز ۵ — Testing", "callback_data": "phase:5"}],
-        [{"text": "📊 وضعیت صف", "callback_data": "status"}]
-    ]
-}
+def dynamic_buttons():
+    """Build suggestion buttons from the current queue state — dynamic, not fixed phases.
+
+    Replaces the old fixed phase:3/4/5 buttons. Suggestions follow the actual
+    state of the queue (pending ready tasks, running task, or empty).
+    """
+    tasks = load_tasks()
+    ready_count = sum(1 for task in tasks if task.get("status") == "ready")
+    running = next((task for task in reversed(tasks) if task.get("status") == "in_progress"), None)
+
+    buttons = []
+    if ready_count:
+        buttons.append({"text": f"▶️ اجرای صف ({ready_count} آماده)", "callback_data": "queue:run"})
+    if running:
+        buttons.append({"text": f"🔄 وضعیت {running['id']}", "callback_data": "status"})
+    buttons.append({"text": "📊 وضعیت صف", "callback_data": "status"})
+    buttons.append({"text": "🧹 پاک‌سازی صف", "callback_data": "queue:clean"})
+    if not buttons:
+        buttons.append({"text": "📊 وضعیت صف", "callback_data": "status"})
+    safe = []
+    for button in buttons:
+        safe.append({"text": button["text"], "callback_data": callback_data_safe(button["callback_data"])})
+    return {"inline_keyboard": [[button] for button in safe]}
 
 
-def send_phase_buttons():
-    send("🎯 مرحله بعد را انتخاب کن:", reply_markup=PHASE_BUTTONS)
+def send_with_dynamic_buttons(text, buttons_fn=dynamic_buttons):
+    send(text, reply_markup=buttons_fn())
 
 
 def send_pending():
@@ -427,14 +495,8 @@ def handle_callback(update):
     if not data:
         return
     answer_callback(cb_id, "در حال پردازش...")
-    if data == "status":
-        tasks = load_tasks()
-        counts = {}
-        for task in tasks:
-            counts[task.get("status", "unknown")] = counts.get(task.get("status", "unknown"), 0) + 1
-        summary = "\n".join(f"{key}: {value}" for key, value in sorted(counts.items())) or "صف خالی است."
-        send(f"🟢 وضعیت صف:\n{summary}")
-        return
+
+    # Legacy fixed phase buttons still work for already-sent messages.
     if data.startswith("phase:"):
         phase = data.split(":", 1)[1]
         phase_map = {"3": "فاز ۳ — UI صفحات Blazor برای فاکتور خرید/فروش/انتقال/برگشت با EntityPickerField و MudBlazor",
@@ -442,10 +504,41 @@ def handle_callback(update):
                      "5": "فاز ۵ — تست‌های سناریو: خرید/فروش/برگشت/هدیه/مالیات/انتقال"}
         request = phase_map.get(phase, f"فاز {phase}")
         task = create_task(request, update.get("update_id"))
-        send(format_task(task))
+        send(format_task(task), reply_markup=dynamic_buttons())
         log(f"created {task['id']} from callback {data}")
         return
-    send(f"دستور ناشناخته: {data}")
+
+    tasks = load_tasks()
+    if data == "status":
+        counts = {}
+        for task in tasks:
+            counts[task.get("status", "unknown")] = counts.get(task.get("status", "unknown"), 0) + 1
+        summary = "\n".join(f"{key}: {value}" for key, value in sorted(counts.items())) or "صف خالی است."
+        send(f"🟢 وضعیت صف:\n{summary}", reply_markup=dynamic_buttons())
+        return
+    if data == "queue:run":
+        ready = [task for task in tasks if task.get("status") == "ready"]
+        if ready:
+            notify_freebuff()
+            send(f"▶️ {len(ready)} Task آمادهٔ اجراست؛ Freebuff باید آن‌ها را claim کند. (has-notify تنظیم شد)",
+                 reply_markup=dynamic_buttons())
+        else:
+            send("صف اجرایی خالی است.", reply_markup=dynamic_buttons())
+        return
+    if data == "queue:clean":
+        count = sum(1 for task in tasks if task.get("status") in ("ready", "in_progress", "awaiting_approval"))
+        for task in tasks:
+            if task.get("status") in ("ready", "in_progress", "awaiting_approval"):
+                task["status"] = "completed"
+                task.setdefault("result", "پاک‌سازی دستی توسط کاربر")
+        save_tasks(tasks)
+        send(f"🧹 {count} Task به وضعیت completed منتقل شد.", reply_markup=dynamic_buttons())
+        return
+
+    # Any other button label becomes a task request (dynamic custom buttons).
+    task = create_task(data, update.get("update_id"))
+    send(format_task(task), reply_markup=dynamic_buttons())
+    log(f"created {task['id']} from callback {data}")
 
 
 def process_update(update):
@@ -465,7 +558,7 @@ def process_update(update):
         handle_command(text)
         return
     task = create_task(text, update.get("update_id"))
-    send(format_task(task))
+    send(format_task(task), reply_markup=dynamic_buttons())
     log(f"created {task['id']}")
 
 

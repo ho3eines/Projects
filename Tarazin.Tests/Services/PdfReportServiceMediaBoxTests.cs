@@ -185,6 +185,90 @@ public class PdfReportServiceMediaBoxTests
             $"فاکتور بلند باید چندصفحه‌ای شود ولی فقط {pageCount} صفحه دارد (صفحه‌بندی خراب/برگشته).");
     }
 
+    // ─────────────── شمارش صفحات (CountPdfPages) — والد /Type /Pages نشمارد ───────────────
+
+    /// <summary>
+    /// گارد شمارندهٔ صفحهٔ <see cref="PdfReportService.CountPdfPages"/>: تعداد آبجکت‌های
+    /// واقعیِ صفحه (هر کدام <c>/Type /Page</c>) را دقیق بشمارد و گرهٔ والدِ درخت صفحات
+    /// (<c>/Type /Pages</c>) را نشمارد — وگرنه هر خروجی یک صفحهٔ اضافی می‌گیرد و کاربر
+    /// «چندصفحه خواهد شد» را اشتباه می‌بیند (چیپ تعداد صفحهٔ دیالوگ چاپ سند).
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(7)]
+    public void CountPdfPages_counts_only_page_objects_not_the_Pages_parent(int pageObjects)
+    {
+        // PDF دست‌ساز با pageObjects آبجکتِ واقعیِ /Type /Page + یک والدِ /Type /Pages
+        // (و catalog که /Type /Catalog است). اگر شمارنده اشتباهاً والد را هم بشمارد،
+        // خروجی pageObjects+1 می‌شود — Assert.Equal همین را می‌گیرد.
+        var pdf = CraftMinimalPdf(pageObjects);
+
+        Assert.Equal(pageObjects, PdfReportService.CountPdfPages(pdf));
+    }
+
+    [Fact]
+    public void CountPdfPages_ignores_page_like_types_and_returns_zero_for_empty()
+    {
+        // نوع‌های «شبه‌صفحه» (با پیشوند Page ولی نه واقعی) نباید شمرده شوند:
+        // /Type /PageLabel و /Type /PageMode در واقعیتِ PDF فقط در ریشه هستند ولی
+        // در یک رشتهٔ خام باید با همین regex رد شوند — پس رگرسیونِ شمارش نادرست را می‌گیرد.
+        var fake = Encoding.Latin1.GetBytes(
+            "1 0 obj\n<< /Type /PageLabel /Nums [0 << /P (a) /S /D >>] >>\nendobj\n" +
+            "2 0 obj\n<< /Type /PageMode /UseNone >>\nendobj\n" +
+            "%%EOF\n");
+        Assert.Equal(0, PdfReportService.CountPdfPages(fake));
+
+        // تهی‌ها: null و خالی باید ۰ برگردانند نه استثنا.
+        Assert.Equal(0, PdfReportService.CountPdfPages(Array.Empty<byte>()));
+        Assert.Equal(0, PdfReportService.CountPdfPages(null!));
+    }
+
+    [Fact]
+    public void CountPdfPages_matches_real_QuestPDF_output_paging()
+    {
+        // روی خروجی‌های واقعی QuestPDF، شمارنده باید با صفحه‌بندیِ سرویس یکی شود:
+        // فاکتور کوتاه = ۱ صفحه، فاکتور بلند = ≥ ۲ صفحه (مثل PageCount ولی با مکانیزم
+        // /Type /Page — دو مکانیزم مستقل که نمی‌توانند هم‌زمان خراب شوند).
+        Assert.Equal(1, PdfReportService.CountPdfPages(Svc.BuildInvoicePdf(SampleInvoice(4), "A4")));
+
+        var many = Svc.BuildInvoicePdf(SampleInvoice(40), "A4");
+        Assert.True(PdfReportService.CountPdfPages(many) >= 2,
+            $"فاکتور بلند باید چندصفحه‍ باشد ولی CountPdfPages={PdfReportService.CountPdfPages(many)}");
+
+        // هم‌راستا با MediaBox های واقعیِ صفحه‌ها: هر صفحهٔ واقعی MediaBox خودش را دارد
+        // و والدِ /Type /Pages نه — پس تعداد MediaBox ها باید دقیقاً == تعداد صفحه باشد.
+        Assert.Equal(ParseMediaBoxes(many).Count, PdfReportService.CountPdfPages(many));
+    }
+
+    /// <summary>
+    /// ساخت PDF دست‌سازِ حداقلی با یک والدِ /Type /Pages و pageObjects آبجکتِ
+    /// /Type /Page — برای گارد شمارندهٔ صفحه بدون وابستگی به QuestPDF.
+    /// </summary>
+    private static byte[] CraftMinimalPdf(int pageObjects)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("%PDF-1.4");
+        sb.AppendLine("1 0 obj");
+        sb.AppendLine("<< /Type /Catalog /Pages 2 0 R >>");
+        sb.AppendLine("endobj");
+        sb.AppendLine("2 0 obj");
+        var kids = string.Join(" ", Enumerable.Range(3, pageObjects).Select(i => $"{i} 0 R"));
+        sb.AppendLine($"<< /Type /Pages /Kids [{kids}] /Count {pageObjects} >>");
+        sb.AppendLine("endobj");
+        for (var i = 3; i < 3 + pageObjects; i++)
+        {
+            sb.AppendLine($"{i} 0 obj");
+            sb.AppendLine($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents {i} 0 R >>");
+            sb.AppendLine("endobj");
+        }
+        sb.AppendLine("trailer");
+        sb.AppendLine("<< /Root 1 0 R >>");
+        sb.AppendLine("%%EOF");
+        return Encoding.Latin1.GetBytes(sb.ToString());
+    }
+
+
     // ─────────────── قالب عمومی (BuildTemplatePdf) در A5 افقی ───────────────
 
     [Fact]
@@ -231,13 +315,23 @@ public class PdfReportServiceMediaBoxTests
         // «چپ‌چین شدن ستون‌ها» را می‌گیرد که قبلاً گزارش شد (بازگشت AlignRight به AlignLeft).
         var src = ReadSource("Tarazin.Ui", "Services", "PdfReportService.cs");
 
+        // نسخهٔ مقیاس‌پذیر (که فشرده‌سازی خودکار فاکتور «یک صفحه» از آن استفاده می‌کند)
+        // محل واقعی AlignRight است — و هدر/بدنهٔ معمولی باید به همان‌جا delegate کنند.
         Assert.True(
-            ContainsAlignRightIn(ExpressionBody(src, "HeaderCell")),
-            "HeaderCell باید سلول هدر را راست‌چین (AlignRight) کند — باگ RTL برگشته.");
+            ContainsAlignRightIn(ExpressionBody(src, "HeaderCellScaled")),
+            "HeaderCellScaled باید سلول هدر را راست‌چین (AlignRight) کند — باگ RTL برگشته.");
 
         Assert.True(
-            ContainsAlignRightIn(ExpressionBody(src, "BodyCell")),
-            "BodyCell باید سلول بدنه را راست‌چین (AlignRight) کند — باگ RTL برگشته.");
+            ContainsAlignRightIn(ExpressionBody(src, "BodyCellScaled")),
+            "BodyCellScaled باید سلول بدنه را راست‌چین (AlignRight) کند — باگ RTL برگشته.");
+
+        // سلول‌های معمولی نباید AlignRight را دور بزنند — باید به نسخهٔ مقیاس‌پذیر delegate کنند.
+        Assert.True(
+            ExpressionBody(src, "HeaderCell").Contains("HeaderCellScaled", StringComparison.Ordinal),
+            "HeaderCell باید به HeaderCellScaled delegate کند تا RTL و مقیاس‌پذیری یک‌جا بمانند");
+        Assert.True(
+            ExpressionBody(src, "BodyCell").Contains("BodyCellScaled", StringComparison.Ordinal),
+            "BodyCell باید به BodyCellScaled delegate کند تا RTL و مقیاس‌پذیری یک‌جا بمانند");
     }
 
     // ─────────────────────────── دادهٔ نمونه ───────────────────────────
@@ -379,8 +473,8 @@ public class PdfReportServiceMediaBoxTests
     /// </summary>
     private static string ExpressionBody(string source, string methodName)
     {
-        var marker = methodName + "(IContainer c)";
-        var start = source.IndexOf(marker, StringComparison.Ordinal);
+        // نشانگر امضا: «(IContainer c» — هم برای (IContainer c) و هم (IContainer c, float s)
+        var start = source.IndexOf(methodName + "(IContainer c", StringComparison.Ordinal);
         if (start < 0) return "";
         var bodyStart = source.IndexOf('>', start);          // «=>»
         var end = source.IndexOf(';', bodyStart);

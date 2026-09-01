@@ -65,6 +65,18 @@
             <MudSelectItem Value="@("A5")">A5</MudSelectItem>
             <MudSelectItem Value="@("A5L")">A5 افقی</MudSelectItem>
         </MudSelect>
+        @if (_paperSize == "A4")
+        {
+            <MudSwitch T="bool" Value="@_fitOnePage" ValueChanged="OnFitOnePageChanged"
+                       Color="Color.Primary" Dense="true"
+                       Label="همهٔ ردیف‌ها در یک صفحه"
+                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Compress" />
+        }
+        <MudChip T="string" Size="Size.Small" Class="align-self-center mr-2"
+                 Color="@(_pageCount > 0 ? Color.Info : Color.Default)"
+                 Icon="@Icons.Material.Filled.Description">
+            @(_pageCount > 0 ? $"≈ {_pageCount:N0} صفحه" : "محاسبهٔ صفحه…")
+        </MudChip>
         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TogglePreview"
                    StartIcon="@(_preview ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)">
             @(_preview ? "خروج از پیش‌نمایش" : "پیش‌نمایش چاپ")
@@ -86,11 +98,52 @@
 
     private bool _preview;
     private string _paperSize = "A4";
+    private bool _fitOnePage;
     private bool _downloading;
+    private int _pageCount;
+    private bool _countingPages;
 
     private void TogglePreview() => _preview = !_preview;
 
-    private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdatePageCountAsync();
+    }
+
+    private async void OnFitOnePageChanged(bool value)
+    {
+        _fitOnePage = value;
+        await UpdatePageCountAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnSizeChanged(string? size)
+    {
+        _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
+        // فشرده‌سازی «یک صفحه» فقط برای A4 پرتره معنا دارد.
+        if (_paperSize != "A4")
+            _fitOnePage = false;
+        await UpdatePageCountAsync();
+    }
+
+    /// <summary>محاسبهٔ تعداد صفحهٔ PDF برای اندازه/گزینهٔ فعلی — برچسب کنار اندازهٔ کاغذ.</summary>
+    private async Task UpdatePageCountAsync()
+    {
+        if (_countingPages) return;
+        _countingPages = true;
+        try
+        {
+            _pageCount = await Task.Run(() => Pdf.BuildInvoicePdfPageCount(Model, _paperSize, _fitOnePage));
+        }
+        catch
+        {
+            _pageCount = 0;
+        }
+        finally
+        {
+            _countingPages = false;
+        }
+    }
 
     private string BrandName =>
         string.IsNullOrWhiteSpace(Model.BrandName) ? "ترازین — سامانه یکپارچه مدیریت کسب‌وکار" : Model.BrandName!;
@@ -119,7 +172,7 @@
         try
         {
             var fileName = PdfFileNames.Invoice(Model.InvoiceNumber, Model.InvoiceDate, _paperSize);
-            var bytes = Pdf.BuildInvoicePdf(Model, _paperSize);
+            var bytes = Pdf.BuildInvoicePdf(Model, _paperSize, _fitOnePage);
             await PdfSaver.SaveAsync(fileName, bytes);
         }
         finally
@@ -145,7 +198,7 @@
     /// </summary>
     private async Task PrintAsync()
     {
-        var bytes = Pdf.BuildInvoicePdf(Model, _paperSize);
+        var bytes = Pdf.BuildInvoicePdf(Model, _paperSize, _fitOnePage);
         await JS.InvokeVoidAsync("tarazin.printPdfBytes", Convert.ToBase64String(bytes));
     }
 

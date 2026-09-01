@@ -1,0 +1,195 @@
+@* ─────────────────────────────────────────────────────────────
+   GoldItemLinkDialog — اتصال جنس طلا به کالای انبار
+   ─────────────────────────────────────────────────────────────
+   InventoryItemCode را از لیست کالاهای انبار (ItemList) با
+   جستجو و صفحه‌بندی (EntityPickerService / SelectorDialog)
+   انتخاب می‌کند و با GoldItemUpsert ذخیره می‌کند.
+*@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+@inject EntityPickerService Picker
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Link" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">اتصال کالای انبار — @Item.ItemCode</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="pa-6 d-flex justify-center">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else
+        {
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-3">
+                        <MudGrid Spacing="1">
+                            <MudItem xs="5"><MudText Color="Color.Secondary">جنس طلا</MudText></MudItem>
+                            <MudItem xs="7"><b>@Item.ItemCode — @Item.Title</b></MudItem>
+                            <MudItem xs="5"><MudText Color="Color.Secondary">عیار</MudText></MudItem>
+                            <MudItem xs="7">@(Item.Purity?.ToString("N2") ?? "—")</MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-3">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">کالای انبار مرتبط</MudText>
+                        @if (_picked is not null)
+                        {
+                            <div class="d-flex align-center flex-wrap" style="gap:8px">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined"
+                                         Icon="@Icons.Material.Filled.CheckCircle">
+                                    @_picked.ItemCode — @_picked.ItemTitle
+                                </MudChip>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                                    موجودی: @_picked.StockQty.ToString("N0") @_picked.Unit
+                                </MudChip>
+                                <MudTooltip Text="قطع اتصال">
+                                    <MudIconButton Icon="@Icons.Material.Filled.LinkOff" Size="Size.Small"
+                                                   Color="Color.Error" OnClick="Unlink" />
+                                </MudTooltip>
+                            </div>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(Item.InventoryItemCode))
+                        {
+                            <div class="d-flex align-center flex-wrap" style="gap:8px">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">
+                                    کد @Item.InventoryItemCode — کالای متناظر در لیست انبار یافت نشد (احتمالاً حذف شده است)
+                                </MudChip>
+                                <MudTooltip Text="قطع اتصال">
+                                    <MudIconButton Icon="@Icons.Material.Filled.LinkOff" Size="Size.Small"
+                                                   Color="Color.Error" OnClick="Unlink" />
+                                </MudTooltip>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudText Color="Color.Secondary" Typo="Typo.body2">هنوز کالای انباری انتخاب نشده است.</MudText>
+                        }
+
+                        <MudButton Class="mt-3" Variant="Variant.Outlined" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Search" OnClick="OpenPickerAsync" FullWidth="true">
+                            انتخاب کالای انبار
+                        </MudButton>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                        با اتصال، هنگام فروش طلا موجودی کالای انبار مرتبط کاهش می‌یابد (کد کالا در
+                        <code style="direction:ltr">InventoryItemCode</code> ذخیره می‌شود).
+                    </MudAlert>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">انصراف (Esc)</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="@(_loading || _saving)">
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>جنس طلای در حال ویرایش (همهٔ فیلدها برای GoldItemUpsert لازم است).</summary>
+    [Parameter, EditorRequired] public GoldItemRow Item { get; set; } = default!;
+
+    private List<ItemRow> _items = new();
+    private ItemRow? _picked;
+    private bool _loading = true;
+    private bool _saving;
+
+    private EntityPickerOptions<ItemRow> _pickerOptions = new()
+    {
+        Title = "کالای انبار",
+        SearchPlaceholder = "جستجو: کد، عنوان، SKU، بارکد یا برند...",
+        Columns = new()
+        {
+            new("کد", i => i.ItemCode),
+            new("عنوان", i => i.ItemTitle),
+            new("دسته", i => i.Category),
+            new("موجودی", i => i.StockQty.ToString("N0")),
+            new("قیمت", i => i.UnitPrice.ToString("N0")),
+        },
+        SearchFields = i => new[] { i.ItemCode, i.ItemTitle, i.SKU ?? "", i.Barcode ?? "", i.Brand ?? "" },
+        DisplayText = i => $"{i.ItemCode} — {i.ItemTitle}",
+        RowsPerPage = 10,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _items = (await Db.QueryAsync<ItemRow>("inventory", "ItemList",
+                new { CompanyId = Session.ActiveCompanyId, Search = (string?)null })).ToList();
+            if (!string.IsNullOrWhiteSpace(Item.InventoryItemCode))
+                _picked = _items.FirstOrDefault(i => i.ItemCode == Item.InventoryItemCode);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری کالاهای انبار: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenPickerAsync()
+    {
+        try
+        {
+            var picked = await Picker.PickAsync(_pickerOptions);
+            if (picked is not null)
+                _picked = picked;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در انتخاب کالا: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Unlink() => _picked = null;
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        try
+        {
+            await Db.ExecuteAsync("goldshop", "GoldItemUpsert", new
+            {
+                GoldItemId = Item.GoldItemId,
+                ItemCode = Item.ItemCode,
+                Title = Item.Title,
+                Purity = Item.Purity,
+                InventoryItemCode = _picked?.ItemCode,
+                IsActive = Item.IsActive,
+                CompanyId = Session.ActiveCompanyId,
+                CreatedBy = Session.UserName,
+            });
+            MudDialog.Close(DialogResult.Ok(_picked?.ItemCode));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در ذخیره: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

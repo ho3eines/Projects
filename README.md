@@ -172,6 +172,21 @@ Tarazin.slnx
 * `tools/cross-schema-scan.sh` — بدون ارجاع بین‌اسکیمه‌ای غیرمجاز
 * ورود: نام کاربری bootstrap و password تزریق‌شده از secret store → `/diag` برای عیب‌یابی امن اتصال
 
+### 🖨️ گاردهای pymupdf — چرا step «آبی» (skip) می‌ماند؟
+
+گاردهای RTL/A5L (`bash tools/check-rtl-headers.sh all` از درون `tools/run-checks.sh`) عمداً **اختیاری** هستند: اگر پیش‌نیازشان نباشد به‌جای Fail، رسماً **SKIP** می‌شوند (exit 0 — گام در CI به رنگ آبی/خنثی دیده می‌شود). مسیرهای skip به این ترتیب‌اند:
+
+| حالت skip | پیام در لاگ | معنی | راه‌حل |
+|---|---|---|---|
+| پایتون نصب نیست | `pymupdf check skipped — Python not available (optional step).` | `py`/`python3` در PATH نیست | `py --version` یا نصب Python 3.12+ |
+| ماژول pymupdf نصب نیست | `pymupdf not installed (optional step).` | پایتون هست ولی `import pymupdf` جواب نمی‌دهد | `py -m pip install pymupdf` (در CI خودکار نصب می‌شود) |
+| فایل‌های dump تولید نشده‌اند | `dumped PDFs not found (run the full test suite first).` | تستِ `Dump_rtl_header_pdfs_for_pymupdf` اجرا نشده تا PDFهای نمونه در `%TEMP%/tarazin-pdf/rtl-headers/` ساخته شوند | اول `dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo` را اجرا کن |
+| فایلِ یک گاردِ اختصاصی کم است | `template-a5l.pdf not found` / `table-a5l.pdf` / `template-a5l-noheader.pdf` / `table-a5l-many.pdf` / `invoice-a5l-many.pdf not found` | تستِ dump فقط بخشی از فایل‌ها را ساخته (یا پوشه پاک شده) | همان: تست کامل را اجرا کن تا هر ۵ فایلِ گارد ساخته شوند |
+
+> ⚠️ نکتهٔ CI: در GitHub Actions پایتون و pymupdf نصب می‌شوند و فایل‌های dump از همان اجرای تستِ گام قبل می‌آیند — پس **در CI این گام‌ها نباید آبی بمانند**. اگر در CI آبی دیدی، یعنی یا `pip install pymupdf` شکست خورده یا تست dump رد شده/فایل‌ها را نساخته — خطا واقعی است، نه skip عمدی.
+
+دستور فعال‌سازی محلی: نصب pymupdf + اجرای تست کامل (برای ساخت فایل‌های dump) + سپس `bash tools/check-rtl-headers.sh all` — بعد از آن گام‌ها سبز (اجرا) می‌شوند نه آبی.
+
 ## 🧭 اسکیل‌های راهنما (SKILL.md) — منبع اصلی قوانین کدنویسی
 
 > برای توسعه‌دهنده، **منبع راهنما در `.claude/skills/` است** (نه فقط همین README). این چهار اسکیل، قراردادهای الزامی معماری، UI و گزارش‌سازی را یک‌جا نگه می‌دارند؛ هر صفحه/داده/گزارش جدید باید مطابق آن‌ها باشد. همه از گیت در دسترس‌اند (هر یک در `.claude/skills/{name}/SKILL.md`).

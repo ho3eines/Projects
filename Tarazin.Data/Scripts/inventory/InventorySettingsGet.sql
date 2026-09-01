@@ -8,6 +8,7 @@ SELECT s.CompanyId,
        s.InventoryAccountId, s.InventoryAccountCode, s.InventoryAccountTitle,
        s.ReceiptContraAccountId, s.ReceiptContraAccountCode, s.ReceiptContraAccountTitle,
        s.IssueContraAccountId, s.IssueContraAccountCode, s.IssueContraAccountTitle,
+       s.AdjustmentAccountId, s.AdjustmentAccountCode, s.AdjustmentAccountTitle,
        s.DefaultWarehouseId, w.Title AS DefaultWarehouseTitle,
        s.DefaultSubWarehouseId, sw.Title AS DefaultSubWarehouseTitle,
        s.IsEnabled, s.UpdatedAt, s.UpdatedBy

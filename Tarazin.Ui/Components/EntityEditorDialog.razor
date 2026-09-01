@@ -414,6 +414,7 @@
                         Purity = Model.Amount,
                         InventoryItemCode = NullIfWhiteSpace(Model.ExtraText),
                         CompanyId = Session.ActiveCompanyId,
+                        CreatedBy = Session.UserName,
                         Model.IsActive
                     });
                     break;
