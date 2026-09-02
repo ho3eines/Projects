@@ -1,0 +1,43 @@
+@* ─────────────────────────────────────────────────────────────
+   ReseedButton — دکمهٔ بازسازی دادهٔ نمونه (Demo Data)
+   ─────────────────────────────────────────────────────────────
+   کامپوننت مشترک: seed-demo-data.sh --reseed را اجرا می‌کند تا
+   نمونه‌های ماژول‌ها (انبار/طلا/خزانه) همیشه تازه بمانند؛ دادهٔ
+   سید اصلی را لمس نمی‌کند. در تنظیمات هر ماژول استفاده شود.
+*@
+@inject DemoDataSeedingService _seeder
+@inject ISnackbar _snackbar
+
+<MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+           StartIcon="@Icons.Material.Filled.Refresh"
+           OnClick="ReseedAsync" Disabled="_busy" Class="@Class">
+    @(_busy ? "در حال بازسازی…" : Label)
+</MudButton>
+
+@code {
+    /// <summary>متن روی دکمه (پیش‌فرض: بازسازی دادهٔ نمونه).</summary>
+    [Parameter] public string Label { get; set; } = "بازسازی دادهٔ نمونه";
+
+    [Parameter] public string? Class { get; set; }
+
+    private bool _busy;
+
+    private async Task ReseedAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            var result = await _seeder.RunReseedAsync();
+            _snackbar.Add(result.Ok ? "دادهٔ نمونه بازسازی شد (idempotent)." : "بازسازی ناتمام — خروجی در لاگ سرور.", result.Ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            _snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -45,17 +45,16 @@
             @foreach (var line in _lines.Select((l, i) => new { l, i }))
             {
                 <tr>
-                    <td><MudNumericField T="int" @bind-Value="line.l.InvoiceLineId" Dense="true" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="int" @bind-Value="line.l.InvoiceLineId" Margin="Margin.Dense" Variant="Variant.Text" /></td>
                     <td>
-                        <MudSelect T="int" @bind-Value="line.l.ItemId" Variant="Variant.Text" Dense="true">
-                            <MudSelectItem Value="0">—</MudSelectItem>
-                            @foreach (var it in _items)
-                            {
-                                <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <ItemPickerCell Items="_items"
+                                       ItemId="line.l.ItemId"
+                                       ItemIdChanged="v => line.l.ItemId = v"
+                                       UnitPrice="line.l.UnitPrice"
+                                       UnitPriceChanged="v => line.l.UnitPrice = v"
+                                       Title="انتخاب کالا — برگشت فروش" />
                     </td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Dense="true" Min="0" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" /></td>
                     <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
                 </tr>
             }
@@ -89,8 +88,13 @@
     protected override async Task OnInitializedAsync()
     {
         var companyId = Session.ActiveCompanyId;
-        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = companyId, Search = "" })).ToList();
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemListLive", new { CompanyId = companyId, Search = "" })).ToList();
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = companyId })).ToList();
+        // انبار فعال نشست (انتخاب‌شده از نوار بالا مثل سال مالی).
+        if (Session.ActiveWarehouseId is int aw && _warehouses.Any(w => w.WarehouseId == aw))
+            _warehouseId = aw;
+        else if (_warehouses.Count > 0)
+            _warehouseId = _warehouses[0].WarehouseId;
     }
 
     private async Task SaveAsync()
@@ -144,5 +148,6 @@
         public int InvoiceLineId { get; set; }
         public int ItemId { get; set; }
         public decimal Qty { get; set; } = 1;
+        public decimal UnitPrice { get; set; }
     }
 }

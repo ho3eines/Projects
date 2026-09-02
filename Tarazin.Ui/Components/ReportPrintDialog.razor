@@ -1,6 +1,4 @@
 @inject IJSRuntime JS
-@inject IPdfSaver PdfSaver
-@inject PdfReportService Pdf
 
 @* دیالوگ مشترک چاپ هر گزارش جدولی — طبق .claude/skills/tarazin-reporting/SKILL.md:
    - Title/Subtitle/RangeText: سرصفحهٔ گزارش
@@ -32,10 +30,10 @@
                     <div class="gp-print-header">
                         <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
                         <div>
-                            <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                            <div class="gp-print-header__title">
                                 ترازین — سامانه یکپارچه مدیریت کسب‌وکار
                             </div>
-                            <div style="font-size:9pt;color:#666">
+                            <div class="gp-print-header__meta">
                                 @Title@(string.IsNullOrWhiteSpace(Subtitle) ? "" : $" — {Subtitle}")
                             </div>
                         </div>
@@ -70,10 +68,10 @@
                 <div class="gp-print-header print-only">
                     <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
                     <div>
-                        <div style="font-size:13pt;font-weight:700;color:#1a237e">
+                        <div class="gp-print-header__title">
                             ترازین — سامانه یکپارچه مدیریت کسب‌وکار
                         </div>
-                        <div style="font-size:9pt;color:#666">
+                        <div class="gp-print-header__meta">
                             @Title@(string.IsNullOrWhiteSpace(Subtitle) ? "" : $" — {Subtitle}")
                         </div>
                     </div>
@@ -112,10 +110,6 @@
         </MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync"
                    StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync"
-                   StartIcon="@Icons.Material.Filled.FileDownload" Disabled="@(_downloading || BuildPdf is null)">
-            @(_downloading ? "در حال ساخت PDF…" : "دانلود PDF")
-        </MudButton>
         <MudButton Variant="Variant.Outlined" OnClick="Close" StartIcon="@Icons.Material.Filled.Close">بستن</MudButton>
     </DialogActions>
 </MudDialog>
@@ -133,31 +127,10 @@
 
     private bool _preview;
     private string _paperSize = "A4";
-    private bool _downloading;
 
     private void TogglePreview() => _preview = !_preview;
 
     private void OnSizeChanged(string? size) => _paperSize = string.IsNullOrEmpty(size) ? "A4" : size;
-
-    /// <summary>
-    /// ساخت PDF با QuestPDF (سمت سرور در وب / بومی در MAUI) و دانلود بدون
-    /// دیالوگ پرینتر — نام فایل با PdfFileNames (تاریخ شمسی + پاک‌سازی).
-    /// </summary>
-    private async Task DownloadPdfAsync()
-    {
-        if (BuildPdf is null) return;
-        _downloading = true;
-        try
-        {
-            var bytes = BuildPdf(_paperSize);
-            var fileName = $"{PdfFileNames.Sanitize(Title)}-{PdfFileNames.ShamsiDate(DateTime.Now)}-{_paperSize}.pdf";
-            await PdfSaver.SaveAsync(fileName, bytes);
-        }
-        finally
-        {
-            _downloading = false;
-        }
-    }
 
     /// <summary>
     /// چاپ از همان بایت‌های PDF (QuestPDF) که «دانلود PDF» تولید می‌کند —

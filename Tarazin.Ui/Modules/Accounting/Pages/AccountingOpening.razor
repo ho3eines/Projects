@@ -1,0 +1,116 @@
+@page "/accounting/opening"
+@inject DbService Db
+@inject UserSession Session
+@inject AccountingContextService Context
+@inject ISnackbar Snackbar
+
+<PageTitle>مانده ابتدای دوره — حسابداری</PageTitle>
+
+<PageHeader Title="مانده ابتدای دوره"
+            Subtitle="ثبت مانده‌های افتتاحیهٔ حساب‌ها برای سال مالی فعال. ردیف‌ها را اضافه، حساب و مبلغ را وارد و ذخیره کنید؛ سند افتتاحیه همان سند «00000001» است."
+            Eyebrow="حسابداری">
+    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowForward"
+               Href="/accounting">
+        بازگشت به اسناد
+    </MudButton>
+</PageHeader>
+
+@if (_loading)
+{
+    <StatCardSkeleton Count="3" />
+    <TableSkeleton Columns="4" Rows="4" />
+}
+else if (_openingId <= 0)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-4">
+        <div class="d-flex align-center flex-wrap" style="gap:8px">
+            <MudText>محیط مالی فعالی (شرکت + سال مالی) برای ثبت ماندهٔ ابتدای دوره یافت نشد. ابتدا از صفحهٔ اسناد یک شرکت/سال مالی را فعال کنید.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/accounting">رفتن به اسناد</MudButton>
+        </div>
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        <StatCard Label="ماندهٔ ابتدای دوره" Value="@_total.ToString("N0")"
+                  Icon="@Icons.Material.Filled.Balance" Accent="@TarazinAccents.Steel"
+                  Hint="جمع سند افتتاحیه" />
+        <StatCard Label="ردیف‌ها" Value="@_lineCount.ToString("N0")"
+                  Icon="@Icons.Material.Filled.ViewList" Accent="@TarazinAccents.Petrol"
+                  Hint="تعداد حساب‌های دارای مانده" />
+        <StatCard Label="وضعیت سند" Value="@_statusText"
+                  Icon="@Icons.Material.Filled.FactCheck" Accent="@TarazinAccents.Gold"
+                  Hint="@_hint" />
+    </MudGrid>
+
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4 mb-4">
+        در این صفحه همان ویرایشگر سند حسابداری تعبیه شده است؛ پس از افزودن ردیف‌ها دکمهٔ «ذخیره تغییرات» را بزنید.
+        ماندهٔ هر حساب را به‌صورت بدهکار یا بستانکار وارد کنید — جمع بدهکار و بستانکار باید برابر باشد.
+    </MudAlert>
+
+    <AccountingDocument DocumentId="@_openingId" IsModal="1" />
+}
+
+@code {
+    private const string Schema = "accounting";
+    private bool _loading = true;
+    private int _openingId;
+    private decimal _total;
+    private int _lineCount;
+    private string _documentNumber = "";
+    private string _status = "";
+
+    private string _statusText
+    {
+        get
+        {
+            try { return AccountingDocumentStatus.Title(_status); }
+            catch { return _status; }
+        }
+    }
+
+    private string _hint => $"شمارهٔ سند: {_documentNumber}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var fy = await Context.GetActiveFiscalYearAsync();
+            if (fy is null || Session.ActiveCompanyId is not int cid || Session.ActiveFiscalYearId is not int fid)
+            {
+                _openingId = 0;
+                return;
+            }
+
+            // DocumentOpeningEnsure اتمیک و Idempotent است: سند افتتاحیه را
+            // می‌سازد (اگر نباشد) و ردیف سند را برمی‌گرداند.
+            var doc = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(
+                Schema, "DocumentOpeningEnsure",
+                new { CompanyId = cid, FiscalYearId = fid, CreatedBy = Session.UserName });
+
+            if (doc is null)
+            {
+                _openingId = 0;
+                return;
+            }
+
+            _openingId = doc.DocumentId;
+            _total = doc.TotalAmount;
+            _documentNumber = doc.DocumentNumber;
+            _status = doc.Status ?? "";
+
+            var lines = await Db.QueryAsync<DocumentLineRow>(
+                Schema, "DocumentLines",
+                new { DocumentId = _openingId, CompanyId = cid, FiscalYearId = fid });
+            _lineCount = lines?.Count ?? 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در آماده‌سازی سند افتتاحیه: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

@@ -8,10 +8,13 @@
 <PageTitle>امکانات — طلافروشی</PageTitle>
 
 <PageHeader Title="امکانات و اتصال حسابداری" Subtitle="اجناس، قیمت‌ها، انبار طلافروشی و گروه‌های تفصیلی مشتری/تأمین‌کننده.">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-               OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGoldItem()))">
-        جنس جدید
-    </MudButton>
+    <div class="d-flex align-center gap-2 flex-wrap">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OpenEditorAsync(EntityEditorModel.FromGoldItem()))">
+            جنس جدید
+        </MudButton>
+        <ReseedButton Label="بازسازی دادهٔ نمونه" />
+    </div>
 </PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4">

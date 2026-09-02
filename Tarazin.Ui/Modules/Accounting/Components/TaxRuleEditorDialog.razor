@@ -1,0 +1,114 @@
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(Row is null ? "قانون مالیاتی جدید" : $"ویرایش — {Row.RuleCode}")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="کد قانون" @bind-Value="_code" Required="true"
+                                  RequiredError="کد الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="عنوان" @bind-Value="_title" Required="true"
+                                  RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string?" Label="دسته" @bind-Value="_category" Variant="Variant.Outlined"
+                               Clearable="true">
+                        <MudSelectItem T="string?" Value="null">— بدون دسته —</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@("Vat")">مالیات بر ارزش افزوده</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@("Payroll")">حقوق و دستمزد</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@("Gold")">طلا و جواهر</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@("Commerce")">بازرگانی</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="نرخ (٪)" @bind-Value="_rate" Required="true"
+                                     RequiredError="نرخ الزامی است." Min="0" Max="100"
+                                     Format="#,##0.##" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_effectiveFrom"
+                                   Required="true" RequiredError="تاریخ الزامی است." />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="فعال" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">انصراف (Esc)</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="_busy || !_valid">
+            ذخیره
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly System.Globalization.CultureInfo FaCulture = System.Globalization.CultureInfo.GetCultureInfo("fa-IR");
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public TaxRuleRow? Row { get; set; }
+
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+    private string _code = "";
+    private string _title = "";
+    private string? _category;
+    private decimal _rate;
+    private DateTime? _effectiveFrom = DateTime.Today;
+    private bool _isActive = true;
+
+    protected override void OnInitialized()
+    {
+        if (Row is not null)
+        {
+            _code = Row.RuleCode;
+            _title = Row.Title;
+            _category = Row.Category;
+            _rate = Row.RatePercent;
+            _effectiveFrom = Row.EffectiveFrom;
+            _isActive = Row.IsActive;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("accounting", "TaxRuleUpsert", new
+            {
+                TaxRuleId = Row?.TaxRuleId ?? 0,
+                RuleCode = _code.Trim(),
+                Title = _title.Trim(),
+                Category = _category,
+                RatePercent = _rate,
+                EffectiveFrom = _effectiveFrom?.Date,
+                IsActive = _isActive
+            });
+            Snackbar.Add("قانون مالیاتی ذخیره شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

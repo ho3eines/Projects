@@ -44,8 +44,11 @@ public class MultiInvoiceGateTests
     /// <summary>درج یک حساب بانکی برای دریافت حرکت خزانه.</summary>
     private static async Task<int> SeedBankAccountAsync(SqlConnection cn, int compId)
     {
+        // مهم: گارد IF NOT EXISTS باید به CompanyId مقید باشد؛ در غیر این صورت اگر ردیف
+        // BK-GATE از شرکتِ دیگری باقی مانده باشد، درج رد می‌شود ولی SELECT با CompanyId
+        // فعلی NULL برمی‌گرداند و BankId=0 می‌شود → نقض FK در حساب بانکی.
         var bankId = await cn.ExecuteScalarAsync<int>(@"
-            IF NOT EXISTS (SELECT 1 FROM [treasury].[Banks] WHERE BankCode = N'BK-GATE')
+            IF NOT EXISTS (SELECT 1 FROM [treasury].[Banks] WHERE BankCode = N'BK-GATE' AND CompanyId = @c)
                 INSERT INTO [treasury].[Banks] (BankCode, Title, IsActive, IsDeleted, CreatedAt, CompanyId)
                 VALUES (N'BK-GATE', N'بانک دروازه', 1, 0, SYSUTCDATETIME(), @c);
             SELECT BankId FROM [treasury].[Banks] WHERE BankCode = N'BK-GATE' AND CompanyId = @c;",
@@ -131,9 +134,11 @@ public class MultiInvoiceGateTests
         using var cn = await TestDb.OpenOrSkipAsync();
         var compId = await SeedCompanyAsync(cn);
         var orderId = await SeedOrderAsync(cn, compId, "مشتری دروازه", 1_000_000m);
-        await SeedBankAccountAsync(cn, compId);
         try
         {
+            // Seed داخل try است تا اگر خطا داد، Cleanup حتماً اجرا و ردیف‌ها نشت نکنند.
+            await SeedBankAccountAsync(cn, compId);
+
             // اولین leg: یک فاکتور برای report می‌سازیم
             var p = new { OrderId = orderId, CustomerName = "مشتری دروازه", TotalAmount = 1_000_000m, CurrencyCode = "IRR" };
             await cn.ExecuteAsync(Script("accounting", "SalesInvoiceFromOrder.sql"), p);

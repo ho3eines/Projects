@@ -16,6 +16,7 @@ WHERE i.IsDeleted = 0 AND i.CompanyId = @CompanyId AND i.OperationType = N'Purch
   AND (@ToDate IS NULL OR i.InvoiceDate <= @ToDate)
   AND (@Status IS NULL OR @Status = N'' OR i.Status = @Status)
   AND (@SupplierPartyId IS NULL OR i.SupplierPartyId = @SupplierPartyId)
+  AND (@WarehouseId IS NULL OR @WarehouseId = 0 OR i.WarehouseId = @WarehouseId)
   AND (@Search IS NULL OR @Search = N''
        OR i.InvoiceNumber LIKE N'%' + @Search + N'%'
        OR i.SupplierName LIKE N'%' + @Search + N'%'

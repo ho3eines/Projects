@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -211,6 +213,91 @@ app.MapPost("/api/mobile/connection", async (ConnectionBootstrapRequest request,
 .DisableAntiforgery()
 .RequireRateLimiting("mobile-connection")
 .WithMetadata(new RequestSizeLimitAttribute(8_192));
+
+// Health endpoint برای supervisor و ابزارهای بیرونی: uptime + نسخهٔ build.
+// عمومی (بدون auth) است چون فقط وضعیت فرایند را می‌گوید — هیچ دادهٔ تجاری‌ای ندارد.
+app.MapGet("/api/health", () =>
+{
+    var asm = typeof(Program).Assembly;
+    var version = asm.GetName().Version?.ToString() ?? "0.0.0.0";
+    var informational = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? version;
+    string buildTime = "unknown";
+    try
+    {
+        // زمان ساخت = زمان آخرین نوشتن DLL خروجی (آنچه supervisor با آن مقایسه می‌کند).
+        buildTime = File.GetLastWriteTime(asm.Location).ToString("yyyy-MM-dd'T'HH:mm:ssK");
+    }
+    catch
+    {
+        // buildTime="unknown" کافی است — endpoint نباید به‌خاطر این شکست بخورد.
+    }
+
+    return Results.Json(new
+    {
+        status = "ok",
+        uptimeSeconds = (long)(DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()).TotalSeconds,
+        buildVersion = informational,
+        buildTime,
+        environment = app.Environment.EnvironmentName,
+        timestamp = DateTimeOffset.Now.ToString("yyyy-MM-dd'T'HH:mm:ssK")
+    });
+})
+.WithMetadata(new ResponseCacheAttribute { NoStore = true, Location = ResponseCacheLocation.None });
+
+// Reseed دادهٔ نمونه: همان فلگ `--reseed` اسکریپت seed-demo-data.sh را اجرا می‌کند
+// (پاک‌سازی sample و سید مجدد idempotent). فقط توسعه/دمو — دادهٔ سید اصلی را لمس نمی‌کند.
+app.MapPost("/api/tools/reseed", () =>
+{
+    try
+    {
+        var root = Directory.GetCurrentDirectory(); // Tarazin.Web خروجی: ریشهٔ ریپو اجرای scripts است
+        // ریشهٔ ریپو = والد پوشهٔ Tarazin.Web (در اجرای dotnet run از ریشه، CurrentDirectory=ریشه)
+        string repo = root;
+        if (Directory.Exists(Path.Combine(root, "Tarazin.Web")))
+            repo = root; // از ریشهٔ solution اجرا شده
+        else if (File.Exists(Path.Combine(root, "Tarazin.Web.csproj")))
+            repo = Path.GetDirectoryName(root) ?? root; // داخل پوشهٔ Tarazin.Web اجرا شده
+
+        var script = Path.Combine(repo, "tools", "seed-demo-data.sh");
+        if (!File.Exists(script))
+            return Results.Json(new { ok = false, error = $"seed script not found: {script}" }, statusCode: 500);
+
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "bash",
+            WorkingDirectory = repo,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        psi.ArgumentList.Add("tools/seed-demo-data.sh");
+        psi.ArgumentList.Add("--reseed");
+        using var proc = System.Diagnostics.Process.Start(psi);
+        if (proc is null)
+            return Results.Json(new { ok = false, error = "cannot start seed script" }, statusCode: 500);
+        if (!proc.WaitForExit(240_000))
+        {
+            try { proc.Kill(entireProcessTree: true); } catch { }
+            return Results.Json(new { ok = false, error = "seed timed out after 240s" }, statusCode: 500);
+        }
+        string stdout = proc.StandardOutput.ReadToEnd();
+        string stderr = proc.StandardError.ReadToEnd();
+        bool ok = proc.ExitCode == 0 && stdout.Contains("Demo data seeded");
+        return Results.Json(new
+        {
+            ok,
+            exitCode = proc.ExitCode,
+            output = (stdout + stderr).Trim(),
+            timestamp = DateTimeOffset.Now.ToString("yyyy-MM-dd'T'HH:mm:ssK")
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message }, statusCode: 500);
+    }
+})
+.WithMetadata(new ResponseCacheAttribute { NoStore = true, Location = ResponseCacheLocation.None });
 
 // مدل Blazor Server کلاسیک (net8): blazor.server.js و دارایی‌های استاتیک
 // MudBlazor/Tarazin.Ui از طریق static web assets و UseStaticFiles سرو می‌شوند.

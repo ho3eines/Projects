@@ -45,6 +45,44 @@
                 <MudItem xs="12">
                     <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success">فعال</MudSwitch>
                 </MudItem>
+
+                <MudItem xs="12" Class="mt-2">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">واحدهای چندگانهٔ کالا (اختیاری)</MudText>
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-3">
+                        @foreach (var iu in _itemUnits.Select((u, i) => new { u, i }))
+                        {
+                            <MudGrid Spacing="2" Class="py-1">
+                                <MudItem xs="6" sm="4">
+                                    <MudSelect T="int" Label="واحد" @bind-Value="iu.u.UnitId" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                        <MudSelectItem Value="0">— واحد —</MudSelectItem>
+                                        @foreach (var u in Units)
+                                        {
+                                            <MudSelectItem Value="u.UnitId">@u.Title</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="3" sm="3">
+                                    <MudNumericField T="decimal" Label="ضریب" @bind-Value="iu.u.Factor"
+                                                     Min="0.0001m" Format="#,##0.####" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="2" sm="3">
+                                    <MudSwitch T="bool" @bind-Value="iu.u.IsDefault" Color="Color.Success" Label="پیش‌فرض" />
+                                </MudItem>
+                                <MudItem xs="1" sm="2" Class="d-flex align-center">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                                   OnClick="@(() => _itemUnits.RemoveAt(iu.i))" />
+                                </MudItem>
+                            </MudGrid>
+                        }
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _itemUnits.Add(new ItemUnitRow()))">
+                            افزودن واحد
+                        </MudButton>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                            ضریب، تبدیل به واحد پایه است (پیش‌فرض = ۱). مثال: «کیلوگرم» ضریب ۱۰۰۰ نسبت به «گرم».
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
             </MudGrid>
         </MudForm>
     </DialogContent>
@@ -64,11 +102,12 @@
     private ItemRow _model = new();
     private int _groupId;
     private int _unitId;
+    private List<ItemUnitRow> _itemUnits = new();
     private MudForm? _form;
     private bool _isValid;
     private bool _busy;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (Model is not null)
         {
@@ -85,6 +124,36 @@
             _groupId = Model.GroupId ?? 0;
             _unitId = Model.UnitId ?? 0;
         }
+        // واحدهای چندگانهٔ کالا (برای کالای جدید خالی می‌ماند)
+        if (_model.ItemId > 0)
+        {
+            try
+            {
+                _itemUnits = (await Db.QueryAsync<ItemUnitRow>("inventory", "ItemUnitsList",
+                    new { ItemId = _model.ItemId })).ToList();
+            }
+            catch
+            {
+                // جدول/اسکریپت‌ها تازه اضافه شده‌اند — بدون واحد چندگانه ادامه بده
+                _itemUnits = new();
+            }
+        }
+    }
+
+    private async Task SaveItemUnitsAsync(int itemId, List<ItemUnitRow> units)
+    {
+        var unitsJson = JsonSerializer.Serialize(units.Select(u => new
+        {
+            UnitId = u.UnitId,
+            Factor = u.Factor,
+            IsDefault = u.IsDefault
+        }));
+        await Db.ExecuteAsync("inventory", "ItemUnitsUpsert", new
+        {
+            ItemId = itemId,
+            Json = unitsJson,
+            CreatedBy = Session.UserName
+        });
     }
 
     private void Cancel() => MudDialog.Cancel();
@@ -111,6 +180,30 @@
                 CreatedBy = Session.UserName,
                 CompanyId = Session.ActiveCompanyId
             });
+
+            // واحدهای چندگانه: برای کالای تازه‌ساخته، شناسه را با ItemList جستجو می‌کنیم
+            var validUnits = _itemUnits.Where(u => u.UnitId > 0).Select(u => new ItemUnitRow
+            {
+                UnitId = u.UnitId,
+                Factor = u.IsDefault ? 1m : (u.Factor <= 0 ? 1m : u.Factor),
+                IsDefault = u.IsDefault
+            }).ToList();
+            if (validUnits.Count > 0 && _model.ItemId > 0)
+            {
+                await SaveItemUnitsAsync(_model.ItemId, validUnits);
+            }
+            else if (validUnits.Count > 0)
+            {
+                // کالای جدید — شناسهٔ تازه را از طریق ItemList پیدا کن
+                var fresh = (await Db.QueryAsync<ItemRow>("inventory", "ItemList", new
+                {
+                    CompanyId = Session.ActiveCompanyId,
+                    Search = _model.ItemTitle.Trim()
+                })).FirstOrDefault(x => x.ItemTitle == _model.ItemTitle.Trim());
+                if (fresh is not null)
+                    await SaveItemUnitsAsync(fresh.ItemId, validUnits);
+            }
+
             Snackbar.Add("ذخیره شد.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }

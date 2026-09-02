@@ -4,6 +4,13 @@
 -- Schema: store (فروشگاه اینترنتی)
 -- Endpoint: execute (startup)
 -- =============================================
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET QUOTED_IDENTIFIER ON;
+SET NUMERIC_ROUNDABORT OFF;
+
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'store')
     EXEC(N'CREATE SCHEMA [store]');
 
@@ -492,5 +499,511 @@ ks] WHERE CompanyId = @BackfillCompanyId AND PartyId = @BackfillPartyId)
         FETCH NEXT FROM curBackfill INTO @BackfillCustomerId, @BackfillCompanyId, @BackfillCode, @BackfillFullName;
     END
     CLOSE curBackfill; DEALLOCATE curBackfill;
+END
+GO
+
+-- =============================================================
+-- WAVE 1: Multi-Store + State Machine سفارش
+--   هر فروشگاه به یک انبار inventory.Warehouses متصل است؛
+--   موجودی قابل فروش همیشه از انبار خوانده می‌شود.
+-- =============================================================
+
+-- ── Stores ──────────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'Stores')
+BEGIN
+    CREATE TABLE [store].[Stores] (
+        StoreId          INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId        INT NOT NULL,
+        StoreCode        NVARCHAR(30)  NOT NULL,
+        Title            NVARCHAR(200) NOT NULL,
+        StoreType        NVARCHAR(20)  NOT NULL CONSTRAINT DF_Stores_Type DEFAULT N'Physical', -- Physical | Online | Hybrid
+        WarehouseId      INT           NULL,                -- انبار اختصاصی (inventory.Warehouses)
+        ManagerUserId    INT           NULL,
+        ManagerName      NVARCHAR(200) NULL,
+        Phone            NVARCHAR(30)  NULL,
+        Email            NVARCHAR(120) NULL,
+        Address          NVARCHAR(500) NULL,
+        WorkingHours     NVARCHAR(300) NULL,
+        Description      NVARCHAR(500) NULL,
+        LogoUrl          NVARCHAR(500) NULL,
+        BannerUrl        NVARCHAR(500) NULL,
+        OnlineEnabled    BIT NOT NULL CONSTRAINT DF_Stores_Online DEFAULT 0,
+        IsActive         BIT NOT NULL CONSTRAINT DF_Stores_IsActive DEFAULT 1,
+        IsDeleted        BIT NOT NULL CONSTRAINT DF_Stores_IsDeleted DEFAULT 0,
+        CreatedAt        DATETIME2 NOT NULL CONSTRAINT DF_Stores_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt        DATETIME2 NULL,
+        CreatedBy        NVARCHAR(100) NULL,
+        UpdatedBy        NVARCHAR(100) NULL,
+        CONSTRAINT FK_Stores_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Stores_Company_Code' AND object_id = OBJECT_ID(N'[store].[Stores]'))
+    CREATE UNIQUE INDEX UX_Stores_Company_Code ON [store].[Stores](CompanyId, StoreCode) WHERE IsDeleted = 0;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Stores_Company' AND object_id = OBJECT_ID(N'[store].[Stores]'))
+    CREATE INDEX IX_Stores_Company ON [store].[Stores](CompanyId) WHERE IsDeleted = 0;
+GO
+
+-- ── StoreId روی Customers / Orders / Products ──────────────
+IF COL_LENGTH(N'store.Customers', N'StoreId') IS NULL
+    ALTER TABLE [store].[Customers] ADD StoreId INT NULL;
+GO
+IF COL_LENGTH(N'store.Orders', N'StoreId') IS NULL
+    ALTER TABLE [store].[Orders] ADD StoreId INT NULL;
+GO
+IF COL_LENGTH(N'store.Products', N'StoreId') IS NULL
+    ALTER TABLE [store].[Products] ADD StoreId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Orders_Store' AND object_id = OBJECT_ID(N'[store].[Orders]'))
+    CREATE INDEX IX_Orders_Store ON [store].[Orders](StoreId) WHERE StoreId IS NOT NULL;
+GO
+
+-- ── StoreSettings → per-store (migration: CompanyId PK می‌ماند؛
+--    StoreId اختیاری اضافه می‌شود تا تنظیمات مالی برای فروشگاه خاص هم ممکن باشد) ──
+IF COL_LENGTH(N'store.StoreSettings', N'StoreId') IS NULL
+    ALTER TABLE [store].[StoreSettings] ADD StoreId INT NULL;
+GO
+
+-- ── State Machine سفارش: تاریخچهٔ وضعیت‌ها ──────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'OrderStatusHistory')
+BEGIN
+    CREATE TABLE [store].[OrderStatusHistory] (
+        HistoryId    INT IDENTITY(1,1) PRIMARY KEY,
+        OrderId      INT NOT NULL,
+        FromStatus   NVARCHAR(30) NULL,
+        ToStatus     NVARCHAR(30) NOT NULL,
+        Reason       NVARCHAR(500) NULL,
+        ChangedBy    NVARCHAR(100) NULL,
+        CreatedAt    DATETIME2 NOT NULL CONSTRAINT DF_OrderStatusHistory_CreatedAt DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_OSH_Orders FOREIGN KEY (OrderId) REFERENCES [store].[Orders](OrderId)
+    );
+    CREATE INDEX IX_OSH_Order ON [store].[OrderStatusHistory](OrderId, HistoryId);
+END
+GO
+
+-- Backfill: برای سفارش‌های موجود یک رکورد تاریخچهٔ اولیه بساز
+IF OBJECT_ID(N'store.OrderStatusHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [store].[OrderStatusHistory])
+BEGIN
+    INSERT INTO [store].[OrderStatusHistory] (OrderId, FromStatus, ToStatus, Reason, ChangedBy)
+    SELECT OrderId, NULL, Status, N'Backfill', N'system'
+    FROM [store].[Orders];
+END
+GO
+
+-- ── جدول انتقال‌های مجاز State Machine ──────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'OrderStatusTransitions')
+BEGIN
+    CREATE TABLE [store].[OrderStatusTransitions] (
+        FromStatus NVARCHAR(30) NOT NULL,
+        ToStatus   NVARCHAR(30) NOT NULL,
+        CONSTRAINT PK_OrderStatusTransitions PRIMARY KEY (FromStatus, ToStatus)
+    );
+    INSERT INTO [store].[OrderStatusTransitions] (FromStatus, ToStatus) VALUES
+        (N'Placed',    N'Reserved'),
+        (N'Placed',    N'Cancelled'),
+        (N'Placed',    N'Rejected'),
+        (N'Reserved',  N'Invoiced'),
+        (N'Reserved',  N'Cancelled'),
+        (N'Reserved',  N'Rejected'),
+        (N'Invoiced',  N'Completed'),
+        (N'Invoiced',  N'Cancelled'),   -- فقط با مجوز + در OrderStatusChange کنترل می‌شود
+        (N'Invoiced',  N'Returned'),
+        (N'Completed', N'Returned');
+END
+GO
+
+-- =============================================================
+-- WAVE 2: Product Catalog (برند، درخت دسته، ویژگی داینامیک، تنوع، تصاویر)
+-- =============================================================
+
+-- ── Brands ──────────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'Brands')
+BEGIN
+    CREATE TABLE [store].[Brands] (
+        BrandId    INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId  INT NOT NULL,
+        BrandCode  NVARCHAR(30)  NOT NULL,
+        Title      NVARCHAR(200) NOT NULL,
+        LogoUrl    NVARCHAR(500) NULL,
+        [Description] NVARCHAR(500) NULL,
+        IsActive   BIT NOT NULL CONSTRAINT DF_Brands_Active DEFAULT 1,
+        IsDeleted  BIT NOT NULL CONSTRAINT DF_Brands_Deleted DEFAULT 0,
+        CreatedAt  DATETIME2 NOT NULL CONSTRAINT DF_Brands_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt  DATETIME2 NULL,
+        CreatedBy  NVARCHAR(100) NULL,
+        UpdatedBy  NVARCHAR(100) NULL,
+        CONSTRAINT FK_Brands_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Brands_Company_Code' AND object_id = OBJECT_ID(N'[store].[Brands]'))
+    CREATE UNIQUE INDEX UX_Brands_Company_Code ON [store].[Brands](CompanyId, BrandCode) WHERE IsDeleted = 0;
+GO
+
+-- ── ProductCategories: درختی شدن (ParentId) ────────────────
+IF COL_LENGTH(N'store.ProductCategories', N'ParentId') IS NULL
+    ALTER TABLE [store].[ProductCategories] ADD ParentId INT NULL;
+GO
+IF COL_LENGTH(N'store.ProductCategories', N'BrandId') IS NULL
+    ALTER TABLE [store].[ProductCategories] ADD BrandId INT NULL;
+GO
+
+-- ── Products: گسترش کاتالوگ ────────────────────────────────
+IF COL_LENGTH(N'store.Products', N'SKU') IS NULL
+    ALTER TABLE [store].[Products] ADD SKU NVARCHAR(50) NULL;
+IF COL_LENGTH(N'store.Products', N'Barcode') IS NULL
+    ALTER TABLE [store].[Products] ADD Barcode NVARCHAR(50) NULL;
+IF COL_LENGTH(N'store.Products', N'CategoryId') IS NULL
+    ALTER TABLE [store].[Products] ADD CategoryId INT NULL;
+IF COL_LENGTH(N'store.Products', N'BrandId') IS NULL
+    ALTER TABLE [store].[Products] ADD BrandId INT NULL;
+IF COL_LENGTH(N'store.Products', N'UnitId') IS NULL
+    ALTER TABLE [store].[Products] ADD UnitId INT NULL;
+IF COL_LENGTH(N'store.Products', N'ShortTitle') IS NULL
+    ALTER TABLE [store].[Products] ADD ShortTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'store.Products', N'EnglishTitle') IS NULL
+    ALTER TABLE [store].[Products] ADD EnglishTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'store.Products', N'Slug') IS NULL
+    ALTER TABLE [store].[Products] ADD Slug NVARCHAR(220) NULL;
+IF COL_LENGTH(N'store.Products', N'SeoTitle') IS NULL
+    ALTER TABLE [store].[Products] ADD SeoTitle NVARCHAR(200) NULL;
+IF COL_LENGTH(N'store.Products', N'MetaDescription') IS NULL
+    ALTER TABLE [store].[Products] ADD MetaDescription NVARCHAR(500) NULL;
+IF COL_LENGTH(N'store.Products', N'LongDescription') IS NULL
+    ALTER TABLE [store].[Products] ADD LongDescription NVARCHAR(MAX) NULL;
+IF COL_LENGTH(N'store.Products', N'Weight') IS NULL
+    ALTER TABLE [store].[Products] ADD Weight DECIMAL(18,3) NULL;
+IF COL_LENGTH(N'store.Products', N'Dimensions') IS NULL
+    ALTER TABLE [store].[Products] ADD Dimensions NVARCHAR(100) NULL;
+IF COL_LENGTH(N'store.Products', N'CostPrice') IS NULL
+    ALTER TABLE [store].[Products] ADD CostPrice DECIMAL(18,2) NULL;
+IF COL_LENGTH(N'store.Products', N'OnlinePrice') IS NULL
+    ALTER TABLE [store].[Products] ADD OnlinePrice DECIMAL(18,2) NULL;
+IF COL_LENGTH(N'store.Products', N'DiscountPrice') IS NULL
+    ALTER TABLE [store].[Products] ADD DiscountPrice DECIMAL(18,2) NULL;
+IF COL_LENGTH(N'store.Products', N'DiscountFrom') IS NULL
+    ALTER TABLE [store].[Products] ADD DiscountFrom DATETIME2 NULL;
+IF COL_LENGTH(N'store.Products', N'DiscountTo') IS NULL
+    ALTER TABLE [store].[Products] ADD DiscountTo DATETIME2 NULL;
+IF COL_LENGTH(N'store.Products', N'MainImageUrl') IS NULL
+    ALTER TABLE [store].[Products] ADD MainImageUrl NVARCHAR(500) NULL;
+IF COL_LENGTH(N'store.Products', N'HasVariants') IS NULL
+    ALTER TABLE [store].[Products] ADD HasVariants BIT NOT NULL CONSTRAINT DF_Products_HasVariants DEFAULT 0;
+IF COL_LENGTH(N'store.Products', N'UpdatedAt') IS NULL
+    ALTER TABLE [store].[Products] ADD UpdatedAt DATETIME2 NULL;
+IF COL_LENGTH(N'store.Products', N'UpdatedBy') IS NULL
+    ALTER TABLE [store].[Products] ADD UpdatedBy NVARCHAR(100) NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Products_Category' AND object_id = OBJECT_ID(N'[store].[Products]'))
+    CREATE INDEX IX_Products_Category ON [store].[Products](CategoryId) WHERE CategoryId IS NOT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Products_Barcode' AND object_id = OBJECT_ID(N'[store].[Products]'))
+    CREATE INDEX IX_Products_Barcode ON [store].[Products](Barcode) WHERE Barcode IS NOT NULL;
+GO
+
+-- ── ProductImages ──────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'ProductImages')
+BEGIN
+    CREATE TABLE [store].[ProductImages] (
+        ImageId    INT IDENTITY(1,1) PRIMARY KEY,
+        ProductId  INT NOT NULL,
+        ImageUrl   NVARCHAR(500) NOT NULL,
+        AltText    NVARCHAR(200) NULL,
+        SortOrder  INT NOT NULL CONSTRAINT DF_ProductImages_Sort DEFAULT 0,
+        IsMain     BIT NOT NULL CONSTRAINT DF_ProductImages_Main DEFAULT 0,
+        CreatedAt  DATETIME2 NOT NULL CONSTRAINT DF_ProductImages_CreatedAt DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_ProductImages_Product FOREIGN KEY (ProductId) REFERENCES [store].[Products](ProductId)
+    );
+    CREATE INDEX IX_ProductImages_Product ON [store].[ProductImages](ProductId, SortOrder);
+END
+GO
+
+-- ── AttributeGroups / Attributes / AttributeValues / ProductAttributes ──
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'AttributeGroups')
+BEGIN
+    CREATE TABLE [store].[AttributeGroups] (
+        AttributeGroupId INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId        INT NOT NULL,
+        Title            NVARCHAR(200) NOT NULL,   -- مثلا «مشخصات موبایل»، «سایز لباس»
+        SortOrder        INT NOT NULL CONSTRAINT DF_AttrGroups_Sort DEFAULT 0,
+        IsActive         BIT NOT NULL CONSTRAINT DF_AttrGroups_Active DEFAULT 1,
+        IsDeleted        BIT NOT NULL CONSTRAINT DF_AttrGroups_Deleted DEFAULT 0,
+        CreatedAt        DATETIME2 NOT NULL CONSTRAINT DF_AttrGroups_CreatedAt DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_AttrGroups_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+GO
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'Attributes')
+BEGIN
+    CREATE TABLE [store].[Attributes] (
+        AttributeId       INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId         INT NOT NULL,
+        AttributeGroupId  INT NULL,
+        Title             NVARCHAR(200) NOT NULL,   -- «RAM»، «سایز»، «رنگ»
+        DataType          NVARCHAR(20) NOT NULL CONSTRAINT DF_Attributes_Type DEFAULT N'Text', -- Text | Number | Boolean | List
+        Unit              NVARCHAR(30) NULL,        -- «GB»، «اینچ»
+        IsVariantFacet    BIT NOT NULL CONSTRAINT DF_Attributes_Facet DEFAULT 0,  -- رنگ/سایز → Variant
+        SortOrder         INT NOT NULL CONSTRAINT DF_Attributes_Sort DEFAULT 0,
+        IsActive          BIT NOT NULL CONSTRAINT DF_Attributes_Active DEFAULT 1,
+        IsDeleted         BIT NOT NULL CONSTRAINT DF_Attributes_Deleted DEFAULT 0,
+        CreatedAt         DATETIME2 NOT NULL CONSTRAINT DF_Attributes_CreatedAt DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_Attributes_Group FOREIGN KEY (AttributeGroupId) REFERENCES [store].[AttributeGroups](AttributeGroupId),
+        CONSTRAINT FK_Attributes_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+    CREATE INDEX IX_Attributes_Company ON [store].[Attributes](CompanyId, IsDeleted);
+END
+GO
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'ProductAttributes')
+BEGIN
+    CREATE TABLE [store].[ProductAttributes] (
+        ProductAttributeId INT IDENTITY(1,1) PRIMARY KEY,
+        ProductId          INT NOT NULL,
+        AttributeId        INT NOT NULL,
+        ValueText          NVARCHAR(500) NULL,
+        SortOrder          INT NOT NULL CONSTRAINT DF_ProdAttr_Sort DEFAULT 0,
+        CONSTRAINT FK_ProdAttr_Product   FOREIGN KEY (ProductId)   REFERENCES [store].[Products](ProductId),
+        CONSTRAINT FK_ProdAttr_Attribute FOREIGN KEY (AttributeId) REFERENCES [store].[Attributes](AttributeId)
+    );
+    CREATE INDEX IX_ProdAttr_Product ON [store].[ProductAttributes](ProductId);
+    CREATE INDEX IX_ProdAttr_Attribute ON [store].[ProductAttributes](AttributeId);
+END
+GO
+
+-- ── ProductVariants ────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'ProductVariants')
+BEGIN
+    CREATE TABLE [store].[ProductVariants] (
+        VariantId     INT IDENTITY(1,1) PRIMARY KEY,
+        ProductId     INT NOT NULL,
+        VariantCode   NVARCHAR(50)  NOT NULL,
+        Title         NVARCHAR(200) NOT NULL,
+        Barcode       NVARCHAR(50)  NULL,
+        Price         DECIMAL(18,2) NOT NULL CONSTRAINT DF_Variants_Price DEFAULT 0,
+        DiscountPrice DECIMAL(18,2) NULL,
+        Weight        DECIMAL(18,3) NULL,
+        ImageUrl      NVARCHAR(500) NULL,
+        IsActive      BIT NOT NULL CONSTRAINT DF_Variants_Active DEFAULT 1,
+        IsDeleted     BIT NOT NULL CONSTRAINT DF_Variants_Deleted DEFAULT 0,
+        CreatedAt     DATETIME2 NOT NULL CONSTRAINT DF_Variants_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt     DATETIME2 NULL,
+        ItemCode      NVARCHAR(50)  NULL,
+        CONSTRAINT FK_Variants_Product FOREIGN KEY (ProductId) REFERENCES [store].[Products](ProductId)
+    );
+    CREATE UNIQUE INDEX UX_Variants_Product_Code ON [store].[ProductVariants](ProductId, VariantCode) WHERE IsDeleted = 0;
+END
+GO
+
+-- VariantAttributes
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'VariantAttributes')
+BEGIN
+    CREATE TABLE [store].[VariantAttributes] (
+        VariantId   INT NOT NULL,
+        AttributeId INT NOT NULL,
+        ValueText   NVARCHAR(200) NOT NULL,
+        CONSTRAINT PK_VariantAttributes PRIMARY KEY (VariantId, AttributeId),
+        CONSTRAINT FK_VarAttr_Variant   FOREIGN KEY (VariantId)   REFERENCES [store].[ProductVariants](VariantId),
+        CONSTRAINT FK_VarAttr_Attribute FOREIGN KEY (AttributeId) REFERENCES [store].[Attributes](AttributeId)
+    );
+END
+GO
+GO
+-- =============================================================
+-- WAVE 3: قیمت‌گذاری per-store + تخفیف‌ها + کوپن
+--   Existing = کلید یکتا (StoreId, ProductId)؛ Available = StockQty − رزرو فعال.
+--   منبع حقیقت قیمت: ProductPrices؛ قیمت Products.Price فقط fallback است.
+-- =============================================================
+
+-- ── PriceLists (Retail/Wholesale/VIP/...) ───────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'PriceLists')
+BEGIN
+    CREATE TABLE [store].[PriceLists] (
+        PriceListId  INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId    INT NOT NULL,
+        Code         NVARCHAR(30)  NOT NULL,
+        Title        NVARCHAR(200) NOT NULL,
+        StoreId      INT NULL,                -- NULL = همهٔ فروشگاه‌ها
+        CurrencyCode NVARCHAR(10)  NOT NULL CONSTRAINT DF_PriceLists_Curr DEFAULT N'IRR',
+        IsActive     BIT NOT NULL CONSTRAINT DF_PriceLists_Active DEFAULT 1,
+        IsDeleted    BIT NOT NULL CONSTRAINT DF_PriceLists_Deleted DEFAULT 0,
+        CreatedAt    DATETIME2 NOT NULL CONSTRAINT DF_PriceLists_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt    DATETIME2 NULL,
+        CreatedBy    NVARCHAR(100) NULL,
+        UpdatedBy    NVARCHAR(100) NULL,
+        CONSTRAINT FK_PriceLists_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_PriceLists_Company_Code' AND object_id = OBJECT_ID(N'[store].[PriceLists]'))
+    CREATE UNIQUE INDEX UX_PriceLists_Company_Code ON [store].[PriceLists](CompanyId, Code) WHERE IsDeleted = 0;
+GO
+
+-- ── ProductPrices: قیمت هر محصول در هر لیست/فروشگاه ─────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'ProductPrices')
+BEGIN
+    CREATE TABLE [store].[ProductPrices] (
+        PriceId      INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId    INT NOT NULL,
+        PriceListId  INT NOT NULL,
+        ProductId    INT NOT NULL,
+        StoreId      INT NULL,                -- NULL = همهٔ فروشگاه‌های لیست
+        Price        DECIMAL(18,2) NOT NULL,
+        FromDate     DATE NULL,
+        ToDate       DATE NULL,
+        MinQty       DECIMAL(18,3) NOT NULL CONSTRAINT DF_ProdPrices_MinQty DEFAULT 1,
+        IsDeleted    BIT NOT NULL CONSTRAINT DF_ProdPrices_Deleted DEFAULT 0,
+        CreatedAt    DATETIME2 NOT NULL CONSTRAINT DF_ProdPrices_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt    DATETIME2 NULL,
+        CreatedBy    NVARCHAR(100) NULL,
+        UpdatedBy    NVARCHAR(100) NULL,
+        CONSTRAINT FK_ProdPrices_List    FOREIGN KEY (PriceListId) REFERENCES [store].[PriceLists](PriceListId),
+        CONSTRAINT FK_ProdPrices_Product FOREIGN KEY (ProductId)   REFERENCES [store].[Products](ProductId)
+    );
+    CREATE INDEX IX_ProdPrices_Lookup ON [store].[ProductPrices](CompanyId, ProductId, PriceListId) WHERE IsDeleted = 0;
+END
+GO
+
+-- ── Promotions (کمپین تخفیف) ────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'Promotions')
+BEGIN
+    CREATE TABLE [store].[Promotions] (
+        PromotionId   INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId     INT NOT NULL,
+        Code          NVARCHAR(30)  NOT NULL,
+        Title         NVARCHAR(200) NOT NULL,
+        StoreId       INT NULL,                -- NULL = همهٔ فروشگاه‌ها
+        ProductId     INT NULL,                -- NULL = همهٔ محصولات
+        CategoryId    INT NULL,                -- NULL = همهٔ دسته‌ها
+        DiscountType  NVARCHAR(10)  NOT NULL CONSTRAINT DF_Promo_Type DEFAULT N'Percent', -- Percent | Amount
+        DiscountValue DECIMAL(18,2) NOT NULL CONSTRAINT DF_Promo_Value DEFAULT 0,
+        FromDate      DATETIME2 NOT NULL CONSTRAINT DF_Promo_From DEFAULT SYSUTCDATETIME(),
+        ToDate        DATETIME2 NOT NULL CONSTRAINT DF_Promo_To DEFAULT DATEADD(DAY, 30, SYSUTCDATETIME()),
+        MinOrderTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_Promo_MinTotal DEFAULT 0,
+        IsActive      BIT NOT NULL CONSTRAINT DF_Promo_Active DEFAULT 1,
+        IsDeleted     BIT NOT NULL CONSTRAINT DF_Promo_Deleted DEFAULT 0,
+        CreatedAt     DATETIME2 NOT NULL CONSTRAINT DF_Promo_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt     DATETIME2 NULL,
+        CreatedBy     NVARCHAR(100) NULL,
+        UpdatedBy     NVARCHAR(100) NULL,
+        CONSTRAINT FK_Promo_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Promo_Company_Code' AND object_id = OBJECT_ID(N'[store].[Promotions]'))
+    CREATE UNIQUE INDEX UX_Promo_Company_Code ON [store].[Promotions](CompanyId, Code) WHERE IsDeleted = 0;
+GO
+
+-- ── Coupons (کد تخفیف قابل‌اعمال در سبد) ─────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'Coupons')
+BEGIN
+    CREATE TABLE [store].[Coupons] (
+        CouponId      INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId     INT NOT NULL,
+        Code          NVARCHAR(50)  NOT NULL,
+        Title         NVARCHAR(200) NOT NULL,
+        StoreId       INT NULL,                -- NULL = همهٔ فروشگاه‌ها
+        DiscountType  NVARCHAR(10)  NOT NULL CONSTRAINT DF_Coupon_Type DEFAULT N'Percent', -- Percent | Amount
+        DiscountValue DECIMAL(18,2) NOT NULL CONSTRAINT DF_Coupon_Value DEFAULT 0,
+        MaxDiscount   DECIMAL(18,2) NULL,      -- سقف مبلغ تخفیف (برای درصدی)
+        MinOrderTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_Coupon_MinTotal DEFAULT 0,
+        UsageLimit    INT NULL,                -- NULL = بی‌نهایت
+        UsedCount     INT NOT NULL CONSTRAINT DF_Coupon_Used DEFAULT 0,
+        PerCustomerLimit INT NULL,             -- سقف استفادهٔ هر مشتری
+        FromDate      DATETIME2 NOT NULL CONSTRAINT DF_Coupon_From DEFAULT SYSUTCDATETIME(),
+        ToDate        DATETIME2 NOT NULL CONSTRAINT DF_Coupon_To DEFAULT DATEADD(DAY, 30, SYSUTCDATETIME()),
+        IsActive      BIT NOT NULL CONSTRAINT DF_Coupon_Active DEFAULT 1,
+        IsDeleted     BIT NOT NULL CONSTRAINT DF_Coupon_Deleted DEFAULT 0,
+        CreatedAt     DATETIME2 NOT NULL CONSTRAINT DF_Coupon_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt     DATETIME2 NULL,
+        CreatedBy     NVARCHAR(100) NULL,
+        UpdatedBy     NVARCHAR(100) NULL,
+        CONSTRAINT FK_Coupon_Company FOREIGN KEY (CompanyId) REFERENCES [central].[Companies](CompanyId)
+    );
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Coupon_Company_Code' AND object_id = OBJECT_ID(N'[store].[Coupons]'))
+    CREATE UNIQUE INDEX UX_Coupon_Company_Code ON [store].[Coupons](CompanyId, Code) WHERE IsDeleted = 0;
+GO
+
+-- ── Orders: ستون‌های تخفیف ──────────────────────────────────
+IF COL_LENGTH(N'store.Orders', N'DiscountTotal') IS NULL
+    ALTER TABLE [store].[Orders] ADD DiscountTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_Orders_DiscTotal DEFAULT 0;
+IF COL_LENGTH(N'store.Orders', N'CouponId') IS NULL
+    ALTER TABLE [store].[Orders] ADD CouponId INT NULL;
+IF COL_LENGTH(N'store.Orders', N'PromotionId') IS NULL
+    ALTER TABLE [store].[Orders] ADD PromotionId INT NULL;
+IF COL_LENGTH(N'store.Orders', N'PriceListId') IS NULL
+    ALTER TABLE [store].[Orders] ADD PriceListId INT NULL;
+IF COL_LENGTH(N'store.Orders', N'GrossTotal') IS NULL
+    ALTER TABLE [store].[Orders] ADD GrossTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_Orders_GrossTotal DEFAULT 0;
+GO
+-- سند/مانده‌ها بر GrossTotal − DiscountTotal بنا می‌شوند؛ Backfill برای ردیف‌های موجود:
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'store.Orders') AND name = N'GrossTotal')
+   AND EXISTS (SELECT 1 FROM [store].[Orders] WHERE GrossTotal = 0 AND TotalAmount > 0)
+    UPDATE [store].[Orders] SET GrossTotal = TotalAmount, DiscountTotal = 0
+    WHERE GrossTotal = 0 AND TotalAmount > 0;
+GO
+
+-- ── CouponRedemptions: اتمی و idempotent با سفارش ───────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'store' AND t.name = N'CouponRedemptions')
+BEGIN
+    CREATE TABLE [store].[CouponRedemptions] (
+        RedemptionId INT IDENTITY(1,1) PRIMARY KEY,
+        CompanyId    INT NOT NULL,
+        CouponId     INT NOT NULL,
+        OrderId      INT NOT NULL,
+        CustomerId   INT NOT NULL,
+        DiscountAmt  DECIMAL(18,2) NOT NULL,
+        CreatedAt    DATETIME2 NOT NULL CONSTRAINT DF_CouponRed_CreatedAt DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_CouponRed_Coupon FOREIGN KEY (CouponId) REFERENCES [store].[Coupons](CouponId),
+        CONSTRAINT FK_CouponRed_Order  FOREIGN KEY (OrderId)  REFERENCES [store].[Orders](OrderId)
+    );
+    CREATE UNIQUE INDEX UX_CouponRed_Order ON [store].[CouponRedemptions](OrderId, CouponId);
 END
 GO

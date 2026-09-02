@@ -1,6 +1,7 @@
 @page "/treasury/reports"
 @inject DbService Db
 @inject UserSession Session
+@inject AccountingContextService Context
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 @inject PdfReportService Pdf
@@ -11,7 +12,7 @@
     <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadAsync" Disabled="_loading"
                StartIcon="@Icons.Material.Filled.Refresh">بروزرسانی</MudButton>
     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintAsync" Disabled="_loading || _rows.Count == 0"
-               StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+               StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
 </PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
@@ -27,6 +28,24 @@
                        StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="LoadAsync" Disabled="_loading">
                 اجرا
             </MudButton>
+        </MudItem>
+        <MudItem xs="12">
+            <div class="d-flex align-center flex-wrap gap-2">
+                <MudTooltip Text="بازهٔ پیش‌فرض = کل سال مالی فعال">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                             Icon="@Icons.Material.Filled.CalendarMonth" Style="cursor:pointer"
+                             OnClick="ResetToActiveFiscalYearAsync" Disabled="_loading">
+                        بازهٔ سال مالی
+                    </MudChip>
+                </MudTooltip>
+                @if (_from is not null && _to is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        بازهٔ فعلی: <span class="tz-num">@PersianDate.ToPersian(_from.Value)</span> تا
+                        <span class="tz-num">@PersianDate.ToPersian(_to.Value)</span>
+                    </MudText>
+                }
+            </div>
         </MudItem>
     </MudGrid>
 </MudPaper>
@@ -83,6 +102,15 @@
         await LoadAsync();
     }
 
+    /// <summary>بازگشت بازهٔ تاریخ به کل سال مالی فعال و بارگذاری مجدد — یک کلیک.</summary>
+    private async Task ResetToActiveFiscalYearAsync()
+    {
+        var fy = await Context.GetActiveFiscalYearAsync();
+        _from = fy?.StartDate ?? DateTime.Today.AddMonths(-1);
+        _to = fy?.EndDate ?? DateTime.Today;
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         _loading = true;
@@ -105,7 +133,7 @@
         }
     }
 
-    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+    // ── چاپ (طبق اسکیل tarazin-reporting) ──
 
     private async Task PrintAsync()
     {

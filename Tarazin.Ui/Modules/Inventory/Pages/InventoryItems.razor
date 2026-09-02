@@ -58,7 +58,7 @@
     private async Task ReloadAsync()
     {
         _loading = true;
-        try { _rows = await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Db.CurrentCompanyId }); }
+        try {        _rows = await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Db.CurrentCompanyId, Search = _search }); }
         finally { _loading = false; }
     }
 

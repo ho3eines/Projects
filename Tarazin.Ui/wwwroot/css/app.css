@@ -43,6 +43,24 @@
     /* ── ردیفِ انتخاب‌شدهٔ جدول ثبت سند — متغیرمحور تا در حالت تیره هم خوانا بماند ── */
     --tz-row-selected-bg: color-mix(in srgb, var(--mud-palette-success) 16%, var(--mud-palette-surface));
     --tz-row-selected-edge: var(--mud-palette-success);
+
+    /* Design-system aliases: همهٔ لایه‌های UI از این توکن‌های معنایی استفاده می‌کنند.
+       مقدار واقعی از MudTheme می‌آید تا light/dark بدون رنگ‌گذاری تکراری هماهنگ بماند. */
+    --color-primary: var(--mud-palette-primary, #0e4d4a);
+    --color-secondary: var(--mud-palette-secondary, #c49a3c);
+    --color-accent: var(--tz-accent, var(--color-primary));
+    --color-background: var(--mud-palette-background, #f3eee3);
+    --color-surface: var(--mud-palette-surface, #fffbf4);
+    --color-card: var(--mud-palette-surface, #fffbf4);
+    --color-border: var(--mud-palette-divider, #e2d8c4);
+    --color-text-primary: var(--mud-palette-text-primary, #1c1914);
+    --color-text-secondary: var(--mud-palette-text-secondary, #5c5648);
+    --color-success: var(--mud-palette-success, #2e7d57);
+    --color-warning: var(--mud-palette-warning, #c49a3c);
+    --color-error: var(--mud-palette-error, #9c3b2e);
+    --color-info: var(--mud-palette-info, #2b6b7a);
+    --tz-control-height: 42px;
+    --tz-table-row-height: 48px;
 }
 
 html, body {
@@ -54,6 +72,8 @@ html, body {
     line-height: var(--tz-body-leading);
     direction: rtl;
     text-align: right;
+    color: var(--color-text-primary);
+    background: var(--color-background);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
 }
@@ -274,8 +294,8 @@ body {
     min-width: 0;
     scrollbar-width: thin;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.4rem 1rem;
+    gap: 0.6rem;
+    padding: 0.28rem 0.9rem;
     background: color-mix(in srgb, var(--mud-palette-surface) 88%, var(--mud-palette-primary) 12%);
     border-bottom: 1px solid var(--mud-palette-divider);
     overflow-x: auto;
@@ -296,31 +316,72 @@ body {
 .tz-subnav__tabs {
     display: flex;
     gap: 0.25rem;
+    position: relative;
 }
 
+/* نشانگر کشویی: نوارِ باریکِ آکاردیونی زیر تبِ فعال.
+   موقعیتش با JS (subnav.js) از هندسهٔ واقعی تبِ فعال خوانده می‌شود و
+   فقط با width/transform حرکت می‌کند — بدون layout thrash و در RTL هم درست. */
+.tz-subnav__indicator {
+    position: absolute;
+    bottom: -0.28rem;
+    inset-inline-start: 0;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--tz-accent, var(--mud-palette-primary));
+    box-shadow: 0 0 6px color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 45%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform, width;
+    transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.2s ease;
+}
+
+/* تب‌های باریکِ سگمنتی: ارتفاع کم، نمایشگر فعلی به‌صورت یک قرصِ آکوردانی */
 .tz-subnav__tab {
+    --tz-tab-pad-y: 0.28rem;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.35rem 0.75rem;
+    min-height: 30px;
+    padding: var(--tz-tab-pad-y) 0.85rem;
     border-radius: 999px;
+    border: 1px solid transparent;
     color: var(--mud-palette-text-secondary);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-size: 0.83rem;
     font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
     white-space: nowrap;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tz-subnav__tab .mud-icon-root {
+    font-size: 1rem;
+    opacity: 0.85;
+    transition: opacity 0.15s ease, transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .tz-subnav__tab:hover {
-    background: var(--mud-palette-action-default-hover);
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 9%, transparent);
     color: var(--mud-palette-text-primary);
 }
 
+.tz-subnav__tab:hover .mud-icon-root {
+    opacity: 1;
+    transform: translateY(-1px);
+}
+
 .tz-subnav__tab.is-active {
-    background: var(--mud-palette-primary);
-    color: var(--mud-palette-primary-text);
+    color: var(--tz-accent, var(--mud-palette-primary));
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 10%, transparent);
+    border-color: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 38%, transparent);
     animation: tz-tab-pop 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.tz-subnav__tab.is-active .mud-icon-root {
+    opacity: 1;
+    transform: none;
 }
 
 @keyframes tz-tab-pop {
@@ -814,6 +875,9 @@ body {
     .tz-subnav__tab.is-active {
         animation: none !important;
     }
+    .tz-subnav__indicator {
+        transition: none !important;
+    }
 }
 
 /* ── Home ────────────────────────────────────────────────── */
@@ -1131,6 +1195,56 @@ body {
     color: var(--mud-palette-text-secondary) !important;
     letter-spacing: 0.02em;
     white-space: nowrap;
+}
+
+/* جدول استاندارد: سطح مستقل، مرز نرم و فضای تنفس ثابت؛
+   این کلاس روی TzDataTable قرار می‌گیرد تا صفحات قدیمیِ خارج از آن
+   بدون تغییر رفتار باقی بمانند. */
+.tz-data-table {
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--tz-shadow-1);
+}
+
+.tz-data-table__table {
+    min-width: 0;
+    background: transparent;
+}
+
+.tz-data-table__table .mud-table-container {
+    min-width: 0;
+    border-radius: 10px;
+}
+
+.tz-data-table__table .mud-table-head .mud-table-cell {
+    min-height: var(--tz-table-row-height);
+    padding: 0.8rem 0.85rem;
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+    color: var(--color-text-secondary) !important;
+}
+
+.tz-data-table__table .mud-table-body .mud-table-cell {
+    min-height: var(--tz-table-row-height);
+    padding: 0.7rem 0.85rem;
+    color: var(--color-text-primary);
+    vertical-align: middle;
+}
+
+.tz-data-table__table .mud-table-row {
+    transition: background-color var(--tz-duration-fast) ease;
+}
+
+.tz-data-table__table .mud-table-row:hover {
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+}
+
+.tz-data-table__table .mud-table-pagination {
+    min-height: 48px;
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-primary) 2%, var(--color-surface));
 }
 
 .mud-paper {
@@ -1712,8 +1826,9 @@ body {
     }
 
     .tz-subnav__tab {
-        min-height: 36px;
-        padding-inline: 0.6rem;
+        min-height: 32px;
+        padding-block: var(--tz-tab-pad-y, 0.28rem);
+        padding-inline: 0.65rem;
         font-size: 0.85rem;
     }
 
@@ -1726,33 +1841,71 @@ body {
         max-width: 100%;
     }
 
+    /* جدول‌ها باید در مرز محتوای صفحه بمانند؛ در RTL سرریزِ سمت چپ نباید
+       با عرض ثابت یا calc مبتنی بر viewport باعث بریده‌شدن ستون‌ها شود. */
     .mud-table-container {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-x: contain;
+        scrollbar-width: thin;
     }
 
-    .mud-table {
-        min-width: 560px;
+    .mud-table,
+    .mud-table-root,
+    .mud-table.mud-table-sticky-header {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
     }
 
-    .mud-table-container {
-        max-width: calc(100vw - 1.1rem);
+    .tz-data-table {
+        padding: 0.55rem !important;
+        border-radius: 12px;
+    }
+
+    .tz-data-table__table .mud-table-head .mud-table-cell,
+    .tz-data-table__table .mud-table-body .mud-table-cell {
+        padding: 0.55rem 0.65rem;
     }
 
     .mud-table-cell {
-        white-space: nowrap;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .mud-table-cell[data-label="کد"],
+    .mud-table-cell[data-label="شماره"],
+    .mud-table-cell[data-label="مبلغ"] {
+        overflow-wrap: normal;
+        word-break: normal;
     }
 
     .mud-table-cell[data-label="شرح"],
     .mud-table-cell[data-label="توضیح"],
     .mud-table-cell[data-label="خلاصه"] {
         white-space: normal;
-        min-width: 180px;
+        min-width: 0;
     }
 
-    .mud-table.mud-table-sticky-header {
-        min-width: 100%;
+    .mud-tabs,
+    .mud-tabs-tabbar,
+    .mud-tabs-tabbar-content,
+    .mud-tabs-tabbar-inner,
+    .mud-tabs-panels {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .mud-tabs-tabbar-wrapper {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: auto;
+        scrollbar-width: thin;
     }
 
     .tz-pagehead__actions,
@@ -2090,11 +2243,177 @@ body {
 
 /* پس‌زمینهٔ پیش‌نمایش (مثل نمایانگر مرورگرها: خاکستری + برگهٔ سفید) */
 .gp-preview-stage {
-    background: #525659;
+    background: #3e454b;
     border-radius: 8px;
     padding: 20px 12px;
     overflow: auto;
     max-height: 62vh;
+    overscroll-behavior: contain;
+}
+
+/* در موبایل، برگه نباید به عرض دیالوگ فشرده شود؛ فشرده‌سازی باعث می‌شود
+   کدها و نوع سند حرف‌به‌حرف شکسته شوند. خود stage اسکرول افقی را نگه می‌دارد. */
+@media (max-width: 800px) {
+    .gp-preview-stage .gp-preview-sheet,
+    .tpl-print-stage .tpl-sheet-shell {
+        max-width: none;
+        flex: 0 0 auto;
+        margin-inline: 0;
+    }
+
+    .gp-preview-stage .gp-preview-sheet {
+        width: 210mm;
+    }
+
+    .gp-preview-stage .gp-preview-sheet--landscape {
+        width: 297mm;
+    }
+
+    .gp-preview-stage .gp-preview-sheet--a5 {
+        width: 148mm;
+    }
+
+    .gp-preview-stage .gp-preview-sheet--landscape.gp-preview-sheet--a5 {
+        width: 210mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell {
+        width: 210mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell .tpl-sheet {
+        max-width: none;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell--landscape {
+        width: 297mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell--a5 {
+        width: 148mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell--landscape.tpl-sheet-shell--a5 {
+        width: 210mm;
+    }
+}
+
+/* شناسه‌ها، تاریخ‌ها و مبالغ باید یک واحد بمانند؛ شرح آزاد می‌تواند wrap شود. */
+.gp-preview-sheet .mud-table-cell,
+.gp-print-area .mud-table-cell,
+.tpl-sheet .tpl-th,
+.tpl-sheet .tpl-td {
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.gp-preview-sheet .mud-table-cell[data-label="کد"],
+.gp-preview-sheet .mud-table-cell[data-label="کد حساب"],
+.gp-preview-sheet .mud-table-cell[data-label="شماره"],
+.gp-preview-sheet .mud-table-cell[data-label="تاریخ"],
+.gp-preview-sheet .mud-table-cell[data-label="مبلغ"],
+.gp-print-area .mud-table-cell[data-label="کد"],
+.gp-print-area .mud-table-cell[data-label="کد حساب"],
+.gp-print-area .mud-table-cell[data-label="شماره"],
+.gp-print-area .mud-table-cell[data-label="تاریخ"],
+.gp-print-area .mud-table-cell[data-label="مبلغ"] {
+    white-space: nowrap;
+}
+
+/* برگهٔ چاپ مستقل از تم برنامه است: dark mode فقط chrome دیالوگ را تغییر می‌دهد.
+   این قرارداد روی پیش‌نمایش، سند عادی و گزارش چک اعمال می‌شود. */
+.gp-print-area,
+.gp-preview-sheet,
+.tpl-sheet-shell,
+.tpl-sheet {
+    --tz-print-ink: #1f2937;
+    --tz-print-muted: #667085;
+    --tz-print-border: #d7dde5;
+    --tz-print-header-bg: #f3f6f8;
+    --tz-print-group-bg: #e8eef8;
+    --tz-print-sub-bg: #f7f9fb;
+    color-scheme: light;
+    color: var(--tz-print-ink);
+    background: #ffffff;
+}
+
+.gp-print-area .mud-paper,
+.gp-preview-sheet .mud-paper {
+    color: var(--tz-print-ink, #1f2937);
+    background: #ffffff;
+    border-color: var(--tz-print-border, #d7dde5) !important;
+}
+
+.gp-print-area .mud-typography,
+.gp-preview-sheet .mud-typography,
+.gp-print-area .mud-table,
+.gp-preview-sheet .mud-table {
+    color: var(--tz-print-ink, #1f2937);
+}
+
+.gp-print-area .mud-table-head .mud-table-cell,
+.gp-preview-sheet .mud-table-head .mud-table-cell {
+    color: var(--tz-print-muted, #667085) !important;
+    background: var(--tz-print-header-bg, #f3f6f8);
+    border-color: var(--tz-print-border, #d7dde5);
+}
+
+.gp-print-area .mud-table-body .mud-table-cell,
+.gp-preview-sheet .mud-table-body .mud-table-cell {
+    color: var(--tz-print-ink, #1f2937);
+    border-color: var(--tz-print-border, #d7dde5);
+}
+
+.gp-print-area .mud-table-striped > tbody > tr:nth-child(2n),
+.gp-preview-sheet .mud-table-striped > tbody > tr:nth-child(2n) {
+    background: #fafbfc;
+}
+
+.gp-print-area .mud-table-row:hover,
+.gp-preview-sheet .mud-table-row:hover {
+    background: #eef4f6;
+}
+
+.gp-print-header__title {
+    color: #173f4d;
+    font-size: 13pt;
+    font-weight: 700;
+}
+
+.gp-print-header__meta {
+    color: #667085;
+    font-size: 9pt;
+}
+
+.gp-preview-stage .gp-preview-sheet,
+.tpl-print-stage .tpl-sheet-shell,
+.tpl-print-stage .tpl-sheet-shell .tpl-sheet {
+    color-scheme: light;
+}
+
+.mud-theme-dark .gp-print-area,
+.mud-theme-dark .gp-preview-sheet,
+.mud-theme-dark .tpl-sheet-shell,
+.mud-theme-dark .tpl-sheet {
+    color: #1f2937;
+    background: #ffffff;
+}
+
+.mud-theme-dark .gp-print-area .mud-paper,
+.mud-theme-dark .gp-preview-sheet .mud-paper {
+    color: #1f2937;
+    background: #ffffff;
+}
+
+.mud-theme-dark .gp-print-area .mud-table-head .mud-table-cell,
+.mud-theme-dark .gp-preview-sheet .mud-table-head .mud-table-cell {
+    color: #667085 !important;
+    background: #f3f6f8;
+}
+
+.mud-theme-dark .gp-print-area .mud-table-body .mud-table-cell,
+.mud-theme-dark .gp-preview-sheet .mud-table-body .mud-table-cell {
+    color: #1f2937;
 }
 
 /* برگهٔ A4 شبیه‌سازی‌شده (ابعاد دقیقاً هم‌اندازهٔ کاغذ واقعی تا PDF تمام‌صفحه باشد) */
@@ -2578,5 +2897,210 @@ qr-fill svg {
     .tpl-sheet .tpl-report-footer {
         page-break-inside: avoid;
         break-inside: avoid;
+    }
+}
+
+/* خروجی بازسازی دادهٔ نمونه (تب «داده نمونه» در تنظیمات انبار) */
+.reseed-output {
+    max-height: 320px;
+    overflow: auto;
+    background: rgba(127, 127, 127, 0.08);
+    border: 1px solid rgba(127, 127, 127, 0.25);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: var(--mud-typography-default-family);
+    font-size: 0.8rem;
+    direction: ltr;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ── Shared UI contract v2: polished surfaces, controls and responsive shells ──
+   این بخش عمداً فقط presentation است؛ query، state و رفتار کامپوننت‌ها تغییر نمی‌کند. */
+.tz-shell,
+.tz-main,
+.tz-page,
+.tz-page > *,
+.tz-form-section__content,
+.mud-grid,
+.mud-grid-item {
+    min-width: 0;
+}
+
+.tz-page > .mud-container,
+.tz-page > .mud-paper,
+.tz-page > .mud-card,
+.tz-page > .mud-table-container {
+    max-width: 100%;
+}
+
+.mud-input-control,
+.mud-select,
+.mud-autocomplete,
+.mud-picker,
+.mud-button-root,
+.mud-icon-button,
+.mud-chip,
+.mud-dialog-actions {
+    min-width: 0;
+}
+
+.mud-input-control .mud-input-label,
+.mud-input-control .mud-input-slot,
+.mud-input-control .mud-input-helper-text {
+    line-height: 1.55;
+}
+
+.mud-input-control .mud-input-helper-text {
+    color: var(--color-text-secondary);
+    font-size: var(--tz-caption);
+}
+
+.mud-input-control.mud-input-error .mud-input-helper-text,
+.mud-input-control.mud-input-error .mud-input-label {
+    color: var(--color-error);
+}
+
+.mud-button-root:focus-visible,
+.mud-icon-button:focus-visible,
+.mud-chip:focus-visible,
+.mud-nav-link:focus-visible,
+.mud-tab:focus-visible,
+.mud-menu-item:focus-visible,
+.mud-input-control:focus-within {
+    outline: none;
+    box-shadow: var(--tz-focus-ring);
+}
+
+.mud-button-root:disabled,
+.mud-icon-button:disabled,
+.mud-chip.mud-disabled {
+    filter: none;
+    opacity: 0.58;
+    cursor: not-allowed;
+}
+
+.tz-pagehead__actions,
+.tz-toolbar {
+    min-width: 0;
+}
+
+.tz-pagehead__actions > .mud-button-root,
+.tz-toolbar > .mud-button-root {
+    white-space: nowrap;
+}
+
+.tz-data-table .mud-table-head .mud-table-cell:first-child,
+.tz-data-table .mud-table-body .mud-table-cell:first-child {
+    border-start-start-radius: 8px;
+    border-end-start-radius: 8px;
+}
+
+.tz-data-table .mud-table-head .mud-table-cell:last-child,
+.tz-data-table .mud-table-body .mud-table-cell:last-child {
+    border-start-end-radius: 8px;
+    border-end-end-radius: 8px;
+}
+
+.tz-data-table__table .mud-table-body .mud-table-row + .mud-table-row {
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
+}
+
+.tz-data-table__table .mud-table-body .mud-table-cell[data-label="عملیات"] {
+    white-space: nowrap;
+    text-align: center;
+}
+
+.mud-dialog-container .mud-dialog {
+    width: min(100% - 2rem, 760px);
+    max-width: min(100% - 2rem, 760px);
+}
+
+.mud-dialog-container .mud-dialog .mud-dialog-content {
+    min-width: 0;
+}
+
+.mud-dialog-container .mud-dialog-actions {
+    flex-wrap: wrap;
+}
+
+.mud-dialog-container .mud-dialog-actions .mud-button-root {
+    min-height: 38px;
+}
+
+.mud-menu-paper,
+.mud-popover .mud-paper,
+.mud-picker-calendar-container {
+    border: 1px solid var(--color-border);
+    box-shadow: var(--tz-shadow-2);
+}
+
+.mud-table-pagination.toolbar {
+    color: var(--color-text-secondary);
+}
+
+.mud-table-pagination.toolbar .mud-select,
+.mud-table-pagination.toolbar .mud-input-control {
+    font-size: var(--tz-caption);
+}
+
+.mud-theme-dark .tz-data-table,
+.mud-theme-dark .mud-table,
+.mud-theme-dark .mud-table-container,
+.mud-theme-dark .mud-table-pagination.toolbar {
+    color: var(--color-text-primary);
+}
+
+.mud-theme-dark .tz-data-table__table .mud-table-head .mud-table-cell {
+    background: color-mix(in srgb, var(--color-secondary) 9%, var(--color-surface));
+}
+
+.mud-theme-dark .tz-data-table__table .mud-table-body .mud-table-row:hover {
+    background: color-mix(in srgb, var(--color-secondary) 10%, var(--color-surface));
+}
+
+@media (max-width: 800px) {
+    .tz-pagehead {
+        align-items: stretch;
+    }
+
+    .tz-pagehead__actions,
+    .tz-toolbar {
+        justify-content: stretch;
+    }
+
+    .tz-pagehead__actions > .mud-button-root,
+    .tz-toolbar > .mud-button-root {
+        flex: 1 1 11rem;
+    }
+
+    .mud-dialog-container .mud-dialog {
+        width: calc(100% - 1rem);
+        max-width: calc(100% - 1rem);
+        margin: 0.5rem;
+    }
+
+    .mud-dialog-container .mud-dialog-actions {
+        gap: 0.35rem;
+    }
+
+    .mud-dialog-container .mud-dialog-actions .mud-button-root {
+        flex: 1 1 9rem;
+    }
+
+    .tz-data-table .mud-table-pagination.toolbar {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 480px) {
+    .tz-pagehead__actions > .mud-button-root,
+    .tz-toolbar > .mud-button-root {
+        flex-basis: 100%;
+    }
+
+    .tz-data-table__table .mud-table-body .mud-table-cell[data-label="عملیات"] {
+        text-align: start;
     }
 }

@@ -1,0 +1,98 @@
+@using Tarazin.Models
+@* انتخابگر سال مالی — همان منبع منوی نوار بالا (GetAuthorizedFiscalYearsAsync) و
+   همان جریان تغییر (SetActiveContextAsync → Session.Changed) تا همهٔ صفحات
+   خودشان را تازه کنند، بدون forceLoad. *@
+
+<MudList T="FiscalYearRow" Class="tz-fy-picker">
+    @if (_loading)
+    {
+        <MudListItem T="FiscalYearRow" Disabled="true">
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        </MudListItem>
+    }
+    else if (_years.Count == 0)
+    {
+        <MudListItem T="FiscalYearRow" Disabled="true">
+            سال مالی‌ای برای این شرکت یافت نشد
+        </MudListItem>
+    }
+    else
+    {
+        @foreach (var y in _years)
+        {
+            <MudListItem T="FiscalYearRow" @key="y.FiscalYearId"
+                         Icon="@(IsActive(y) ? Icons.Material.Filled.Check : Icons.Material.Filled.CalendarMonth)"
+                         Disabled="@y.IsClosed"
+                         OnClick="@(() => SelectAsync(y))">
+                <div class="d-flex align-center gap-2">
+                    <span class="font-weight-bold tz-num">@y.YearName</span>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @PersianDate.ToPersian(y.StartDate) تا @PersianDate.ToPersian(y.EndDate)
+                    </MudText>
+                    @if (y.IsClosed)
+                    {
+                        <MudChip T="string" Size="Size.Medium" Color="Color.Error" Variant="Variant.Outlined">بسته</MudChip>
+                    }
+                </div>
+            </MudListItem>
+        }
+    }
+</MudList>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Inject] private UserSession Session { get; set; } = default!;
+    [Inject] private AccountingContextService Context { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+
+    private List<FiscalYearRow> _years = new();
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (Session.ActiveCompanyId is int companyId)
+                _years = (await Context.GetAuthorizedFiscalYearsAsync(companyId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در بارگذاری سال‌ها: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private bool IsActive(FiscalYearRow year) => Session.ActiveFiscalYearId == year.FiscalYearId;
+
+    private async Task SelectAsync(FiscalYearRow year)
+    {
+        if (_busy || IsActive(year) || Session.ActiveCompanyId is not int companyId) return;
+        _busy = true;
+        try
+        {
+            var companies = await Context.GetAuthorizedCompaniesAsync();
+            var company = companies.FirstOrDefault(c => c.CompanyId == companyId);
+            if (company is null)
+            {
+                Snackbar.Add("شرکت فعال در فهرست شرکت‌های مجاز شما نیست.", Severity.Warning);
+                return;
+            }
+
+            await Context.SetActiveContextAsync(company, year);
+            Snackbar.Add($"سال مالی {year.YearName} فعال شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در تغییر سال مالی: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

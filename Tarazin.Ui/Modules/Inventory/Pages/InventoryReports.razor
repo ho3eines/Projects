@@ -1,6 +1,7 @@
 @page "/inventory/reports"
 @inject DbService Db
 @inject UserSession Session
+@inject AccountingContextService Context
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 @inject PdfReportService Pdf
@@ -46,7 +47,7 @@
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Print" OnClick="PrintBalancesAsync"
                                Disabled="_loadingBalances || _balances.Count == 0">
-                        چاپ / PDF
+                        چاپ
                     </MudButton>
                 </MudItem>
             </MudGrid>
@@ -114,6 +115,15 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="string" Label="مبدأ حرکت" @bind-Value="_cardSourceType" Variant="Variant.Outlined" Clearable="true">
+                        <MudSelectItem Value="@("")">همهٔ مبدأها</MudSelectItem>
+                        @foreach (var s in InventorySourceLabels.Options)
+                        {
+                            <MudSelectItem Value="s.Key">@s.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
                     <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_from" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="4">
@@ -127,8 +137,26 @@
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Print" OnClick="PrintCardAsync"
                                Disabled="_loadingCard || _card.Count == 0">
-                        چاپ / PDF
+                        چاپ
                     </MudButton>
+                </MudItem>
+                <MudItem xs="12">
+                    <div class="d-flex align-center flex-wrap gap-2">
+                        <MudTooltip Text="بازهٔ پیش‌فرض = کل سال مالی فعال">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                                     Icon="@Icons.Material.Filled.CalendarMonth" Style="cursor:pointer"
+                                     OnClick="ResetCardToFiscalYearAsync" Disabled="_loadingCard">
+                                بازهٔ سال مالی
+                            </MudChip>
+                        </MudTooltip>
+                        @if (_from is not null && _to is not null)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                بازهٔ فعلی: <span class="tz-num">@PersianDate.ToPersian(_from.Value)</span> تا
+                                <span class="tz-num">@PersianDate.ToPersian(_to.Value)</span>
+                            </MudText>
+                        }
+                    </div>
                 </MudItem>
             </MudGrid>
             @if (_card.Count > 0)
@@ -141,13 +169,18 @@
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
                 <HeaderContent>
                     <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh>
-                    <MudTh>دریافت</MudTh><MudTh>صدور</MudTh><MudTh>قیمت</MudTh>
+                    <MudTh>مبدأ</MudTh><MudTh>دریافت</MudTh><MudTh>صدور</MudTh><MudTh>قیمت</MudTh>
                     <MudTh>مانده تعداد</MudTh><MudTh>مانده ارزش</MudTh><MudTh>شرح</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
                     <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
                     <MudTd DataLabel="نوع">@context.MovementType</MudTd>
+                    <MudTd DataLabel="مبدأ">
+                        <MudChip T="string" Size="Size.Small" Color="@CardSourceColor(context.SourceType)" Variant="Variant.Outlined">
+                            @InventorySourceLabels.For(context.SourceType)
+                        </MudChip>
+                    </MudTd>
                     <MudTd DataLabel="دریافت">@(context.InQty > 0 ? context.InQty.ToString("N0") : "—")</MudTd>
                     <MudTd DataLabel="صدور">@(context.OutQty > 0 ? context.OutQty.ToString("N0") : "—")</MudTd>
                     <MudTd DataLabel="قیمت">@context.CostPrice.ToString("N0")</MudTd>
@@ -179,6 +212,7 @@
     private int _subFilter;
     private int _cardWarehouseId;
     private int _cardSubWarehouseId;
+    private string _cardSourceType = "";
     private bool _onlyNonZero = true;
     private DateTime? _from = DateTime.Today.AddMonths(-1);
     private DateTime? _to = DateTime.Today;
@@ -187,8 +221,17 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId, Search = "" })).ToList();
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+
+        // پیش‌فرض فیلترها: انبار فعال نشست (مثل سال مالی) به‌جای «همهٔ انبارها».
+        if (Session.ActiveWarehouseId is int aw && _warehouses.Any(w => w.WarehouseId == aw))
+        {
+            _whFilter = aw;
+            _cardWarehouseId = aw;
+            await OnFilterWarehouseChanged();
+            await OnCardWarehouseChanged();
+        }
     }
 
     private async Task OnFilterWarehouseChanged()
@@ -234,6 +277,15 @@
         }
     }
 
+    /// <summary>بازگشت بازهٔ کارتکس به کل سال مالی فعال و اجرای مجدد — یک کلیک.</summary>
+    private async Task ResetCardToFiscalYearAsync()
+    {
+        var fy = await Context.GetActiveFiscalYearAsync();
+        _from = fy?.StartDate ?? DateTime.Today.AddMonths(-1);
+        _to = fy?.EndDate ?? DateTime.Today;
+        await LoadCardAsync();
+    }
+
     private async Task LoadCardAsync()
     {
         if (_cardItemId == 0)
@@ -247,11 +299,13 @@
         {
             _card = (await Db.QueryAsync<StockCardRow>(Schema, "StockCardReport", new
             {
+                CompanyId = Session.ActiveCompanyId,
                 ItemId = _cardItemId,
                 FromDate = _from?.Date ?? DateTime.Today.AddMonths(-1),
                 ToDate = _to?.Date ?? DateTime.Today,
                 WarehouseId = _cardWarehouseId == 0 ? (int?)null : _cardWarehouseId,
-                SubWarehouseId = _cardSubWarehouseId == 0 ? (int?)null : _cardSubWarehouseId
+                SubWarehouseId = _cardSubWarehouseId == 0 ? (int?)null : _cardSubWarehouseId,
+                SourceType = string.IsNullOrWhiteSpace(_cardSourceType) ? (string?)null : _cardSourceType
             })).ToList();
         }
         catch (Exception ex)
@@ -264,7 +318,24 @@
         }
     }
 
-    // ── چاپ / PDF (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
+    // ── چاپ (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
+
+    private static Color CardSourceColor(string? type)
+    {
+        try
+        {
+            return type?.ToUpperInvariant() switch
+            {
+                "STOREORDER" => Color.Secondary,
+                "PINV" => Color.Info,
+                "SINV" => Color.Primary,
+                "RET" => Color.Warning,
+                "STOCKTAKE" => Color.Error,
+                _ => Color.Default
+            };
+        }
+        catch { return Color.Default; }
+    }
 
     private async Task PrintBalancesAsync()
     {
@@ -367,6 +438,7 @@
         <HeaderContent>
             <MudTh>تاریخ</MudTh><MudTh>شماره</MudTh><MudTh>نوع</MudTh>
             <MudTh>دریافت</MudTh><MudTh>صدور</MudTh><MudTh>قیمت</MudTh>
+            <MudTh>Lot</MudTh><MudTh>Serial</MudTh><MudTh>انقضا</MudTh>
             <MudTh>مانده تعداد</MudTh><MudTh>مانده ارزش</MudTh><MudTh>شرح</MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -376,6 +448,9 @@
             <MudTd DataLabel="دریافت">@(context.InQty > 0 ? context.InQty.ToString("N0") : "—")</MudTd>
             <MudTd DataLabel="صدور">@(context.OutQty > 0 ? context.OutQty.ToString("N0") : "—")</MudTd>
             <MudTd DataLabel="قیمت">@context.CostPrice.ToString("N0")</MudTd>
+            <MudTd DataLabel="Lot">@(string.IsNullOrWhiteSpace(context.LotNo) ? "—" : context.LotNo)</MudTd>
+            <MudTd DataLabel="Serial">@(string.IsNullOrWhiteSpace(context.SerialNo) ? "—" : context.SerialNo)</MudTd>
+            <MudTd DataLabel="انقضا">@(string.IsNullOrWhiteSpace(context.ExpiryDate) ? "—" : context.ExpiryDate)</MudTd>
             <MudTd DataLabel="مانده تعداد">@context.BalanceQty.ToString("N0")</MudTd>
             <MudTd DataLabel="مانده ارزش">@context.BalanceValue.ToString("N0")</MudTd>
             <MudTd DataLabel="شرح">@context.Description</MudTd>
@@ -416,6 +491,9 @@
             new() { Header = "دریافت", AlignRight = true },
             new() { Header = "صدور", AlignRight = true },
             new() { Header = "قیمت", AlignRight = true },
+            new() { Header = "Lot" },
+            new() { Header = "Serial" },
+            new() { Header = "انقضا" },
             new() { Header = "مانده تعداد", AlignRight = true },
             new() { Header = "مانده ارزش", AlignRight = true },
             new() { Header = "شرح" }
@@ -424,7 +502,11 @@
         {
             r.MovementDate.ToString("yyyy/MM/dd"), r.MovementNumber, r.MovementType,
             r.InQty > 0 ? r.InQty.ToString("N0") : "—", r.OutQty > 0 ? r.OutQty.ToString("N0") : "—",
-            r.CostPrice.ToString("N0"), r.BalanceQty.ToString("N0"), r.BalanceValue.ToString("N0"), r.Description
+            r.CostPrice.ToString("N0"),
+            string.IsNullOrWhiteSpace(r.LotNo) ? "—" : r.LotNo,
+            string.IsNullOrWhiteSpace(r.SerialNo) ? "—" : r.SerialNo,
+            string.IsNullOrWhiteSpace(r.ExpiryDate) ? "—" : r.ExpiryDate,
+            r.BalanceQty.ToString("N0"), r.BalanceValue.ToString("N0"), r.Description
         }).ToList();
 
         var summary = new List<string>();

@@ -67,6 +67,12 @@ else
                     </MudMenuItem>
                 </MudMenu>
 
+                @* ردیابی زنجیره: پیوند سند به فروشگاه/انبار/خزانه از گزارش DocumentTrace *@
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.AccountTree"
+                           Disabled="_loading || _document is null" OnClick="ShowTraceAsync">
+                    ردیابی زنجیره
+                </MudButton>
+
                 @if (NextStatus is not null && CanChangeStatusTo(NextStatus))
                 {
                     <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
@@ -120,14 +126,23 @@ else
                                    ReadOnly="IsReadOnly" Disabled="IsReadOnly" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="4">
-                    <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined"
-                               ReadOnly="IsReadOnly" Disabled="IsReadOnly">
-                        <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
-                        <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
-                        <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
-                        <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
-                        <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
-                    </MudSelect>
+                    @if (_documentType is "Opening" or "Closing")
+                    {
+                        @* سند افتتاحیه/اختتامیه فقط از مسیر سیستمی ساخته می‌شود؛ نوع آن قابل تغییر نیست. *@
+                        <MudTextField Label="نوع سند" Value="@DocumentTypeLabel(_documentType)"
+                                       Variant="Variant.Outlined" ReadOnly="true" Disabled="true" />
+                    }
+                    else
+                    {
+                        <MudSelect T="string" Label="نوع سند" @bind-Value="_documentType" Variant="Variant.Outlined"
+                                   ReadOnly="IsReadOnly" Disabled="IsReadOnly">
+                            <MudSelectItem Value="@("Journal")">سند روزنامه</MudSelectItem>
+                            <MudSelectItem Value="@("Receipt")">دریافت</MudSelectItem>
+                            <MudSelectItem Value="@("Payment")">پرداخت</MudSelectItem>
+                            <MudSelectItem Value="@("Purchase")">خرید</MudSelectItem>
+                            <MudSelectItem Value="@("Sale")">فروش</MudSelectItem>
+                        </MudSelect>
+                    }
                 </MudItem>
                 <MudItem xs="12" sm="12" md="4">
                     <MudTextField Label="طرف حساب (اختیاری)" @bind-Value="_counterParty" Variant="Variant.Outlined"
@@ -458,6 +473,17 @@ else
         }
     }
 
+    private static string DocumentTypeLabel(string? type) => type switch
+    {
+        "Opening" => "سند افتتاحیه (ماندهٔ ابتدای دوره)",
+        "Closing" => "سند اختتامیه",
+        "Receipt" => "دریافت",
+        "Payment" => "پرداخت",
+        "Purchase" => "خرید",
+        "Sale" => "فروش",
+        _ => "سند روزنامه"
+    };
+
     private static string AccountLabel(JournalLineRow line)
     {
         try
@@ -673,6 +699,35 @@ else
     }
 
     /// <summary>باز کردن دیالوگ چاپ سند — ساده یا پیشرفته. چاپ فقط‌خواندنی است و در هر وضعیتی فعال است.</summary>
+    /// <summary>باز کردن دیالوگ ردیابی زنجیرهٔ سند در فروشگاه/انبار/خزانه (گزارش DocumentTrace).</summary>
+    private async Task ShowTraceAsync()
+    {
+        try
+        {
+            if (_document is null)
+            {
+                Snackbar.Add("ابتدا سند را بارگذاری کنید.", Severity.Warning);
+                return;
+            }
+
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+            await DialogService.ShowAsync<DocumentTraceDialog>("ردیابی زنجیره", new DialogParameters
+            {
+                ["DocumentId"] = _document.DocumentId
+            }, options);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در باز کردن ردیابی زنجیره: {ex.Message}", Severity.Error);
+        }
+    }
+
     private async Task PrintDocumentAsync(bool advanced)
     {
         try

@@ -90,6 +90,10 @@
                                StartIcon="@Icons.Material.Filled.FolderOpen">
                         @SourceLabel(context.SourceReference)
                     </MudButton>
+                    <MudTooltip Text="ردیابی زنجیره (سند/فروشگاه/انبار)">
+                        <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Color="Color.Info" Size="Size.Small"
+                                       Class="mr-1" OnClick="@(() => ShowTraceAsync(context))" />
+                    </MudTooltip>
                 }
                 else
                 {
@@ -270,5 +274,28 @@
         var dlg = await Dialog.ShowAsync<SourceDetailDialog>("جزئیات منبع", parameters,
             new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
         await dlg.Result;
+    }
+
+    /// <summary>بازکردن «ردیابی زنجیره» چک — زنجیرهٔ فروشگاه/انبار/خزانه/حسابداری از کلید مشترک SourceReference.</summary>
+    private async Task ShowTraceAsync(ChequeRow row)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(row.SourceReference))
+            {
+                Snackbar.Add("این چک منبعی برای ردیابی ندارد.", Severity.Warning);
+                return;
+            }
+            var parameters = new DialogParameters<Tarazin.Modules.Accounting.Components.DocumentTraceDialog>
+            {
+                { x => x.SourceReference, row.SourceReference }
+            };
+            await Dialog.ShowAsync<Tarazin.Modules.Accounting.Components.DocumentTraceDialog>("ردیابی زنجیره", parameters,
+                new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در ردیابی زنجیره: {ex.Message}", Severity.Error);
+        }
     }
 }

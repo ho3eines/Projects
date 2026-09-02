@@ -1,6 +1,5 @@
 @inject IJSRuntime JS
 @inject PdfReportService Pdf
-@inject IPdfSaver PdfSaver
 @using Tarazin.Models
 
 @* دیالوگ چاپ فاکتور خرید/فروش طلا — قالب HTML با قوانین رسمی چاپ:
@@ -67,10 +66,9 @@
         </MudSelect>
         @if (_paperSize == "A4")
         {
-            <MudSwitch T="bool" Value="@_fitOnePage" ValueChanged="OnFitOnePageChanged"
-                       Color="Color.Primary" Dense="true"
-                       Label="همهٔ ردیف‌ها در یک صفحه"
-                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Compress" />
+        <MudSwitch T="bool" Value="@_fitOnePage" ValueChanged="OnFitOnePageChanged"
+                   Color="Color.Primary" Size="Size.Small"
+                   Label="همهٔ ردیف‌ها در یک صفحه" />
         }
         <MudChip T="string" Size="Size.Small" Class="align-self-center mr-2"
                  Color="@(_pageCount > 0 ? Color.Info : Color.Default)"
@@ -83,10 +81,6 @@
         </MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintAsync"
                    StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Tertiary" OnClick="DownloadPdfAsync"
-                   StartIcon="@Icons.Material.Filled.FileDownload" Disabled="@_downloading">
-            @(_downloading ? "در حال ساخت PDF…" : "دانلود PDF")
-        </MudButton>
         <MudButton Variant="Variant.Outlined" OnClick="Close" StartIcon="@Icons.Material.Filled.Close">بستن</MudButton>
     </DialogActions>
 </MudDialog>
@@ -99,7 +93,6 @@
     private bool _preview;
     private string _paperSize = "A4";
     private bool _fitOnePage;
-    private bool _downloading;
     private int _pageCount;
     private bool _countingPages;
 
@@ -160,25 +153,6 @@
     {
         if (firstRender)
             await JS.InvokeVoidAsync("tarazinQr.fillAll");
-    }
-
-    /// <summary>
-    /// ساخت PDF با QuestPDF (سمت سرور در وب / بومی در MAUI) و دانلود بدون
-    /// دیالوگ پرینتر — جایگزین html2pdf که روی موبایل سنگین بود.
-    /// </summary>
-    private async Task DownloadPdfAsync()
-    {
-        _downloading = true;
-        try
-        {
-            var fileName = PdfFileNames.Invoice(Model.InvoiceNumber, Model.InvoiceDate, _paperSize);
-            var bytes = Pdf.BuildInvoicePdf(Model, _paperSize, _fitOnePage);
-            await PdfSaver.SaveAsync(fileName, bytes);
-        }
-        finally
-        {
-            _downloading = false;
-        }
     }
 
     private bool HasSettlement =>

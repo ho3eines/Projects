@@ -81,7 +81,9 @@ BEGIN
         INSERT INTO [inventory].[InventorySettings]
             (CompanyId, CostingMethod, DefaultWarehouseId, IsEnabled, UpdatedAt)
         VALUES
-            (@SeedCompanyId, N'WeightedAverage', @WhGold, 1, SYSUTCDATETIME());
+            (@SeedCompanyId, N'WeightedAverage', @WhGold, 0, SYSUTCDATETIME());
+        -- IsEnabled=0 تا زمان پیکربندی حساب‌های انبار/مقابل؛ وگرنه ثبت فاکتورها با
+        -- خطای «حساب‌ها تنظیم نشده» متوقف می‌شود (نگه‌داشته نمی‌شود — سند نادیده می‌ماند).
     END
 
     FETCH NEXT FROM inv_cursor INTO @SeedCompanyId;

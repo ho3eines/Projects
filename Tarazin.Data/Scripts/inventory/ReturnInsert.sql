@@ -61,9 +61,10 @@ BEGIN TRAN;
 
             -- Return to inventory (Issue = stock out, since goods go back to supplier)
             INSERT INTO [inventory].[Movements]
-                (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+                (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
             VALUES (N'', N'Issue', @ItemId, @WarehouseId, @Qty, @UnitPrice, @UnitPrice, @ReturnDate,
-                    N'برگشت خرید ' + @ReturnNumber, N'Posted', @CreatedBy, @CompanyId);
+                    N'برگشت خرید ' + @ReturnNumber, N'Posted', @CreatedBy, @CompanyId,
+                    CONCAT(N'RET:', @PurchaseReturnId));
         END
         ELSE
         BEGIN
@@ -81,9 +82,10 @@ BEGIN TRAN;
 
             -- Return to inventory (Receipt = stock in, goods come back from customer)
             INSERT INTO [inventory].[Movements]
-                (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+                (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
             VALUES (N'', N'Receipt', @ItemId, @WarehouseId, @Qty, @UnitPrice, @UnitPrice, @ReturnDate,
-                    N'برگشت فروش ' + @ReturnNumber, N'Posted', @CreatedBy, @CompanyId);
+                    N'برگشت فروش ' + @ReturnNumber, N'Posted', @CreatedBy, @CompanyId,
+                    CONCAT(N'RET:', @SalesReturnId));
         END
 
         DECLARE @LineTotal DECIMAL(18,2) = ROUND(@Qty * @UnitPrice, 2);

@@ -51,7 +51,7 @@
             {
                 <tr>
                     <td>
-                        <MudSelect T="int" @bind-Value="line.l.ItemId" Variant="Variant.Text" Dense="true">
+                        <MudSelect T="int" @bind-Value="line.l.ItemId" Variant="Variant.Text" Margin="Margin.Dense">
                             <MudSelectItem Value="0">—</MudSelectItem>
                             @foreach (var it in _items)
                             {
@@ -59,7 +59,7 @@
                             }
                         </MudSelect>
                     </td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Dense="true" Min="0" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" /></td>
                     <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
                 </tr>
             }
@@ -94,6 +94,11 @@
         var companyId = Session.ActiveCompanyId;
         _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = companyId, Search = "" })).ToList();
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = companyId })).ToList();
+        // انبار مبدأ = انبار فعال نشست (انتخاب‌شده از نوار بالا مثل سال مالی).
+        if (Session.ActiveWarehouseId is int aw && _warehouses.Any(w => w.WarehouseId == aw))
+            _fromWarehouseId = aw;
+        else if (_warehouses.Count > 0)
+            _fromWarehouseId = _warehouses[0].WarehouseId;
     }
 
     private async Task SaveAsync()

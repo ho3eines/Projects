@@ -76,17 +76,19 @@ BEGIN TRAN;
 
         -- Issue from source
         INSERT INTO [inventory].[Movements]
-            (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+            (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
         VALUES (N'', N'Issue', @ItemId, @FromWarehouseId, @Qty, @UnitCost, @UnitCost, @TransferDate,
-                N'انتقال به مقصد ' + @TransferNumber, N'Posted', @CreatedBy, @CompanyId);
+                N'انتقال به مقصد ' + @TransferNumber, N'Posted', @CreatedBy, @CompanyId,
+                CONCAT(N'Transfer:', @TransferId));
         DECLARE @Mid1 INT = SCOPE_IDENTITY();
         UPDATE [inventory].[Movements] SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid1 AS NVARCHAR(10)), 5) WHERE MovementId = @Mid1;
 
         -- Receipt at destination
         INSERT INTO [inventory].[Movements]
-            (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+            (MovementNumber, MovementType, ItemId, WarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
         VALUES (N'', N'Receipt', @ItemId, @ToWarehouseId, @Qty, @UnitCost, @UnitCost, @TransferDate,
-                N'انتقال از مبدأ ' + @TransferNumber, N'Posted', @CreatedBy, @CompanyId);
+                N'انتقال از مبدأ ' + @TransferNumber, N'Posted', @CreatedBy, @CompanyId,
+                CONCAT(N'Transfer:', @TransferId));
         DECLARE @Mid2 INT = SCOPE_IDENTITY();
         UPDATE [inventory].[Movements] SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid2 AS NVARCHAR(10)), 5) WHERE MovementId = @Mid2;
 

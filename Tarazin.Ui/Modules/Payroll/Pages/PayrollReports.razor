@@ -18,7 +18,7 @@
                     بارگذاری دوره‌ها
                 </MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintRunsAsync"
-                           Disabled="_loadingRuns || _runs.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+                           Disabled="_loadingRuns || _runs.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
             </div>
             <MudTable Items="_runs" Loading="_loadingRuns" Hover="true" Dense="true" Striped="true"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">

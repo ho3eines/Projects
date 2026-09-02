@@ -312,3 +312,20 @@ public class AccountDetailBalance
     public decimal Credit { get; set; }
     public decimal OpeningBalance { get; set; }
 }
+
+/// <summary>
+/// یک «پای» از زنجیرهٔ ردیابی سند (گزارش accounting/DocumentTrace.sql):
+/// حسابداری، انبار (فاکتور)، فروشگاه (سفارش)، خزانه (نقد/چک)، حرکت انبار.
+/// شمارهٔ مشترک بین ماژول‌ها کلید SourceReference است و لنگر حسابداری DocumentId.
+/// </summary>
+public class DocumentTraceRow
+{
+    public string Leg { get; set; } = "";
+    public string Key { get; set; } = "";
+    public string Detail { get; set; } = "";
+    public decimal Amount { get; set; }
+    public DateTime? Date { get; set; }
+    public string SourceReference { get; set; } = "";
+    public int? DocumentId { get; set; }
+    public string DocumentNumber { get; set; } = "";
+}

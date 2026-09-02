@@ -9,6 +9,7 @@
 @inject ISnackbar Snackbar
 @inject DbService Db
 @inject AccountingContextService Context
+@inject InventoryContextService InvCtx
 
 <MudLayout Class="tz-shell">
     <MudAppBar Elevation="0" Class="tz-appbar" Dense="false">
@@ -64,6 +65,30 @@
                                 @y.YearName @(y.IsClosed ? "(بسته)" : "")
                             </MudMenuItem>
                         }
+                    }
+                </ChildContent>
+            </MudMenu>
+        }
+
+        @if (Session.IsAuthenticated && Session.ActiveCompanyId != null && _warehouses.Count > 0)
+        {
+            <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Class="tz-fy-menu">
+                <ActivatorContent>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.Warehouse" Class="ms-2 tz-fy-menu__chip"
+                             Style="cursor:pointer" OnClick="() => context.ToggleAsync()">
+                        @(Session.ActiveWarehouseName ?? "انتخاب انبار")
+                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ms-1" />
+                    </MudChip>
+                </ActivatorContent>
+                <ChildContent>
+                    @foreach (var w in _warehouses)
+                    {
+                        <MudMenuItem OnClick="@(() => SelectWarehouseAsync(w))"
+                                     Disabled="@(Session.ActiveWarehouseId == w.WarehouseId)"
+                                     Icon="@(Session.ActiveWarehouseId == w.WarehouseId ? Icons.Material.Filled.Check : Icons.Material.Filled.Warehouse)">
+                            @w.Title
+                        </MudMenuItem>
                     }
                 </ChildContent>
             </MudMenu>
@@ -219,6 +244,7 @@
 
     private List<FiscalYearRow> _years = new();
     private string _yearsError = "";
+    private List<WarehouseRow> _warehouses = new();
     private Breakpoint _lastBreakpoint;
 
     protected override async Task OnInitializedAsync()
@@ -271,6 +297,7 @@
             _showCompanyLock = state.RequiresCompany;
 
             await LoadFiscalYearsAsync();
+            await LoadWarehousesAsync();
         }
         catch (Exception ex)
         {
@@ -283,6 +310,33 @@
         }
     }
 
+    private async Task LoadWarehousesAsync()
+    {
+        if (Session.ActiveCompanyId == null)
+        {
+            _warehouses = new();
+            return;
+        }
+        try
+        {
+            // اگر انبار فعال به شرکت قبلی تعلق داشته باشد (یا حذف شده باشد)، بازنشانی می‌شود.
+            await InvCtx.EnsureActiveWarehouseAsync();
+            _warehouses = (await InvCtx.GetWarehousesAsync()).ToList();
+        }
+        catch
+        {
+            _warehouses = new();
+        }
+    }
+
+    private async Task SelectWarehouseAsync(WarehouseRow w)
+    {
+        if (Session.ActiveWarehouseId == w.WarehouseId) return;
+        await InvCtx.SetActiveWarehouseAsync(w);
+        // Session.Changed -> OnSessionChanged -> EnsureContextAsync + StateHasChanged؛
+        // @key صفحه به انبار فعال هم وصل است تا صفحات انبار با انبار جدید دوباره مونت شوند.
+    }
+
     /// <summary>
     /// کلید مونت کانتینر صفحه — مسیر + محیط فعال (شرکت/سال مالی).
     /// با تغییر سال مالی از نوار بالا، Session.Changed -> OnSessionChanged -> StateHasChanged
@@ -290,7 +344,7 @@
     /// OnInitializedAsync آن با سال جدید اجرا می‌شود (بدون forceLoad / رفرش کامل).
     /// </summary>
     private string _pageKey =>
-        $"{_path}|{Session.ActiveCompanyId?.ToString() ?? "-"}|{Session.ActiveFiscalYearId?.ToString() ?? "-"}";
+        $"{_path}|{Session.ActiveCompanyId?.ToString() ?? "-"}|{Session.ActiveFiscalYearId?.ToString() ?? "-"}|{Session.ActiveWarehouseId?.ToString() ?? "-"}";
 
     private void RefreshPath(string uri)
     {

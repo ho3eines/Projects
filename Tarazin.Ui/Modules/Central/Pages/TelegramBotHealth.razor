@@ -1,0 +1,438 @@
+@page "/central/telegram-bot"
+@using System.Globalization
+@using System.IO
+@using System.Text
+@using System.Text.Json
+@using System.Threading
+@inject ISnackbar Snackbar
+
+<PageTitle>سلامت ربات تلگرام — ترازین</PageTitle>
+
+<PageHeader Title="سلامت ربات تلگرام"
+            Subtitle="وضعیت زندهٔ ربات (agent محلی) — خوانده‌شده از status.json هر ۳۰ ثانیه."
+            Eyebrow="مرکزی">
+    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.Refresh"
+               OnClick="LoadAsync" Disabled="_loading">
+        بازخوانی
+    </MudButton>
+    <MudChip T="string" Size="Size.Small" Color="@(_autoRefresh ? Color.Success : Color.Default)"
+             Variant="@(_autoRefresh ? Variant.Filled : Variant.Outlined)" Icon="@Icons.Material.Filled.Autorenew">
+        خودکار هر ۳۰ ثانیه
+    </MudChip>
+</PageHeader>
+
+@if (_loading)
+{
+    <StatCardSkeleton Count="4" />
+}
+else if (_status is null)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-4">
+        <div class="d-flex align-center flex-wrap" style="gap:8px">
+            <MudText>
+                فایل وضعیت ربات تلگرام یافت نشد یا قابل خواندن نیست:
+                <code class="mx-2">@StatusPath</code>
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                احتمالاً agent در حال اجرا نیست (Task Scheduler: Tarazin\TelegramAgent).
+            </MudText>
+        </div>
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        <StatCard Label="وضعیت اتصال"
+                  Value="@(_status.HealthDegraded ? "ناپایدار" : "عادی")"
+                  Icon="@Icons.Material.Filled.Sensors"
+                  Accent="@(_status.HealthDegraded ? TarazinAccents.Crimson : TarazinAccents.Moss)"
+                  Hint="@_transportHint" />
+        <StatCard Label="خطاهای پشت‌سرهم"
+                  Value="@_status.ConsecutiveFailures.ToString("N0")"
+                  Icon="@Icons.Material.Filled.SyncProblem"
+                  Accent="@(_status.ConsecutiveFailures >= 5 ? TarazinAccents.Crimson : TarazinAccents.Steel)"
+                  Hint="آستانهٔ هشدار: ۵" />
+        <StatCard Label="پیام‌های معوق (outbox)"
+                  Value="@_status.OutboxPending.ToString("N0")"
+                  Icon="@Icons.Material.Filled.MarkEmailUnread"
+                  Accent="@(_status.OutboxPending >= 10 ? TarazinAccents.Crimson : TarazinAccents.Petrol)"
+                  Hint="سقف سخت: ۵۰" />
+        <StatCard Label="آپ‌تایم"
+                  Value="@_uptimeText"
+                  Icon="@Icons.Material.Filled.Timer"
+                  Accent="@TarazinAccents.Gold"
+                  Hint="@_updatedHint" />
+    </MudGrid>
+
+    <MudPaper Elevation="1" Class="pa-4 mt-4">
+        <div class="d-flex align-center justify-space-between flex-wrap mb-2" style="gap:8px">
+            <MudText Typo="Typo.subtitle1">روند @_rangeLabel</MudText>
+            <div class="d-flex align-center" style="gap:16px">
+                <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small" Class="me-2">
+                    <MudButton Variant="@(_rangeDays == 1 ? Variant.Filled : Variant.Outlined)"
+                               Color="@(_rangeDays == 1 ? Color.Primary : Color.Default)"
+                               OnClick="@(() => SetRangeAsync(1))">۲۴ ساعت</MudButton>
+                    <MudButton Variant="@(_rangeDays == 7 ? Variant.Filled : Variant.Outlined)"
+                               Color="@(_rangeDays == 7 ? Color.Primary : Color.Default)"
+                               OnClick="@(() => SetRangeAsync(7))">۷ روز</MudButton>
+                    <MudButton Variant="@(_rangeDays == 30 ? Variant.Filled : Variant.Outlined)"
+                               Color="@(_rangeDays == 30 ? Color.Primary : Color.Default)"
+                               OnClick="@(() => SetRangeAsync(30))">۳۰ روز</MudButton>
+                </MudButtonGroup>
+                <MudText Typo="Typo.body2"><span style="color:@TarazinAccents.Crimson">■</span> خطاهای پشت‌سرهم</MudText>
+                <MudText Typo="Typo.body2"><span style="color:@TarazinAccents.Petrol">■</span> معوق outbox</MudText>
+            </div>
+        </div>
+
+        @if (_history.Count >= 2)
+        {
+            <div class="w-100">@((MarkupString)_svgMarkup)</div>
+
+            <MudGrid Class="mt-2">
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        اوج خطاهای پشت‌سرهم (@_rangeLabel): <b>@_peakFailures.ToString("N0")</b>
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        اوج معوق outbox (@_rangeLabel): <b>@_peakOutbox.ToString("N0")</b>
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        زمان ناپایدار (@_rangeLabel): <b>@_degradedMinutes.ToString("N0") دقیقه</b>
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                هنوز دادهٔ کافی برای روند @_rangeLabel ثبت نشده است — agent هر ۶۰ ثانیه یک نمونه می‌نویسد و بعد از چند دقیقه نمودار ظاهر می‌شود.
+            </MudAlert>
+        }
+    </MudPaper>
+
+    <MudPaper Elevation="1" Class="pa-4 mt-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-3">جزئیات</MudText>
+        <MudSimpleTable Dense="true" Striped="true" Hover="true">
+            <thead>
+                <tr><th>موارد</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>مسیر اتصال</td>
+                    <td>
+                        @if (string.IsNullOrWhiteSpace(_status.Proxy))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Public">مستقیم</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Icon="@Icons.Material.Filled.VpnLock">@_status.Proxy</MudChip>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td>وضعیت health</td>
+                    <td>
+                        @if (_status.HealthDegraded)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Error" Icon="@Icons.Material.Filled.Warning">ناپایدار — هشدار ارسال شد</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">عادی</MudChip>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td>فلگ هشدار صف ارسال</td>
+                    <td>@(_status.OutboxWarned ? "⚠️ فعال (بیش از ۱۰ رکورد معوق)" : "—")</td>
+                </tr>
+                <tr>
+                    <td>آخرین خطا</td>
+                    <td>
+                        @if (string.IsNullOrWhiteSpace(_status.LastError))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">—</MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Error">@_status.LastError</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@_lastErrorAtText</MudText>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td>آخرین poll موفق</td>
+                    <td>@_lastSuccessAtText</td>
+                </tr>
+                <tr>
+                    <td>شناسهٔ فرایند (PID)</td>
+                    <td>@_status.Pid</td>
+                </tr>
+                <tr>
+                    <td>مشخصات فایل</td>
+                    <td><code class="small">@StatusPath</code></td>
+                </tr>
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+}
+
+@code {
+    private const string Schema = "central";
+    private static readonly string StatusPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".telegram-bridge", "agent", "status.json");
+
+    private TelegramBotStatus? _status;
+    private bool _loading = true;
+    private bool _autoRefresh = true;
+    private string _uptimeText = "—";
+    private string _lastErrorAtText = "—";
+    private string _lastSuccessAtText = "—";
+    private string _transportHint => $"مسیر: {_status?.Transport ?? "—"}";
+    private string _updatedHint => $"آخرین به‌روزرسانی: {_status?.UpdatedAt ?? "—"}";
+
+    // ── روند ۲۴ ساعته ──
+    private static readonly string HistoryPath = Path.Combine(
+        Path.GetDirectoryName(StatusPath) ?? ".", "history.jsonl");
+    private const double ChartW = 800, ChartH = 220, PadL = 46, PadR = 12, PadT = 12, PadB = 26;
+    private int _rangeDays = 1;
+    private string _rangeLabel => _rangeDays switch
+    {
+        7 => "۷ روزه",
+        30 => "۳۰ روزه",
+        _ => "۲۴ ساعته"
+    };
+    private List<HistorySample> _history = new();
+    private double _chartMax = 5;
+    private string _chartFailuresPoints = "";
+    private string _chartOutboxPoints = "";
+    private List<(string Label, double X)> _chartXTicks = new();
+    private List<(string Label, double Y)> _chartYTicks = new();
+    private double _peakFailures;
+    private double _peakOutbox;
+    private double _degradedMinutes;
+    private string _svgMarkup = "";
+    private System.Threading.Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _timer = new Timer(_ => InvokeAsync(LoadAsync), null,
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            if (File.Exists(StatusPath))
+            {
+                var json = await File.ReadAllTextAsync(StatusPath);
+                var parsed = JsonSerializer.Deserialize<TelegramBotStatus>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (parsed is not null)
+                {
+                    _status = parsed;
+                    _uptimeText = FormatUptime(parsed.UptimeSeconds);
+                    _lastErrorAtText = parsed.LastErrorAt > 0 ? FormatEpoch(parsed.LastErrorAt) : "—";
+                    _lastSuccessAtText = parsed.LastSuccessAt > 0 ? FormatEpoch(parsed.LastSuccessAt) : "—";
+                }
+            }
+            else
+            {
+                _status = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _status = null;
+            Snackbar.Add($"خطا در خواندن وضعیت ربات: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+        await LoadHistoryAndChartAsync();
+    }
+
+    private async Task SetRangeAsync(int days)
+    {
+        if (_rangeDays == days) return;
+        _rangeDays = days;
+        await LoadHistoryAndChartAsync();
+    }
+
+    private async Task LoadHistoryAndChartAsync()
+    {
+        try
+        {
+            var raw = new List<HistorySample>();
+            if (File.Exists(HistoryPath))
+            {
+                var windowSeconds = (long)_rangeDays * 86400;
+                var nowTs = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                foreach (var line in await File.ReadAllLinesAsync(HistoryPath))
+                {
+                    try
+                    {
+                        var s = JsonSerializer.Deserialize<HistorySample>(line, options);
+                        if (s is not null && s.Ts >= nowTs - windowSeconds)
+                            raw.Add(s);
+                    }
+                    catch (JsonException)
+                    {
+                        // ردیف خراب را نادیده بگیر
+                    }
+                }
+            }
+
+            // آمار کلی از دادهٔ خام: مجموع فاصله‌های زمانیِ ناپایدار (مستقل از نرخ نمونه‌گیری)
+            _degradedMinutes = 0;
+            for (int i = 0; i < raw.Count - 1; i++)
+            {
+                if (raw[i].Degraded > 0)
+                    _degradedMinutes += (raw[i + 1].Ts - raw[i].Ts) / 60.0;
+            }
+
+            // نمونه‌گیری بر اساس بازه: ۲۴h → ۱۵ دقیقه؛ ۷ روز → ۱ ساعت؛ ۳۰ روز → ۳ ساعت.
+            // در هر بازه بدترین مقدار گرفته می‌شود تا اوج‌ها پنهان نمانند.
+            var bucket = _rangeDays switch
+            {
+                7 => 3600.0,
+                30 => 10800.0,
+                _ => 900.0
+            };
+            _history = raw
+                .GroupBy(h => h.Ts / bucket)
+                .Select(g => new HistorySample
+                {
+                    Ts = g.Key * bucket,
+                    Failures = g.Max(h => h.Failures),
+                    Outbox = g.Max(h => h.Outbox),
+                    Degraded = g.Max(h => h.Degraded)
+                })
+                .OrderBy(h => h.Ts)
+                .ToList();
+
+            _peakFailures = _history.Count > 0 ? _history.Max(h => h.Failures) : 0;
+            _peakOutbox = _history.Count > 0 ? _history.Max(h => h.Outbox) : 0;
+            BuildChart();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در خواندن روند ربات: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void BuildChart()
+    {
+        _chartFailuresPoints = "";
+        _chartOutboxPoints = "";
+        _chartXTicks = new();
+        _chartYTicks = new();
+        if (_history.Count < 2)
+            return;
+
+        var inv = CultureInfo.InvariantCulture;
+        _chartMax = Math.Max(5.0, _history.Max(h => Math.Max(h.Failures, h.Outbox)));
+        _chartMax = Math.Ceiling(_chartMax / 5.0) * 5.0;
+
+        double innerW = ChartW - PadL - PadR, innerH = ChartH - PadT - PadB;
+        double X(int i) => PadL + (i / (double)(_history.Count - 1)) * innerW;
+        double Y(double v) => PadT + innerH - (v / _chartMax) * innerH;
+
+        _chartFailuresPoints = string.Join(" ", _history
+            .Select((h, i) => X(i).ToString("F1", inv) + "," + Y(h.Failures).ToString("F1", inv)));
+        _chartOutboxPoints = string.Join(" ", _history
+            .Select((h, i) => X(i).ToString("F1", inv) + "," + Y(h.Outbox).ToString("F1", inv)));
+
+        // محور Y: ۰، وسط، حداکثر
+        foreach (var v in new[] { 0.0, _chartMax / 2, _chartMax })
+        {
+            _chartYTicks.Add((v.ToString("N0", inv), Y(v)));
+        }
+        // محور X: ۴ برچسب زمانی (۲۴h → ساعت؛ ۷/۳۰ روز → تاریخ)
+        var tickFormat = _rangeDays == 1 ? "HH:mm" : "MM/dd";
+        for (int t = 0; t < 4; t++)
+        {
+            int idx = (int)Math.Round(t * (_history.Count - 1) / 3.0);
+            var dt = DateTimeOffset.FromUnixTimeSeconds((long)_history[idx].Ts).ToLocalTime();
+            _chartXTicks.Add((dt.ToString(tickFormat), X(idx)));
+        }
+
+        // ساخت SVG (به‌صورت رشته — چون <text> با Razor تداخل دارد)
+        var sb = new StringBuilder();
+        sb.Append("<svg viewBox=\"0 0 800 220\" style=\"width:100%;height:auto\" role=\"img\" aria-label=\"نمودار روند خطاها و صف ارسال در ۲۴ ساعت\">");
+        foreach (var y in _chartYTicks)
+        {
+            sb.Append($"<line x1='46' y1='{y.Y.ToString("F1", inv)}' x2='788' y2='{y.Y.ToString("F1", inv)}' stroke='#00000022' stroke-width='1' stroke-dasharray='3,3' />");
+            sb.Append($"<text x='4' y='{(y.Y + 4).ToString("F1", inv)}' font-size='10' fill='#667'>{y.Label}</text>");
+        }
+        sb.Append($"<polyline points='{_chartOutboxPoints}' fill='none' stroke='{TarazinAccents.Petrol}' stroke-width='2' />");
+        sb.Append($"<polyline points='{_chartFailuresPoints}' fill='none' stroke='{TarazinAccents.Crimson}' stroke-width='2' />");
+        foreach (var x in _chartXTicks)
+        {
+            sb.Append($"<line x1='{x.X.ToString("F1", inv)}' y1='12' x2='{x.X.ToString("F1", inv)}' y2='194' stroke='#00000015' stroke-width='1' />");
+            sb.Append($"<text x='{(x.X - 12).ToString("F1", inv)}' y='210' font-size='10' fill='#667'>{x.Label}</text>");
+        }
+        sb.Append("</svg>");
+        _svgMarkup = sb.ToString();
+    }
+
+    private static string FormatUptime(long seconds)
+    {
+        var t = TimeSpan.FromSeconds(seconds);
+        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes}m" : $"{t.Minutes}m {t.Seconds}s";
+    }
+
+    private static string FormatEpoch(double epoch)
+    {
+        try
+        {
+            return DateTimeOffset.FromUnixTimeSeconds((long)epoch).ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+        }
+        catch
+        {
+            return "—";
+        }
+    }
+
+    /// <summary>نمونهٔ روند (خط از ~/.telegram-bridge/agent/history.jsonl).</summary>
+    public sealed class HistorySample
+    {
+        public double Ts { get; set; }
+        public int Failures { get; set; }
+        public int Outbox { get; set; }
+        public int Degraded { get; set; }
+    }
+
+    /// <summary>متناظر با ~/.telegram-bridge/agent/status.json (نوشته‌شده توسط tools/telegram_agent.py).</summary>
+    public sealed class TelegramBotStatus
+    {
+        public string? UpdatedAt { get; set; }
+        public int Pid { get; set; }
+        public string? Transport { get; set; }
+        public string? Proxy { get; set; }
+        public int ConsecutiveFailures { get; set; }
+        public bool HealthDegraded { get; set; }
+        public int OutboxPending { get; set; }
+        public bool OutboxWarned { get; set; }
+        public string? LastError { get; set; }
+        public double LastErrorAt { get; set; }
+        public double LastSuccessAt { get; set; }
+        public long UptimeSeconds { get; set; }
+    }
+}
+

@@ -294,6 +294,14 @@ BEGIN
         WHERE SourceReference IS NOT NULL AND SourceReference <> N'';
 END
 
+-- Tenant ownership for CurrencyMovements. قبل از این مهاجرت، این ستون فقط توسط
+-- central._MobileSecurity روی دیتابیس‌های اجراشده اضافه می‌شد؛ اسکریپت‌های چاپ
+-- (GoldInvoiceSettlements) و گردش ارز روی CompanyId فیلتر می‌کنند، پس در خود
+-- اسکیمای currency باید وجود داشته باشد تا دیتابیسِ _Ensure-only (CI/تازه) هم
+-- خودکفا باشد.
+IF COL_LENGTH(N'currency.CurrencyMovements', N'CompanyId') IS NULL
+    ALTER TABLE [currency].[CurrencyMovements] ADD [CompanyId] INT NULL;
+
 -- ── FxTransactions (سربرگ معاملات ارز) — PRD §37/§38/§39 ────────────────
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables t

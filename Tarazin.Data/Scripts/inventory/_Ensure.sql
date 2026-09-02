@@ -14,13 +14,20 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE [inventory].[Warehouses] (
         WarehouseId   INT IDENTITY(1,1) PRIMARY KEY,
-        WarehouseCode NVARCHAR(30) NOT NULL UNIQUE,
+        WarehouseCode NVARCHAR(30) NOT NULL,
         Title         NVARCHAR(120) NOT NULL,
         Location      NVARCHAR(200) NULL,
         IsActive      BIT NOT NULL DEFAULT 1,
         IsDeleted     BIT NOT NULL DEFAULT 0,
-        CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+        CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt     DATETIME2 NULL,
+        CreatedBy     NVARCHAR(120) NULL,
+        UpdatedBy     NVARCHAR(120) NULL,
+        CompanyId     INT NOT NULL
     );
+    -- انبارها همیشه متعلق به یک شرکت مالی هستند؛ کد انبار فقط درون همان شرکت یکتا است.
+    CREATE UNIQUE INDEX UX_Warehouses_Company_Code ON [inventory].[Warehouses] (CompanyId, WarehouseCode);
+    CREATE INDEX IX_Warehouses_Company ON [inventory].[Warehouses] (CompanyId);
 END
 
 IF NOT EXISTS (
@@ -62,6 +69,7 @@ BEGIN
         IsDeleted      BIT NOT NULL DEFAULT 0,
         CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CreatedBy      NVARCHAR(100) NULL,
+        SourceReference NVARCHAR(120) NULL,               -- PINV:id | SINV:id | StoreOrder:id | Transfer:id | Return:id | Stocktake | Manual
         CONSTRAINT FK_Movements_Items FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId)
     );
     CREATE INDEX IX_Movements_Date ON [inventory].[Movements](MovementDate, IsDeleted);
@@ -230,6 +238,34 @@ IF COL_LENGTH(N'inventory.Items', N'CreatedBy') IS NULL
 IF COL_LENGTH(N'inventory.Items', N'UpdatedBy') IS NULL
     ALTER TABLE [inventory].[Items] ADD UpdatedBy NVARCHAR(100) NULL;
 
+-- Movements: نشانگر مبدأ (PINV/SINV/StoreOrder/Transfer/Return/Stocktake/Manual) برای تفکیک کانال در گزارشات.
+IF COL_LENGTH(N'inventory.Movements', N'SourceReference') IS NULL
+    ALTER TABLE [inventory].[Movements] ADD SourceReference NVARCHAR(120) NULL;
+
+-- LotSerials: سریال/بچ/انقضای کالاها — در خرید ثبت (In) و در فروش/حواله صادر (Out) می‌شود.
+IF OBJECT_ID(N'inventory.LotSerials', N'U') IS NULL
+    CREATE TABLE [inventory].[LotSerials] (
+        LotSerialId        BIGINT IDENTITY(1,1) PRIMARY KEY,
+        ItemId             INT NOT NULL,
+        WarehouseId        INT NULL,
+        SubWarehouseId     INT NULL,
+        LotNo              NVARCHAR(50) NULL,
+        SerialNo           NVARCHAR(100) NULL,
+        ExpiryDate         DATE NULL,
+        Qty                DECIMAL(18,3) NOT NULL DEFAULT 1,
+        Status             NVARCHAR(20) NOT NULL DEFAULT N'In',   -- In | Out
+        SourceReference    NVARCHAR(200) NULL,                     -- PINV:id | SINV:id
+        ReceiptMovementId  INT NULL,
+        IssueMovementId    INT NULL,
+        CompanyId          INT NOT NULL,
+        CreatedAt          DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CreatedBy          NVARCHAR(100) NULL
+    );
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_LotSerials_Item_Status' AND object_id = OBJECT_ID(N'inventory.LotSerials'))
+    CREATE INDEX IX_LotSerials_Item_Status ON [inventory].[LotSerials](ItemId, Status) INCLUDE (WarehouseId, Qty, SerialNo, LotNo);
+GO
+
 -- حساب مقابل تعدیل (انبارگردانی) — سند حسابداری مغایرت.
 IF COL_LENGTH(N'inventory.InventorySettings', N'AdjustmentAccountId') IS NULL
     ALTER TABLE [inventory].[InventorySettings] ADD AdjustmentAccountId INT NULL;
@@ -237,6 +273,16 @@ IF COL_LENGTH(N'inventory.InventorySettings', N'AdjustmentAccountCode') IS NULL
     ALTER TABLE [inventory].[InventorySettings] ADD AdjustmentAccountCode NVARCHAR(4000) NULL;
 IF COL_LENGTH(N'inventory.InventorySettings', N'AdjustmentAccountTitle') IS NULL
     ALTER TABLE [inventory].[InventorySettings] ADD AdjustmentAccountTitle NVARCHAR(200) NULL;
+
+-- درمان داده‌های قدیمی: اگر حسابداری انبار «فعال» ولی حساب‌های انبار/مقابل تنظیم نشده‌اند
+-- (وضعیت ناسازگاری که ثبت فاکتور خرید/فروش را با خطا متوقف می‌کرد)، IsEnabled را خاموش کن.
+-- کاربر پس از پیکربندی حساب‌ها در تنظیمات انبار آن را دوباره فعال می‌کند.
+UPDATE [inventory].[InventorySettings]
+SET IsEnabled = 0
+WHERE IsEnabled = 1
+  AND InventoryAccountId IS NULL
+  AND ReceiptContraAccountId IS NULL
+  AND IssueContraAccountId IS NULL;
 
 -- گروه کالا / واحد کالا (ارجاع به جداول پایه جدید؛ فیلدهای متنی قدیمی نگه داشته می‌شوند).
 IF COL_LENGTH(N'inventory.Items', N'GroupId') IS NULL
@@ -856,3 +902,30 @@ BEGIN
 END
 GO
 
+
+-- ─────────────────────────────────────────────
+-- 11. ItemUnits — واحدهای چندگانهٔ هر کالا با ضریب تبدیل و واحد پیش‌فرض
+-- ─────────────────────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = N'inventory' AND t.name = N'ItemUnits')
+BEGIN
+    CREATE TABLE [inventory].[ItemUnits] (
+        ItemUnitId   INT IDENTITY(1,1) PRIMARY KEY,
+        ItemId       INT NOT NULL,
+        UnitId       INT NOT NULL,
+        Factor       DECIMAL(18,4) NOT NULL DEFAULT 1,   -- ضریب تبدیل به واحد پایه (IsDefault=1)
+        IsDefault    BIT NOT NULL DEFAULT 0,             -- دقیقاً یک واحد پیش‌فرض (عامل=1)
+        IsDeleted    BIT NOT NULL DEFAULT 0,
+        CreatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt    DATETIME2 NULL,
+        CreatedBy    NVARCHAR(100) NULL,
+        UpdatedBy    NVARCHAR(100) NULL,
+        CONSTRAINT UQ_ItemUnits_Item_Unit UNIQUE (ItemId, UnitId),
+        CONSTRAINT FK_ItemUnits_Item FOREIGN KEY (ItemId) REFERENCES [inventory].[Items](ItemId),
+        CONSTRAINT FK_ItemUnits_Unit FOREIGN KEY (UnitId) REFERENCES [inventory].[Units](UnitId)
+    );
+    CREATE INDEX IX_ItemUnits_Item ON [inventory].[ItemUnits](ItemId);
+END
+GO

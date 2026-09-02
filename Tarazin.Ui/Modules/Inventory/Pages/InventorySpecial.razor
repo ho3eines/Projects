@@ -1,7 +1,9 @@
 @page "/inventory/special"
+@using Tarazin.Modules.Accounting.Pages
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>عملیات ویژه — انبار</PageTitle>
 
@@ -49,6 +51,22 @@
     </MudGrid>
 </MudPaper>
 
+@if (_lastDocument is not null)
+{
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-4">
+        <div class="d-flex align-center flex-wrap" style="gap:8px">
+            <MudText>
+                سند حسابداری مغایرت ایجاد شد:
+                <b>@_lastDocument.DocumentNumber</b> — مبلغ @_lastDocument.TotalAmount.ToString("N0")
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ReceiptLong"
+                       OnClick="ShowAdjustmentDocumentAsync">
+                مشاهدهٔ سند انبارگردانی
+            </MudButton>
+        </div>
+    </MudAlert>
+}
+
 @code {
     private const string Schema = "inventory";
 
@@ -60,11 +78,23 @@
     private int _subWarehouseId;
     private decimal _counted;
     private bool _busy;
+    private DailyDocumentRow? _lastDocument;
 
     protected override async Task OnInitializedAsync()
     {
-        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId, Search = "" })).ToList();
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        // انبار فعال نشست (انتخاب‌شده از نوار بالا مثل سال مالی).
+        if (Session.ActiveWarehouseId is int aw && _warehouses.Any(w => w.WarehouseId == aw))
+        {
+            _warehouseId = aw;
+            await OnWarehouseChanged();
+        }
+        else if (_warehouses.Count > 0)
+        {
+            _warehouseId = _warehouses[0].WarehouseId;
+            await OnWarehouseChanged();
+        }
     }
 
     private async Task OnWarehouseChanged()
@@ -87,17 +117,32 @@
         }
 
         _busy = true;
+        _lastDocument = null;
         try
         {
-            await Db.ExecuteAsync(Schema, "StocktakeRun", new
+            var result = await Db.QueryFirstOrDefaultAsync<StocktakeResultRow>(Schema, "StocktakeRun", new
             {
                 ItemId = _itemId,
                 WarehouseId = _warehouseId,
                 SubWarehouseId = _subWarehouseId == 0 ? (int?)null : _subWarehouseId,
                 CountedQty = _counted,
+                FiscalYearId = Session.ActiveFiscalYearId,
                 CreatedBy = Session.UserName,
                 CompanyId = Session.ActiveCompanyId
             });
+
+            if (result?.DocumentId is int documentId && documentId > 0)
+            {
+                _lastDocument = await Db.QueryFirstOrDefaultAsync<DailyDocumentRow>(
+                    "accounting", "DocumentById",
+                    new
+                    {
+                        DocumentId = documentId,
+                        CompanyId = Session.ActiveCompanyId,
+                        FiscalYearId = Session.ActiveFiscalYearId
+                    });
+            }
+
             Snackbar.Add("انبارگردانی ثبت شد.", Severity.Success);
         }
         catch (Exception ex)
@@ -107,6 +152,32 @@
         finally
         {
             _busy = false;
+        }
+    }
+
+    private async Task ShowAdjustmentDocumentAsync()
+    {
+        if (_lastDocument is null) return;
+        try
+        {
+            var parameters = new DialogParameters
+            {
+                ["DocumentId"] = _lastDocument.DocumentId,
+                ["IsModal"] = 1
+            };
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+            await DialogService.ShowAsync<AccountingDocument>(
+                $"سند انبارگردانی {_lastDocument.DocumentNumber}", parameters, options);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در نمایش سند: {ex.Message}", Severity.Error);
         }
     }
 }

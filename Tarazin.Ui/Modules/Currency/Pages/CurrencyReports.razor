@@ -32,7 +32,7 @@
         <MudPaper Elevation="1" Class="pa-4">
             <PageToolbar Class="mb-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintTransactionsAsync"
-                           Disabled="_loading || _transactions.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+                           Disabled="_loading || _transactions.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
             </PageToolbar>
             <MudTable Items="_transactions" Hover="true" Dense="true" Striped="true" Loading="_loading"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
@@ -64,7 +64,7 @@
         <MudPaper Elevation="1" Class="pa-4">
             <PageToolbar Class="mb-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintMovementsAsync"
-                           Disabled="_loading || _movements.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+                           Disabled="_loading || _movements.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
             </PageToolbar>
             <MudTable Items="_movements" Hover="true" Dense="true" Striped="true" Loading="_loading"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
@@ -163,7 +163,7 @@
         <MudPaper Elevation="1" Class="pa-4">
             <div class="d-flex justify-end mb-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintHistoryAsync"
-                           Disabled="_loading || _history.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+                           Disabled="_loading || _history.Count == 0" StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
             </div>
             <MudTable Items="_history" Hover="true" Dense="true" Striped="true" Loading="_loading"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
@@ -337,7 +337,7 @@
         _ => type
     };
 
-    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+    // ── چاپ (طبق اسکیل tarazin-reporting) ──
 
     private async Task PrintTransactionsAsync()
     {

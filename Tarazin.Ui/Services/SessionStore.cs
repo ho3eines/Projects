@@ -38,4 +38,6 @@ public sealed class UserSessionData
     public string? ActiveCompanyName { get; set; }
     public int? ActiveFiscalYearId { get; set; }
     public string? ActiveFiscalYearName { get; set; }
+    public int? ActiveWarehouseId { get; set; }
+    public string? ActiveWarehouseName { get; set; }
 }

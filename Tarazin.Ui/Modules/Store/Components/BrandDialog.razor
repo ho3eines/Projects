@@ -1,0 +1,74 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+@* دیالوگ درج/ویرایش برند *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="کد برند (خالی = خودکار)" @bind-Value="_code" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="نام برند" @bind-Value="_title" Required="true"
+                                  RequiredError="نام برند الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="توضیحات" Lines="2" @bind-Value="_desc" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Primary">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public BrandRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+    private string _code = "", _title = "";
+    private string? _desc;
+    private bool _isActive = true;
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _code = Model.BrandCode; _title = Model.Title;
+            _desc = Model.Description; _isActive = Model.IsActive;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("store", "BrandUpsert", new
+            {
+                BrandId = Model?.BrandId ?? 0,
+                CompanyId = Session.ActiveCompanyId,
+                BrandCode = _code, Title = _title, Description = _desc,
+                IsActive = _isActive, CreatedBy = Session.UserName
+            });
+            Snackbar.Add(Model is null ? "برند ایجاد شد." : "برند ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

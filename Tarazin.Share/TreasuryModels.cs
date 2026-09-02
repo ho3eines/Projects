@@ -11,6 +11,7 @@ public class DailyCashMovementRow
     public string AccountName { get; set; } = "";
     public string? Description { get; set; }
     public string Status { get; set; } = "";
+    public string? SourceReference { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

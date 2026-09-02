@@ -113,6 +113,7 @@
                 ToDate = _toDate?.Date,
                 Status = string.IsNullOrWhiteSpace(_status) ? null : _status,
                 SupplierPartyId = (int?)null,
+                WarehouseId = Session.ActiveWarehouseId,
                 Search = string.IsNullOrWhiteSpace(_search) ? null : _search
             })).ToList();
         }

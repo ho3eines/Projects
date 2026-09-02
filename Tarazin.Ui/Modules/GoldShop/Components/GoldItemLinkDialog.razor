@@ -49,8 +49,22 @@
                                     @_picked.ItemCode — @_picked.ItemTitle
                                 </MudChip>
                                 <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
-                                    موجودی: @_picked.StockQty.ToString("N0") @_picked.Unit
+                                    موجودی لحظه‌ای: @((_stockInfo?.StockQty ?? _picked.StockQty).ToString("N0")) @(_stockInfo?.Unit ?? _picked.Unit)
                                 </MudChip>
+                                @if (_stockInfo?.LastPurchasePrice is decimal lpp && lpp > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined"
+                                             Icon="@Icons.Material.Filled.ShoppingCart">
+                                        آخرین خرید: @lpp.ToString("N0")
+                                    </MudChip>
+                                }
+                                @if (_picked.LivePrice is decimal lp && lp > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Tertiary" Variant="Variant.Outlined"
+                                             Icon="@Icons.Material.Filled.Bolt">
+                                        قیمت زنده: @lp.ToString("N0")
+                                    </MudChip>
+                                }
                                 <MudTooltip Text="قطع اتصال">
                                     <MudIconButton Icon="@Icons.Material.Filled.LinkOff" Size="Size.Small"
                                                    Color="Color.Error" OnClick="Unlink" />
@@ -107,6 +121,7 @@
 
     private List<ItemRow> _items = new();
     private ItemRow? _picked;
+    private ItemStockInfoRow? _stockInfo;
     private bool _loading = true;
     private bool _saving;
 
@@ -120,7 +135,7 @@
             new("عنوان", i => i.ItemTitle),
             new("دسته", i => i.Category),
             new("موجودی", i => i.StockQty.ToString("N0")),
-            new("قیمت", i => i.UnitPrice.ToString("N0")),
+            new("آخرین خرید", i => i.LastPurchasePrice?.ToString("N0") ?? "—"),
         },
         SearchFields = i => new[] { i.ItemCode, i.ItemTitle, i.SKU ?? "", i.Barcode ?? "", i.Brand ?? "" },
         DisplayText = i => $"{i.ItemCode} — {i.ItemTitle}",
@@ -131,10 +146,13 @@
     {
         try
         {
-            _items = (await Db.QueryAsync<ItemRow>("inventory", "ItemList",
+            _items = (await Db.QueryAsync<ItemRow>("inventory", "ItemListLive",
                 new { CompanyId = Session.ActiveCompanyId, Search = (string?)null })).ToList();
             if (!string.IsNullOrWhiteSpace(Item.InventoryItemCode))
+            {
                 _picked = _items.FirstOrDefault(i => i.ItemCode == Item.InventoryItemCode);
+                await LoadStockInfoAsync(_picked);
+            }
         }
         catch (Exception ex)
         {
@@ -152,7 +170,10 @@
         {
             var picked = await Picker.PickAsync(_pickerOptions);
             if (picked is not null)
+            {
                 _picked = picked;
+                await LoadStockInfoAsync(picked);
+            }
         }
         catch (Exception ex)
         {
@@ -160,7 +181,26 @@
         }
     }
 
-    private void Unlink() => _picked = null;
+    private async Task LoadStockInfoAsync(ItemRow? item)
+    {
+        _stockInfo = null;
+        if (item is null) return;
+        try
+        {
+            _stockInfo = await Db.QueryFirstOrDefaultAsync<ItemStockInfoRow>("inventory", "ItemStockInfo",
+                new { ItemId = item.ItemId });
+        }
+        catch
+        {
+            _stockInfo = null; // نمایش بدون اطلاعات قیمت، برنامه نمی‌شکند
+        }
+    }
+
+    private void Unlink()
+    {
+        _picked = null;
+        _stockInfo = null;
+    }
 
     private async Task SaveAsync()
     {

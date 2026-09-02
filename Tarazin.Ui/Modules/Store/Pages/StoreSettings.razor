@@ -7,8 +7,220 @@
 
 <PageTitle>امکانات — فروشگاه اینترنتی</PageTitle>
 
-<PageHeader Title="امکانات و جداول پایه" Subtitle="مدیریت محصولات و مشتریان." />
+<PageHeader Title="امکانات و جداول پایه" Subtitle="مدیریت فروشگاه‌ها، محصولات، مشتریان و کاتالوگ." />
 <MudTabs>
+    <MudTabPanel Text="فروشگاه‌ها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <PageToolbar AddText="فروشگاه جدید" AddIcon="@Icons.Material.Filled.AddBusiness"
+                         OnAddClick="OpenNewStoreAsync" />
+            <MudTable Items="_stores" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>نوع</MudTh><MudTh>انبار متصل</MudTh>
+                    <MudTh>مدیر</MudTh><MudTh>تلفن</MudTh><MudTh>آنلاین</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.StoreCode</MudTd>
+                    <MudTd DataLabel="نام">@context.Title</MudTd>
+                    <MudTd DataLabel="نوع">@StoreTypeText(context.StoreType)</MudTd>
+                    <MudTd DataLabel="انبار متصل">@(context.WarehouseTitle ?? "—")</MudTd>
+                    <MudTd DataLabel="مدیر">@(context.ManagerName ?? "—")</MudTd>
+                    <MudTd DataLabel="تلفن">@(context.Phone ?? "—")</MudTd>
+                    <MudTd DataLabel="آنلاین">@if (context.OnlineEnabled){<MudChip T="string" Size="Size.Small" Color="Color.Success">فعال</MudChip>} else {<MudText Typo="Typo.body2">—</MudText>}</MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش فروشگاه">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEditStoreAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteStoreAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.Storefront" Title="فروشگاهی تعریف نشده است." />
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="برندها">
+        <MudPaper Elevation="1" Class="pa-4">
+            <PageToolbar AddText="برند جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="@(() => OpenBrandEditorAsync(null))" />
+            <MudTable Items="_brands" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>نام برند</MudTh><MudTh>تعداد محصول</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.BrandCode</MudTd>
+                    <MudTd DataLabel="نام برند">@context.Title</MudTd>
+                    <MudTd DataLabel="تعداد محصول">@context.ProductCount</MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenBrandEditorAsync(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteBrandAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.BrandingWatermark" Title="برندی تعریف نشده است." />
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="مشخصات داینامیک">
+        <MudPaper Elevation="1" Class="pa-4">
+            <PageToolbar AddText="ویژگی جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="@(() => OpenAttrEditorAsync(null))" />
+            <MudTable Items="_attributes" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>عنوان</MudTh><MudTh>نوع داده</MudTh><MudTh>واحد</MudTh><MudTh>facet تنوع</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="نوع داده">@context.DataType</MudTd>
+                    <MudTd DataLabel="واحد">@(context.Unit ?? "—")</MudTd>
+                    <MudTd DataLabel="facet تنوع">@if (context.IsVariantFacet){<MudChip T="string" Size="Size.Small" Color="Color.Info">رنگ/سایز</MudChip>} else {<MudText Typo="Typo.body2">—</MudText>}</MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenAttrEditorAsync(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteAttrAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.Tune" Title="ویژگی‌ای تعریف نشده است." />
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="قیمت‌گذاری">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <PageToolbar AddText="لیست قیمت جدید" AddIcon="@Icons.Material.Filled.Add"
+                         OnAddClick="@(() => OpenPriceListEditorAsync(null))" />
+            <MudTable Items="_priceLists" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>فروشگاه</MudTh><MudTh>تعداد قیمت</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.Code</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="فروشگاه">@(context.StoreTitle ?? "همهٔ فروشگاه‌ها")</MudTd>
+                    <MudTd DataLabel="تعداد قیمت">@context.PriceCount</MudTd>
+                    <MudTd DataLabel="وضعیت"><StatusChip IsActive="@context.IsActive" /></MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudTooltip Text="ویرایش لیست">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenPriceListEditorAsync(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="حذف لیست">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeletePriceListAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.PriceCheck" Title="لیست قیمتی تعریف نشده است." />
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <PageToolbar AddText="قیمت جدید" AddIcon="@Icons.Material.Filled.AttachMoney"
+                         OnAddClick="@(() => OpenPriceEditorAsync(null))" />
+            <MudTable Items="_productPrices" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>لیست</MudTh><MudTh>محصول</MudTh><MudTh>فروشگاه</MudTh><MudTh>قیمت</MudTh><MudTh>پایه</MudTh><MudTh>بازه</MudTh><MudTh>حداقل تعداد</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="لیست">@context.PriceListTitle</MudTd>
+                    <MudTd DataLabel="محصول">@context.ProductTitle</MudTd>
+                    <MudTd DataLabel="فروشگاه">@(context.StoreTitle ?? "همه")</MudTd>
+                    <MudTd DataLabel="قیمت">@context.Price.ToString("N0")</MudTd>
+                    <MudTd DataLabel="پایه">@context.BasePrice.ToString("N0")</MudTd>
+                    <MudTd DataLabel="بازه">@(context.FromDate is null && context.ToDate is null ? "همیشه" : $"{context.FromDate:yyyy/MM/dd} — {context.ToDate:yyyy/MM/dd}")</MudTd>
+                    <MudTd DataLabel="حداقل تعداد">@context.MinQty</MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenPriceEditorAsync(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeletePriceAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.Sell" Title="قیمتی ثبت نشده — قیمت پایهٔ محصول استفاده می‌شود." />
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <PageToolbar AddText="کمپین جدید" AddIcon="@Icons.Material.Filled.Campaign"
+                         OnAddClick="@(() => OpenPromoEditorAsync(null))" />
+            <MudTable Items="_promotions" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>دامنه</MudTh><MudTh>تخفیف</MudTh><MudTh>بازهٔ زمانی</MudTh><MudTh>وضعیت</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.Code</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="دامنه">@(context.ProductTitle ?? context.CategoryTitle ?? "همهٔ محصولات")</MudTd>
+                    <MudTd DataLabel="تخفیف">@(context.DiscountType == "Percent" ? $"{context.DiscountValue:N0}٪" : $"{context.DiscountValue:N0} ریال")</MudTd>
+                    <MudTd DataLabel="بازهٔ زمانی">@context.FromDate.ToString("yyyy/MM/dd") — @context.ToDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd DataLabel="وضعیت">
+                        @if (context.IsRunning){<MudChip T="string" Size="Size.Small" Color="Color.Success">در جریان</MudChip>}
+                        else {<MudChip T="string" Size="Size.Small" Color="Color.Default">غیرفعال</MudChip>}
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenPromoEditorAsync(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeletePromoAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.Campaign" Title="کمپینی تعریف نشده است." />
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4">
+            <PageToolbar AddText="کد تخفیف جدید" AddIcon="@Icons.Material.Filled.LocalOffer"
+                         OnAddClick="@(() => OpenCouponEditorAsync(null))" />
+            <MudTable Items="_coupons" Hover="true" Dense="true" Striped="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>کد</MudTh><MudTh>عنوان</MudTh><MudTh>تخفیف</MudTh><MudTh>سقف</MudTh><MudTh>مصرف</MudTh><MudTh>بازهٔ زمانی</MudTh><MudTh>اعتبار</MudTh><MudTh>عملیات</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="کد">@context.Code</MudTd>
+                    <MudTd DataLabel="عنوان">@context.Title</MudTd>
+                    <MudTd DataLabel="تخفیف">@(context.DiscountType == "Percent" ? $"{context.DiscountValue:N0}٪" : $"{context.DiscountValue:N0} ریال")</MudTd>
+                    <MudTd DataLabel="سقف">@(context.MaxDiscount?.ToString("N0") ?? "—")</MudTd>
+                    <MudTd DataLabel="مصرف">@(context.UsageLimit is null ? $"{context.UsedCount}" : $"{context.UsedCount}/{context.UsageLimit}")</MudTd>
+                    <MudTd DataLabel="بازهٔ زمانی">@context.FromDate.ToString("yyyy/MM/dd") — @context.ToDate.ToString("yyyy/MM/dd")</MudTd>
+                    <MudTd DataLabel="اعتبار">
+                        @if (context.IsValidNow){<MudChip T="string" Size="Size.Small" Color="Color.Success">معتبر</MudChip>}
+                        else {<MudChip T="string" Size="Size.Small" Color="Color.Warning">نامعتبر</MudChip>}
+                    </MudTd>
+                    <MudTd DataLabel="عملیات">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenCouponEditorAsync(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteCouponAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Filled.LocalOffer" Title="کد تخفیفی تعریف نشده است." />
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
     <MudTabPanel Text="محصولات">
         <MudPaper Elevation="1" Class="pa-4">
             <PageToolbar AddText="محصول جدید" AddIcon="@Icons.Material.Filled.Add"
@@ -147,6 +359,13 @@
     private List<ProductRow> _products = new();
     private List<CustomerRow> _customers = new();
     private List<ProductCategoryRow> _categories = new();
+    private List<StoreRow> _stores = new();
+    private List<BrandRow> _brands = new();
+    private List<AttributeRow> _attributes = new();
+    private List<PriceListRow> _priceLists = new();
+    private List<ProductPriceRow> _productPrices = new();
+    private List<PromotionRow> _promotions = new();
+    private List<CouponRow> _coupons = new();
     private bool _loading = true;
 
     // ── تنظیمات اتصال حسابداری/خزانه/انبار ──
@@ -170,6 +389,13 @@
         {
             _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
             _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+            _stores = (await Db.QueryAsync<StoreRow>(Schema, "StoreList", new { CompanyId = Session.ActiveCompanyId, StoreId = (int?)null, IsActive = (bool?)null })).ToList();
+            _brands = (await Db.QueryAsync<BrandRow>(Schema, "BrandList", new { CompanyId = Session.ActiveCompanyId, BrandId = (int?)null })).ToList();
+            _attributes = (await Db.QueryAsync<AttributeRow>(Schema, "AttributeList", new { CompanyId = Session.ActiveCompanyId, AttributeId = (int?)null, FacetOnly = (int?)null })).ToList();
+            _priceLists = (await Db.QueryAsync<PriceListRow>(Schema, "PriceListList", new { CompanyId = Session.ActiveCompanyId, PriceListId = (int?)null, StoreId = (int?)null })).ToList();
+            _productPrices = (await Db.QueryAsync<ProductPriceRow>(Schema, "ProductPriceList", new { CompanyId = Session.ActiveCompanyId, PriceId = (int?)null, PriceListId = (int?)null, ProductId = (int?)null, StoreId = (int?)null })).ToList();
+            _promotions = (await Db.QueryAsync<PromotionRow>(Schema, "PromotionList", new { CompanyId = Session.ActiveCompanyId, PromotionId = (int?)null, StoreId = (int?)null })).ToList();
+            _coupons = (await Db.QueryAsync<CouponRow>(Schema, "CouponList", new { CompanyId = Session.ActiveCompanyId, CouponId = (int?)null, StoreId = (int?)null })).ToList();
             if (Session.HasPermission(TarazinPermissions.StoreCategories))
                 _categories = (await Db.QueryAsync<ProductCategoryRow>(Schema, "ProductCategoryList")).ToList();
 
@@ -243,6 +469,213 @@
     {
         if (await EntityCrud.ConfirmDeleteAsync(model))
             await LoadAsync();
+    }
+
+    // ── فروشگاه‌ها (Wave 1: Multi-Store) ─────────────────────────
+
+    private static string StoreTypeText(string t) => t switch
+    {
+        "Online" => "آنلاین",
+        "Hybrid" => "ترکیبی",
+        _ => "فیزیکی"
+    };
+
+    private async Task OpenNewStoreAsync()
+    {
+        var dlg = await Dialog.ShowAsync<StoreDialog>("فروشگاه جدید",
+            new DialogParameters { ["Model"] = null },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task OpenEditStoreAsync(StoreRow row)
+    {
+        var dlg = await Dialog.ShowAsync<StoreDialog>($"ویرایش «{row.Title}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteStoreAsync(StoreRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف فروشگاه «{row.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync("store", "StoreDelete",
+                new { StoreId = row.StoreId, CompanyId = Session.ActiveCompanyId, CreatedBy = Session.UserName });
+            Snackbar.Add("فروشگاه حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    // ── برندها (Wave 2) ─────────────────────────────────────────
+
+    private async Task OpenBrandEditorAsync(BrandRow? row)
+    {
+        var dlg = await Dialog.ShowAsync<BrandDialog>(row is null ? "برند جدید" : $"ویرایش «{row.Title}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteBrandAsync(BrandRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف برند «{row.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync("store", "BrandDelete",
+                new { BrandId = row.BrandId, CompanyId = Session.ActiveCompanyId, CreatedBy = Session.UserName });
+            Snackbar.Add("برند حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    // ── قیمت‌گذاری (Wave 3) ──────────────────────────
+
+    private async Task OpenPriceListEditorAsync(PriceListRow? row)
+    {
+        var dlg = await Dialog.ShowAsync<PriceListDialog>(row is null ? "لیست قیمت جدید" : $"ویرایش «{row.Title}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeletePriceListAsync(PriceListRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"حذف لیست «{row.Title}» همهٔ قیمت‌های آن را هم حذف می‌کند. مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync("store", "PriceListDelete",
+                new { PriceListId = row.PriceListId, CompanyId = Session.ActiveCompanyId, CreatedBy = Session.UserName });
+            Snackbar.Add("لیست قیمت حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task OpenPriceEditorAsync(ProductPriceRow? row)
+    {
+        var dlg = await Dialog.ShowAsync<ProductPriceDialog>(row is null ? "قیمت جدید" : $"ویرایش قیمت «{row.ProductTitle}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeletePriceAsync(ProductPriceRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف قیمت «{row.ProductTitle}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync("store", "ProductPriceDelete",
+                new { PriceId = row.PriceId, CompanyId = Session.ActiveCompanyId, CreatedBy = Session.UserName });
+            Snackbar.Add("قیمت حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task OpenPromoEditorAsync(PromotionRow? row)
+    {
+        var dlg = await Dialog.ShowAsync<PromotionDialog>(row is null ? "کمپین جدید" : $"ویرایش «{row.Title}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeletePromoAsync(PromotionRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف کمپین «{row.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync("store", "PromotionDelete",
+                new { PromotionId = row.PromotionId, CompanyId = Session.ActiveCompanyId, CreatedBy = Session.UserName });
+            Snackbar.Add("کمپین حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task OpenCouponEditorAsync(CouponRow? row)
+    {
+        var dlg = await Dialog.ShowAsync<CouponDialog>(row is null ? "کد تخفیف جدید" : $"ویرایش «{row.Title}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteCouponAsync(CouponRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف کد تخفیف «{row.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync("store", "CouponDelete",
+                new { CouponId = row.CouponId, CompanyId = Session.ActiveCompanyId, CreatedBy = Session.UserName });
+            Snackbar.Add("کد تخفیف حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    // ── ویژگی‌های داینامیک (Wave 2) ────────────────────────────
+
+    private async Task OpenAttrEditorAsync(AttributeRow? row)
+    {
+        var dlg = await Dialog.ShowAsync<AttributeDialog>(row is null ? "ویژگی جدید" : $"ویرایش «{row.Title}»",
+            new DialogParameters { ["Model"] = row },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
+
+    private async Task DeleteAttrAsync(AttributeRow row)
+    {
+        var confirmed = await Dialog.ShowMessageBoxAsync(
+            "تأیید حذف", $"آیا از حذف ویژگی «{row.Title}» مطمئن هستید؟",
+            yesText: "حذف", cancelText: "انصراف");
+        if (confirmed is not true) return;
+        try
+        {
+            await Db.ExecuteAsync("store", "AttributeDelete",
+                new { AttributeId = row.AttributeId, CompanyId = Session.ActiveCompanyId });
+            Snackbar.Add("ویژگی حذف شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 
     // ── دسته‌های کالا (الگوی مودال — بخش ۴ اسکیل) ──────────────────────

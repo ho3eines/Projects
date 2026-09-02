@@ -1,0 +1,134 @@
+@using Tarazin.Models
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+@* دیالوگ درج/ویرایش فروشگاه — متصل به یک انبار اختصاصی (الگوی ProductCategoryDialog) *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="کد فروشگاه" @bind-Value="_code" Required="true"
+                                  RequiredError="کد فروشگاه الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="نام فروشگاه" @bind-Value="_title" Required="true"
+                                  RequiredError="نام فروشگاه الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="نوع فروشگاه" @bind-Value="_type" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Physical")">فیزیکی</MudSelectItem>
+                        <MudSelectItem Value="@("Online")">آنلاین</MudSelectItem>
+                        <MudSelectItem Value="@("Hybrid")">ترکیبی</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Label="انبار اختصاصی" @bind-Value="_warehouseId" Variant="Variant.Outlined"
+                               Required="true" RequiredError="انبار فروشگاه الزامی است">
+                        <MudSelectItem Value="@((int?)null)">— انتخاب انبار —</MudSelectItem>
+                        @foreach (var w in _warehouses)
+                        {
+                            <MudSelectItem Value="@((int?)w.WarehouseId)">@w.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        موجودی قابل فروش فروشگاه از همین انبار محاسبه می‌شود.
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="مدیر فروشگاه" @bind-Value="_manager" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="تلفن" @bind-Value="_phone" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="ایمیل" @bind-Value="_email" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="ساعات کاری" @bind-Value="_hours" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="آدرس" Lines="2" @bind-Value="_address" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="توضیحات" Lines="2" @bind-Value="_desc" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" @bind-Value="_onlineEnabled" Color="Color.Success">فروشگاه آنلاین فعال باشد</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Primary">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public StoreRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    private string _code = "", _title = "", _type = "Physical";
+    private int? _warehouseId;
+    private string? _manager, _phone, _email, _address, _hours, _desc;
+    private bool _onlineEnabled, _isActive = true;
+
+    private List<WarehouseRow> _warehouses = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _warehouses = (await Db.QueryAsync<WarehouseRow>("inventory", "WarehouseList",
+            new { CompanyId = Session.ActiveCompanyId })).ToList();
+
+        if (Model is not null)
+        {
+            _code = Model.StoreCode; _title = Model.Title; _type = Model.StoreType;
+            _warehouseId = Model.WarehouseId; _manager = Model.ManagerName;
+            _phone = Model.Phone; _email = Model.Email; _address = Model.Address;
+            _hours = Model.WorkingHours; _desc = Model.Description;
+            _onlineEnabled = Model.OnlineEnabled; _isActive = Model.IsActive;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("store", "StoreUpsert", new
+            {
+                StoreId = Model?.StoreId ?? 0,
+                CompanyId = Session.ActiveCompanyId,
+                StoreCode = _code, Title = _title, StoreType = _type,
+                WarehouseId = _warehouseId, ManagerName = _manager,
+                Phone = _phone, Email = _email, Address = _address,
+                WorkingHours = _hours, Description = _desc,
+                OnlineEnabled = _onlineEnabled, IsActive = _isActive,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add(Model is null ? "فروشگاه ایجاد شد." : "فروشگاه ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

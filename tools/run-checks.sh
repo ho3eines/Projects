@@ -155,6 +155,19 @@ else
   fail "کدگذاری دوبل برگشته — tools/fix-double-utf8.ps1 -Apply و سپس اسکریپت‌های درج را بررسی کن."
 fi
 
+# ── 3د. مالکیت شرکتِ ردیف‌های سند (DocumentLinesCompanyIdGuardTests) ────
+# هر ردیف DocumentLines ثبت‌شده از طریق DocumentInsert.sql باید دقیقاً CompanyId
+# شرکتِ خودِ سند را بگیرد — نه اولین شرکت دیتابیس (fallbackِ fn_MobileCompanyId
+# وقتی session context ست نشده). اگر DbService دیگر context را ست نکند یا پیش‌فرض
+# ستون عوض شود، ردیف‌های سندِ شرکت A بی‌صدا به شرکت B می‌چسبند (باگ چندشرکتی).
+step "۳د) گارد مالکیت شرکتِ ردیف‌های سند (DocumentLinesCompanyIdGuardTests)"
+if dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo \
+     --filter "FullyQualifiedName~DocumentLinesCompanyIdGuardTests" 2>&1 | tail -1 | grep -qE "Passed!|Skipped!"; then
+  pass "ردیف‌های سند CompanyId شرکتِ خودشان را می‌گیرند (نه اولین شرکت دیتابیس)"
+else
+  fail "مالکیت شرکتِ ردیف‌های سند برگشته — ست‌کردن session context در DbService/پیش‌فرض CompanyId را بررسی کن."
+fi
+
 # ── 4. Full test suite (PDF regression + close-year + rest) ───────────
 # خروجی کامل ذخیره می‌شود تا گام ۷ (تولید گزارش نهایی) از همان عددِ واقعی بخواند.
 step "۴) کل سویت تست (PDF/حسابداری/چاپ)"

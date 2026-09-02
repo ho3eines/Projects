@@ -16,14 +16,14 @@
         <img src="_content/Tarazin.Ui/brand/logo.svg" alt="ترازین" />
     }
     <div>
-        <div style="font-size:13pt;font-weight:700;color:#1a237e">
+        <div class="gp-print-header__title">
             @CompanyName
         </div>
         @if (!string.IsNullOrWhiteSpace(_settings?.Address))
         {
-            <div style="font-size:9pt;color:#666">آدرس: @_settings.Address</div>
+            <div class="gp-print-header__meta">آدرس: @_settings.Address</div>
         }
-        <div style="font-size:9pt;color:#666">
+        <div class="gp-print-header__meta">
             @Title
         </div>
     </div>

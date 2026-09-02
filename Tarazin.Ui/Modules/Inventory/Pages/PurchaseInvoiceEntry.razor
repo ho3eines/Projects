@@ -2,6 +2,8 @@
 @inject DbService Db
 @inject UserSession Session
 @inject ISnackbar Snackbar
+@inject EntityPickerService Picker
+@using Tarazin.Components
 
 <PageTitle>فاکتور خرید — انبار</PageTitle>
 
@@ -22,13 +24,7 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudSelect T="int" Label="انبار مقصد" @bind-Value="_warehouseId" Variant="Variant.Outlined">
-                <MudSelectItem Value="0">— انتخاب —</MudSelectItem>
-                @foreach (var w in _warehouses)
-                {
-                    <MudSelectItem Value="w.WarehouseId">@w.Title</MudSelectItem>
-                }
-            </MudSelect>
+            <MudTextField T="string" Label="انبار عملیات (از نوار بالا)" Value="@_warehouseTitle" Disabled="true" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudSelect T="string" Label="شرایط پرداخت" @bind-Value="_paymentTerms" Variant="Variant.Outlined">
@@ -60,6 +56,7 @@
                 <th style="width:60px">تخفیف٪</th>
                 <th style="width:60px">مالیات٪</th>
                 <th style="width:60px">عوارض٪</th>
+                <th style="width:140px">سریال/بچ (اختیاری)</th>
                 <th style="width:120px">مبلغ کل</th>
                 <th></th>
             </tr>
@@ -69,20 +66,36 @@
             {
                 <tr>
                     <td>
-                        <MudSelect T="int" @bind-Value="line.l.ItemId" Variant="Variant.Text" Dense="true">
-                            <MudSelectItem Value="0">—</MudSelectItem>
-                            @foreach (var it in _items)
-                            {
-                                <MudSelectItem Value="it.ItemId">@it.ItemCode — @it.ItemTitle</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <ItemPickerCell Items="_items"
+                                       ItemId="line.l.ItemId"
+                                       ItemIdChanged="v => line.l.ItemId = v"
+                                       UnitPrice="line.l.UnitPrice"
+                                       UnitPriceChanged="v => line.l.UnitPrice = v"
+                                       OnItemPicked="item => LoadLineUnitsAsync(line.l, item)"
+                                       Title="انتخاب کالا — فاکتور خرید" />
                     </td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Dense="true" Min="0" Variant="Variant.Text" /></td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.GiftQty" Dense="true" Min="0" Variant="Variant.Text" /></td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.UnitPrice" Dense="true" Min="0" Format="#,##0.##" Variant="Variant.Text" /></td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.DiscountPercent" Dense="true" Min="0" Max="100" Variant="Variant.Text" /></td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.TaxPercent" Dense="true" Min="0" Max="100" Variant="Variant.Text" /></td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.DutyPercent" Dense="true" Min="0" Max="100" Variant="Variant.Text" /></td>
+                    <td>
+                        <div class="d-flex align-center gap-1">
+                            <MudNumericField T="decimal" @bind-Value="line.l.Qty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" />
+                            @if (line.l.Units.Count > 0)
+                            {
+                                <MudSelect T="int" Value="line.l.UnitId" Margin="Margin.Dense" Variant="Variant.Text"
+                                           ValueChanged="@((int v) => SelectUnit(line.l, v))">
+                                    @foreach (var uu in line.l.Units)
+                                    {
+                                        <MudSelectItem Value="uu.UnitId">@uu.UnitTitle</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                        </div>
+                    </td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.GiftQty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.UnitPrice" Margin="Margin.Dense" Min="0" Format="#,##0.##" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.DiscountPercent" Margin="Margin.Dense" Min="0" Max="100" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.TaxPercent" Margin="Margin.Dense" Min="0" Max="100" Variant="Variant.Text" /></td>
+                    <td><MudNumericField T="decimal" @bind-Value="line.l.DutyPercent" Margin="Margin.Dense" Min="0" Max="100" Variant="Variant.Text" /></td>
+                    <td><MudTextField @bind-Value="line.l.Serials" Margin="Margin.Dense" Variant="Variant.Text"
+                                     Placeholder="S-1001 یا LOT-22 (با , جدا کنید)" /></td>
                     <td class="text-end">@CalcLineTotal(line.l).ToString("#,##0")</td>
                     <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
                 </tr>
@@ -92,13 +105,19 @@
             <tr>
                 <td colspan="6" class="text-end font-weight-bold">جمع کل:</td>
                 <td colspan="2" class="font-weight-bold">@_lines.Sum(l => CalcLineTotal(l)).ToString("#,##0")</td>
-                <td></td>
+                <td colspan="2"></td>
             </tr>
         </tfoot>
     </MudSimpleTable>
-    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new PurchaseLine()))">
-        افزودن قلم
-    </MudButton>
+    <div class="d-flex align-center gap-2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new PurchaseLine()))">
+            افزودن قلم
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Tertiary" StartIcon="@Icons.Material.Filled.PlaylistAdd"
+                   OnClick="@(() => _ = AddLinesFromPickerAsync())">
+            افزودن چند قلم از دیالوگ…
+        </MudButton>
+    </div>
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4 mt-4 d-flex gap-4">
@@ -117,6 +136,7 @@
     private DateTime? _invoiceDate = DateTime.Today;
     private int _supplierPartyId;
     private int _warehouseId;
+    private string _warehouseTitle = "";
     private string _paymentTerms = "Cash";
     private DateTime? _dueDate;
     private string _referenceNumber = "";
@@ -127,17 +147,90 @@
     protected override async Task OnInitializedAsync()
     {
         var companyId = Session.ActiveCompanyId;
-        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = companyId, Search = "" })).ToList();
+        _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemListLive", new { CompanyId = companyId, Search = "" })).ToList();
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = companyId })).ToList();
-        _parties = (await Db.QueryAsync<PartyRow>("treasury", "PartyList", new { CompanyId = companyId })).ToList();
-        var settings = await Db.QueryFirstOrDefaultAsync<InventorySettingsRow>(Schema, "InventorySettingsGet", new { CompanyId = companyId });
-        if (settings?.DefaultWarehouseId is int dw && dw > 0)
-            _warehouseId = dw;
+        _parties = (await Db.QueryAsync<PartyRow>("treasury", "PartyList", new
+        {
+            CompanyId = companyId,
+            PartyType = (string?)null,
+            SearchText = "",
+            SkipRows = 0,
+            TakeSize = 500
+        })).ToList();
+        // انبار فعال نشست (انتخاب‌شده از نوار بالا مثل سال مالی)؛ در نبودش، انبار پیش‌فرض تنظیمات.
+        if (Session.ActiveWarehouseId is int aw && _warehouses.Any(w => w.WarehouseId == aw))
+            _warehouseId = aw;
+        else
+        {
+            var settings = await Db.QueryFirstOrDefaultAsync<InventorySettingsRow>(Schema, "InventorySettingsGet", new { CompanyId = companyId });
+            if (settings?.DefaultWarehouseId is int dw && _warehouses.Any(w => w.WarehouseId == dw))
+                _warehouseId = dw;
+        }
+        if (_warehouseId == 0 && _warehouses.Count > 0)
+            _warehouseId = _warehouses[0].WarehouseId;
+        _warehouseTitle = _warehouses.FirstOrDefault(w => w.WarehouseId == _warehouseId)?.Title ?? $"انبار {_warehouseId}";
     }
+
+    /// <summary>باز کردن دیالوگ چندتایی و افزودن چند قلم به‌یک‌بار.</summary>
+    private async Task AddLinesFromPickerAsync()
+    {
+        var picked = await Picker.PickManyAsync(new EntityPickerOptions<ItemRow>
+        {
+            Title = "افزودن چند کالا",
+            SearchPlaceholder = "جستجو بر اساس کد/عنوان/SKU/بارکد...",
+            MaxWidth = MaxWidth.Large,
+            Items = _items,
+            RowsPerPage = 10,
+            DisplayText = it => $"{it.ItemCode} — {it.ItemTitle}",
+            SearchFields = it => new[] { it.ItemCode, it.ItemTitle, it.SKU ?? "", it.Barcode ?? "", it.Brand ?? "" },
+            Columns =
+            {
+                new("کد", it => it.ItemCode),
+                new("عنوان کالا", it => it.ItemTitle),
+                new("واحد", it => it.UnitTitle ?? it.Unit),
+                new("موجودی", it => it.StockQty.ToString("N2")),
+                new("قیمت واحد", it => it.UnitPrice.ToString("N0"))
+            }
+        });
+        foreach (var it in picked)
+        {
+            if (_lines.Any(l => l.ItemId == it.ItemId)) continue;   // تکراری اضافه نمی‌شود
+            var line = new PurchaseLine { ItemId = it.ItemId, UnitPrice = it.UnitPrice };
+            await LoadLineUnitsAsync(line, it);
+            _lines.Add(line);
+        }
+    }
+
+    /// <summary>بارگذاری واحدهای چندگانهٔ کالای انتخاب‌شده و پیش‌گزیدن واحد پایه.</summary>
+    private async Task LoadLineUnitsAsync(PurchaseLine line, ItemRow item)
+    {
+        try
+        {
+            line.Units = (await Db.QueryAsync<ItemUnitRow>("inventory", "ItemUnitsList",
+                new { ItemId = item.ItemId })).ToList();
+        }
+        catch
+        {
+            line.Units = new();
+        }
+        var def = line.Units.FirstOrDefault(u => u.IsDefault) ?? line.Units.FirstOrDefault();
+        line.UnitId = def?.UnitId ?? 0;
+        line.Factor = def?.Factor ?? 1m;
+    }
+
+    /// <summary>انتخاب واحد قلم → ضریب آن نگه داشته می‌شود (تعداد پایه = Qty × Factor).</summary>
+    private void SelectUnit(PurchaseLine line, int unitId)
+    {
+        line.UnitId = unitId;
+        line.Factor = line.Units.FirstOrDefault(u => u.UnitId == unitId)?.Factor ?? 1m;
+    }
+
+    /// <summary>تعداد پایه (واحد پیش‌فرض) با اعمال ضریب تبدیل.</summary>
+    private static decimal BaseQty(PurchaseLine l) => Math.Round(l.Qty * l.Factor, 3);
 
     private decimal CalcLineTotal(PurchaseLine l)
     {
-        var gross = l.Qty * l.UnitPrice;
+        var gross = BaseQty(l) * l.UnitPrice;
         var disc = gross * l.DiscountPercent / 100;
         var tax = (gross - disc) * l.TaxPercent / 100;
         var duty = (gross - disc) * l.DutyPercent / 100;
@@ -159,13 +252,14 @@
             var linesJson = JsonSerializer.Serialize(_lines.Where(l => l.ItemId > 0 && l.Qty > 0).Select(l => new
             {
                 ItemId = l.ItemId,
-                Qty = l.Qty,
+                Qty = BaseQty(l),
                 GiftQty = l.GiftQty,
                 UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent,
                 TaxPercent = l.TaxPercent,
                 DutyPercent = l.DutyPercent
             }));
+            var serialsJson = BuildSerialsJson();
 
             await Db.ExecuteAsync(Schema, "PurchaseInvoiceInsert", new
             {
@@ -180,7 +274,8 @@
                 CompanyId = Session.ActiveCompanyId,
                 FiscalYearId = Session.ActiveFiscalYearId,
                 CreatedBy = Session.UserName,
-                LinesJson = linesJson
+                LinesJson = linesJson,
+                SerialsJson = serialsJson
             });
 
             Snackbar.Add("فاکتور خرید ثبت شد.", Severity.Success);
@@ -207,5 +302,16 @@
         public decimal DiscountPercent { get; set; }
         public decimal TaxPercent { get; set; }
         public decimal DutyPercent { get; set; }
+        public string Serials { get; set; } = "";
+        public int UnitId { get; set; }         // واحد انتخابی قلم (0 = پایه/پیش‌فرض)
+        public decimal Factor { get; set; } = 1; // ضریب تبدیل به واحد پایه
+        public List<ItemUnitRow> Units { get; set; } = new();
     }
+
+    /// <summary>تبدیل فیلد «سریال/بچ» هر قلم به JSON برای @SerialsJson — هر مقدار به‌عنوان سریال ثبت می‌شود.</summary>
+    private string BuildSerialsJson()
+        => JsonSerializer.Serialize(_lines
+            .Where(l => l.ItemId > 0 && !string.IsNullOrWhiteSpace(l.Serials))
+            .SelectMany(l => l.Serials.Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => new { ItemId = l.ItemId, LotNo = (string?)null, SerialNo = s, ExpiryDate = (DateTime?)null, Qty = 1m })));
 }

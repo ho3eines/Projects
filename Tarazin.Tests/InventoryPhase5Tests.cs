@@ -106,7 +106,8 @@ namespace Tarazin.Tests
                     CompanyId = compId,
                     FiscalYearId = (int?)null,
                     CreatedBy = "diag",
-                    LinesJson = linesJson
+                    LinesJson = linesJson,
+                    SerialsJson = (string?)null
                 });
 
                 var stock = await cn.ExecuteScalarAsync<decimal>(
@@ -148,7 +149,8 @@ namespace Tarazin.Tests
                     CompanyId = compId,
                     FiscalYearId = (int?)null,
                     CreatedBy = "diag",
-                    LinesJson = linesJson
+                    LinesJson = linesJson,
+                    SerialsJson = (string?)null
                 });
 
                 // موجودی باید ۱۱۰ باشد (۱۰۰ + ۱۰ هدیه)
@@ -191,7 +193,8 @@ namespace Tarazin.Tests
                     CompanyId = compId,
                     FiscalYearId = (int?)null,
                     CreatedBy = "diag",
-                    LinesJson = linesJson
+                    LinesJson = linesJson,
+                    SerialsJson = (string?)null
                 });
 
                 var inv = await cn.QuerySingleOrDefaultAsync<dynamic>(
@@ -226,7 +229,8 @@ namespace Tarazin.Tests
                     SupplierPartyId = (int?)null, WarehouseId = wh, SubWarehouseId = (int?)null,
                     ReferenceNumber = "", PaymentTerms = "Cash", DueDate = (DateTime?)null,
                     Description = "خرید", CompanyId = compId, FiscalYearId = (int?)null,
-                    CreatedBy = "diag", LinesJson = purchaseJson
+                    CreatedBy = "diag", LinesJson = purchaseJson,
+                    SerialsJson = (string?)null
                 });
 
                 // فروش ۳۰
@@ -241,7 +245,8 @@ namespace Tarazin.Tests
                     CustomerPartyId = (int?)null, WarehouseId = wh, SubWarehouseId = (int?)null,
                     ReferenceNumber = (string?)null, PaymentTerms = "Cash", DueDate = (DateTime?)null,
                     SaleType = "Retail", Description = "فروش", CompanyId = compId,
-                    FiscalYearId = (int?)null, CreatedBy = "diag", LinesJson = salesJson
+                    FiscalYearId = (int?)null, CreatedBy = "diag", LinesJson = salesJson,
+                    SerialsJson = (string?)null
                 });
 
                 var stock = await cn.ExecuteScalarAsync<decimal>(
@@ -279,7 +284,8 @@ namespace Tarazin.Tests
                     SupplierPartyId = (int?)null, WarehouseId = wh, SubWarehouseId = (int?)null,
                     ReferenceNumber = "", PaymentTerms = "Cash", DueDate = (DateTime?)null,
                     Description = "خرید", CompanyId = compId, FiscalYearId = (int?)null,
-                    CreatedBy = "diag", LinesJson = purchaseJson
+                    CreatedBy = "diag", LinesJson = purchaseJson,
+                    SerialsJson = (string?)null
                 });
 
                 // فروش ۵۰ (بیشتر از ۱۰)
@@ -296,7 +302,8 @@ namespace Tarazin.Tests
                         CustomerPartyId = (int?)null, WarehouseId = wh, SubWarehouseId = (int?)null,
                         ReferenceNumber = (string?)null, PaymentTerms = "Cash", DueDate = (DateTime?)null,
                         SaleType = "Retail", Description = "فروش", CompanyId = compId,
-                        FiscalYearId = (int?)null, CreatedBy = "diag", LinesJson = salesJson
+                        FiscalYearId = (int?)null, CreatedBy = "diag", LinesJson = salesJson,
+                    SerialsJson = (string?)null
                     });
                     Assert.Fail("فروش بیشتر از موجودی باید خطا دهد.");
                 }
@@ -332,7 +339,8 @@ namespace Tarazin.Tests
                     SupplierPartyId = (int?)null, WarehouseId = wh1, SubWarehouseId = (int?)null,
                     ReferenceNumber = "", PaymentTerms = "Cash", DueDate = (DateTime?)null,
                     Description = "خرید", CompanyId = compId, FiscalYearId = (int?)null,
-                    CreatedBy = "diag", LinesJson = purchaseJson
+                    CreatedBy = "diag", LinesJson = purchaseJson,
+                    SerialsJson = (string?)null
                 });
 
                 // انتقال ۲۰ از انبار ۱ به ۲

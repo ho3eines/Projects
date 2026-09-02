@@ -59,7 +59,46 @@
 </MudPaper>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
-    <MudText Typo="Typo.subtitle1" Class="mb-3">۳) تسویه (نقدی / بانک / چک — باقیمانده = نسیه)</MudText>
+    <MudText Typo="Typo.subtitle1" Class="mb-3">۳) فروشگاه و کد تخفیف</MudText>
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int?" Label="فروشگاه" @bind-Value="_storeId" Variant="Variant.Outlined">
+                <MudSelectItem Value="@((int?)null)">— پیشفرض شرکت —</MudSelectItem>
+                @foreach (var s in _stores)
+                {
+                    <MudSelectItem Value="@((int?)s.StoreId)">@s.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudSelect T="int?" Label="لیست قیمت" @bind-Value="_priceListId" Variant="Variant.Outlined">
+                <MudSelectItem Value="@((int?)null)">— خودکار (بهترین قیمت) —</MudSelectItem>
+                @foreach (var pl in _priceLists)
+                {
+                    <MudSelectItem Value="@((int?)pl.PriceListId)">@pl.Title</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField T="string" Label="کد تخفیف (کوپن)" @bind-Value="_couponCode" Variant="Variant.Outlined"
+                          Placeholder="مثلاً NOWRUZ1405" />
+        </MudItem>
+    </MudGrid>
+    <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="mt-2"
+               OnClick="RefreshCartAsync" Disabled="_selectedCustomer is null || _loadingQuote">
+        بازمحاسبهٔ قیمت سبد
+    </MudButton>
+    @if (_quoteTotal is not null)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2" Variant="Variant.Text">
+            پیش‌نمایش: ناخالص @QuoteGrossText — تخفیف @QuoteDiscountText
+            — <b>قابل‌پرداخت @QuoteTotalText</b> ریال
+        </MudAlert>
+    }
+</MudPaper>
+
+<MudPaper Elevation="1" Class="pa-4 mb-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-3">۴) تسویه (نقدی / بانک / چک — باقیمانده = نسیه)</MudText>
     <MudGrid>
         <MudItem xs="12" sm="6" md="3">
             <MudNumericField T="decimal" Label="نقدی" @bind-Value="_payCash" Variant="Variant.Outlined" Min="0" />
@@ -104,12 +143,21 @@
     private List<ProductRow> _products = new();
     private List<CartItemRow> _cart = new();
     private List<BankRow> _banks = new();
+    private List<StoreRow> _stores = new();
+    private List<PriceListRow> _priceLists = new();
     private CustomerRow? _selectedCustomer;
     private ProductRow? _selectedProduct;
     private decimal _qty = 1;
     private bool _loadingCart;
     private bool _busy;
     private DateTime? _orderDate = DateTime.Today;
+
+    // ── Wave 3: قیمت‌گذاری ──
+    private int? _storeId;
+    private int? _priceListId;
+    private string _couponCode = "";
+    private bool _loadingQuote;
+    private QuoteTotalRow? _quoteTotal;
 
     private EntityPickerOptions<CustomerRow> _customerOptions = new()
     {
@@ -148,18 +196,73 @@
 
     private string CustomerName => _selectedCustomer?.FullName ?? "";
     private string OrderDateText => _orderDate?.ToString("yyyy/MM/dd") ?? "";
-    private decimal CartTotal => _cart.Sum(x => x.LineTotal);
+    private decimal CartTotal => _quoteTotal?.Total ?? _cart.Sum(x => x.LineTotal);
     private decimal TotalPayments => _payCash + _payBank + _payChequeAmount;
     private decimal Remainder => CartTotal - TotalPayments;
+    private string QuoteGrossText => _quoteTotal?.Gross.ToString("N0") ?? "0";
+    private string QuoteDiscountText => _quoteTotal?.Discount.ToString("N0") ?? "0";
+    private string QuoteTotalText => _quoteTotal?.Total.ToString("N0") ?? "0";
 
     protected override async Task OnInitializedAsync()
     {
         _customers = (await Db.QueryAsync<CustomerRow>(Schema, "CustomerList", new { CompanyId = Session.ActiveCompanyId })).ToList();
         _products = (await Db.QueryAsync<ProductRow>(Schema, "ProductList")).ToList();
         _banks = (await Db.QueryAsync<BankRow>("treasury", "BankList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        _stores = (await Db.QueryAsync<StoreRow>(Schema, "StoreList", new { CompanyId = Session.ActiveCompanyId, StoreId = (int?)null, IsActive = (bool?)true })).ToList();
+        _priceLists = (await Db.QueryAsync<PriceListRow>(Schema, "PriceListList", new { CompanyId = Session.ActiveCompanyId, PriceListId = (int?)null, StoreId = (int?)null })).ToList();
         _customerOptions.Items = _customers;
         _productOptions.Items = _products;
     }
+
+    /// <summary>پیش‌نمایش قیمت با همان موتور OrderPlace (OrderPriceQuote).</summary>
+    private async Task RefreshQuoteAsync()
+    {
+        var cid = _selectedCustomer?.CustomerId ?? 0;
+        if (cid == 0) { _quoteTotal = null; return; }
+
+        _loadingQuote = true;
+        try
+        {
+            var rows = (await Db.QueryAsync<OrderQuoteRow>(Schema, "OrderPriceQuote", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                CustomerId = cid,
+                StoreId = _storeId,
+                PriceListId = _priceListId,
+                CouponCode = string.IsNullOrWhiteSpace(_couponCode) ? null : _couponCode.Trim()
+            })).ToList();
+
+            var total = rows.FirstOrDefault(r => r.IsTotal);
+            var gross = rows.Where(r => !r.IsTotal).Sum(r => r.LineTotal);
+            var total_ = total?.LineTotal ?? gross;
+            _quoteTotal = new QuoteTotalRow(gross, gross - total_, total_);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+            _quoteTotal = null;
+        }
+        finally
+        {
+            _loadingQuote = false;
+        }
+    }
+
+    private Task RefreshCartAsync()
+    {
+        _loadingCart = true;
+        try
+        {
+            return Task.WhenAll(LoadCartAsync(), RefreshQuoteAsync());
+        }
+        finally
+        {
+            _loadingCart = false;
+        }
+    }
+
+    /// <summary>جمع پیش‌نمایش قیمت (ناخالص/تخفیف/قابل‌پرداخت).</summary>
+    private sealed record QuoteTotalRow(decimal Gross, decimal Discount, decimal Total);
 
     private async Task LoadCartAsync()
     {
@@ -193,6 +296,7 @@
             });
             Snackbar.Add("به سبد اضافه شد.", Severity.Success);
             await LoadCartAsync();
+            await RefreshQuoteAsync();
         }
         catch (Exception ex)
         {
@@ -213,6 +317,11 @@
             Snackbar.Add("مبلغ تسویه (نقدی+بانک+چک) از کل سفارش بیشتر است.", Severity.Error);
             return;
         }
+        if (string.IsNullOrWhiteSpace(_couponCode) == false && _quoteTotal is null)
+        {
+            // کوپن وارد شده ولی پیش‌نمایش نگرفته — سرور خودش اعتبار را چک می‌کند؛ فقط هشدار
+            Snackbar.Add("کوپن وارد شده است؛ اگر نامعتبر باشد ثبت سفارش با خطا متوقف می‌شود.", Severity.Warning);
+        }
         if (_payChequeAmount > 0 && (string.IsNullOrEmpty(_payChequeNumber) || _payChequeBankId <= 0))
         {
             Snackbar.Add("شماره چک و بانک چک الزامی است.", Severity.Warning);
@@ -229,6 +338,9 @@
                 CompanyId = Session.ActiveCompanyId,
                 FiscalYearId = Session.ActiveFiscalYearId,
                 CreatedBy = Session.UserName,
+                StoreId = _storeId,
+                PriceListId = _priceListId,
+                CouponCode = string.IsNullOrWhiteSpace(_couponCode) ? null : _couponCode.Trim(),
                 PayCash = _payCash,
                 PayBank = _payBank,
                 ChequeNumber = string.IsNullOrEmpty(_payChequeNumber) ? null : _payChequeNumber,
@@ -236,9 +348,10 @@
                 ChequeAmount = _payChequeAmount,
                 ChequeDueDate = _payChequeDueDate?.Date
             });
-            Snackbar.Add($"سفارش {result?.OrderNumber} ثبت شد. کل: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
+            Snackbar.Add($"سفارش {result?.OrderNumber} ثبت شد. ناخالص: {result?.GrossTotal:N0} — تخفیف: {result?.DiscountTotal:N0} — قابل‌پرداخت: {result?.TotalAmount:N0} — نسیه: {result?.BalanceRial:N0} — سند: {result?.DocumentId}", Severity.Success);
             _cart = new();
             _payCash = 0; _payBank = 0; _payChequeAmount = 0; _payChequeNumber = ""; _payChequeBankId = 0; _payChequeDueDate = null;
+            _couponCode = ""; _quoteTotal = null;
             _selectedCustomer = null;
         }
         catch (Exception ex)

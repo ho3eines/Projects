@@ -159,11 +159,11 @@
 ## ۱۰. نتایج آخرین اجرای gate خودکار
 
 <!-- AUTO-GATE:START -->
-#### نتایج آخرین اجرای gate خودکار — 2026-08-31 06:30
-- وضعیت: **✅ پاس**
-- مجموع تست‌ها: **63**
-- موفقی: **63** | ناموفق: **0**
-- خلاصهٔ dotnet test: `Passed!  - Failed:     0, Passed:    63, Skipped:     0, Total:    63, Duration: 5 s - Tarazin.Tests.dll (net8.0)`
-- این بخش به‌صورت خودکار توسط `tools/run-checks.sh` (step ۷) از خروجی واقعی بازنویسی می‌شود؛ عدد‌های بخش‌های ۵.۴–۵.۶ دستی‌اند الهام از همین اجرا. گاردهای pymupdf (۴ب هدر راست‌چین، ۴ج A5L قالب، ۴د A5L جدول عمومی/BuildTablePdf، ۴هـ بدون هدر/QR مستقل، ۴و چندصفحه‌گی BuildTablePdf، ۴ز A5L چندصفحه BuildInvoicePdf، ۴ط هدر فقط روی صفحاتِ دارای ردیف) در CI نصب‌شده‌اند و به‌صورت واقعی اجرا می‌شوند؛ چهار گارد آن‌جا step جدا و نام‌دار هستند: A5L قالب (۴ج — `Run A5L template guard` → `bash tools/check-rtl-headers.sh a5l`)، چندصفحه‌گی جدول عمومی (۴و — `Run BuildTablePdf multi-page guard` → `bash tools/check-rtl-headers.sh table-many`)، چندصفحه‌گی فاکتور طلا (۴ز — `Run BuildInvoicePdf multi-page guard` → `bash tools/check-rtl-headers.sh invoice-a5l-many`) و هدر فقط روی صفحاتِ دارای ردیف (۴ط — `Run table-header-on-table-pages guard` → `bash tools/check-rtl-headers.sh table-summary-pages`؛ در A5 پرتوره صفحهٔ آخرِ فقط-جمع‌بندی بدون هدر رسماً معتبر است). در run-checks.sh گام ۴ز دو لایه دارد: xUnitِ نام‌دار (`FullyQualifiedName~BuildInvoicePdf_a5l_many_rows_multipage_no_overflow`) برای ساختار (MediaBox/چندصفحه/بیرون‌زدگی) + pymupdf برای تکرار هدر در هر صفحه. ورودی همه، فایل‌های dump تست `Dump_rtl_header_pdfs_for_pymupdf` در `%TEMP%/tarazin-pdf/rtl-headers` است.
+#### نتایج آخرین اجرای gate خودکار — 2026-09-01 21:49
+- وضعیت: **❌ ناقص**
+- مجموع تست‌ها: **154**
+- موفقی: **152** | ناموفق: **2**
+- خلاصهٔ dotnet test: `Failed!  - Failed:     2, Passed:   152, Skipped:     0, Total:   154, Duration: 48 s - Tarazin.Tests.dll (net8.0)`
+- این بخش به‌صورت خودکار توسط `tools/run-checks.sh` (step ۶) از خروجی واقعی بازنویسی می‌شود؛ عدد‌های بخش‌های ۵.۴–۵.۶ دستی‌اند الهام از همین اجرا.
 
 <!-- AUTO-GATE:END -->

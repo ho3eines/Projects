@@ -38,9 +38,10 @@ BEGIN TRAN;
         SET @CostPrice = ISNULL(@UnitPrice, 0);
         -- لایهٔ جدید موجودی
         INSERT INTO [inventory].[Movements]
-            (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+            (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
         VALUES
-            (N'', @MovementType, @ItemId, @WarehouseId, @SubWarehouseId, @EffectiveQty, @CostPrice, @CostPrice, @MovementDate, @Description, N'Posted', @CreatedBy, @CompanyId);
+            (N'', @MovementType, @ItemId, @WarehouseId, @SubWarehouseId, @EffectiveQty, @CostPrice, @CostPrice, @MovementDate, @Description, N'Posted', @CreatedBy, @CompanyId,
+             N'Manual');
         DECLARE @Mid INT = SCOPE_IDENTITY();
         UPDATE [inventory].[Movements]
         SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid AS NVARCHAR(10)), 5)
@@ -120,9 +121,10 @@ BEGIN TRAN;
             SET @CostPrice = ROUND(@TotalCost / @EffectiveQty, 2);
 
         INSERT INTO [inventory].[Movements]
-            (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+            (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
         VALUES
-            (N'', @MovementType, @ItemId, @WarehouseId, @SubWarehouseId, @EffectiveQty, @CostPrice, @CostPrice, @MovementDate, @Description, N'Posted', @CreatedBy, @CompanyId);
+            (N'', @MovementType, @ItemId, @WarehouseId, @SubWarehouseId, @EffectiveQty, @CostPrice, @CostPrice, @MovementDate, @Description, N'Posted', @CreatedBy, @CompanyId,
+             N'Manual');
         DECLARE @Mid2 INT = SCOPE_IDENTITY();
         UPDATE [inventory].[Movements]
         SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid2 AS NVARCHAR(10)), 5)

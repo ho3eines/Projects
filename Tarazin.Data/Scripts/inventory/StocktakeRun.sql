@@ -1,7 +1,11 @@
 -- =============================================
 -- Tarazin.Data/Scripts/inventory/StocktakeRun.sql
 -- Schema: inventory
--- Execute. عملیات ویژه: انبارگردانی — ثبت شمارش و تعدیل موجودی (انبار/انبارک مشخص).
+-- Cross-schema: accounting, central
+-- Execute. عملیات ویژه: انبارگردانی — ثبت شمارش و تعدیل موجودی (انبار/انبارک مشخص)
+-- + سند حسابداری مغایرت (اگر تنظیمات انبار فعال و حساب مقابل تعدیل ست شده باشد).
+-- پارامترها: @ItemId, @WarehouseId, @SubWarehouseId, @CountedQty, @FiscalYearId,
+--            @CompanyId, @CreatedBy
 -- =============================================
 IF @WarehouseId IS NULL OR @WarehouseId = 0
     THROW 51004, N'انبار را انتخاب کنید.', 1;
@@ -22,10 +26,11 @@ BEGIN
         BEGIN
             DECLARE @UnitCost DECIMAL(18,2) = ISNULL((SELECT UnitPrice FROM [inventory].[Items] WHERE ItemId = @ItemId), 0);
             INSERT INTO [inventory].[Movements]
-                (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+                (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
             VALUES
                 (N'', N'Adjustment', @ItemId, @WarehouseId, @SubWarehouseId, @Diff, @UnitCost, @UnitCost,
-                 CAST(SYSDATETIME() AS DATE), N'انبارگردانی: افزایش موجودی', N'Posted', @CreatedBy, @CompanyId);
+                 CAST(SYSDATETIME() AS DATE), N'انبارگردانی: افزایش موجودی', N'Posted', @CreatedBy, @CompanyId,
+                 N'Stocktake');
             DECLARE @Mid INT = SCOPE_IDENTITY();
             UPDATE [inventory].[Movements] SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid AS NVARCHAR(10)), 5) WHERE MovementId = @Mid;
 
@@ -69,10 +74,11 @@ BEGIN
             DECLARE @CostPrice DECIMAL(18,2) = ROUND(@TotalCost / @OutQty, 2);
 
             INSERT INTO [inventory].[Movements]
-                (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId)
+                (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice, MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
             VALUES
                 (N'', N'Adjustment', @ItemId, @WarehouseId, @SubWarehouseId, @OutQty, @CostPrice, @CostPrice,
-                 CAST(SYSDATETIME() AS DATE), N'انبارگردانی: کاهش موجودی', N'Posted', @CreatedBy, @CompanyId);
+                 CAST(SYSDATETIME() AS DATE), N'انبارگردانی: کاهش موجودی', N'Posted', @CreatedBy, @CompanyId,
+                 N'Stocktake');
             DECLARE @Mid2 INT = SCOPE_IDENTITY();
             UPDATE [inventory].[Movements] SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid2 AS NVARCHAR(10)), 5) WHERE MovementId = @Mid2;
             SET @Mid = @Mid2;
@@ -90,5 +96,58 @@ BEGIN
                     CAST(SYSDATETIME() AS DATE) AS MovementDate,
                     N'انبارگردانی: تعدیل موجودی' AS Description
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER), 1);
+
+        -- ── سند حسابداری مغایرت (اگر تنظیمات فعال و حساب‌ها آماده باشد) ──
+        -- انبارگردانی هرگز به دلیل نبود تنظیمات حسابداری متوقف نمی‌شود؛ سند فقط در
+        -- صورت کامل‌بودن تنظیمات (حساب‌ها + سال مالی) ساخته می‌شود.
+        DECLARE @AdjSettingsEnabled BIT = ISNULL((SELECT IsEnabled FROM [inventory].[InventorySettings] WHERE CompanyId = @CompanyId), 0);
+        DECLARE @AdjDocumentId INT = NULL;
+        IF @AdjSettingsEnabled = 1 AND @Diff <> 0
+        BEGIN
+            DECLARE @AdjInvAccountId INT, @AdjInvCode NVARCHAR(4000), @AdjInvTitle NVARCHAR(200);
+            DECLARE @AdjAccountId INT, @AdjCode NVARCHAR(4000), @AdjTitle NVARCHAR(200);
+            SELECT @AdjInvAccountId = InventoryAccountId, @AdjInvCode = InventoryAccountCode, @AdjInvTitle = InventoryAccountTitle,
+                   @AdjAccountId = AdjustmentAccountId, @AdjCode = AdjustmentAccountCode, @AdjTitle = AdjustmentAccountTitle
+            FROM [inventory].[InventorySettings] WHERE CompanyId = @CompanyId;
+
+            IF @AdjInvAccountId IS NULL OR @AdjAccountId IS NULL OR @FiscalYearId IS NULL
+                SET @AdjDocumentId = NULL;  -- سند ساخته نمی‌شود (بدون خطا)
+            ELSE
+            BEGIN
+            DECLARE @AdjAmount DECIMAL(18,2) = ROUND(ABS(@Diff) * CASE WHEN @Diff > 0 THEN @UnitCost ELSE @CostPrice END, 2);
+            DECLARE @AdjNextNum INT = ISNULL((SELECT MAX(TRY_CONVERT(INT, DocumentNumber))
+                                              FROM [accounting].[Documents]
+                                              WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0), 0) + 1;
+
+            INSERT INTO [accounting].[Documents]
+                (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode,
+                 Status, CreatedBy, IsDeleted, CompanyId, FiscalYearId, SourceReference)
+            VALUES
+                (RIGHT(N'00000000' + CAST(@AdjNextNum AS NVARCHAR(10)), 8), CAST(SYSDATETIME() AS DATE),
+                 N'StocktakeAdjustment', N'انبارگردانی', @AdjAmount, N'IRR', N'Note', @CreatedBy, 0,
+                 @CompanyId, @FiscalYearId, CONCAT(N'Stocktake:', @Mid));
+            SET @AdjDocumentId = SCOPE_IDENTITY();
+
+            IF @Diff > 0
+            BEGIN
+                -- افزایش موجودی: بدهکار موجودی کالا / بستانکار حساب مقابل تعدیل
+                INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+                VALUES (@AdjDocumentId, @AdjInvAccountId, @AdjInvCode, @AdjInvTitle, N'انبارگردانی: افزایش موجودی', @AdjAmount, 0);
+                INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+                VALUES (@AdjDocumentId, @AdjAccountId, @AdjCode, @AdjTitle, N'انبارگردانی: افزایش موجودی', 0, @AdjAmount);
+            END
+            ELSE
+            BEGIN
+                -- کاهش موجودی: بستانکار موجودی کالا / بدهکار حساب مقابل تعدیل
+                INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+                VALUES (@AdjDocumentId, @AdjAccountId, @AdjCode, @AdjTitle, N'انبارگردانی: کاهش موجودی', @AdjAmount, 0);
+                INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+                VALUES (@AdjDocumentId, @AdjInvAccountId, @AdjInvCode, @AdjInvTitle, N'انبارگردانی: کاهش موجودی', 0, @AdjAmount);
+            END
+            END
+        END
     COMMIT;
 END
+
+-- خروجی: شناسهٔ سند حسابداری انبارگردانی (اگر ساخته شده باشد؛ وگرنه NULL)
+SELECT @AdjDocumentId AS DocumentId;

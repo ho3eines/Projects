@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthService>();
         services.AddScoped<UserService>();
         services.AddScoped<AccountingContextService>();
+        services.AddScoped<InventoryContextService>(); // انبار فعال نشست (مثل سال مالی)
         services.AddScoped<EntityCrudService>();
         services.AddScoped<AccountPickerService>(); // انتخاب حساب (Account Picker)
         services.AddScoped<EntityPickerService>();  // pemilih entiti generik (bank/pelanggan/produk/dll)
@@ -38,6 +39,7 @@ public static class ServiceCollectionExtensions
         // را هاست ثبت می‌کند (وب: WebPdfSaver، MAUI: MauiPdfSaver).
         services.AddScoped<PdfReportService>();
         services.AddScoped<PrintTemplateService>(); // مدیریت قالب‌های چاپ (موتور چاپ عمومی)
+        services.AddScoped<DemoDataSeedingService>(); // اجرای seed-demo-data.sh --reseed از UI
 
         return services;
     }

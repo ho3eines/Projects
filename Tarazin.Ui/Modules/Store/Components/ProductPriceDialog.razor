@@ -1,0 +1,125 @@
+@using Tarazin.Models
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+@* دیالوگ قیمت محصول در لیست قیمت — الگوی StoreDialog *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" Label="لیست قیمت" @bind-Value="_priceListId" Required="true"
+                               RequiredError="لیست قیمت الزامی است" Variant="Variant.Outlined">
+                        @foreach (var pl in _priceLists)
+                        {
+                            <MudSelectItem Value="@pl.PriceListId">@pl.Title (@pl.Code)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" Label="محصول" @bind-Value="_productId" Required="true"
+                               RequiredError="محصول الزامی است" Variant="Variant.Outlined">
+                        @foreach (var p in _products)
+                        {
+                            <MudSelectItem Value="@p.ProductId">@p.Title (@p.ProductCode)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Label="فروشگاه (اختیاری)" @bind-Value="_storeId" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@((int?)null)">همهٔ فروشگاه‌ها</MudSelectItem>
+                        @foreach (var s in _stores)
+                        {
+                            <MudSelectItem Value="@((int?)s.StoreId)">@s.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="قیمت (ریال)" @bind-Value="_price" Required="true"
+                                     RequiredError="قیمت الزامی است" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker Label="از تاریخ" @bind-Date="_fromDate" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker Label="تا تاریخ" @bind-Date="_toDate" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="decimal" Label="حداقل تعداد" @bind-Value="_minQty" Variant="Variant.Outlined" Min="1" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ProductPriceRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    private int _priceListId, _productId;
+    private int? _storeId;
+    private decimal _price, _minQty = 1;
+    private DateTime? _fromDate, _toDate;
+
+    private List<PriceListRow> _priceLists = new();
+    private List<ProductRow> _products = new();
+    private List<StoreRow> _stores = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var cid = Session.ActiveCompanyId;
+        _priceLists = (await Db.QueryAsync<PriceListRow>("store", "PriceListList",
+            new { CompanyId = cid, PriceListId = (int?)null, StoreId = (int?)null })).ToList();
+        _products = (await Db.QueryAsync<ProductRow>("store", "ProductList")).ToList();
+        _stores = (await Db.QueryAsync<StoreRow>("store", "StoreList",
+            new { CompanyId = cid, StoreId = (int?)null, IsActive = (bool?)null })).ToList();
+
+        if (Model is not null)
+        {
+            _priceListId = Model.PriceListId; _productId = Model.ProductId;
+            _storeId = Model.StoreId; _price = Model.Price; _minQty = Model.MinQty;
+            _fromDate = Model.FromDate; _toDate = Model.ToDate;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid || _priceListId <= 0 || _productId <= 0) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("store", "ProductPriceUpsert", new
+            {
+                PriceId = Model?.PriceId ?? 0,
+                CompanyId = Session.ActiveCompanyId,
+                PriceListId = _priceListId, ProductId = _productId, StoreId = _storeId,
+                Price = _price,
+                FromDate = _fromDate?.Date, ToDate = _toDate?.Date,
+                MinQty = _minQty <= 0 ? 1m : _minQty,
+                CreatedBy = Session.UserName, UpdatedBy = Session.UserName
+            });
+            Snackbar.Add(Model is null ? "قیمت ثبت شد." : "قیمت ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

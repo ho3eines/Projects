@@ -350,6 +350,15 @@ GO
 IF COL_LENGTH(N'treasury.Cheques', N'CompanyId') IS NULL
     ALTER TABLE [treasury].[Cheques] ADD CompanyId INT NULL;
 GO
+-- SourceReference: کلید یکتای منبع چک (مثلاً GoldInvoice:12) — چاپ/گزارش چک‌ها
+-- (ChequeDueReport/ChequeList/SourceDetail) و چاپ فاکتور طلا روی آن فیلتر
+-- می‌کنند؛ قبلاً فقط روی دیتابیس‌هایِ اجراشدهٔ _MobileSecurity وجود داشت.
+IF COL_LENGTH(N'treasury.Cheques', N'SourceReference') IS NULL
+    ALTER TABLE [treasury].[Cheques] ADD SourceReference NVARCHAR(100) NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Cheques_SourceReference' AND object_id = OBJECT_ID(N'[treasury].[Cheques]'))
+    CREATE INDEX IX_Cheques_SourceReference ON [treasury].[Cheques](SourceReference) WHERE SourceReference IS NOT NULL AND SourceReference <> N'';
+GO
 -- Cheque lifecycle timestamps + return reason (collected/returned management)
 IF COL_LENGTH(N'treasury.Cheques', N'CollectedAt') IS NULL
     ALTER TABLE [treasury].[Cheques] ADD CollectedAt DATETIME2 NULL;
@@ -505,4 +514,25 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_CurrencyRates_Company
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_DayCloses_Company_Date' AND object_id = OBJECT_ID(N'[treasury].[DayCloses]'))
     CREATE UNIQUE INDEX UX_DayCloses_Company_Date ON [treasury].[DayCloses](CompanyId, DayDate) WHERE CompanyId IS NOT NULL;
+GO
+
+-- ─────────────────────────────────────────────────────────────
+-- مهاجرت: لنگر حسابداری روی ردیف‌های خزانه (DocumentId)
+-- «شماره مشترک» بین ماژول‌ها کلید SourceReference ('StoreOrder:12',
+-- 'SalesInvoice:34', ...) است؛ ردیف‌های خزانه (نقد/چک) که در همان
+-- تراکنشِ سند حسابداری ساخته می‌شوند حالا DocumentId سند را هم نگه
+-- می‌دارند تا زنجیرهٔ فروشگاه→انبار→خزانه→حسابداری در SQL مستقیم و
+-- بدون واکشی متن کلید قابل ردیابی باشد.
+-- ─────────────────────────────────────────────────────────────
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[treasury].[CashMovements]') AND name = N'DocumentId')
+    ALTER TABLE [treasury].[CashMovements] ADD DocumentId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[treasury].[Cheques]') AND name = N'DocumentId')
+    ALTER TABLE [treasury].[Cheques] ADD DocumentId INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CashMovements_DocumentId' AND object_id = OBJECT_ID(N'[treasury].[CashMovements]'))
+    CREATE INDEX IX_CashMovements_DocumentId ON [treasury].[CashMovements](DocumentId) WHERE DocumentId IS NOT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Cheques_DocumentId' AND object_id = OBJECT_ID(N'[treasury].[Cheques]'))
+    CREATE INDEX IX_Cheques_DocumentId ON [treasury].[Cheques](DocumentId) WHERE DocumentId IS NOT NULL;
 GO

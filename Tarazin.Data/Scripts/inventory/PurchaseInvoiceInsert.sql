@@ -8,7 +8,11 @@
 --   @InvoiceDate, @SupplierPartyId, @WarehouseId, @SubWarehouseId, @ReferenceNumber,
 --   @PaymentTerms, @DueDate, @Description, @CompanyId, @FiscalYearId, @CreatedBy
 --   @LinesJson — JSON array: [{ ItemId, Qty, GiftQty, UnitPrice, DiscountPercent, TaxPercent, DutyPercent }]
+--   @SerialsJson — JSON array اختیاری: [{ ItemId, LotNo, SerialNo, ExpiryDate, Qty }]
 -- =============================================
+-- سازگاری رو به عقب: فراخوانیهای قدیمی فقط @LinesJson میفرستند — بدون این DECLARE،
+-- نبود پارامتر خطای 137 میدهد. مقدار پیشفرض NULL یعنی مسیر سریال/بچ نادیده گرفته میشود.
+-- @SerialsJson اختیاری و همیشه از سمت فراخوانی ارسال می‌شود (NULL وقتی استفاده نشود)
 DECLARE @SupplierName NVARCHAR(200) = N'';
 IF @SupplierPartyId IS NOT NULL
     SELECT @SupplierName = FullName FROM [central].[Parties] WHERE PartyId = @SupplierPartyId AND IsDeleted = 0;
@@ -101,22 +105,23 @@ BEGIN TRAN;
         INSERT INTO [inventory].[InvoiceLines]
             (InvoiceId, ItemId, Qty, GiftQty, UnitPrice, GrossAmount,
              DiscountPercent, DiscountAmount, TaxPercent, TaxAmount, DutyPercent, DutyAmount,
-             ChargesAmount, CostPrice, NetAmount, SortOrder)
+             ChargesAmount, CostPrice, NetAmount, SortOrder, CompanyId)
         VALUES
             (@PurchaseInvoiceId, @ItemId, @Qty, @GiftQty, @UnitPrice, @LineGross,
              (SELECT DiscountPercent FROM @Lines WHERE RowId = @RowId), @LineDisc,
              (SELECT TaxPercent FROM @Lines WHERE RowId = @RowId), @LineTax,
              (SELECT DutyPercent FROM @Lines WHERE RowId = @RowId), @LineDuty,
-             @LineCharges, @LineCost, @LineNet, @RowId);
+             @LineCharges, @LineCost, @LineNet, @RowId, @CompanyId);
 
         -- ── Inventory receipt (Qty + GiftQty both enter stock) ──
         DECLARE @TotalReceiptQty DECIMAL(18,3) = @Qty + @GiftQty;
         INSERT INTO [inventory].[Movements]
             (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice,
-             MovementDate, Description, Status, CreatedBy, CompanyId)
+             MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
         VALUES
             (N'', N'Receipt', @ItemId, @WarehouseId, @SubWarehouseId, @TotalReceiptQty, @UnitPrice, @LineCost,
-             @InvoiceDate, N'رسید بابت فاکتور خرید ' + @InvNumber, N'Posted', @CreatedBy, @CompanyId);
+             @InvoiceDate, N'رسید بابت فاکتور خرید ' + @InvNumber, N'Posted', @CreatedBy, @CompanyId,
+             CONCAT(N'PINV:', @PurchaseInvoiceId));
         DECLARE @Mid INT = SCOPE_IDENTITY();
         UPDATE [inventory].[Movements] SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid AS NVARCHAR(10)), 5) WHERE MovementId = @Mid;
 
@@ -125,6 +130,19 @@ BEGIN TRAN;
             (ItemId, WarehouseId, SubWarehouseId, ReceiptMovementId, QtyRemaining, UnitCost, ReceivedDate, CompanyId)
         VALUES
             (@ItemId, @WarehouseId, @SubWarehouseId, @Mid, @TotalReceiptQty, @LineCost, @InvoiceDate, @CompanyId);
+
+        -- ثبت سریال/بچ (اگر برای این ردیف ارسال شده باشد) — فقط ردیف‌های همین کالا
+        IF @SerialsJson IS NOT NULL AND @SerialsJson <> N''
+        BEGIN
+            INSERT INTO [inventory].[LotSerials]
+                (ItemId, WarehouseId, SubWarehouseId, LotNo, SerialNo, ExpiryDate, Qty,
+                 Status, SourceReference, ReceiptMovementId, CompanyId, CreatedBy)
+            SELECT @ItemId, @WarehouseId, @SubWarehouseId, s.LotNo, s.SerialNo, s.ExpiryDate, ISNULL(s.Qty, 1),
+                   N'In', CONCAT(N'PINV:', @PurchaseInvoiceId), @Mid, @CompanyId, @CreatedBy
+            FROM OPENJSON(@SerialsJson)
+            WITH (ItemId INT, LotNo NVARCHAR(50), SerialNo NVARCHAR(100), ExpiryDate DATE, Qty DECIMAL(18,3)) s
+            WHERE s.ItemId = @ItemId;
+        END
 
         -- Update item stock + weighted average price
         IF @CostingMethod = N'WeightedAverage'
@@ -148,12 +166,13 @@ BEGIN TRAN;
     CLOSE curLine; DEALLOCATE curLine;
 
     -- ── Accounting document (if settings enabled) ──
+    -- ثبت فاکتور/حرکت انبار هرگز به دلیل نبود تنظیمات حسابداری متوقف نمی‌شود؛
+    -- اگر حساب‌ها/سال مالی آماده نباشد سند ساخته نمی‌شود و دلیل در AccountingNote برمی‌گردد.
     DECLARE @SettingsEnabled BIT = ISNULL((SELECT IsEnabled FROM [inventory].[InventorySettings] WHERE CompanyId = @CompanyId), 0);
+    DECLARE @DocumentId INT = NULL;
+    DECLARE @AccountingNote NVARCHAR(200) = NULL;
     IF @SettingsEnabled = 1
     BEGIN
-        IF @FiscalYearId IS NULL
-            THROW 51027, N'سال مالی فعال برای ثبت سند حسابداری انتخاب نشده است.', 1;
-
         DECLARE @InvAccountId INT, @InvCode NVARCHAR(4000), @InvTitle NVARCHAR(200);
         DECLARE @ContraAccountId INT, @ContraCode NVARCHAR(4000), @ContraTitle NVARCHAR(200);
         SELECT @InvAccountId = InventoryAccountId, @InvCode = InventoryAccountCode, @InvTitle = InventoryAccountTitle,
@@ -161,26 +180,30 @@ BEGIN TRAN;
         FROM [inventory].[InventorySettings] WHERE CompanyId = @CompanyId;
 
         IF @InvAccountId IS NULL OR @ContraAccountId IS NULL
-            THROW 51038, N'حساب‌های انبار/مقابل در تنظیمات انبار تنظیم نشده است.', 1;
+            SET @AccountingNote = N'حساب‌های انبار/مقابل در تنظیمات انبار تنظیم نشده است — سند حسابداری ساخته نشد.';
+        ELSE IF @FiscalYearId IS NULL
+            SET @AccountingNote = N'سال مالی فعال انتخاب نشده است — سند حسابداری ساخته نشد.';
+        ELSE
+        BEGIN
+            DECLARE @NextNum INT = ISNULL((SELECT MAX(TRY_CONVERT(INT, DocumentNumber))
+                                           FROM [accounting].[Documents]
+                                           WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0), 0) + 1;
 
-        DECLARE @NextNum INT = ISNULL((SELECT MAX(TRY_CONVERT(INT, DocumentNumber))
-                                       FROM [accounting].[Documents]
-                                       WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0), 0) + 1;
+            INSERT INTO [accounting].[Documents]
+                (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy, IsDeleted, CompanyId, FiscalYearId, SourceReference)
+            VALUES
+                (RIGHT(N'00000000' + CAST(@NextNum AS NVARCHAR(10)), 8), @InvoiceDate, N'PurchaseInvoice', @SupplierName, @NetAmount, N'IRR', N'Note', @CreatedBy, 0, @CompanyId, @FiscalYearId, CONCAT(N'PurchaseInvoice:', @PurchaseInvoiceId));
+            SET @DocumentId = SCOPE_IDENTITY();
 
-        INSERT INTO [accounting].[Documents]
-            (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy, IsDeleted, CompanyId, FiscalYearId, SourceReference)
-        VALUES
-            (RIGHT(N'00000000' + CAST(@NextNum AS NVARCHAR(10)), 8), @InvoiceDate, N'PurchaseInvoice', @SupplierName, @NetAmount, N'IRR', N'Note', @CreatedBy, 0, @CompanyId, @FiscalYearId, CONCAT(N'PurchaseInvoice:', @PurchaseInvoiceId));
-        DECLARE @DocumentId INT = SCOPE_IDENTITY();
+            -- بدهکار: موجودی کالا / بستانکار: تأمین‌کننده
+            INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+            VALUES (@DocumentId, @InvAccountId, @InvCode, @InvTitle, N'خرید ' + @InvNumber, @NetAmount, 0);
+            INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+            VALUES (@DocumentId, @ContraAccountId, @ContraCode, @ContraTitle, N'بستانکار تأمین‌کننده ' + @InvNumber, 0, @NetAmount);
 
-        -- بدهکار: موجودی کالا / بستانکار: تأمین‌کننده
-        INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-        VALUES (@DocumentId, @InvAccountId, @InvCode, @InvTitle, N'خرید ' + @InvNumber, @NetAmount, 0);
-        INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-        VALUES (@DocumentId, @ContraAccountId, @ContraCode, @ContraTitle, N'بستانکار تأمین‌کننده ' + @InvNumber, 0, @NetAmount);
-
-        UPDATE [inventory].[Invoices] SET DocumentId = @DocumentId WHERE InvoiceId = @PurchaseInvoiceId;
+            UPDATE [inventory].[Invoices] SET DocumentId = @DocumentId WHERE InvoiceId = @PurchaseInvoiceId;
+        END
     END
 
 COMMIT;
-SELECT @PurchaseInvoiceId AS PurchaseInvoiceId, @InvNumber AS InvoiceNumber, @NetAmount AS NetAmount, @DocumentId AS DocumentId;
+SELECT @PurchaseInvoiceId AS PurchaseInvoiceId, @InvNumber AS InvoiceNumber, @NetAmount AS NetAmount, @DocumentId AS DocumentId, @AccountingNote AS AccountingNote;

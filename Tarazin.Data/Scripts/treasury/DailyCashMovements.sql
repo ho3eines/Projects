@@ -13,6 +13,7 @@ SELECT
     ISNULL(a.AccountName, c.Title) AS AccountName,
     m.Description,
     m.Status,
+    m.SourceReference,
     m.CreatedAt,
     m.UpdatedAt
 FROM [treasury].[CashMovements] m

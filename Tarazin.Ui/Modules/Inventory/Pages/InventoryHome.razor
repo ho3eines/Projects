@@ -1,6 +1,7 @@
 @page "/inventory"
 @inject DbService Db
 @inject UserSession Session
+@inject AccountingContextService Context
 @inject ISnackbar Snackbar
 
 <PageTitle>اسناد روز انبار — انبار</PageTitle>
@@ -35,6 +36,15 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="مبدأ حرکت" @bind-Value="_sourceType" Variant="Variant.Outlined" Clearable="true">
+                <MudSelectItem Value="@("")">همهٔ مبدأها</MudSelectItem>
+                @foreach (var s in InventorySourceLabels.Options)
+                {
+                    <MudSelectItem Value="s.Key">@s.Label</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
             <MudTextField Label="جستجو (شماره حرکت یا کالا)" @bind-Value="_search" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" md="12">
@@ -43,6 +53,24 @@
                 اعمال فیلتر
             </MudButton>
         </MudItem>
+        <MudItem xs="12">
+            <div class="d-flex align-center flex-wrap gap-2">
+                <MudTooltip Text="بازهٔ پیش‌فرض = کل سال مالی فعال">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                             Icon="@Icons.Material.Filled.CalendarMonth" Style="cursor:pointer"
+                             OnClick="ResetToActiveFiscalYearAsync" Disabled="_loading">
+                        بازهٔ سال مالی
+                    </MudChip>
+                </MudTooltip>
+                @if (_from is not null && _to is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        بازهٔ فعلی: <span class="tz-num">@PersianDate.ToPersian(_from.Value)</span> تا
+                        <span class="tz-num">@PersianDate.ToPersian(_to.Value)</span>
+                    </MudText>
+                }
+            </div>
+        </MudItem>
     </MudGrid>
 </MudPaper>
 
@@ -50,7 +78,7 @@
     <MudTable Items="_rows" Loading="_loading" Hover="true" Dense="true" Striped="true" RowsPerPage="25">
         <HeaderContent>
             <MudTh>شماره</MudTh><MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>کالا</MudTh>
-            <MudTh>انبار</MudTh><MudTh>انبارک</MudTh><MudTh>تعداد</MudTh><MudTh>ارزش</MudTh><MudTh>وضعیت</MudTh>
+            <MudTh>انبار</MudTh><MudTh>انبارک</MudTh><MudTh>مبدأ</MudTh><MudTh>تعداد</MudTh><MudTh>ارزش</MudTh><MudTh>وضعیت</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
@@ -59,6 +87,11 @@
             <MudTd DataLabel="کالا">@context.ItemCode — @context.ItemTitle</MudTd>
             <MudTd DataLabel="انبار">@context.WarehouseName</MudTd>
             <MudTd DataLabel="انبارک">@(string.IsNullOrEmpty(context.SubWarehouseName) ? "—" : context.SubWarehouseName)</MudTd>
+            <MudTd DataLabel="مبدأ">
+                <MudChip T="string" Size="Size.Small" Color="@SourceColor(context.SourceType)" Variant="Variant.Outlined">
+                    @SourceLabel(context.SourceType)
+                </MudChip>
+            </MudTd>
             <MudTd DataLabel="تعداد">@context.Qty.ToString("N0")</MudTd>
             <MudTd DataLabel="ارزش">@context.TotalValue.ToString("N0")</MudTd>
             <MudTd DataLabel="وضعیت">
@@ -83,12 +116,43 @@
     private DateTime? _to;
     private int _warehouseId;
     private int _subWarehouseId;
+    private string _sourceType = "";
+
+    private static string SourceLabel(string? type) => InventorySourceLabels.For(type);
+
+    private static Color SourceColor(string? type)
+    {
+        try
+        {
+            return type?.ToUpperInvariant() switch
+            {
+                "STOREORDER" => Color.Secondary,
+                "PINV" => Color.Info,
+                "SINV" => Color.Primary,
+                "RET" => Color.Warning,
+                "TRANSFER" => Color.Default,
+                "STOCKTAKE" => Color.Error,
+                "MANUAL" => Color.Default,
+                _ => Color.Default
+            };
+        }
+        catch { return Color.Default; }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         _from = DateTime.Today.AddDays(-30);
         _to = DateTime.Today;
         _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+        await LoadAsync();
+    }
+
+    /// <summary>بازگشت بازهٔ تاریخ به کل سال مالی فعال و بارگذاری مجدد — یک کلیک.</summary>
+    private async Task ResetToActiveFiscalYearAsync()
+    {
+        var fy = await Context.GetActiveFiscalYearAsync();
+        _from = fy?.StartDate ?? DateTime.Today.AddDays(-30);
+        _to = fy?.EndDate ?? DateTime.Today;
         await LoadAsync();
     }
 
@@ -113,6 +177,7 @@
                 ToDate = _to?.Date ?? DateTime.Today,
                 SearchText = _search ?? "",
                 MovementType = (string?)null,
+                SourceType = string.IsNullOrWhiteSpace(_sourceType) ? (string?)null : _sourceType,
                 WarehouseId = _warehouseId == 0 ? (int?)null : _warehouseId,
                 SubWarehouseId = _subWarehouseId == 0 ? (int?)null : _subWarehouseId,
                 SkipRows = 0,

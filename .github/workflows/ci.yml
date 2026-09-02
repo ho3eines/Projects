@@ -158,10 +158,10 @@ jobs:
           done
           echo "All schemas initialized"
 
-      - name: Run DB-backed guards (print templates + close year + multi-invoice gate)
+      - name: Run DB-backed guards (print templates + close year + multi-invoice + advanced doc print + line ownership)
         if: steps.wait-sql.outputs.ready == 'true'
         env:
           TARAZIN_TEST_CONN: "Server=localhost;Database=TarazinMaster;User Id=sa;Password=Tarazin#CI2026!;TrustServerCertificate=True;Encrypt=False"
         run: |
           dotnet test Tarazin.Tests/Tarazin.Tests.csproj --nologo \
-            --filter "FullyQualifiedName~PrintTemplate|FullyQualifiedName~AccountingCloseYearTests|FullyQualifiedName~MultiInvoiceGateTests"
+            --filter "FullyQualifiedName~PrintTemplate|FullyQualifiedName~AccountingCloseYearTests|FullyQualifiedName~MultiInvoiceGateTests|FullyQualifiedName~AdvancedDocumentPrintGuardTests|FullyQualifiedName~DocumentLinesCompanyIdGuardTests"

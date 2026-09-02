@@ -100,4 +100,46 @@ public sealed class EntityPickerService
 
         return default;
     }
+
+    /// <summary>
+    /// انتخاب چندتایی — لیستی از آیتم‌های انتخاب‌شده برمی‌گرداند (در حالت لغو، لیست خالی).
+    /// </summary>
+    public async Task<List<T>> PickManyAsync<T>(EntityPickerOptions<T> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var parameters = new DialogParameters<Components.SelectorDialog<T>>
+        {
+            { x => x.Items, options.Items ?? new List<T>() },
+            { x => x.Title, options.Title },
+            { x => x.SearchPlaceholder, options.SearchPlaceholder },
+            { x => x.Columns, options.Columns },
+            { x => x.DisplayText, options.DisplayText },
+            { x => x.SearchFields, options.SearchFields },
+            { x => x.RowsPerPage, options.RowsPerPage },
+            { x => x.EnableVirtualization, options.EnableVirtualization },
+            { x => x.MultiSelect, true },
+            { x => x.ConfirmLabel, "تأیید" },
+        };
+
+        var dlgOptions = new DialogOptions
+        {
+            MaxWidth = options.MaxWidth,
+            FullWidth = true,
+            CloseButton = true,
+            CloseOnEscapeKey = true,
+            BackdropClick = false,
+        };
+
+        var dialog = await _dialogs.ShowAsync<Components.SelectorDialog<T>>(options.Title, parameters, dlgOptions);
+        var result = await dialog.Result;
+
+        if (result is null || result.Canceled)
+            return new();
+
+        if (result.Data is Components.SelectorDialog<T>.SelectorResult<T> picked)
+            return picked.Items;
+
+        return new();
+    }
 }

@@ -1,0 +1,89 @@
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+@* دیالوگ درج/ویرایش ویژگی داینامیک — Attribute جدید بدون تغییر اسکیما *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="8">
+                    <MudTextField T="string" Label="عنوان ویژگی (مثلا RAM، رنگ، سایز)" @bind-Value="_title" Required="true"
+                                  RequiredError="عنوان الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Label="نوع داده" @bind-Value="_dataType" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Text")">متن</MudSelectItem>
+                        <MudSelectItem Value="@("Number")">عدد</MudSelectItem>
+                        <MudSelectItem Value="@("Boolean")">بله/خیر</MudSelectItem>
+                        <MudSelectItem Value="@("List")">لیست</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField T="string" Label="واحد (مثلا GB، اینچ)" @bind-Value="_unit" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_sort" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                    <MudSwitch T="bool" @bind-Value="_facet" Color="Color.Info">facet تنوع (رنگ/سایز)</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Primary">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public AttributeRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+    private string _title = "";
+    private string _dataType = "Text";
+    private string? _unit;
+    private int _sort;
+    private bool _facet, _isActive = true;
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _title = Model.Title; _dataType = Model.DataType; _unit = Model.Unit;
+            _facet = Model.IsVariantFacet; _sort = Model.SortOrder; _isActive = Model.IsActive;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("store", "AttributeUpsert", new
+            {
+                AttributeId = Model?.AttributeId ?? 0,
+                CompanyId = Session.ActiveCompanyId,
+                AttributeGroupId = (int?)null,
+                Title = _title, DataType = _dataType, Unit = _unit,
+                IsVariantFacet = _facet, SortOrder = _sort, IsActive = _isActive,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add(Model is null ? "ویژگی ایجاد شد." : "ویژگی ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

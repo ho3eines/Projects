@@ -1,0 +1,166 @@
+@using Tarazin.Models
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+@* دیالوگ کمپین تخفیف — دامنه: همهٔ محصولات / یک محصول / یک دسته *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="کد کمپین" @bind-Value="_code" Required="true"
+                                  RequiredError="کد کمپین الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="عنوان" @bind-Value="_title" Required="true"
+                                  RequiredError="عنوان الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Label="فروشگاه (اختیاری)" @bind-Value="_storeId" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@((int?)null)">همهٔ فروشگاه‌ها</MudSelectItem>
+                        @foreach (var s in _stores)
+                        {
+                            <MudSelectItem Value="@((int?)s.StoreId)">@s.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="دامنهٔ تخفیف" @bind-Value="_scope" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("All")">همهٔ محصولات</MudSelectItem>
+                        <MudSelectItem Value="@("Product")">یک محصول مشخص</MudSelectItem>
+                        <MudSelectItem Value="@("Category")">یک دستهٔ کالا</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                @if (_scope == "Product")
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="int" Label="محصول" @bind-Value="_productId" Required="true"
+                                   RequiredError="محصول الزامی است" Variant="Variant.Outlined">
+                            @foreach (var p in _products)
+                            {
+                                <MudSelectItem Value="@p.ProductId">@p.Title</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
+                @if (_scope == "Category")
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="int" Label="دستهٔ کالا" @bind-Value="_categoryId" Required="true"
+                                   RequiredError="دسته الزامی است" Variant="Variant.Outlined">
+                            @foreach (var c in _categories)
+                            {
+                                <MudSelectItem Value="@c.CategoryId">@c.Title</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Label="نوع تخفیف" @bind-Value="_discountType" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Percent")">درصدی</MudSelectItem>
+                        <MudSelectItem Value="@("Amount")">مبلغی (ریال)</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="decimal" Label="@(_discountType == "Percent" ? "درصد تخفیف" : "مبلغ تخفیف")"
+                                     @bind-Value="_discountValue" Required="true"
+                                     RequiredError="مقدار تخفیف الزامی است" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="decimal" Label="حداقل مبلغ سفارش" @bind-Value="_minOrderTotal" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="از تاریخ" @bind-Date="_fromDate" Required="true" RequiredError="تاریخ شروع الزامی است" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="تا تاریخ" @bind-Date="_toDate" Required="true" RequiredError="تاریخ پایان الزامی است" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Primary">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public PromotionRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    private string _code = "", _title = "", _scope = "All", _discountType = "Percent";
+    private int? _storeId;
+    private int _productId;
+    private int _categoryId;
+    private decimal _discountValue, _minOrderTotal;
+    private DateTime? _fromDate = DateTime.Today, _toDate = DateTime.Today.AddDays(30);
+    private bool _isActive = true;
+
+    private List<StoreRow> _stores = new();
+    private List<ProductRow> _products = new();
+    private List<ProductCategoryRow> _categories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var cid = Session.ActiveCompanyId;
+        _stores = (await Db.QueryAsync<StoreRow>("store", "StoreList",
+            new { CompanyId = cid, StoreId = (int?)null, IsActive = (bool?)null })).ToList();
+        _products = (await Db.QueryAsync<ProductRow>("store", "ProductList")).ToList();
+        _categories = (await Db.QueryAsync<ProductCategoryRow>("store", "ProductCategoryList")).ToList();
+
+        if (Model is not null)
+        {
+            _code = Model.Code; _title = Model.Title; _storeId = Model.StoreId;
+            _scope = Model.ProductId is not null ? "Product" : Model.CategoryId is not null ? "Category" : "All";
+            _productId = Model.ProductId ?? 0; _categoryId = Model.CategoryId ?? 0;
+            _discountType = Model.DiscountType; _discountValue = Model.DiscountValue;
+            _minOrderTotal = Model.MinOrderTotal;
+            _fromDate = Model.FromDate; _toDate = Model.ToDate; _isActive = Model.IsActive;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+        if (_scope == "Product" && _productId <= 0) return;
+        if (_scope == "Category" && _categoryId <= 0) return;
+        if (_fromDate is null || _toDate is null) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("store", "PromotionUpsert", new
+            {
+                PromotionId = Model?.PromotionId ?? 0,
+                CompanyId = Session.ActiveCompanyId,
+                Code = _code.Trim(), Title = _title.Trim(), StoreId = _storeId,
+                ProductId = _scope == "Product" && _productId > 0 ? (int?)_productId : null,
+                CategoryId = _scope == "Category" && _categoryId > 0 ? (int?)_categoryId : null,
+                DiscountType = _discountType, DiscountValue = _discountValue,
+                FromDate = _fromDate.Value.Date, ToDate = _toDate.Value.Date,
+                MinOrderTotal = _minOrderTotal, IsActive = _isActive,
+                CreatedBy = Session.UserName, UpdatedBy = Session.UserName
+            });
+            Snackbar.Add(Model is null ? "کمپین ایجاد شد." : "کمپین ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

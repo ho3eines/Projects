@@ -18,6 +18,9 @@ IF EXISTS (SELECT 1 FROM [inventory].[InventorySettings] WHERE CompanyId = @Comp
         IssueContraAccountId = ISNULL(@IssueContraAccountId, IssueContraAccountId),
         IssueContraAccountCode = ISNULL(@IssueContraAccountCode, IssueContraAccountCode),
         IssueContraAccountTitle = ISNULL(@IssueContraAccountTitle, IssueContraAccountTitle),
+        AdjustmentAccountId = ISNULL(@AdjustmentAccountId, AdjustmentAccountId),
+        AdjustmentAccountCode = ISNULL(@AdjustmentAccountCode, AdjustmentAccountCode),
+        AdjustmentAccountTitle = ISNULL(@AdjustmentAccountTitle, AdjustmentAccountTitle),
         DefaultWarehouseId = ISNULL(@DefaultWarehouseId, DefaultWarehouseId),
         DefaultSubWarehouseId = ISNULL(@DefaultSubWarehouseId, DefaultSubWarehouseId),
         IsEnabled = ISNULL(@IsEnabled, IsEnabled),
@@ -30,10 +33,12 @@ ELSE
          InventoryAccountId, InventoryAccountCode, InventoryAccountTitle,
          ReceiptContraAccountId, ReceiptContraAccountCode, ReceiptContraAccountTitle,
          IssueContraAccountId, IssueContraAccountCode, IssueContraAccountTitle,
+         AdjustmentAccountId, AdjustmentAccountCode, AdjustmentAccountTitle,
          DefaultWarehouseId, DefaultSubWarehouseId, IsEnabled, UpdatedAt, UpdatedBy)
     VALUES
         (@CompanyId, ISNULL(@CostingMethod, N'WeightedAverage'),
          @InventoryAccountId, @InventoryAccountCode, @InventoryAccountTitle,
          @ReceiptContraAccountId, @ReceiptContraAccountCode, @ReceiptContraAccountTitle,
          @IssueContraAccountId, @IssueContraAccountCode, @IssueContraAccountTitle,
+         @AdjustmentAccountId, @AdjustmentAccountCode, @AdjustmentAccountTitle,
          @DefaultWarehouseId, @DefaultSubWarehouseId, ISNULL(@IsEnabled, 1), SYSUTCDATETIME(), @UpdatedBy);

@@ -8,7 +8,11 @@
 --   @InvoiceDate, @CustomerPartyId, @WarehouseId, @SubWarehouseId, @ReferenceNumber,
 --   @PaymentTerms, @DueDate, @SaleType, @Description, @CompanyId, @FiscalYearId, @CreatedBy
 --   @LinesJson — JSON array: [{ ItemId, Qty, GiftQty, UnitPrice, DiscountPercent, TaxPercent, DutyPercent }]
+--   @SerialsJson — JSON array اختیاری: [{ ItemId, LotNo, SerialNo, ExpiryDate, Qty }] (صدور سریال/بچ)
 -- =============================================
+-- سازگاری رو به عقب: فراخوانیهای قدیمی فقط @LinesJson میفرستند — بدون این DECLARE،
+-- نبود پارامتر خطای 137 میدهد. مقدار پیشفرض NULL یعنی مسیر سریال/بچ نادیده گرفته میشود.
+-- @SerialsJson اختیاری و همیشه از سمت فراخوانی ارسال می‌شود (NULL وقتی استفاده نشود)
 DECLARE @CustomerName NVARCHAR(200) = N'';
 IF @CustomerPartyId IS NOT NULL
     SELECT @CustomerName = FullName FROM [central].[Parties] WHERE PartyId = @CustomerPartyId AND IsDeleted = 0;
@@ -152,26 +156,58 @@ BEGIN TRAN;
         INSERT INTO [inventory].[InvoiceLines]
             (InvoiceId, ItemId, Qty, GiftQty, UnitPrice, GrossAmount,
              DiscountPercent, DiscountAmount, TaxPercent, TaxAmount, DutyPercent, DutyAmount,
-             ChargesAmount, CostPrice, NetAmount, SortOrder)
+             ChargesAmount, CostPrice, NetAmount, SortOrder, CompanyId)
         VALUES
             (@SalesInvoiceId, @ItemId, @Qty, @GiftQty, @UnitPrice, @LineGross,
              (SELECT DiscountPercent FROM @Lines WHERE RowId = @RowId), @LineDisc,
              (SELECT TaxPercent FROM @Lines WHERE RowId = @RowId), @LineTax,
              (SELECT DutyPercent FROM @Lines WHERE RowId = @RowId), @LineDuty,
-             0, @IssueCost, @LineNet, @RowId);
+             0, @IssueCost, @LineNet, @RowId, @CompanyId);
 
         -- Inventory issue movement
         INSERT INTO [inventory].[Movements]
             (MovementNumber, MovementType, ItemId, WarehouseId, SubWarehouseId, Qty, UnitPrice, CostPrice,
-             MovementDate, Description, Status, CreatedBy, CompanyId)
+             MovementDate, Description, Status, CreatedBy, CompanyId, SourceReference)
         VALUES
             (N'', N'Issue', @ItemId, @WarehouseId, @SubWarehouseId, @IssueQty, @UnitPrice, @IssueCost,
-             @InvoiceDate, N'حواله بابت فاکتور فروش ' + @InvNumber, N'Posted', @CreatedBy, @CompanyId);
+             @InvoiceDate, N'حواله بابت فاکتور فروش ' + @InvNumber, N'Posted', @CreatedBy, @CompanyId,
+             CONCAT(N'SINV:', @SalesInvoiceId));
         DECLARE @Mid INT = SCOPE_IDENTITY();
         UPDATE [inventory].[Movements] SET MovementNumber = N'MV-' + RIGHT(N'00000' + CAST(@Mid AS NVARCHAR(10)), 5) WHERE MovementId = @Mid;
 
         UPDATE [inventory].[Items] SET StockQty = StockQty - @IssueQty, UpdatedAt = SYSUTCDATETIME(), SalePrice = @UnitPrice
         WHERE ItemId = @ItemId AND CompanyId = @CompanyId;
+
+        -- صدور سریال/بچ (اگر برای این ردیف ارسال شده باشد) — باید موجود (In) و در همین انبار باشد
+        IF @SerialsJson IS NOT NULL AND @SerialsJson <> N''
+        BEGIN
+            DECLARE @MissingSerials INT = 0;
+            SELECT @MissingSerials = COUNT(*)
+            FROM OPENJSON(@SerialsJson)
+            WITH (ItemId INT, LotNo NVARCHAR(50), SerialNo NVARCHAR(100)) s
+            WHERE s.ItemId = @ItemId
+              AND NOT EXISTS (
+                  SELECT 1 FROM [inventory].[LotSerials] ls
+                  WHERE ls.ItemId = s.ItemId AND ls.Status = N'In' AND ls.CompanyId = @CompanyId
+                    AND ISNULL(ls.WarehouseId, 0) = ISNULL(@WarehouseId, 0)
+                    AND ((s.SerialNo IS NOT NULL AND s.SerialNo <> N'' AND ls.SerialNo = s.SerialNo)
+                         OR (s.LotNo IS NOT NULL AND s.LotNo <> N'' AND ls.LotNo = s.LotNo)));
+            IF @MissingSerials > 0
+                THROW 51055, N'یک یا چند سریال/بچ برای صدور موجود نیست (ممکن است قبلاً صادر شده باشد).', 1;
+
+            UPDATE [inventory].[LotSerials]
+            SET Status = N'Out', IssueMovementId = @Mid
+            WHERE LotSerialId IN (
+                SELECT ls.LotSerialId
+                FROM [inventory].[LotSerials] ls
+                JOIN OPENJSON(@SerialsJson)
+                     WITH (ItemId INT, LotNo NVARCHAR(50), SerialNo NVARCHAR(100)) s
+                     ON s.ItemId = ls.ItemId
+                WHERE ls.ItemId = @ItemId AND ls.Status = N'In' AND ls.CompanyId = @CompanyId
+                  AND ISNULL(ls.WarehouseId, 0) = ISNULL(@WarehouseId, 0)
+                  AND ((s.SerialNo IS NOT NULL AND s.SerialNo <> N'' AND ls.SerialNo = s.SerialNo)
+                       OR (s.LotNo IS NOT NULL AND s.LotNo <> N'' AND ls.LotNo = s.LotNo)));
+        END
 
         FETCH NEXT FROM curLine INTO @RowId, @ItemId, @Qty, @GiftQty, @UnitPrice, @LineGross, @LineDisc, @LineTax, @LineDuty, @LineNet;
     END
@@ -182,13 +218,13 @@ BEGIN TRAN;
     UPDATE [inventory].[Invoices] SET CostOfGoodsSold = @TotalCOGS, GrossProfit = @GrossProfit WHERE InvoiceId = @SalesInvoiceId;
 
     -- ── Accounting document ──
+    -- ثبت فاکتور/حرکت انبار هرگز به دلیل نبود تنظیمات حسابداری متوقف نمی‌شود؛
+    -- اگر حساب‌ها/سال مالی آماده نباشد سند ساخته نمی‌شود و دلیل در AccountingNote برمی‌گردد.
     DECLARE @SettingsEnabled BIT = ISNULL((SELECT IsEnabled FROM [inventory].[InventorySettings] WHERE CompanyId = @CompanyId), 0);
     DECLARE @DocumentId INT = NULL;
+    DECLARE @AccountingNote NVARCHAR(200) = NULL;
     IF @SettingsEnabled = 1
     BEGIN
-        IF @FiscalYearId IS NULL
-            THROW 51027, N'سال مالی فعال برای ثبت سند حسابداری انتخاب نشده است.', 1;
-
         DECLARE @InvAccountId INT, @InvCode NVARCHAR(4000), @InvTitle NVARCHAR(200);
         DECLARE @ContraAccountId INT, @ContraCode NVARCHAR(4000), @ContraTitle NVARCHAR(200);
         SELECT @InvAccountId = InventoryAccountId, @InvCode = InventoryAccountCode, @InvTitle = InventoryAccountTitle,
@@ -196,36 +232,40 @@ BEGIN TRAN;
         FROM [inventory].[InventorySettings] WHERE CompanyId = @CompanyId;
 
         IF @InvAccountId IS NULL OR @ContraAccountId IS NULL
-            THROW 51039, N'حساب‌های انبار/مقابل در تنظیمات انبار تنظیم نشده است.', 1;
-
-        DECLARE @NextNum INT = ISNULL((SELECT MAX(TRY_CONVERT(INT, DocumentNumber))
-                                       FROM [accounting].[Documents]
-                                       WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0), 0) + 1;
-
-        INSERT INTO [accounting].[Documents]
-            (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy, IsDeleted, CompanyId, FiscalYearId, SourceReference)
-        VALUES
-            (RIGHT(N'00000000' + CAST(@NextNum AS NVARCHAR(10)), 8), @InvoiceDate, N'SalesInvoice', @CustomerName, @NetAmount, N'IRR', N'Note', @CreatedBy, 0, @CompanyId, @FiscalYearId, CONCAT(N'SalesInvoice:', @SalesInvoiceId));
-        SET @DocumentId = SCOPE_IDENTITY();
-
-        -- بدهکار: طرف حساب (مشتری) / بستانکار: فروش
-        INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-        VALUES (@DocumentId, @ContraAccountId, @ContraCode, @ContraTitle, N'بدهکار مشتری ' + @InvNumber, @NetAmount, 0);
-        INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-        VALUES (@DocumentId, @InvAccountId, @InvCode, @InvTitle, N'فروش ' + @InvNumber, 0, @NetAmount);
-
-        -- COGS entry (دائمی): بدهکار بهای تمام‌شده / بستانکار موجودی
-        IF @TotalCOGS > 0
+            SET @AccountingNote = N'حساب‌های انبار/مقابل در تنظیمات انبار تنظیم نشده است — سند حسابداری ساخته نشد.';
+        ELSE IF @FiscalYearId IS NULL
+            SET @AccountingNote = N'سال مالی فعال انتخاب نشده است — سند حسابداری ساخته نشد.';
+        ELSE
         BEGIN
-            INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-            VALUES (@DocumentId, @ContraAccountId, @ContraCode, @ContraTitle, N'بهای تمام‌شده فروش ' + @InvNumber, @TotalCOGS, 0);
-            INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
-            VALUES (@DocumentId, @InvAccountId, @InvCode, @InvTitle, N'خروج موجودی ' + @InvNumber, 0, @TotalCOGS);
-        END
+            DECLARE @NextNum INT = ISNULL((SELECT MAX(TRY_CONVERT(INT, DocumentNumber))
+                                           FROM [accounting].[Documents]
+                                           WHERE CompanyId = @CompanyId AND FiscalYearId = @FiscalYearId AND IsDeleted = 0), 0) + 1;
 
-        UPDATE [inventory].[Invoices] SET DocumentId = @DocumentId WHERE InvoiceId = @SalesInvoiceId;
+            INSERT INTO [accounting].[Documents]
+                (DocumentNumber, DocumentDate, DocumentType, CounterPartyName, TotalAmount, CurrencyCode, Status, CreatedBy, IsDeleted, CompanyId, FiscalYearId, SourceReference)
+            VALUES
+                (RIGHT(N'00000000' + CAST(@NextNum AS NVARCHAR(10)), 8), @InvoiceDate, N'SalesInvoice', @CustomerName, @NetAmount, N'IRR', N'Note', @CreatedBy, 0, @CompanyId, @FiscalYearId, CONCAT(N'SalesInvoice:', @SalesInvoiceId));
+            SET @DocumentId = SCOPE_IDENTITY();
+
+            -- بدهکار: طرف حساب (مشتری) / بستانکار: فروش
+            INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+            VALUES (@DocumentId, @ContraAccountId, @ContraCode, @ContraTitle, N'بدهکار مشتری ' + @InvNumber, @NetAmount, 0);
+            INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+            VALUES (@DocumentId, @InvAccountId, @InvCode, @InvTitle, N'فروش ' + @InvNumber, 0, @NetAmount);
+
+            -- COGS entry (دائمی): بدهکار بهای تمام‌شده / بستانکار موجودی
+            IF @TotalCOGS > 0
+            BEGIN
+                INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+                VALUES (@DocumentId, @ContraAccountId, @ContraCode, @ContraTitle, N'بهای تمام‌شده فروش ' + @InvNumber, @TotalCOGS, 0);
+                INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
+                VALUES (@DocumentId, @InvAccountId, @InvCode, @InvTitle, N'خروج موجودی ' + @InvNumber, 0, @TotalCOGS);
+            END
+
+            UPDATE [inventory].[Invoices] SET DocumentId = @DocumentId WHERE InvoiceId = @SalesInvoiceId;
+        END
     END
 
 COMMIT;
 SELECT @SalesInvoiceId AS SalesInvoiceId, @InvNumber AS InvoiceNumber, @NetAmount AS NetAmount,
-       @TotalCOGS AS CostOfGoodsSold, @GrossProfit AS GrossProfit, @DocumentId AS DocumentId;
+       @TotalCOGS AS CostOfGoodsSold, @GrossProfit AS GrossProfit, @DocumentId AS DocumentId, @AccountingNote AS AccountingNote;

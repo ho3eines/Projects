@@ -50,6 +50,8 @@ public sealed class UserSession : ICurrentUser
     public string? ActiveCompanyName { get; private set; }
     public int? ActiveFiscalYearId { get; private set; }
     public string? ActiveFiscalYearName { get; private set; }
+    public int? ActiveWarehouseId { get; private set; }
+    public string? ActiveWarehouseName { get; private set; }
 
     /// <summary>کلیدهای دسترسی مؤثر کاربر (از نقشش).</summary>
     public IReadOnlyCollection<string> Permissions => _permissions;
@@ -81,6 +83,29 @@ public sealed class UserSession : ICurrentUser
                 ActiveFiscalYearName = ActiveFiscalYearName
             });
         }
+    }
+
+    /// <summary>
+    /// انبار فعال نشست (مثل سال مالی): روی همان انبار، عملیات انبار (فاکتورها،
+    /// گزارش‌ها، انبارگردانی) انجام می‌شود. انبار همیشه به شرکت فعال وابسته است.
+    /// </summary>
+    public async Task UpdateActiveWarehouseAsync(int? warehouseId, string? warehouseName)
+    {
+        ActiveWarehouseId = warehouseId;
+        ActiveWarehouseName = warehouseName;
+
+        if (_store is not null && IsAuthenticated)
+        {
+            var data = await _store.LoadAsync();
+            if (data is not null)
+            {
+                data.ActiveWarehouseId = warehouseId;
+                data.ActiveWarehouseName = warehouseName;
+                await _store.SaveAsync(data);
+            }
+        }
+
+        Changed?.Invoke();
     }
 
     public async Task UpdateActiveContextAsync(int? companyId, string? companyName, int? fiscalYearId, string? fiscalYearName)
@@ -149,6 +174,8 @@ public sealed class UserSession : ICurrentUser
         ActiveCompanyName = null;
         ActiveFiscalYearId = null;
         ActiveFiscalYearName = null;
+        ActiveWarehouseId = null;
+        ActiveWarehouseName = null;
         _permissions.Clear();
         Changed?.Invoke();
 

@@ -29,7 +29,7 @@
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Print" OnClick="PrintSalesAsync"
                                Disabled="_loadingSales || _sales.Count == 0">
-                        چاپ / PDF
+                        چاپ
                     </MudButton>
                 </MudItem>
             </MudGrid>
@@ -77,7 +77,7 @@
             <PageToolbar Class="mb-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintPricesAsync"
                            Disabled="_loadingPrices || _prices.Count == 0"
-                           StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+                           StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
             </PageToolbar>
             <MudTable Items="_prices" Loading="_loadingPrices" Hover="true" Dense="true" Striped="true"
                       Breakpoint="Breakpoint.Sm" RowsPerPage="25">
@@ -162,7 +162,7 @@
         }
     }
 
-    // ── چاپ / PDF (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
+    // ── چاپ (موتور چاپ عمومی — طبق اسکیل tarazin-reporting) ──
 
     private async Task PrintSalesAsync()
     {

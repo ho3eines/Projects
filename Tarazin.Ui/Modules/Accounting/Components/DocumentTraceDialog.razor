@@ -1,0 +1,147 @@
+@inject DbService Db
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">ردیابی زنجیره — @_title</MudText>
+        @if (!string.IsNullOrWhiteSpace(_traceKey))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                شمارهٔ مشترک: <b>@_traceKey</b>
+            </MudText>
+        }
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">در حال ردیابی زنجیرهٔ فروشگاه → انبار → خزانه → حسابداری...</MudText>
+            <TableSkeleton Columns="7" Rows="5" />
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+        }
+        else if (_legs.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                پیوندی برای این سند در ماژول‌های دیگر یافت نشد (سند دستی بدون منبع).
+            </MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                هر ردیف یک «پای» از زنجیره است؛ همه با شمارهٔ مشترک @_traceKey به هم متصل‌اند.
+            </MudText>
+            <MudTable T="DocumentTraceRow" Items="_legs" Dense="true" Hover="true" Striped="true" RowsPerPage="10">
+                <HeaderContent>
+                    <MudTh>ماژول</MudTh>
+                    <MudTh>شماره</MudTh>
+                    <MudTh>شرح</MudTh>
+                    <MudTh>مبلغ</MudTh>
+                    <MudTh>تاریخ</MudTh>
+                    <MudTh>شماره سند حسابداری</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudChip T="string" Size="Size.Small" Color="@LegColor(context.Leg)">@context.Leg</MudChip>
+                    </MudTd>
+                    <MudTd>@(string.IsNullOrWhiteSpace(context.Key) ? "—" : context.Key)</MudTd>
+                    <MudTd>@(context.Detail ?? "")</MudTd>
+                    <MudTd>@SafeMoney(context.Amount)</MudTd>
+                    <MudTd>@SafeDate(context.Date)</MudTd>
+                    <MudTd>@(string.IsNullOrWhiteSpace(context.DocumentNumber) ? "—" : context.DocumentNumber)</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><EmptyState Title="پایی برای نمایش یافت نشد." /></NoRecordsContent>
+                <PagerContent><MudTablePager PageSizeOptions="new int[]{10,25,50}" /></PagerContent>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">بستن</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const string Schema = "accounting";
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int DocumentId { get; set; }
+    [Parameter] public string? SourceReference { get; set; }
+
+    private bool _loading = true;
+    private string _error = "";
+    private string _title = "";
+    private string _traceKey = "";
+    private List<DocumentTraceRow> _legs = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _loading = true;
+            _error = "";
+
+            if (DocumentId <= 0 && string.IsNullOrWhiteSpace(SourceReference))
+            {
+                _error = "شناسهٔ سند یا شمارهٔ مشترک (SourceReference) برای ردیابی لازم است.";
+                return;
+            }
+
+            var rows = await Db.QueryAsync<DocumentTraceRow>(Schema, "DocumentTrace", new
+            {
+                DocumentId = DocumentId > 0 ? DocumentId : (int?)null,
+                SourceReference = string.IsNullOrWhiteSpace(SourceReference) ? null : SourceReference
+            });
+
+            _legs = (rows ?? Array.Empty<DocumentTraceRow>()).ToList();
+
+            // عنوان دیالوگ: شمارهٔ سند یا کلید مشترک ورودی
+            var docLeg = _legs.FirstOrDefault(l => l.Leg == "حسابداری");
+            _title = docLeg?.DocumentNumber ?? (DocumentId > 0 ? DocumentId.ToString() : "");
+            _traceKey = _legs.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.SourceReference))?.SourceReference
+                        ?? SourceReference ?? "";
+        }
+        catch (Exception ex)
+        {
+            _error = $"خطا در ردیابی زنجیره: {ex.Message}";
+            Snackbar.Add(_error, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private static string SafeMoney(decimal v)
+    {
+        try { return v == 0 ? "—" : v.ToString("N0"); } catch { return "—"; }
+    }
+    private static string SafeDate(DateTime? dt)
+    {
+        try { return dt is null ? "—" : dt.Value.ToString("yyyy/MM/dd"); } catch { return "—"; }
+    }
+    private static Color LegColor(string leg)
+    {
+        try
+        {
+            return leg switch
+            {
+                "حسابداری" => Color.Primary,
+                "انبار" => Color.Info,
+                "فروشگاه" => Color.Secondary,
+                "خزانه (نقد)" => Color.Success,
+                "خزانه (چک)" => Color.Warning,
+                "حرکت انبار" => Color.Default,
+                _ => Color.Default
+            };
+        }
+        catch { return Color.Default; }
+    }
+}

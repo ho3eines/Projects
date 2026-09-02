@@ -1,105 +1,184 @@
 @page "/settings"
 @inject UserSession Session
 @inject UiPreferences Prefs
+@inject AccountingContextService Context
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
 @inject NavigationManager Nav
 
 <PageTitle>تنظیمات — ترازین</PageTitle>
 
-<PageHeader Title="تنظیمات" Subtitle="تنظیمات نمایش، مدیریت کاربران و نقش‌ها، و خروجی گزارش‌ها." Eyebrow="سیستم" />
+<PageHeader Title="تنظیمات" Subtitle="محیط کاری فعال، هاب تنظیمات ماژول‌ها، مدیریت کاربران و تنظیمات نمایش." Eyebrow="سیستم">
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+             Icon="@Icons.Material.Filled.VerifiedUser">
+        @(Session.IsAuthenticated ? Session.RoleTitle : "خارج شده")
+    </MudChip>
+</PageHeader>
 
-<MudGrid Spacing="3">
-    <MudItem xs="12" md="4">
-        <MudPaper Elevation="1" Class="pa-4 h-100">
-            <div class="d-flex align-center mb-3">
-                <MudIcon Icon="@Icons.Material.Filled.Palette" Color="Color.Primary" Class="me-2" />
-                <MudText Typo="Typo.h6">تنظیمات نمایش</MudText>
-            </div>
-            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                حالت تیره یا روشن رابط کاربری. این تنظیم برای همین نشست/مرورگر اعمال می‌شود.
+@* ── محیط کاری فعال ─────────────────────────────────────────────── *@
+<MudPaper Elevation="0" Class="pa-4 mb-4">
+    <div class="d-flex align-center flex-wrap gap-3">
+        <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Class="tz-env__icon">
+            <MudIcon Icon="@Icons.Material.Filled.Business" />
+        </MudAvatar>
+        <div class="flex-grow-1" style="min-width:220px">
+            <MudText Typo="Typo.body2" Color="Color.Secondary">شرکت فعال</MudText>
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                @(Session.ActiveCompanyName ?? "— انتخاب نشده —")
             </MudText>
-            <MudSwitch T="bool" Label="حالت تیره" @bind-Value="DarkMode" Color="Color.Primary" />
-        </MudPaper>
-    </MudItem>
+        </div>
+        <MudDivider FlexItem="true" Vertical="true" Class="d-none d-md-block" />
+        <div class="flex-grow-1" style="min-width:220px">
+            <MudText Typo="Typo.body2" Color="Color.Secondary">سال مالی فعال</MudText>
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                @(Session.ActiveFiscalYearName ?? "— انتخاب نشده —")
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SwapHoriz"
+                   OnClick="ChangeFiscalYearAsync" Disabled="@(_years.Count == 0 || _switching)">
+            تغییر سال مالی
+        </MudButton>
+    </div>
+    @if (_envError is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Variant="Variant.Outlined" Class="mt-3">
+            @_envError
+        </MudAlert>
+    }
+</MudPaper>
 
-    <MudItem xs="12" md="4">
-        <MudPaper Elevation="1" Class="pa-4 h-100">
-            <div class="d-flex align-center mb-3">
-                <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Color="Color.Primary" Class="me-2" />
-                <MudText Typo="Typo.h6">مدیریت کاربران</MudText>
-            </div>
+@* ── هاب تنظیمات ماژول‌ها ───────────────────────────────────────── *@
+<MudTabs Elevation="0" Rounded="true" Border="true" Class="mb-4">
+    @* ── تب ۱: تنظیمات ماژول‌ها (کارت‌های لینک‌دار با گیت دسترسی) ── *@
+    <MudTabPanel Text="ماژول‌ها">
+        <div class="tz-modgrid mt-3">
+            @foreach (var card in _moduleCards)
+            {
+                if (Session.HasPermission(card.Permission))
+                {
+                    <ModuleCard Icon="@card.Icon" Title="@card.Title" Lead="@card.Lead"
+                                Url="@card.Url" Accent="@card.Accent" />
+                }
+            }
+        </div>
+        @if (!CardsAnyVisible)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
+                هیچ ماژولی با دسترسی تنظیمات برای نقش شما باز نیست. با مدیر سیستم تماس بگیرید.
+            </MudAlert>
+        }
+    </MudTabPanel>
+
+    @* ── تب ۲: مدیریت کاربران (سیستم) ── *@
+    <MudTabPanel Text="کاربران و دسترسی">
+        <MudPaper Elevation="0" Class="pa-4 mt-3">
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                کاربران، نقش‌ها و دسترسی‌ها (RBAC) و مشاهدهٔ ممیزی سیستم.
+                کاربران، نقش‌ها و دسترسی‌ها (RBAC) و ممیزی رویدادهای سیستم.
             </MudText>
-            <MudStack Spacing="2">
+            <div class="tz-modgrid">
                 @if (Session.HasPermission(TarazinPermissions.Users))
                 {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.Group" Href="/central/users">
-                        مدیریت کاربران
-                    </MudButton>
+                    <ModuleCard Icon="@Icons.Material.Filled.Group" Title="کاربران"
+                                Lead="مدیریت کاربران و اطلاعات ورود" Url="/central/users" Accent="@TarazinAccents.Steel" />
                 }
                 @if (Session.HasPermission(TarazinPermissions.Roles))
                 {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.AdminPanelSettings" Href="/central/roles">
-                        نقش‌ها و دسترسی‌ها
-                    </MudButton>
+                    <ModuleCard Icon="@Icons.Material.Filled.AdminPanelSettings" Title="نقش‌ها و دسترسی‌ها"
+                                Lead="تعریف نقش و انتساب مجوز (RBAC)" Url="/central/roles" Accent="@TarazinAccents.Violet" />
                 }
                 @if (Session.HasPermission(TarazinPermissions.Audit))
                 {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.Policy" Href="/central/audit">
-                        ممیزی سیستم
-                    </MudButton>
+                    <ModuleCard Icon="@Icons.Material.Filled.Policy" Title="ممیزی سیستم"
+                                Lead="ردپای عملیات روی داده‌ها" Url="/central/audit" Accent="@TarazinAccents.Gold" />
                 }
-                @if (!Session.HasAny(TarazinPermissions.Users, TarazinPermissions.Roles, TarazinPermissions.Audit))
-                {
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
-                        برای مدیریت کاربران به دسترسی مدیر سیستم نیاز دارید.
-                    </MudAlert>
-                }
-            </MudStack>
-        </MudPaper>
-    </MudItem>
-
-    <MudItem xs="12" md="4">
-        <MudPaper Elevation="1" Class="pa-4 h-100">
-            <div class="d-flex align-center mb-3">
-                <MudIcon Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Class="me-2" />
-                <MudText Typo="Typo.h6">گزارش‌ها و خروجی</MudText>
             </div>
-            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                چاپ، PDF و Excel گزارش‌ها از طریق Viewer استیمولسافت — هر گزارش از دادهٔ واقعی نرم‌افزار ساخته می‌شود.
-            </MudText>
-            @if (Session.HasPermission(TarazinPermissions.For("bi", TarazinActions.Reports)))
+            @if (!Session.HasAny(TarazinPermissions.Users, TarazinPermissions.Roles, TarazinPermissions.Audit))
             {
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
-                           StartIcon="@Icons.Material.Filled.Assessment" Href="/bi/reports">
-                    گزارش‌ها و چاپ
-                </MudButton>
-            }
-            else
-            {
-                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
-                    برای دسترسی به گزارش‌ها با مدیر سیستم تماس بگیرید.
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">
+                    برای مدیریت کاربران به دسترسی مدیر سیستم نیاز دارید.
                 </MudAlert>
             }
         </MudPaper>
-    </MudItem>
-</MudGrid>
+    </MudTabPanel>
 
-<MudPaper Elevation="0" Class="mt-4 pa-4">
-    <MudText Typo="Typo.caption" Color="Color.Secondary">
-        وضعیت نشست: @(Session.IsAuthenticated ? $"وارد شده — {Session.DisplayName} ({Session.RoleTitle})" : "خارج شده")
-    </MudText>
-</MudPaper>
+    @* ── تب ۳: نمایش و رفتار برنامه ── *@
+    <MudTabPanel Text="نمایش">
+        <MudPaper Elevation="0" Class="pa-4 mt-3">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4" Style="@($"--tz-accent:{TarazinAccents.Ink}")">
+                        <div class="d-flex align-center mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.DarkMode" Class="me-2" Style="color:var(--tz-accent)" />
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">حالت نمایش</MudText>
+                        </div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                            حالت تیره یا روشن رابط کاربری — برای همین نشست اعمال می‌شود.
+                        </MudText>
+                        <MudSwitch T="bool" Label="حالت تیره" @bind-Value="DarkMode" Color="Color.Primary" />
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4" Style="@($"--tz-accent:{TarazinAccents.Steel}")">
+                        <div class="d-flex align-center mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Class="me-2" Style="color:var(--tz-accent)" />
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">زمان و تقویم</MudText>
+                        </div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                            تاریخ سیستمی (شمسی) و اعداد فارسی به‌صورت سراسری فعال است.
+                        </MudText>
+                        <MudText Typo="Typo.body2">
+                            تاریخ امروز: <span class="tz-num font-weight-bold">@PersianDate.ToPersian(DateTime.Today)</span>
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+<MudText Typo="Typo.caption" Color="Color.Secondary">
+    وضعیت نشست: @(Session.IsAuthenticated ? $"وارد شده — {Session.DisplayName} ({Session.RoleTitle})" : "خارج شده")
+</MudText>
 
 @code {
+    private record ModuleLink(string Icon, string Title, string Lead, string Url, string Permission, string Accent);
+
+    /// <summary>هاب تنظیمات ماژول‌ها — با گیت دسترسی «settings» هر ماژول فیلتر می‌شود.</summary>
+    private static readonly List<ModuleLink> _moduleCards =
+    [
+        new(Icons.Material.Filled.AccountBalance, "حسابداری", "تنظیمات شرکت مالی، قوانین مالیاتی و گروه‌های تفصیلی",
+            "/accounting/settings", TarazinPermissions.For("accounting", TarazinActions.Settings), TarazinAccents.Steel),
+        new(Icons.Material.Filled.Tune, "انبار", "تنظیمات انبار، حساب‌های تعدیل و گروه/واحد کالا",
+            "/inventory/settings", TarazinPermissions.For("inventory", TarazinActions.Settings), TarazinAccents.Moss),
+        new(Icons.Material.Filled.AccountBalanceWallet, "خزانه‌داری", "نرخ‌ها، بانک‌ها، صندوق‌ها و حساب‌های خزانه",
+            "/treasury/settings", TarazinPermissions.For("treasury", TarazinActions.Settings), TarazinAccents.Petrol),
+        new(Icons.Material.Filled.Diamond, "طلافروشی", "تنظیمات طلا و اتصال به انبار/حسابداری",
+            "/goldshop/settings", TarazinPermissions.For("goldshop", TarazinActions.Settings), TarazinAccents.Brass),
+        new(Icons.Material.Filled.Payments, "ارز", "ارزهای قابل‌معامله و تنظیمات بازار ارز",
+            "/currency/settings", TarazinPermissions.For("currency", TarazinActions.Settings), TarazinAccents.Emerald),
+        new(Icons.Material.Filled.Storefront, "فروشگاه", "محصولات، دسته‌ها و اتصال فروشگاه به حسابداری",
+            "/store/settings", TarazinPermissions.For("store", TarazinActions.Settings), TarazinAccents.Jade),
+        new(Icons.Material.Filled.Payments, "حقوق و دستمزد", "پارامترهای محاسبهٔ حقوق و ادوار",
+            "/payroll/settings", TarazinPermissions.For("payroll", TarazinActions.Settings), TarazinAccents.Wine),
+        new(Icons.Material.Filled.Print, "قالب‌های چاپ", "طراح قالب چاپ و پیش‌فرض هر گزارش",
+            "/central/printing", TarazinPermissions.For("central", TarazinActions.View), TarazinAccents.Slate),
+    ];
+
+    private bool CardsAnyVisible => _moduleCards.Any(c => Session.HasPermission(c.Permission));
+
     private bool _dark;
+    private bool _switching;
+    private List<FiscalYearRow> _years = new();
+    private string? _envError;
 
     protected override void OnInitialized()
     {
         _dark = Prefs.IsDarkMode;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEnvAsync();
     }
 
     private bool DarkMode
@@ -109,6 +188,51 @@
         {
             _dark = value;
             Prefs.SetDarkMode(value);
+        }
+    }
+
+    /// <summary>بارگذاری سال‌های مالی مجازِ شرکت فعال — همان منبع منوی نوار بالا.</summary>
+    private async Task LoadEnvAsync()
+    {
+        _envError = null;
+        if (Session.ActiveCompanyId is not int companyId)
+        {
+            _envError = "شرکت فعالی انتخاب نشده است. پس از ورود و ساخت شرکت، محیط کاری اینجا نمایش داده می‌شود.";
+            _years = new();
+            return;
+        }
+        try
+        {
+            _years = (await Context.GetAuthorizedFiscalYearsAsync(companyId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _years = new();
+            _envError = $"خطا در بارگذاری سال‌های مالی: {ex.Message}";
+        }
+    }
+
+    /// <summary>تغییر سال مالی با همان جریان منوی نوار بالا (بدون forceLoad) —
+    /// دیالوگ انتخابگر + SetActiveContextAsync → Session.Changed → تازه‌سازی صفحهٔ فعلی.</summary>
+    private async Task ChangeFiscalYearAsync()
+    {
+        if (_switching || Session.ActiveCompanyId is null) return;
+        _switching = true;
+        try
+        {
+            var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+            var dialog = await Dialogs.ShowAsync<FiscalYearPickerDialog>("تغییر سال مالی", options: options);
+            var result = await dialog.Result;
+            if (!result.Canceled)
+                await LoadEnvAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"خطا در تغییر سال مالی: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _switching = false;
         }
     }
 }

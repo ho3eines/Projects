@@ -16,6 +16,9 @@ public class DailyMovementRow
     public decimal TotalValue { get; set; }
     public string Status { get; set; } = "";
     public string? Description { get; set; }
+    public string? SourceReference { get; set; }
+    public string? SourceType { get; set; }
+    public long? SourceId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
@@ -54,6 +57,9 @@ public class ItemRow
     public decimal MinStock { get; set; }
     public decimal MaxStock { get; set; }
     public decimal ReorderPoint { get; set; }
+    public decimal? LivePrice { get; set; }        // قیمت زندهٔ آنلاین (طلا/فلزات) از مرکز قیمت — فقط نمایشی
+    public string? LiveSource { get; set; }
+    public string? LiveItemKey { get; set; }
     public bool HasBatch { get; set; }
     public bool HasSerial { get; set; }
     public bool HasExpiry { get; set; }
@@ -62,6 +68,17 @@ public class ItemRow
     public decimal SalePrice { get; set; }
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
+    // ItemStockInfo.sql — قیمت آخرین فاکتور (نه قیمت ثابت کالا)
+    public decimal? LastPurchasePrice { get; set; }
+    public decimal? LastSalePrice { get; set; }
+}
+
+public class ItemStockInfoRow
+{
+    public decimal StockQty { get; set; }
+    public string Unit { get; set; } = "";
+    public decimal? LastPurchasePrice { get; set; }
+    public decimal? LastSalePrice { get; set; }
 }
 
 public class WarehouseRow
@@ -131,6 +148,9 @@ public class InventorySettingsRow
     public int? IssueContraAccountId { get; set; }
     public string? IssueContraAccountCode { get; set; }
     public string? IssueContraAccountTitle { get; set; }
+    public int? AdjustmentAccountId { get; set; }
+    public string? AdjustmentAccountCode { get; set; }
+    public string? AdjustmentAccountTitle { get; set; }
     public int? DefaultWarehouseId { get; set; }
     public string? DefaultWarehouseTitle { get; set; }
     public int? DefaultSubWarehouseId { get; set; }
@@ -138,6 +158,24 @@ public class InventorySettingsRow
     public bool IsEnabled { get; set; } = true;
     public DateTime UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
+}
+
+/// <summary>خروجی StocktakeRun — شناسهٔ سند حسابداری انبارگردانی (اگر ساخته شده باشد).</summary>
+public class StocktakeResultRow
+{
+    public int? DocumentId { get; set; }
+}
+
+/// <summary>واحدهای چندگانهٔ یک کالا — ضریب تبدیل (Factor) نسبت به واحد پایه (IsDefault=1 با Factor=1).</summary>
+public class ItemUnitRow
+{
+    public int ItemUnitId { get; set; }
+    public int ItemId { get; set; }
+    public int UnitId { get; set; }
+    public decimal Factor { get; set; } = 1;
+    public bool IsDefault { get; set; }
+    public string? UnitTitle { get; set; }
+    public string? UnitCode { get; set; }
 }
 
 public class StockCardRow
@@ -159,6 +197,13 @@ public class StockCardRow
     public decimal OpeningValue { get; set; }
     public decimal BalanceQty { get; set; }
     public decimal BalanceValue { get; set; }
+    public string? LotNo { get; set; }
+    public string? SerialNo { get; set; }
+    public string? ExpiryDate { get; set; }
+    public string? EarliestExpiry { get; set; }
+    public string? SourceReference { get; set; }
+    public string? SourceType { get; set; }
+    public long? SourceId { get; set; }
 }
 
 public class StockBalanceRow

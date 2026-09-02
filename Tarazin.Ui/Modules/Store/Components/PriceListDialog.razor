@@ -1,0 +1,103 @@
+@using Tarazin.Models
+@inject DbService Db
+@inject UserSession Session
+@inject ISnackbar Snackbar
+
+@* دیالوگ درج/ویرایش لیست قیمت — الگوی StoreDialog *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="کد لیست" @bind-Value="_code" Required="true"
+                                  RequiredError="کد لیست الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="عنوان" @bind-Value="_title" Required="true"
+                                  RequiredError="عنوان الزامی است" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Label="فروشگاه (اختیاری)" @bind-Value="_storeId" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@((int?)null)">همهٔ فروشگاه‌ها</MudSelectItem>
+                        @foreach (var s in _stores)
+                        {
+                            <MudSelectItem Value="@((int?)s.StoreId)">@s.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        اگر فروشگاهی انتخاب نشود، لیست برای همهٔ فروشگاه‌ها معتبر است.
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="ارز" @bind-Value="_currency" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Primary">فعال</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">انصراف</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public PriceListRow? Model { get; set; }
+
+    private MudForm? _form;
+    private bool _valid;
+    private bool _busy;
+
+    private string _code = "", _title = "", _currency = "IRR";
+    private int? _storeId;
+    private bool _isActive = true;
+
+    private List<StoreRow> _stores = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stores = (await Db.QueryAsync<StoreRow>("store", "StoreList",
+            new { CompanyId = Session.ActiveCompanyId, StoreId = (int?)null, IsActive = (bool?)null })).ToList();
+
+        if (Model is not null)
+        {
+            _code = Model.Code; _title = Model.Title;
+            _storeId = Model.StoreId; _currency = Model.CurrencyCode;
+            _isActive = Model.IsActive;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_valid) return;
+
+        _busy = true;
+        try
+        {
+            await Db.ExecuteAsync("store", "PriceListUpsert", new
+            {
+                PriceListId = Model?.PriceListId ?? 0,
+                CompanyId = Session.ActiveCompanyId,
+                Code = _code.Trim(), Title = _title.Trim(), StoreId = _storeId,
+                CurrencyCode = string.IsNullOrWhiteSpace(_currency) ? "IRR" : _currency.Trim(),
+                IsActive = _isActive,
+                CreatedBy = Session.UserName, UpdatedBy = Session.UserName
+            });
+            Snackbar.Add(Model is null ? "لیست قیمت ایجاد شد." : "لیست قیمت ویرایش شد.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

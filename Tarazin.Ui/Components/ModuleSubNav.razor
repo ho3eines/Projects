@@ -1,14 +1,18 @@
 @inject UserSession Session
+@inject IJSRuntime JS
 @implements IDisposable
 
 @if (Module is not null)
 {
-    <div class="tz-subnav" role="navigation" aria-label="@Module.Title">
+    <div class="tz-subnav" role="navigation" aria-label="@Module.Title" style="--tz-accent:@Module.Accent" @ref="_rootRef">
         <div class="tz-subnav__brand" style="--tz-accent:@Module.Accent">
             <MudIcon Icon="@Module.Icon" Size="Size.Small" />
             <span>@Module.Title</span>
         </div>
         <div class="tz-subnav__tabs">
+            @* نشانگر کشویی: با تغییر تب به‌صورت transform جابه‌جا می‌شود
+               (subnav.js آن را زیر تب فعال می‌برد؛ موقعیت اولیه خارج از دید). *@
+            <span class="tz-subnav__indicator" aria-hidden="true"></span>
             @foreach (var item in Module.Items)
             {
                 @if (!item.HideInNav && Session.HasPermission(item.Permission))
@@ -37,6 +41,19 @@
     }
 
     private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // بعد از هر رندر (ناوبری، تغییر دسترسی، تغییر بریک‌پوینت) جای تبِ فعال
+        // دوباره اندازه‌گیری می‌شود تا نشانگر همیشه زیر تب درست بنشیند.
+        // در prerender فایده ندارد و ممکن است شکست بخورد — پس فقط پس از اتصال circuit.
+        if (Module is null) return;
+        try { await JS.InvokeVoidAsync("tarazinSubnav.sync", _rootRef); }
+        catch (JSDisconnectedException) { /* بستن circuit وسط فراخوانی */ }
+        catch (JSException) { /* اپراتور/محیط عجیب — UI نباید بخوابد */ }
+    }
+
+    private ElementReference _rootRef;
 
     public void Dispose() => Session.Changed -= OnSessionChanged;
 }

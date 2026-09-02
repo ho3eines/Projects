@@ -7,7 +7,7 @@
    همهٔ جدول‌های پروژه باید از این کامپوننت استفاده کنند تا
    chrome (کاغذ)، skeleton بارگذاری، empty state و pager در یک‌جا
    یکدست بمانند. RowTemplate و HeaderContent را پاس بدهید.
-*@<MudPaper Elevation="1" Class="@(string.IsNullOrWhiteSpace(Class) ? "pa-4" : $"pa-4 {Class}")">
+*@<MudPaper Elevation="1" Class="@(string.IsNullOrWhiteSpace(Class) ? "tz-data-table pa-4" : $"tz-data-table pa-4 {Class}")">
     @if (Loading)
     {
         <TableSkeleton Columns="SkeletonColumns" Rows="SkeletonRows" />
@@ -15,7 +15,7 @@
     else
     {
         <MudTable Items="Items" Hover="true" Dense="true" Striped="true"
-                  RowsPerPage="RowsPerPage" Breakpoint="Breakpoint.Sm">
+                  RowsPerPage="RowsPerPage" Breakpoint="Breakpoint.Sm" Class="tz-data-table__table">
             <HeaderContent>@HeaderContent</HeaderContent>
             <RowTemplate Context="item">@RowTemplate(item)</RowTemplate>
             <NoRecordsContent>

@@ -14,7 +14,7 @@
             Subtitle="دفتر روزنامه، دفتر کل، تراز آزمایشی و مرور مرحله‌ای کل تا سند."
             Eyebrow="حسابداری">
     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="PrintAsync" Disabled="_loading || !CanPrintCurrent"
-               StartIcon="@Icons.Material.Filled.Print">چاپ / PDF</MudButton>
+               StartIcon="@Icons.Material.Filled.Print">چاپ</MudButton>
 </PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
@@ -1107,7 +1107,7 @@ else
         _ => Color.Default
     };
 
-    // ── چاپ / PDF (طبق اسکیل tarazin-reporting) ──
+    // ── چاپ (طبق اسکیل tarazin-reporting) ──
 
     /// <summary>آیا جدول فعلی داده‌ای برای چاپ دارد؟</summary>
     private bool CanPrintCurrent => _detailSummary is not null

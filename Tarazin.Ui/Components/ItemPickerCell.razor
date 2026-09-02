@@ -1,0 +1,99 @@
+@* ─────────────────────────────────────────────────────────────
+   ItemPickerCell — سلول انتخاب کالا (جایگزین MudSelect دستی)
+   ─────────────────────────────────────────────────────────────
+   دیالوگ انتخاب کالا (EntityPickerService / SelectorDialog) را با
+   جستجو، صفحه‌بندی، ستون‌های موجودی و قیمت واحد باز می‌کند.
+   وضعیت در خودِ page می‌ماند (ItemId/UnitPrice با EventCallback).
+
+   استفاده:
+     <ItemPickerCell Items="_items"
+                     ItemId="line.l.ItemId"
+                     ItemIdChanged="v => line.l.ItemId = v"
+                     UnitPrice="line.l.UnitPrice"
+                     UnitPriceChanged="v => line.l.UnitPrice = v" />
+*@
+@inject EntityPickerService Picker
+
+@if (ItemId == 0)
+{
+    <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@Icons.Material.Filled.Search"
+               OnClick="@(() => _ = PickAsync())">
+        انتخاب کالا...
+    </MudButton>
+}
+else
+{
+    <div class="d-flex align-center gap-2">
+        <span>@ItemDisplayTitle()</span>
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                       OnClick="@(() => _ = PickAsync())" title="تغییر کالا" />
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error"
+                       OnClick="@(ClearItem)" title="حذف کالا" />
+    </div>
+}
+
+@code {
+    /// <summary>شناسهٔ کالای انتخاب‌شده (0 = انتخاب نشده).</summary>
+    [Parameter, EditorRequired] public int ItemId { get; set; }
+
+    /// <summary>فراخوانی با مقدار جدید وقتی کالا انتخاب/تغییر می‌کند.</summary>
+    [Parameter] public EventCallback<int> ItemIdChanged { get; set; }
+
+    /// <summary>فراخوانی با خود کالای انتخاب‌شده (برای بارگذاری واحدهای چندگانه در صفحه).</summary>
+    [Parameter] public EventCallback<ItemRow> OnItemPicked { get; set; }
+
+    /// <summary>قیمت واحد فعلی قلم — در صورت صفر، با قیمت کالا پیش‌فرض می‌شود.</summary>
+    [Parameter] public decimal UnitPrice { get; set; }
+
+    [Parameter] public EventCallback<decimal> UnitPriceChanged { get; set; }
+
+    /// <summary>لیست کامل کالاها (از ItemList — شامل StockQty و UnitPrice).</summary>
+    [Parameter, EditorRequired] public List<ItemRow> Items { get; set; } = new();
+
+    /// <summary>عنوان دیالوگ.</summary>
+    [Parameter] public string Title { get; set; } = "انتخاب کالا — انبار";
+
+    private string ItemDisplayTitle()
+    {
+        var it = Items.FirstOrDefault(x => x.ItemId == ItemId);
+        return it is null ? $"کد {ItemId}" : $"{it.ItemCode} — {it.ItemTitle}";
+    }
+
+    private async Task PickAsync()
+    {
+        var picked = await Picker.PickAsync(new EntityPickerOptions<ItemRow>
+        {
+            Title = Title,
+            SearchPlaceholder = "جستجو بر اساس کد/عنوان/SKU/بارکد...",
+            MaxWidth = MaxWidth.Medium,
+            Items = Items,
+            RowsPerPage = 10,
+            DisplayText = it => $"{it.ItemCode} — {it.ItemTitle}",
+            SearchFields = it => new[] { it.ItemCode, it.ItemTitle, it.SKU ?? "", it.Barcode ?? "", it.Brand ?? "" },
+            Columns =
+            {
+                new("کد", it => it.ItemCode),
+                new("عنوان کالا", it => it.ItemTitle),
+                new("واحد", it => it.UnitTitle ?? it.Unit),
+                new("موجودی", it => it.StockQty.ToString("N2")),
+                new("قیمت واحد", it => it.UnitPrice.ToString("N0")),
+                new("قیمت زنده", it => it.LivePrice.HasValue ? it.LivePrice.Value.ToString("N0") + (string.IsNullOrWhiteSpace(it.LiveSource) ? "" : " ⚡") : "—"),
+                new("گروه", it => it.GroupTitle ?? "—")
+            }
+        });
+        if (picked is not null)
+        {
+            await ItemIdChanged.InvokeAsync(picked.ItemId);
+            if (UnitPrice == 0)
+                await UnitPriceChanged.InvokeAsync(picked.UnitPrice);
+            await OnItemPicked.InvokeAsync(picked);
+        }
+    }
+
+    private void ClearItem()
+    {
+        _ = ItemIdChanged.InvokeAsync(0);
+        _ = UnitPriceChanged.InvokeAsync(0);
+    }
+}

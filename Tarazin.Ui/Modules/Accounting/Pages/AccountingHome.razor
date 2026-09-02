@@ -14,6 +14,10 @@
                StartIcon="@Icons.Material.Filled.Print">
         چاپ فهرست
     </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="RenumberAsync" Disabled="_loading"
+               StartIcon="@Icons.Material.Filled.Numbers">
+        شماره‌گذاری مجدد اسناد
+    </MudButton>
 </PageHeader>
 
 <MudPaper Elevation="1" Class="pa-4 mb-4">
@@ -32,6 +36,24 @@
                        StartIcon="@Icons.Material.Filled.Search" OnClick="LoadAsync" Disabled="_loading">
                 اعمال فیلتر
             </MudButton>
+        </MudItem>
+        <MudItem xs="12">
+            <div class="d-flex align-center flex-wrap gap-2">
+                <MudTooltip Text="بازهٔ پیش‌فرض = کل سال مالی فعال">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                             Icon="@Icons.Material.Filled.CalendarMonth" Style="cursor:pointer"
+                             OnClick="ResetToActiveFiscalYearAsync" Disabled="_loading">
+                        بازهٔ سال مالی
+                    </MudChip>
+                </MudTooltip>
+                @if (_from is not null && _to is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        بازهٔ فعلی: <span class="tz-num">@PersianDate.ToPersian(_from.Value)</span> تا
+                        <span class="tz-num">@PersianDate.ToPersian(_to.Value)</span>
+                    </MudText>
+                }
+            </div>
         </MudItem>
     </MudGrid>
 </MudPaper>
@@ -143,6 +165,15 @@
         await LoadAsync();
     }
 
+    /// <summary>بازگشت بازهٔ تاریخ به پیش‌فرض (کل سال مالی فعال) و بارگذاری مجدد — یک کلیک.</summary>
+    private async Task ResetToActiveFiscalYearAsync()
+    {
+        var fy = await Context.GetActiveFiscalYearAsync();
+        _from = fy?.StartDate ?? DateTime.Today;
+        _to = fy?.EndDate ?? DateTime.Today;
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         _loading = true;
@@ -169,6 +200,32 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    /// <summary>شماره‌گذاری مجدد قطعی اسناد بر اساس تاریخ (سریال ۸رقمی ترتیبی).</summary>
+    private async Task RenumberAsync()
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "شماره‌گذاری مجدد اسناد",
+            "همهٔ اسناد این شرکت (سال مالی فعال) به‌ترتیب تاریخ، شمارهٔ قطعی ۸رقمی می‌گیرند. ادامه می‌دهید؟",
+            yesText: "شماره‌گذاری مجدد", cancelText: "انصراف");
+        if (confirm is not true) return;
+
+        try
+        {
+            var count = await Db.QueryFirstOrDefaultAsync<int>(Schema, "DocumentRenumber", new
+            {
+                CompanyId = Session.ActiveCompanyId,
+                FiscalYearId = Session.ActiveFiscalYearId,
+                CreatedBy = Session.UserName
+            });
+            Snackbar.Add($"{count} سند شماره‌گذاری مجدد شد.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
         }
     }
 

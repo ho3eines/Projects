@@ -609,6 +609,22 @@ IF COL_LENGTH(N'accounting.DocumentLines', N'CreatedAt') IS NULL
 IF COL_LENGTH(N'accounting.DocumentLines', N'UpdatedAt') IS NULL
     ALTER TABLE [accounting].[DocumentLines] ADD UpdatedAt DATETIME2 NULL;
 
+-- DocumentLines.CompanyId: اسکریپت‌های چاپ پیشرفتهٔ سند (DocumentPrintRollup و
+-- هم‌خانواده‌ها) روی CompanyId فیلتر می‌کنند. در هاست این ستون توسط
+-- central._MobileSecurity اضافه می‌شود؛ اینجا (idempotent) در خود اسکیمای
+-- accounting اضافه می‌شود تا دیتابیسِ ساخته‌شده فقط با _Ensure (CI / دیتابیس
+-- تازه) هم خودکفا باشد و گارد چاپ پیشرفته روی دیتابیس خالی اجرا شود.
+-- مقدار پیش‌فرض همان قرارداد هاست است: شرکتِ فعالِ جلسه (session context).
+IF COL_LENGTH(N'accounting.DocumentLines', N'CompanyId') IS NULL
+    ALTER TABLE [accounting].[DocumentLines] ADD CompanyId INT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.default_constraints dc
+               WHERE dc.parent_object_id = OBJECT_ID(N'accounting.DocumentLines')
+                 AND dc.parent_column_id = (SELECT column_id FROM sys.columns
+                                            WHERE object_id = OBJECT_ID(N'accounting.DocumentLines')
+                                              AND name = N'CompanyId'))
+    ALTER TABLE [accounting].[DocumentLines] ADD CONSTRAINT DF_DocumentLines_CompanyId
+        DEFAULT ([central].[fn_MobileCompanyId]()) FOR CompanyId;
+
 IF COL_LENGTH(N'accounting.ChartOfAccounts', N'CreatedBy') IS NULL
     ALTER TABLE [accounting].[ChartOfAccounts] ADD CreatedBy NVARCHAR(100) NULL;
 IF COL_LENGTH(N'accounting.ChartOfAccounts', N'UpdatedBy') IS NULL

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Data.SqlClient;
@@ -11,12 +12,15 @@ using Xunit;
 namespace Tarazin.Tests
 {
     /// <summary>
-    /// گارد ترتیبی چاپ پیشرفتهٔ سند با دادهٔ زنده: سند واقعی دیتابیس (32 ردیف،
-    /// DocumentId=1547) را از طریق همان اسکریپت‌های UI (DocumentById + DocumentLines +
-    /// DocumentPrintRollup) بارگذاری می‌کند و قفل می‌کند که در مدل چاپ پیشرفته
-    /// (Kol←Moein←تفصیل) هر تفصیل دقیقاً زیر معین خودش و هر معین زیر کل خودش بیاید و
-    /// جمع هر سطح با جمع ردیف‌های زیرمجموعه‌اش برابر باشد.
-    /// دو گارد: (۱) چیدمان دستی با همان قواعد GROUP BY اسکریپت، (۲) صدازدنِ خودِ
+    /// گارد ترتیبی چاپ پیشرفتهٔ سند با دادهٔ زندهٔ خودکفا: دیگر به سندِ ازپیش‌موجود
+    /// (DocumentId=1547 در دیتابیس توسعه) وابسته نیست — خودش با اسکریپت واقعی UI
+    /// (DocumentInsert.sql) یک سند ۳۲ ردیفه (کل ۱۰ ← معین ۱۰۰۰۰/۱۰۱۰۰ ← ۳۲ تفصیل)
+    /// seed می‌کند و از همان اسکریپت‌های چاپ (DocumentById + DocumentLines +
+    /// DocumentPrintRollup) بارگذاری می‌کند؛ پس روی **هر دیتابیس تازه** (از جمله CI با
+    /// اسکیمای _Ensure) هم اجرا می‌شود نه اینکه Skip شود.
+    /// قفل می‌کند که در مدل چاپ پیشرفته (Kol←Moein←تفصیل) هر تفصیل دقیقاً زیر معین
+    /// خودش و هر معین زیر کل خودش بیاید و جمع هر سطح با جمع ردیف‌های زیرمجموعه‌اش برابر
+    /// باشد. دو گارد: (۱) چیدمان دستی با همان قواعد GROUP BY اسکریپت، (۲) صدازدنِ خودِ
     /// <c>AdvancedDocRowsBuilder.Build</c> — همان متدی که DocumentPrintDialog و
     /// PdfReportService.BuildDocumentPdf هر دو استفاده می‌کنند (منبع واحد حقیقت).
     /// نیازمند SQL Server زنده است؛ اگر در دسترس نبود Skip می‌شود.
@@ -24,33 +28,106 @@ namespace Tarazin.Tests
     public class AdvancedDocumentPrintGuardTests
     {
         private const string ScriptsDir = "../../../../Tarazin.Data/Scripts/accounting";
-        private const int TargetDoc = 1547; // سند واقعی 32 ردیفی در دیتابیس توسعه
-        private const int TargetCompany = 3;
-        private const int TargetFy = 4;
 
         private static string Script(string name)
             => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, ScriptsDir, name));
 
-        /// <summary>بارگذاری سند 1547 با همان اسکریپت‌های UI (سرصفحه + ردیف‌ها + رول‌آپ).</summary>
-        private static async Task<LoadedDoc> LoadDoc1547Async(Microsoft.Data.SqlClient.SqlConnection cn)
+        /// <summary>
+        /// Seed و بارگذاری سند ۳۲ ردیفه در یک تراکنش: شرکت + سال مالی + دو حساب
+        /// (کد ۱۰۰۰۰۰۰۰۰/۱۰۱۰۰۰۰۰۰ → کل ۱۰، معین ۱۰۰۰۰/۱۰۱۰۰) ساخته می‌شود و سپس
+        /// DocumentInsert.sql واقعی ۱۶ بدهکار + ۱۶ بستانکار (هر طرف ۱۶٬۰۰۰٬۰۰۰، متوازن)
+        /// ثبت می‌کند. سند با همان اسکریپت‌های UI بارگذاری می‌شود؛ همهٔ ردیف‌ها قبلاً در
+        /// حافظه materialize شده‌اند، پس با پایان تراکنش (rollback) هیچ داده‌ای در DB نمی‌ماند
+        /// و هیچ cleanup جداگانه‌ای لازم نیست.
+        /// </summary>
+        private static async Task<LoadedDoc> SeedAndLoadAsync(SqlConnection cn)
         {
+            using var tx = cn.BeginTransaction();
+
+            var compId = await cn.ExecuteScalarAsync<int>(@"
+                INSERT INTO central.Companies (CompanyName, IsActive, IsDeleted, CreatedAt, CreatedBy)
+                VALUES (N'شرکت تست چاپ پیشرفته', 1, 0, SYSUTCDATETIME(), N'diag');
+                SELECT SCOPE_IDENTITY();", transaction: tx);
+
+            // مثل DbService.OpenConnectionAsync — بدون این، DEFAULT ستون CompanyId
+            // ردیف‌های DocumentLines (fn_MobileCompanyId) به «اولین شرکت دیتابیس»
+            // (مثلاً 3 در دیتابیس توسعه) می‌افتد نه شرکت seed شده؛ و چون rollup بر
+            // CompanyId فیلتر می‌کند، روی دیتابیس‌های تازه/خالی گارد به‌اشتباه Fail
+            // می‌شد. با ست کردن session context، ردیف‌ها دقیقاً شرکت seed شده را می‌گیرند.
+            await cn.ExecuteAsync(
+                "EXEC sys.sp_set_session_context @key=N'TarazinCompanyId', @value=@CompanyId;",
+                new { CompanyId = compId }, transaction: tx);
+
+            var fyId = await cn.ExecuteScalarAsync<int>(@"
+                INSERT INTO central.FiscalYears (CompanyId, YearName, StartDate, EndDate, IsActive, [Status], CreatedAt, CreatedBy)
+                VALUES (@c, N'1405', '2026-03-21', '2027-03-20', 1, N'Open', SYSUTCDATETIME(), N'diag');
+                SELECT SCOPE_IDENTITY();", new { c = compId }, transaction: tx);
+
+            var accCash = await cn.ExecuteScalarAsync<int>(@"
+                INSERT INTO accounting.ChartOfAccounts (AccountCode, Title, AccountType, IsActive, IsDeleted, CreatedAt, CreatedBy, CompanyId)
+                VALUES (N'100000000', N'صندوق', N'Asset', 1, 0, SYSUTCDATETIME(), N'diag', @c);
+                SELECT SCOPE_IDENTITY();", new { c = compId }, transaction: tx);
+
+            var accBank = await cn.ExecuteScalarAsync<int>(@"
+                INSERT INTO accounting.ChartOfAccounts (AccountCode, Title, AccountType, IsActive, IsDeleted, CreatedAt, CreatedBy, CompanyId)
+                VALUES (N'101000000', N'بانک', N'Asset', 1, 0, SYSUTCDATETIME(), N'diag', @c);
+                SELECT SCOPE_IDENTITY();", new { c = compId }, transaction: tx);
+
+            // ۳۲ ردیف: ۱۶ بدهکار زیر معین ۱۰۰۰۰ + ۱۶ بستانکار زیر معین ۱۰۱۰۰ — متوازن
+            var lines = new List<DocLineSeed>();
+            for (var i = 1; i <= 16; i++)
+            {
+                lines.Add(new DocLineSeed { AccountId = accCash, AccountCode = "100000000", Description = $"بدهکار {i}", Debit = 1_000_000m, Credit = 0m });
+                lines.Add(new DocLineSeed { AccountId = accBank, AccountCode = "101000000", Description = $"بستانکار {i}", Debit = 0m, Credit = 1_000_000m });
+            }
+
+            await cn.ExecuteAsync(Script("DocumentInsert.sql"), new
+            {
+                LinesJson = JsonSerializer.Serialize(lines),
+                DocumentDate = new DateTime(2026, 4, 5),
+                DocumentType = "Journal",
+                CounterPartyName = "شرکت نمونه",
+                Status = "Draft",
+                CreatedBy = "diag",
+                CompanyId = compId,
+                FiscalYearId = fyId,
+                OverrideClosedYear = false,
+                OverrideReason = (string?)null
+            }, transaction: tx);
+
+            var docId = await cn.ExecuteScalarAsync<int>(
+                "SELECT TOP 1 DocumentId FROM accounting.Documents WHERE CompanyId=@c AND IsDeleted=0 ORDER BY DocumentId DESC",
+                new { c = compId }, transaction: tx);
+
             var header = await cn.QueryFirstOrDefaultAsync<DocHeader>(
                 Script("DocumentById.sql"),
-                new { DocumentId = TargetDoc, CompanyId = TargetCompany, FiscalYearId = TargetFy });
-            if (header is null)
-                throw new SkipException($"سند {TargetDoc} در دیتابیس نبود");
+                new { DocumentId = docId, CompanyId = compId, FiscalYearId = fyId }, transaction: tx);
+            Assert.NotNull(header);
 
-            var lines = (await cn.QueryAsync<DocumentLineRow>(
+            var docLines = (await cn.QueryAsync<DocumentLineRow>(
                 Script("DocumentLines.sql"),
-                new { DocumentId = TargetDoc, CompanyId = TargetCompany, FiscalYearId = TargetFy })).ToList();
+                new { DocumentId = docId, CompanyId = compId, FiscalYearId = fyId }, transaction: tx)).ToList();
 
             var rollup = (await cn.QueryAsync<RollupRow>(
                 Script("DocumentPrintRollup.sql"),
-                new { DocumentId = TargetDoc, CompanyId = TargetCompany })).ToList();
+                new { DocumentId = docId, CompanyId = compId }, transaction: tx)).ToList();
 
-            Assert.Equal(32, lines.Count); // باید همان سند 32 ردیفی باشد
+            Assert.Equal(32, docLines.Count); // سند seed شده باید دقیقاً 32 ردیف داشته باشد
+            Assert.Contains(rollup, r => r.Level == "Kol" && r.Code == "10");
+            Assert.Contains(rollup, r => r.Level == "Moein" && r.Code == "10000");
+            Assert.Contains(rollup, r => r.Level == "Moein" && r.Code == "10100");
 
-            return new LoadedDoc(header, lines, rollup);
+            return new LoadedDoc(header!, docLines, rollup);
+        }
+
+        /// <summary>ردیف سند برای JSON ورودی DocumentInsert (کلیدها با OPENJSON اسکریپت هم‌نام).</summary>
+        private sealed class DocLineSeed
+        {
+            public int AccountId { get; set; }
+            public string AccountCode { get; set; } = "";
+            public string? Description { get; set; }
+            public decimal Debit { get; set; }
+            public decimal Credit { get; set; }
         }
 
         /// <summary>
@@ -63,7 +140,7 @@ namespace Tarazin.Tests
         public async Task Advanced_ordering_and_level_sums_guard()
         {
             using var cn = await TestDb.OpenOrSkipAsync();
-            var loaded = await LoadDoc1547Async(cn);
+            var loaded = await SeedAndLoadAsync(cn);
             var kols = loaded.Kols;
             var moeins = loaded.Moeins;
             var lines = loaded.Lines;
@@ -214,7 +291,7 @@ namespace Tarazin.Tests
         public async Task AdvancedDocRowsBuilder_live_hierarchy_and_level_sums_guard()
         {
             using var cn = await TestDb.OpenOrSkipAsync();
-            var loaded = await LoadDoc1547Async(cn);
+            var loaded = await SeedAndLoadAsync(cn);
             var model = loaded.BuildModel();
 
             // ── خود متد واقعی تولید ردیف (دیالوگ/PDF) با دادهٔ زنده ──
@@ -329,7 +406,7 @@ namespace Tarazin.Tests
 
             public AccountingDocumentPrintModel BuildModel() => new()
             {
-                DocumentId = TargetDoc,
+                DocumentId = Header.DocumentId,
                 DocumentNumber = Header.DocumentNumber,
                 DocumentDate = Header.DocumentDate,
                 DocumentType = Header.DocumentType,

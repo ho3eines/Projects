@@ -59,6 +59,12 @@
                   Virtualize="EnableVirtualization"
                   Breakpoint="Breakpoint.None">
             <HeaderContent>
+                @if (MultiSelect)
+                {
+                    <MudTh Style="width:44px">
+                        <MudCheckBox T="bool" Value="false" ValueChanged="ToggleSelectAllVisible" />
+                    </MudTh>
+                }
                 @foreach (var col in Columns)
                 {
                     <MudTh Style="cursor:pointer" @onclick="@(() => ToggleSort(col))">
@@ -72,6 +78,13 @@
                 }
             </HeaderContent>
             <RowTemplate>
+                @if (MultiSelect)
+                {
+                    <MudTd>
+                        <MudCheckBox T="bool" Value="_selectedItems.Contains(context)"
+                                     ValueChanged="v => SetMultiSelection(context, v)" />
+                    </MudTd>
+                }
                 @foreach (var col in Columns)
                 {
                     <MudTd>@col.Render(context)</MudTd>
@@ -95,7 +108,16 @@
         </MudTable>
 
         @* ─── خلاصه انتخاب ─── *@
-        @if (_selected is not null)
+        @if (MultiSelect)
+        {
+            <MudPaper Elevation="0" Outlined="true" Class="pa-3 mt-2 d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                <MudText Typo="Typo.body1">
+                    <b>@_selectedItems.Count</b> مورد انتخاب شد
+                </MudText>
+            </MudPaper>
+        }
+        else if (_selected is not null)
         {
             <MudPaper Elevation="0" Outlined="true" Class="pa-3 mt-2">
                 <div class="d-flex align-center gap-2">
@@ -110,8 +132,8 @@
         <MudButton Variant="Variant.Text" OnClick="Cancel">انصراف (Esc)</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Check"
-                   OnClick="Confirm" Disabled="_selected is null">
-            تأیید (Enter)
+                   OnClick="Confirm" Disabled="@(MultiSelect ? _selectedItems.Count == 0 : _selected is null)">
+            @(MultiSelect ? $"{ConfirmLabel} ({_selectedItems.Count})" : "تأیید (Enter)")
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -153,6 +175,12 @@
     /// <summary>داک‌بلاک برای کلیک دوتایی (اختیاری)</summary>
     [Parameter] public EventCallback<T> OnDoubleClick { get; set; }
 
+    /// <summary>انتخاب چندتایی با چک‌باکس (تأیید، لیست همهٔ انتخاب‌شده‌ها را برمی‌گرداند).</summary>
+    [Parameter] public bool MultiSelect { get; set; }
+
+    /// <summary>لیبل دکمهٔ تأیید در حالت چندتایی.</summary>
+    [Parameter] public string ConfirmLabel { get; set; } = "تأیید";
+
     // ─── متغیرهای داخلی ───
     private MudTextField<string>? _searchRef;
     private MudTable<T>? _tableRef;
@@ -160,6 +188,7 @@
     private List<T> _allFiltered = new();   // نتیجهٔ جستجو (همه)
     private List<T> _filtered = new();       // نتیجهٔ فعلی (بعد از مرتب‌سازی)
     private T? _selected;
+    private HashSet<T> _selectedItems = new();
     private bool _loading;
     private string? _sortColumn;
     private bool _sortAsc = true;
@@ -307,8 +336,39 @@
                 : _selected.ToString() ?? "";
     }
 
+    private void SetMultiSelection(T item, bool selected)
+    {
+        if (selected) _selectedItems.Add(item);
+        else _selectedItems.Remove(item);
+        StateHasChanged();
+    }
+
+    private void ToggleSelectAllVisible(bool _)
+    {
+        var visible = _filtered.ToList();
+        var allChecked = visible.Count > 0 && visible.All(_selectedItems.Contains);
+        foreach (var item in visible)
+        {
+            if (allChecked) _selectedItems.Remove(item);
+            else _selectedItems.Add(item);
+        }
+        StateHasChanged();
+    }
+
     private void Confirm()
     {
+        if (MultiSelect)
+        {
+            if (_selectedItems.Count == 0) return;
+            var list = _selectedItems.ToList();
+            MudDialog.Close(DialogResult.Ok(new SelectorResult<T>
+            {
+                Item = list[0],
+                Index = _filtered.IndexOf(list[0]),
+                Items = list
+            }));
+            return;
+        }
         if (_selected is null) return;
         MudDialog.Close(DialogResult.Ok(new SelectorResult<T>
         {
@@ -324,6 +384,7 @@
     {
         public TItem Item { get; set; } = default!;
         public int Index { get; set; }
+        public List<TItem> Items { get; set; } = new();
     }
 }
 

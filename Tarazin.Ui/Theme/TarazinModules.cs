@@ -36,12 +36,14 @@ public static class TarazinModules
                 new("نقش‌ها و دسترسی‌ها", "/central/roles", Icons.Material.Filled.AdminPanelSettings, TarazinPermissions.Roles),
                 new("ممیزی", "/central/audit", Icons.Material.Filled.Policy, TarazinPermissions.Audit),
                 new("مدیریت قالب‌های چاپ", "/central/printing", Icons.Material.Filled.Print, Perm("central", TarazinActions.View)),
+                new("سلامت ربات تلگرام", "/central/telegram-bot", Icons.Material.Filled.SmartToy, Perm("central", TarazinActions.View)),
             ]),
         new("accounting", "حسابداری", "اسناد، دفتر روزنامه و کل، تراز آزمایشی",
             "/accounting", Icons.Material.Filled.AccountBalance, TarazinAccents.Steel,
             [
                 new("داشبورد", "/accounting/dashboard", Icons.Material.Filled.Dashboard, Perm("accounting", TarazinActions.View)),
                 new("اسناد", "/accounting", Icons.Material.Filled.Description, Perm("accounting", TarazinActions.View)),
+                new("ماندهٔ ابتدای دوره", "/accounting/opening", Icons.Material.Filled.Balance, Perm("accounting", TarazinActions.Entry)),
                 new("ثبت سند", "/accounting/entry", Icons.Material.Filled.PostAdd, Perm("accounting", TarazinActions.Entry)),
                 // صفحهٔ سند از فهرست اسناد باز می‌شود و در زیرمنو تکرار نمی‌شود؛
                 // اما باید در گاردِ مسیر شناخته شود تا با «مشاهدهٔ حسابداری» محافظت شود.
@@ -49,6 +51,7 @@ public static class TarazinModules
                 new("جداول پایه", "/accounting/chart", Icons.Material.Filled.AccountTree, TarazinPermissions.ChartView),
                 new("عملیات ویژه", "/accounting/special", Icons.Material.Filled.AutoFixHigh, Perm("accounting", TarazinActions.Special)),
                 new("گزارشات", "/accounting/reports", Icons.Material.Filled.Assessment, Perm("accounting", TarazinActions.Reports)),
+                new("قوانین مالیاتی", "/accounting/tax-rules", Icons.Material.Filled.RequestQuote, Perm("accounting", TarazinActions.Settings)),
                 new("تنظیمات شرکت", "/accounting/settings", Icons.Material.Filled.CorporateFare, Perm("accounting", TarazinActions.Settings)),
             ]),
         new("inventory", "انبار", "رسید و حواله، کارتکس، موجودی کالا",

@@ -3,6 +3,7 @@
 @inject UserSession Session
 @inject IDialogService Dialog
 @inject ISnackbar Snackbar
+@inject DemoDataSeedingService _seeder
 
 <PageTitle>امکانات — انبار</PageTitle>
 
@@ -183,10 +184,16 @@
                                             ButtonLabel="انتخاب حساب مقابل حواله" EmptyText="حساب مقابل حواله انتخاب نشده است."
                                             PickerOptions="@_moeinOptions" />
                     </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">حساب مقابل تعدیل (انبارگردانی)</MudText>
+                        <AccountPickerField Value="_adjustmentAccount" ValueChanged="OnAdjustmentAccountAsync"
+                                            ButtonLabel="انتخاب حساب مقابل تعدیل" EmptyText="حساب مقابل تعدیل انتخاب نشده است."
+                                            PickerOptions="@_moeinOptions" />
+                    </MudItem>
 
                     <MudItem xs="12">
                         <MudSwitch T="bool" @bind-Value="_settings.IsEnabled" Color="Color.Success">
-                            ثبت خودکار سند حسابداری هنگام رسید/حواله
+                            ثبت خودکار سند حسابداری هنگام رسید/حواله/انبارگردانی
                         </MudSwitch>
                     </MudItem>
                     <MudItem xs="12">
@@ -197,6 +204,36 @@
                     </MudItem>
                 </MudGrid>
             </MudForm>
+        </MudPaper>
+    </MudTabPanel>
+    }
+
+    @if (CanSettings)
+    {
+    <MudTabPanel Text="داده نمونه">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.h6">بازسازی دادهٔ نمونه (Demo Data)</MudText>
+            <MudText Typo="Typo.body2" Class="mt-1 mb-4">
+                نمونه‌های انبار/طلا/خزانه را حذف و دوباره می‌سازد (idempotent) تا بعد از هر
+                مرحله دادهٔ تازه داشته باشی. دادهٔ سید اصلی دست نمی‌خورد.
+            </MudText>
+            <div class="d-flex align-center gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Refresh" OnClick="ReseedAsync"
+                           Disabled="_reseedBusy">
+                    @(_reseedBusy ? "در حال بازسازی…" : "بازسازی دادهٔ نمونه")
+                </MudButton>
+                @if (_reseedResult is not null)
+                {
+                    <MudChip T="string" Color="@(_reseedResult.Ok ? Color.Success : Color.Error)" Size="Size.Small">
+                        @(_reseedResult.Ok ? $"✅ بازسازی موفق (خروجی {_reseedResult.ExitCode})" : $"⚠️ بازسازی ناموفق (خروجی {_reseedResult.ExitCode})")
+                    </MudChip>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_reseedResult?.Output))
+            {
+                <pre class="reseed-output mt-4">@_reseedResult.Output</pre>
+            }
         </MudPaper>
     </MudTabPanel>
     }
@@ -212,7 +249,7 @@
     private InventorySettingsRow _settings = new();
     private int _defaultWarehouseId;
     private int _defaultSubWarehouseId;
-    private AccountPickerResult? _inventoryAccount, _receiptContraAccount, _issueContraAccount;
+    private AccountPickerResult? _inventoryAccount, _receiptContraAccount, _issueContraAccount, _adjustmentAccount;
     private static readonly AccountPickerOptions _moeinOptions = new()
     {
         Title = "انتخاب حساب (کل/معین/تفصیلی)",
@@ -223,6 +260,28 @@
     private bool _settingsValid;
     private bool _loading = true;
     private bool _busy;
+    private bool _reseedBusy;
+    private ReseedResult? _reseedResult;
+
+    private async Task ReseedAsync()
+    {
+        _reseedBusy = true;
+        _reseedResult = null;
+        try
+        {
+            _reseedResult = await _seeder.RunReseedAsync();
+            Snackbar.Add(_reseedResult.Ok ? "دادهٔ نمونه بازسازی شد." : "بازسازی دادهٔ نمونه ناموفق بود — خروجی را ببین.",
+                _reseedResult.Ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _reseedBusy = false;
+        }
+    }
 
     /// <summary>دسترسی کامل به تنظیمات انبار (همهٔ تب‌ها).</summary>
     private bool CanSettings =>
@@ -239,6 +298,7 @@
     private Task OnInventoryAccountAsync(AccountPickerResult? v) { _inventoryAccount = v; return Task.CompletedTask; }
     private Task OnReceiptContraAccountAsync(AccountPickerResult? v) { _receiptContraAccount = v; return Task.CompletedTask; }
     private Task OnIssueContraAccountAsync(AccountPickerResult? v) { _issueContraAccount = v; return Task.CompletedTask; }
+    private Task OnAdjustmentAccountAsync(AccountPickerResult? v) { _adjustmentAccount = v; return Task.CompletedTask; }
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -247,7 +307,7 @@
         _loading = true;
         try
         {
-            _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId })).ToList();
+            _items = (await Db.QueryAsync<ItemRow>(Schema, "ItemList", new { CompanyId = Session.ActiveCompanyId, Search = "" })).ToList();
             _warehouses = (await Db.QueryAsync<WarehouseRow>(Schema, "WarehouseList", new { CompanyId = Session.ActiveCompanyId })).ToList();
             _subWarehouses = (await Db.QueryAsync<SubWarehouseRow>(Schema, "SubWarehouseList", new { CompanyId = Session.ActiveCompanyId, WarehouseId = (int?)null })).ToList();
             _groups = (await Db.QueryAsync<ItemGroupRow>(Schema, "ItemGroupList", new { CompanyId = Session.ActiveCompanyId })).ToList();
@@ -262,6 +322,8 @@
                 _receiptContraAccount = new AccountPickerResult { Id = rid, AccountCode = _settings.ReceiptContraAccountCode ?? "", Title = _settings.ReceiptContraAccountTitle ?? "", NodeType = "BaseMoein" };
             if (_settings.IssueContraAccountId is int xid && xid > 0)
                 _issueContraAccount = new AccountPickerResult { Id = xid, AccountCode = _settings.IssueContraAccountCode ?? "", Title = _settings.IssueContraAccountTitle ?? "", NodeType = "BaseMoein" };
+            if (_settings.AdjustmentAccountId is int adid && adid > 0)
+                _adjustmentAccount = new AccountPickerResult { Id = adid, AccountCode = _settings.AdjustmentAccountCode ?? "", Title = _settings.AdjustmentAccountTitle ?? "", NodeType = "BaseMoein" };
         }
         catch (Exception ex)
         {
@@ -433,6 +495,9 @@
                 IssueContraAccountId = _issueContraAccount?.Id,
                 IssueContraAccountCode = _issueContraAccount?.AccountCode,
                 IssueContraAccountTitle = _issueContraAccount?.Title,
+                AdjustmentAccountId = _adjustmentAccount?.Id,
+                AdjustmentAccountCode = _adjustmentAccount?.AccountCode,
+                AdjustmentAccountTitle = _adjustmentAccount?.Title,
                 DefaultWarehouseId = _defaultWarehouseId == 0 ? (int?)null : _defaultWarehouseId,
                 DefaultSubWarehouseId = _defaultSubWarehouseId == 0 ? (int?)null : _defaultSubWarehouseId,
                 IsEnabled = _settings.IsEnabled,

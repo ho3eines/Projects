@@ -134,6 +134,10 @@ BEGIN
 
             INSERT INTO [accounting].[DocumentLines] (DocumentId, AccountId, AccountCode, Title, Description, Debit, Credit)
             VALUES (@DocumentId, @ContraAccountId, @ContraCode, @ContraTitle, N'عکس وصول چک ' + @MovementNumber, 0, @Amount);
+
+            -- لنگر حسابداری روی چک و حرکت نقدیِ آن (شمارهٔ مشترک Cheque:{ChequeId})
+            UPDATE [treasury].[Cheques] SET DocumentId = @DocumentId WHERE ChequeId = @ChequeId;
+            UPDATE [treasury].[CashMovements] SET DocumentId = @DocumentId WHERE SourceReference = CONCAT(N'Cheque:', @ChequeId);
         END
     END
 END
