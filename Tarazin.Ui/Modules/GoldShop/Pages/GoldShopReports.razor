@@ -47,10 +47,10 @@
                     <MudTd DataLabel="مشتری">@context.CustomerName</MudTd>
                     <MudTd DataLabel="کالا">@context.ItemCode — @context.ItemTitle</MudTd>
                     <MudTd DataLabel="وزن">@context.WeightGram.ToString("N3")</MudTd>
-                    <MudTd DataLabel="اجرت">@context.Workmanship.ToString("N0")</MudTd>
-                    <MudTd DataLabel="سود">@context.Profit.ToString("N0")</MudTd>
-                    <MudTd DataLabel="مالیات">@context.Tax.ToString("N0")</MudTd>
-                    <MudTd DataLabel="جمع">@context.TotalAmount.ToString("N0")</MudTd>
+                    <MudTd DataLabel="اجرت">@TzNumericText.Format(context.Workmanship)</MudTd>
+                    <MudTd DataLabel="سود">@TzNumericText.Format(context.Profit)</MudTd>
+                    <MudTd DataLabel="مالیات">@TzNumericText.Format(context.Tax)</MudTd>
+                    <MudTd DataLabel="جمع">@TzNumericText.Format(context.TotalAmount)</MudTd>
                     <MudTd DataLabel="منبع">
                         <MudButton Variant="Variant.Text" Color="Color.Info" Size="Size.Small"
                                    Class="px-1" Style="text-transform:none;white-space:nowrap"
@@ -87,7 +87,7 @@
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.ItemCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
-                    <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
+                    <MudTd DataLabel="قیمت هر گرم">@TzNumericText.Format(context.PricePerGram)</MudTd>
                     <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><EmptyState Title="قیمتی ثبت نشده است." /></NoRecordsContent>
@@ -246,10 +246,10 @@
             <MudTd DataLabel="مشتری">@context.CustomerName</MudTd>
             <MudTd DataLabel="کالا">@context.ItemCode — @context.ItemTitle</MudTd>
             <MudTd DataLabel="وزن">@context.WeightGram.ToString("N3")</MudTd>
-            <MudTd DataLabel="اجرت">@context.Workmanship.ToString("N0")</MudTd>
-            <MudTd DataLabel="سود">@context.Profit.ToString("N0")</MudTd>
-            <MudTd DataLabel="مالیات">@context.Tax.ToString("N0")</MudTd>
-            <MudTd DataLabel="جمع">@context.TotalAmount.ToString("N0")</MudTd>
+            <MudTd DataLabel="اجرت">@TzNumericText.Format(context.Workmanship)</MudTd>
+            <MudTd DataLabel="سود">@TzNumericText.Format(context.Profit)</MudTd>
+            <MudTd DataLabel="مالیات">@TzNumericText.Format(context.Tax)</MudTd>
+            <MudTd DataLabel="جمع">@TzNumericText.Format(context.TotalAmount)</MudTd>
         </RowTemplate>
     </MudTable>;
 
@@ -260,7 +260,7 @@
         <RowTemplate>
             <MudTd DataLabel="کد">@context.ItemCode</MudTd>
             <MudTd DataLabel="عنوان">@context.Title</MudTd>
-            <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
+            <MudTd DataLabel="قیمت هر گرم">@TzNumericText.Format(context.PricePerGram)</MudTd>
             <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
         </RowTemplate>
     </MudTable>;

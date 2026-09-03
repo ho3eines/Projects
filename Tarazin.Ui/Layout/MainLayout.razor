@@ -39,11 +39,12 @@
                 <ActivatorContent>
                     @* در MudBlazor 9 کلیک روی ActivatorContent خودکار نیست؛ باید خودمان آن را
                        به MenuContext وصل کنیم تا منو با کلیک باز/بسته شود. *@
+                    @* فشرده: یک آیکون متمایز (سال) + مقدار + فلش — بدون آیکون‌های تکراری *@
                     <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
-                             Icon="@Icons.Material.Filled.Business" Class="ms-2 tz-fy-menu__chip"
+                             Icon="@Icons.Material.Filled.CalendarMonth"
+                             Class="ms-2 tz-fy-menu__chip tz-fy-menu__chip--year"
                              Style="cursor:pointer" OnClick="() => context.ToggleAsync()">
-                        @Session.ActiveFiscalYearName
-                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Small" Class="ms-1" />
+                        <span class="tz-fy-menu__value">@Session.ActiveFiscalYearName</span>
                         <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ms-1" />
                     </MudChip>
                 </ActivatorContent>
@@ -74,10 +75,12 @@
         {
             <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Class="tz-fy-menu">
                 <ActivatorContent>
+                    @* فشرده: نام انبار با ellipsis در عرض محدود *@
                     <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled"
-                             Icon="@Icons.Material.Filled.Warehouse" Class="ms-2 tz-fy-menu__chip"
+                             Icon="@Icons.Material.Filled.Warehouse"
+                             Class="ms-2 tz-fy-menu__chip tz-fy-menu__chip--warehouse"
                              Style="cursor:pointer" OnClick="() => context.ToggleAsync()">
-                        @(Session.ActiveWarehouseName ?? "انتخاب انبار")
+                        <span class="tz-fy-menu__value">@(Session.ActiveWarehouseName ?? "انتخاب انبار")</span>
                         <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="ms-1" />
                     </MudChip>
                 </ActivatorContent>
@@ -141,8 +144,12 @@
 
     <MudDivider />
 
+    @* سمت بازشدن drawer همیشه راست است (صریح، نه وابسته به آبشار RTL): در این اپ RTL
+       Anchor.Start هم به راست ترجمه می‌شود ولی Anchor.Right تضمین فیزیکی می‌دهد حتی اگر
+       RightToLeft آبشاری به هر دلیلی نرسد. CSS موبایل (آفست بسته‌شده با right و
+       --mud-drawer-width-right) هم برای drawer راست‌باز طراحی شده است. *@
     <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive"
-               ClipMode="DrawerClipMode.Always" Anchor="Anchor.Start" Class="tz-drawer tz-drawer--mobile"
+               ClipMode="DrawerClipMode.Always" Anchor="Anchor.Right" Class="tz-drawer tz-drawer--mobile"
                Elevation="0" Breakpoint="Breakpoint.Md"
                @ontouchstart="OnDrawerTouchStart" @ontouchend="OnDrawerTouchEnd">
 @*         <div class="tz-drawer__head">
@@ -380,10 +387,11 @@
         var delta = endX - _drawerTouchStartX;
         if (Math.Abs(delta) < 48) return;
 
-        // در RTL، کشیدن از راست به چپ drawer را می‌بندد و برعکس باز می‌کند.
-        if (delta < 0 && _drawerOpen)
+        // در RTL drawer سمت راست است: برای بستن باید drawer را به سمت لبهٔ راست کشید
+        // (انگشت به راست، delta>0) و بازکردن از لبهٔ راست با کشیدن به چپ است.
+        if (delta > 0 && _drawerOpen)
             _drawerOpen = false;
-        else if (delta > 0 && !_drawerOpen)
+        else if (delta < 0 && !_drawerOpen)
             _drawerOpen = true;
     }
 

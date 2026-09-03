@@ -51,18 +51,18 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="ارز"><b>@context.CurrencyCode</b> — @context.CurrencyName</MudTd>
-                    <MudTd DataLabel="موجودی">@context.Quantity.ToString("N2")</MudTd>
-                    <MudTd DataLabel="نرخ متوسط">@context.AvgBuyRate?.ToString("N0")</MudTd>
-                    <MudTd DataLabel="نرخ سیستم">@context.SystemRate.ToString("N0")</MudTd>
-                    <MudTd DataLabel="ارزش ریالی"><b>@context.RialValue.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="موجودی">@TzNumericText.Format(context.Quantity)</MudTd>
+                    <MudTd DataLabel="نرخ متوسط">@TzNumericText.Format(context.AvgBuyRate)</MudTd>
+                    <MudTd DataLabel="نرخ سیستم">@TzNumericText.Format(context.SystemRate)</MudTd>
+                    <MudTd DataLabel="ارزش ریالی"><b>@TzNumericText.Format(context.RialValue)</b></MudTd>
                     <MudTd DataLabel="سود/زیان">
                         <MudText Typo="Typo.body2" Color="@(context.UnrealizedPnl >= 0 ? Color.Success : Color.Error)">
-                            @context.UnrealizedPnl.ToString("N0")
+                            @TzNumericText.Format(context.UnrealizedPnl)
                         </MudText>
                     </MudTd>
-                    <MudTd DataLabel="اول دوره">@context.OpeningQty.ToString("N2")</MudTd>
-                    <MudTd DataLabel="ورود">@context.InQty.ToString("N2")</MudTd>
-                    <MudTd DataLabel="خروج">@context.OutQty.ToString("N2")</MudTd>
+                    <MudTd DataLabel="اول دوره">@TzNumericText.Format(context.OpeningQty)</MudTd>
+                    <MudTd DataLabel="ورود">@TzNumericText.Format(context.InQty)</MudTd>
+                    <MudTd DataLabel="خروج">@TzNumericText.Format(context.OutQty)</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><EmptyState Title="کیف پولی ثبت نشده است." /></NoRecordsContent>
             </MudTable>
@@ -87,9 +87,9 @@
                                  Variant="Variant.Outlined">@(context.Direction == "In" ? "ورود" : "خروج")</MudChip>
                     </MudTd>
                     <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
-                    <MudTd DataLabel="مقدار">@context.Quantity.ToString("N2")</MudTd>
-                    <MudTd DataLabel="نرخ">@context.Rate.ToString("N0")</MudTd>
-                    <MudTd DataLabel="معادل">@context.AmountRial.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مقدار">@TzNumericText.Format(context.Quantity)</MudTd>
+                    <MudTd DataLabel="نرخ">@TzNumericText.Format(context.Rate)</MudTd>
+                    <MudTd DataLabel="معادل">@TzNumericText.Format(context.AmountRial)</MudTd>
                     <MudTd DataLabel="طرف">@context.CounterPartyName</MudTd>
                     <MudTd DataLabel="تسویه">@FundText(context)</MudTd>
                     <MudTd DataLabel="شرح">@context.Description</MudTd>

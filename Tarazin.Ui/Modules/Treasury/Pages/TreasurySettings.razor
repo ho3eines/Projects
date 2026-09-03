@@ -22,7 +22,7 @@
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.CurrencyCode</MudTd>
                     <MudTd DataLabel="نام">@context.CurrencyName</MudTd>
-                    <MudTd DataLabel="نرخ">@context.RateToIRR.ToString("N0")</MudTd>
+                    <MudTd DataLabel="نرخ">@TzNumericText.Format(context.RateToIRR)</MudTd>
                     <MudTd DataLabel="تاریخ">@context.RateDate.ToString("yyyy/MM/dd")</MudTd>
                     <MudTd DataLabel="عملیات">
                         <MudTooltip Text="ویرایش نرخ">
@@ -84,7 +84,7 @@
                     <MudTd DataLabel="نام">@context.AccountName</MudTd>
                     <MudTd DataLabel="شماره">@context.AccountNo</MudTd>
                     <MudTd DataLabel="بانک">@context.BankName</MudTd>
-                    <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مانده">@TzNumericText.Format(context.Balance)</MudTd>
                     <MudTd DataLabel="وضعیت">
                         <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                             @(context.IsActive ? "فعال" : "غیرفعال")
@@ -117,7 +117,7 @@
                 <RowTemplate>
                     <MudTd DataLabel="کد">@context.CashBoxCode</MudTd>
                     <MudTd DataLabel="عنوان">@context.Title</MudTd>
-                    <MudTd DataLabel="مانده">@context.Balance.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مانده">@TzNumericText.Format(context.Balance)</MudTd>
                     <MudTd DataLabel="وضعیت">
                         <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                             @(context.IsActive ? "فعال" : "غیرفعال")

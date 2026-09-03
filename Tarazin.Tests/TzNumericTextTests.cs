@@ -164,4 +164,82 @@ public class TzNumericTextTests
         Assert.Equal("12.5", TzNumericText.Format(12.50m, Inv));
         Assert.Equal("0.0001", TzNumericText.Format(0.0001m, Inv));
     }
+
+    // ── نمایش سلول‌های جدول (overloadهای culture-less و انواع دیگر) ─────
+
+    [Fact]
+    public void Format_CultureLess_Matches_Current_Culture()
+    {
+        // overload بدون فرهنگ = همان Format با CultureInfo.CurrentCulture
+        Assert.Equal(TzNumericText.Format(1250.75m, CultureInfo.CurrentCulture),
+                     TzNumericText.Format(1250.75m));
+        Assert.Equal(TzNumericText.Format(1250.75, CultureInfo.CurrentCulture),
+                     TzNumericText.Format(1250.75));
+    }
+
+    [Fact]
+    public void Format_Nullable_Returns_Empty_For_Null()
+    {
+        Assert.Equal("", TzNumericText.Format((decimal?)null));
+        Assert.Equal("", TzNumericText.Format((double?)null));
+        Assert.Equal("", TzNumericText.Format((int?)null));
+        Assert.Equal("", TzNumericText.Format((long?)null));
+        Assert.Equal("1,250", TzNumericText.Format((decimal?)1250m, Inv));
+    }
+
+    [Fact]
+    public void Format_Double_And_Integer_Overloads()
+    {
+        // عدد اعشاری‌ای که N0 آن را گرد می‌کرد — نمایش باید اعشار را حفظ کند
+        Assert.Equal("1,250.75", TzNumericText.Format(1250.75, Inv));
+        Assert.Equal("0.5", TzNumericText.Format(0.5, Inv));
+        Assert.Equal("1,234,567", TzNumericText.Format(1234567, Inv));
+        Assert.Equal("9,223,372,036,854,775,807", TzNumericText.Format(long.MaxValue, Inv));
+        Assert.Equal("12.5", TzNumericText.Format(12.5000m, Inv)); // صفرهای انتهایی حذف
+    }
+
+    // ── RejectionReason (پیام خطای ورودیِ ردشده) ──────────────────────
+
+    private static string? Reason(string input, bool allowDecimal = true, CultureInfo? culture = null)
+        => TzNumericText.RejectionReason(input, culture ?? Inv, allowDecimal);
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("-")]
+    [InlineData(".")]
+    public void RejectionReason_Null_For_MidTyping(string input)
+    {
+        Assert.Null(Reason(input)); // حالت‌های میانیِ تایپ نباید خطا بگیرند
+    }
+
+    [Fact]
+    public void RejectionReason_Reports_Double_Decimal()
+    {
+        Assert.Equal("ممیز تکراری — فقط یک ممیز مجاز است.", Reason("12..5"));
+        Assert.Equal("ممیز تکراری — فقط یک ممیز مجاز است.", Reason("1.2.3"));
+    }
+
+    [Fact]
+    public void RejectionReason_Integer_Field_Rejects_Decimal()
+    {
+        Assert.Equal("در این فیلد فقط عدد صحیح مجاز است.", Reason("12.5", allowDecimal: false));
+        Assert.Equal("در این فیلد فقط عدد صحیح مجاز است.",
+                     Reason("۱۲٫۵", allowDecimal: false, culture: Fa)); // ممیز فارسی
+    }
+
+    [Fact]
+    public void RejectionReason_Reports_Invalid_Characters()
+    {
+        var msg = "فقط ارقام، ممیز و جداکنندهٔ گروه مجاز است.";
+        Assert.Equal(msg, Reason("12ab"));
+        Assert.Equal(msg, Reason("--5"));
+        Assert.Equal(msg, Reason("12+5"));
+    }
+
+    [Fact]
+    public void RejectionReason_Reports_Overflow_As_Too_Large()
+    {
+        Assert.Equal("عدد واردشده بیش از حد بزرگ است.", Reason("999999999999999999999999999999"));
+        Assert.Equal("عدد واردشده بیش از حد بزرگ است.", Reason("99999999999999999999", allowDecimal: false));
+    }
 }

@@ -21,7 +21,7 @@
         <RowTemplate>
             <MudTd DataLabel="کد">@context.ItemCode</MudTd>
             <MudTd DataLabel="عنوان">@context.Title</MudTd>
-            <MudTd DataLabel="قیمت هر گرم">@context.PricePerGram.ToString("N0")</MudTd>
+            <MudTd DataLabel="قیمت هر گرم">@TzNumericText.Format(context.PricePerGram)</MudTd>
             <MudTd DataLabel="به‌روزرسانی">@context.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</MudTd>
             <MudTd DataLabel="عملیات">
                 <MudTooltip Text="ویرایش قیمت">

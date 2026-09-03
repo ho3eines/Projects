@@ -20,7 +20,7 @@
         <HeaderContent><MudTh>نوع</MudTh><MudTh>کد</MudTh><MudTh>نام</MudTh><MudTh>ریالی</MudTh><MudTh>طلا (گرم)</MudTh><MudTh>ارز</MudTh><MudTh>تفصیلی</MudTh><MudTh>عملیات</MudTh></HeaderContent>
         <RowTemplate>
             <MudTd>@(context.PartyType == "Customer" ? "مشتری" : "تأمین‌کننده")</MudTd><MudTd>@context.PartyCode</MudTd><MudTd><b>@context.FullName</b></MudTd>
-            <MudTd Class="@(context.BalanceRial > 0 ? "text-error" : "text-success")">@context.BalanceRial.ToString("N0")</MudTd><MudTd>@context.GoldBalanceGram.ToString("N3")</MudTd><MudTd>@context.CurrencyBalance.ToString("N3") @context.CurrencyCode</MudTd>
+            <MudTd Class="@(context.BalanceRial > 0 ? "text-error" : "text-success")">@TzNumericText.Format(context.BalanceRial)</MudTd><MudTd>@context.GoldBalanceGram.ToString("N3")</MudTd><MudTd>@context.CurrencyBalance.ToString("N3") @context.CurrencyCode</MudTd>
             <MudTd>@(context.DetailAccountCode ?? (context.DetailLinkId?.ToString() ?? "تنظیم نشده"))</MudTd>
             <MudTd><MudTooltip Text="گردش حساب"><MudIconButton Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Info" OnClick="@(() => LedgerAsync(context))" /><MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => EditAsync(ToModel(context)))" /><MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(() => DeleteAsync(context))" /></MudTooltip></MudTd>
         </RowTemplate>

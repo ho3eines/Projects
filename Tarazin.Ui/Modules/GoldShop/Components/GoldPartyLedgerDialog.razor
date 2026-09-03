@@ -14,7 +14,7 @@
             <HeaderContent><MudTh>تاریخ</MudTh><MudTh>نوع</MudTh><MudTh>بدهکار ریالی</MudTh><MudTh>بستانکار ریالی</MudTh><MudTh>بدهکار طلا</MudTh><MudTh>بستانکار طلا</MudTh><MudTh>شرح</MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd>@context.EntryDate.ToString("yyyy/MM/dd")</MudTd><MudTd>@context.EntryType</MudTd>
-                <MudTd>@context.DebitRial.ToString("N0")</MudTd><MudTd>@context.CreditRial.ToString("N0")</MudTd>
+                <MudTd>@TzNumericText.Format(context.DebitRial)</MudTd><MudTd>@TzNumericText.Format(context.CreditRial)</MudTd>
                 <MudTd>@context.DebitGoldGram.ToString("N3")</MudTd><MudTd>@context.CreditGoldGram.ToString("N3")</MudTd><MudTd>@context.Description</MudTd>
             </RowTemplate>
             <NoRecordsContent><EmptyState Title="گردشی ثبت نشده است." /></NoRecordsContent>

@@ -2,39 +2,85 @@
 @inject NavigationManager Nav
 @implements IDisposable
 
-<MudNavMenu Class="tz-nav" Bordered="false" Color="Color.Secondary" Dense="false">
-    <div class="tz-nav__label">میز کار</div>
-    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">خانه</MudNavLink>
-    <MudNavLink Href="/diag" Icon="@Icons.Material.Filled.MonitorHeart">عیب‌یابی اتصال</MudNavLink>
-    @if (!Session.IsAuthenticated)
-    {
-        <MudNavLink Href="/login" Icon="@Icons.Material.Filled.Login">ورود</MudNavLink>
-    }
+@* جستجوی منو: با تایپ متن، درخت عادی به لیست صافِ نتایج منطبق (گروه‌بندی‌شده بر
+   اساس ماژول) تبدیل می‌شود تا هر صفحه با چند کلید پیدا شود. Escape متن را پاک
+   می‌کند و درخت عادی برمی‌گردد. *@
+<div class="tz-nav">
+    <div class="tz-nav__search">
+        <MudTextField T="string" @bind-Value="_search"
+                      Placeholder="جستجو در منو…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true" ClearIcon="@Icons.Material.Filled.Close"
+                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Immediate="true"
+                      Class="tz-nav__search-field"
+                      @onkeydown="OnSearchKeyDown"
+                      aria-label="جستجو در منو" />
+    </div>
 
-    <div class="tz-nav__label">ماژول‌ها</div>
-    @foreach (var mod in TarazinModules.All)
+    @if (_filtering)
     {
-        @if (Session.CanView(mod.Key))
+        @if (SearchHits.Any())
         {
-            <MudNavGroup Title="@mod.Title" Icon="@mod.Icon" Expanded="IsExpanded(mod)"
-                         Class="tz-nav__group">
-                @foreach (var item in mod.Items)
+            @foreach (var grp in SearchHits.GroupBy(h => h.Section))
+            {
+                <div class="tz-nav__label">@grp.Key</div>
+                @foreach (var h in grp)
                 {
-                    @if (!item.HideInNav && Session.HasPermission(item.Permission))
-                    {
-                        <MudNavLink Href="@item.Url" Icon="@item.Icon"
-                                    Match="@(item.Url == mod.Url ? NavLinkMatch.All : NavLinkMatch.Prefix)">
-                            @item.Title
-                        </MudNavLink>
-                    }
+                    @* مهم: مقدارهای ساخته‌شده از کد باید با @ صریح بیایند؛ بدون @، Razor
+                       «h.Url» را به‌عنوان رشتهٔ ثابت (متن) می‌گذارد و لینک به /h.Url می‌رود. *@
+                    <MudNavLink Href="@h.Url" Icon="@h.Icon"
+                                Match="@(h.Url == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                        @h.Title
+                    </MudNavLink>
                 }
-            </MudNavGroup>
+            }
+        }
+        else
+        {
+            <div class="tz-nav__empty">چیزی مطابق «@_search» یافت نشد</div>
         }
     }
-</MudNavMenu>
+    else
+    {
+        <MudNavMenu Bordered="false" Color="Color.Secondary" Dense="false">
+            <div class="tz-nav__label">میز کار</div>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">خانه</MudNavLink>
+            <MudNavLink Href="/diag" Icon="@Icons.Material.Filled.MonitorHeart">عیب‌یابی اتصال</MudNavLink>
+            @if (!Session.IsAuthenticated)
+            {
+                <MudNavLink Href="/login" Icon="@Icons.Material.Filled.Login">ورود</MudNavLink>
+            }
+
+            <div class="tz-nav__label">ماژول‌ها</div>
+            @foreach (var mod in TarazinModules.All)
+            {
+                @if (Session.CanView(mod.Key))
+                {
+                    <MudNavGroup Title="@mod.Title" Icon="@mod.Icon" Expanded="IsExpanded(mod)"
+                                 Class="tz-nav__group">
+                        @foreach (var item in mod.Items)
+                        {
+                            @if (!item.HideInNav && Session.HasPermission(item.Permission))
+                            {
+                                <MudNavLink Href="@item.Url" Icon="@item.Icon"
+                                            Match="@(item.Url == mod.Url ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                                    @item.Title
+                                </MudNavLink>
+                            }
+                        }
+                    </MudNavGroup>
+                }
+            }
+        </MudNavMenu>
+    }
+</div>
 
 @code {
     [Parameter] public string CurrentPath { get; set; } = "";
+
+    private string _search = "";
+    private bool _filtering => _search.Trim().Length > 0;
 
     protected override void OnInitialized()
     {
@@ -48,6 +94,50 @@
 
     private bool IsExpanded(TarazinModule mod) =>
         TarazinModules.Match(CurrentPath)?.Key == mod.Key;
+
+    private void OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            _search = "";
+    }
+
+    /// <summary>نرمال‌سازی فارسی: همزه/ی/ک عربی و نیم‌فاصله تا جستجو خطا ندهد.</summary>
+    private static string Norm(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        return s.Replace('ي', 'ی').Replace('ك', 'ک')
+                .Replace('أ', 'ا').Replace('إ', 'ا').Replace('آ', 'ا').Replace('ة', 'ه')
+                .Replace('\u200c', ' ').Trim().ToLowerInvariant();
+    }
+
+    private bool Hit(string text) => Norm(text).Contains(Norm(_search));
+
+    /// <summary>نتایج صافِ جستجو: همان محدودیت‌های دسترسی درخت عادی را اعمال می‌کند.</summary>
+    private IEnumerable<(string Section, string Title, string Url, string Icon)> SearchHits
+    {
+        get
+        {
+            if (!_filtering) yield break;
+
+            // بخش «میز کار»
+            if (Hit("خانه")) yield return ("میز کار", "خانه", "/", Icons.Material.Filled.Home);
+            if (Hit("عیب‌یابی اتصال")) yield return ("میز کار", "عیب‌یابی اتصال", "/diag", Icons.Material.Filled.MonitorHeart);
+            if (!Session.IsAuthenticated && Hit("ورود"))
+                yield return ("میز کار", "ورود", "/login", Icons.Material.Filled.Login);
+
+            // آیتم‌های ماژول‌ها
+            foreach (var mod in TarazinModules.All)
+            {
+                if (!Session.CanView(mod.Key)) continue;
+                foreach (var item in mod.Items)
+                {
+                    if (item.HideInNav || !Session.HasPermission(item.Permission)) continue;
+                    if (Hit(item.Title))
+                        yield return (mod.Title, item.Title, item.Url, item.Icon);
+                }
+            }
+        }
+    }
 
     public void Dispose() => Session.Changed -= OnSessionChanged;
 }

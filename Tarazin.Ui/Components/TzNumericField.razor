@@ -37,7 +37,11 @@
               Disabled="Disabled"
               ReadOnly="ReadOnly"
               FullWidth="FullWidth"
-              Immediate="true" />
+              Immediate="true"
+              Error="@(_error is not null)"
+              ErrorText="@_error"
+              OnBlur="HandleBlurAsync"
+              OnKeyUp="HandleKeyUpAsync" />
 
 @code {
     [Parameter] public string? Label { get; set; }
@@ -75,7 +79,37 @@
 
     private string _text = "";
 
+    /// <summary>پیام خطای قرمز زیر فیلد؛ null یعنی ورودی سالم است.</summary>
+    private string? _error;
+
+    /// <summary>متن فعلی خارج از بازهٔ Min/Max است و هنوز commit نشده.</summary>
+    private bool _draftOutOfRange;
+
     private string DisplayFormat => GroupThousands ? "#,##0.####" : "0.####";
+
+    // محدودهٔ قابل نمایشِ انواع صحیح — تایپِ فراتر از آن باید خطا بدهد نه exception
+    private static readonly Dictionary<Type, (decimal Min, decimal Max)> IntegerBounds = new()
+    {
+        [typeof(short)] = (short.MinValue, short.MaxValue),
+        [typeof(int)] = (int.MinValue, int.MaxValue),
+        [typeof(long)] = (long.MinValue, long.MaxValue),
+    };
+
+    private decimal? MinValue => Min is null ? null : Convert.ToDecimal(Min, CultureInfo.InvariantCulture);
+    private decimal? MaxValue => Max is null ? null : Convert.ToDecimal(Max, CultureInfo.InvariantCulture);
+
+    private bool FitsIntegerRange(decimal v)
+    {
+        var t = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+        if (!IntegerBounds.TryGetValue(t, out var b)) return true;
+        return v >= b.Min && v <= b.Max;
+    }
+
+    private void ClearError()
+    {
+        _error = null;
+        _draftOutOfRange = false;
+    }
 
     // آخرین مقداری که این کامپوننت به والد فرستاده — مبنای گارد سینک
     private decimal? _lastEmitted;
@@ -102,6 +136,7 @@
 
     private void SyncTextFromValue()
     {
+        ClearError();
         _lastEmittedNull = Value is null;
         _lastEmitted = Value is null ? null : Convert.ToDecimal(Value, CultureInfo.InvariantCulture);
         _text = Value is null
@@ -116,6 +151,7 @@
 
         if (raw.Length == 0)
         {
+            ClearError();
             _text = "";
             await CommitAsync(default, wasEmpty: true);
             return;
@@ -124,13 +160,77 @@
         if (!TzNumericText.TryParse(raw, CultureInfo.CurrentCulture,
                                     out var parsed, out var canonical,
                                     allowDecimal: !IsInteger))
-            return; // ورودی ناقص/نامعتبر (مثل «12.» یا دو ممیز) → متن بماند، commit نشود
+        {
+            // ورودی رد شد → به‌جای نگه‌داشتنِ بی‌صدا، خطای قرمز نشان بده.
+            // متنِ تایپ‌شده دست‌نخورده می‌ماند تا کاربر اصلاحش کند (متن در _text
+            // نگه داشته می‌شود تا بلورِ بعدی وضعیتِ فیلد را به هم نریزد).
+            _text = raw;
+            _draftOutOfRange = false;
+            _error = TzNumericText.RejectionReason(raw, CultureInfo.CurrentCulture,
+                                                   allowDecimal: !IsInteger);
+            return;
+        }
+
+        // محدودهٔ نوع صحیح (مثل int) — قبل از clamp تا exception ندهد
+        if (IsInteger && !FitsIntegerRange(parsed))
+        {
+            _text = raw;
+            _draftOutOfRange = false;
+            _error = "عدد از محدودهٔ مجاز این فیلد فراتر است.";
+            return;
+        }
+
+        // خارج از بازهٔ Min/Max: متنِ تایپ‌شده می‌ماند + پیام «حد مجاز» قرمز؛
+        // مقدار با clamp در blur/Enter ثبت می‌شود (نه بی‌صدا وسط تایپ).
+        if (MinValue is { } min && parsed < min)
+        {
+            StartOutOfRangeDraft(raw, $"حداقل مجاز: {TzNumericText.Format(min)}");
+            return;
+        }
+        if (MaxValue is { } max && parsed > max)
+        {
+            StartOutOfRangeDraft(raw, $"حداکثر مجاز: {TzNumericText.Format(max)}");
+            return;
+        }
+
+        ClearError();
+        _text = canonical;
+        await CommitAsync(parsed, wasEmpty: false);
+    }
+
+    private void StartOutOfRangeDraft(string raw, string message)
+    {
+        // متنِ تایپ‌شده را در _text نگه می‌داریم (مقدارِ خارج از بازه هنوز commit
+        // نمی‌شود) تا FinalizeDraftAsync در blur/Enter دقیقاً همان عددِ تایپ‌شده را
+        // ببیند و clamp کند — بدون این، _text مقدارِ کهنهٔ قبلی بود و clamp اشتباه
+        // می‌شد و متنِ روی صفحه هرگز با مقدارِ ثبت‌شده هماهنگ نمی‌شد.
+        _text = raw;
+        _draftOutOfRange = true;
+        _error = message;
+    }
+
+    // ── نهایی‌کردنِ پیش‌نویسِ خارج از بازه: clamp در blur یا Enter ───────────
+
+    private async Task HandleBlurAsync(FocusEventArgs _) => await FinalizeDraftAsync();
+
+    private async Task HandleKeyUpAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await FinalizeDraftAsync();
+    }
+
+    private async Task FinalizeDraftAsync()
+    {
+        if (!_draftOutOfRange) return;
+        var raw = _text?.Trim() ?? "";
+        ClearError(); // خطا فقط «حین تایپ» است؛ در خروج مقدارِ محدودشده ثبت می‌شود
+        if (raw.Length == 0 ||
+            !TzNumericText.TryParse(raw, CultureInfo.CurrentCulture,
+                                    out var parsed, out var canonical,
+                                    allowDecimal: !IsInteger))
+            return;
 
         var clamped = Clamp(parsed);
-        _text = clamped != parsed
-            ? TzNumericText.Format(clamped, CultureInfo.CurrentCulture) // clamp شد → نمایش مقدار واقعی
-            : canonical;
-
+        _text = clamped == parsed ? canonical : TzNumericText.Format(clamped, CultureInfo.CurrentCulture);
         await CommitAsync(clamped, wasEmpty: false);
     }
 
@@ -156,16 +256,8 @@
 
     private decimal Clamp(decimal v)
     {
-        if (Min is not null)
-        {
-            var m = Convert.ToDecimal(Min, CultureInfo.InvariantCulture);
-            if (v < m) v = m;
-        }
-        if (Max is not null)
-        {
-            var m = Convert.ToDecimal(Max, CultureInfo.InvariantCulture);
-            if (v > m) v = m;
-        }
+        if (MinValue is { } mn && v < mn) v = mn;
+        if (MaxValue is { } mx && v > mx) v = mx;
         return v;
     }
 }

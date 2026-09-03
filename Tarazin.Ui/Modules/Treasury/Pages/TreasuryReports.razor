@@ -65,7 +65,7 @@
                     @(context.Direction == "In" ? "دریافت" : "پرداخت")
                 </MudChip>
             </MudTd>
-            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="مبلغ">@TzNumericText.Format(context.Amount)</MudTd>
             <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
             <MudTd DataLabel="حساب">@context.AccountName</MudTd>
             <MudTd DataLabel="شرح">@context.Description</MudTd>
@@ -158,7 +158,7 @@
             <MudTd DataLabel="تاریخ">@context.MovementDate.ToString("yyyy/MM/dd")</MudTd>
             <MudTd DataLabel="شماره">@context.MovementNumber</MudTd>
             <MudTd DataLabel="جهت">@(context.Direction == "In" ? "دریافت" : "پرداخت")</MudTd>
-            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="مبلغ">@TzNumericText.Format(context.Amount)</MudTd>
             <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
             <MudTd DataLabel="حساب">@context.AccountName</MudTd>
             <MudTd DataLabel="شرح">@context.Description</MudTd>

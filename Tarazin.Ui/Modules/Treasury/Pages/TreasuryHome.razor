@@ -61,7 +61,7 @@
                     @(context.Direction == "In" ? "دریافت" : "پرداخت")
                 </MudChip>
             </MudTd>
-            <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+            <MudTd DataLabel="مبلغ">@TzNumericText.Format(context.Amount)</MudTd>
             <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
             <MudTd DataLabel="حساب">@context.AccountName</MudTd>
             <MudTd DataLabel="شرح">@context.Description</MudTd>

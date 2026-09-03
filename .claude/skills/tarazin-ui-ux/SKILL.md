@@ -280,7 +280,15 @@ description: >
 ### ۲.۱۴ `TzNumericField<T>` — فیلد عددی استاندارد (جداکنندهٔ سه‌رقمی runtime)
 به‌جای `MudNumericField` استفاده کنید. متن را خودش parse می‌کند، پس گروه‌بندی
 سه‌رقمی «حین تایپ» اعمال می‌شود (نه فقط بعد از بلور). ارقام فارسی/عربی نرمال،
-ممیز نقطه/اسلش/«،»، clamp با `Min`/`Max`.
+ممیز نقطه/اسلش/«،»، و `Min`/`Max`.
+
+**بازخورد خطا (به‌جای ردِ بی‌صدا):**
+- ورودیِ نامعتبر (ممیز تکراری، نویسهٔ غیرعددی، سرریز) متنِ تایپ‌شده را نگه می‌دارد
+  و با `Error`/`ErrorText` مادبلیزر قرمز می‌شود — پیام از `TzNumericText.RejectionReason`
+  می‌آید (خالص و تست‌شده). حالت‌های میانیِ تایپ («-»، «.») خطا نمی‌گیرند.
+- خارج از بازهٔ `Min`/`Max` حین تایپ قرمز می‌شود («حداقل/حداکثر مجاز: X») و مقدارِ
+  محدودشده فقط هنگام blur/Enter ثبت (clamp) می‌شود؛ وسط تایپ بی‌صدا عوض نمی‌شود.
+- عددِ فراتر از دامنهٔ نوع صحیح (مثل int) خطا می‌گیرد، نه exception.
 
 ```razor
 @* T: decimal, decimal?, int, int?, long, ... *@
@@ -290,7 +298,26 @@ description: >
 ```
 
 مغزِ فرمت‌بندی `TzNumericText.cs` است (تست واحد: `Tarazin.Tests/TzNumericTextTests.cs`).
+قراردادِ خطای بالا در سطح کامپوننت هم بند شده است: `Tarazin.Tests/TzNumericFieldTests.cs`
+(bUnit — رویدادها از طریق EventCallbackهای MudTextField داخلی زده می‌شوند). اگر قرارداد
+تغییر کرد (مثلاً «ردِ سخت» به‌جای clamp) همان‌جا را به‌روز کنید.
 هیچ‌جا `MudNumericField` جدید اضافه نکنید — حتی برای int.
+
+**نمایش عدد در سلول‌های جدول** (`TzNumericText.Format`) — همان سبکِ فیلد:
+در سلول‌های فقط‌خواندنیِ جداول (`TzDataTable`/`MudTable`) عدد را با overloadهای
+نمایشِ `TzNumericText.Format` چاپ کنید، نه `ToString("N0")`/`("N2")` ثابت:
+
+```razor
+<MudTd DataLabel="مبلغ">@TzNumericText.Format(item.TotalAmount)</MudTd>
+<MudTd DataLabel="نرخ">@TzNumericText.Format(item.AvgRate) @* decimal? → null = خالی *@</MudTd>
+@* int/long (شمارنده‌ها) هم overload دارند: TzNumericText.Format(row.Count) *@
+```
+
+علت: `#,##0.####` گروه‌بندیِ همان `TzNumericField` را می‌دهد و ارقامِ اعشاریِ
+واقعی را بی‌صدا گرد/صفرچسبان نمی‌کند (`12.5` همان `12.5` می‌ماند، نه `13` یا `12.50`).
+استثناهای عمدی: وزن گرم (گرم‌های اندازه‌گیری‌شده) با رقم ثابت `"N3"` می‌ماند —
+خودِ مقدار را قالب‌بندی نکنید، فقط سلول‌های پول/نرخ/مقدار را.
+فرهنگ جاری است (fa-IR در وب و MAUI)؛ null → رشتهٔ خالی.
 
 ---
 

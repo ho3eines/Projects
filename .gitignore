@@ -30,3 +30,16 @@ Tarazin.*/CrackDLL/
 
 # Local Telegram agent credentials and runtime state
 .telegram-agent.env
+
+# scratch browser profiles + throwaway preview captures (session tools)
+tools/_chk-profile/
+tools/_chk-profile*/
+tools/_preview/
+tools/_preview-x/
+tools/_cap-*
+tools/_*.json
+tools/_*.txt
+tools/_*.py
+tools/_*.png
+Tarazin.Tests/TestResults/
+docs/screens/

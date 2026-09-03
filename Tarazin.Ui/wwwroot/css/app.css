@@ -126,7 +126,8 @@ body {
     opacity: 0.55;
 }
 
-/* ── App bar ─────────────────────────────────────────────── */
+/* ── App bar — هم‌خانواده با ناوبری: آیتم‌های جمع‌وجور، بدون قرص بزرگ؛
+   hover/فعال فقط تینت آکورد؛ radius کوچک ۷px مثل تب‌های subnav. ───── */
 .tz-appbar.mud-appbar {
     border-bottom: 1px solid rgba(232, 200, 114, 0.18);
     box-shadow: 0 2px 14px rgba(7, 40, 38, 0.16);
@@ -136,7 +137,7 @@ body {
 .tz-brand {
     display: flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: 0.65rem;
     color: inherit;
     text-decoration: none;
     min-width: 0;
@@ -144,7 +145,9 @@ body {
 
 .tz-brand__mark {
     display: block;
-    border-radius: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
@@ -156,33 +159,119 @@ body {
 
 .tz-brand__text strong {
     font-weight: 800;
-    font-size: 1.15rem;
+    font-size: 0.98rem;
     letter-spacing: -0.02em;
 }
 
 .tz-brand__text small {
-    font-size: 0.78rem;
-    opacity: 0.75;
+    font-size: 0.72rem;
+    opacity: 0.65;
     font-weight: 500;
 }
 
-.tz-appbar__mod {
-    margin-inline-start: 0.75rem;
-    background: transparent !important;
+/* دکمه‌های آیکونی (منو، تغییر پوسته) — کوچک‌تر برای قدِ جمع‌وجورِ نوار */
+.tz-appbar .mud-icon-button {
+    width: 34px;
+    height: 34px;
 }
 
+/* چیپ «نام ماژول»: مثل حالت فعالِ تب — تینت آکورد + متن آکورد، بدون کادر سنگین */
+.tz-appbar__mod.mud-chip {
+    margin-inline-start: 0.65rem;
+    border-radius: 7px;
+    background: color-mix(in srgb, currentColor 9%, transparent) !important;
+    font-weight: 600;
+    min-height: 26px;
+}
+
+/* انتخاب‌گرهای زمینه (سال مالی / انبار): از قرصِ توپُر به دکمهٔ نازکِ تب‌مانند —
+   پس‌زمینهٔ شفاف + خط ظریف + radius ۷px؛ hover تینت آکورد. */
+/* ریشهٔ هم‌پوشانی در موبایل: wrapper منو (inline-flex) در flexbox با min-width:auto
+   کوچک‌تر از محتوایش نمی‌شود و چیپ‌ها را به داخل برند هل می‌دهد. اجازهٔ کوچک‌شدن: */
+.tz-fy-menu {
+    min-width: 0;
+}
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip {
+    /* روی اپبار همیشه تیره (نعناییِ تیره در روشن، تقریباً مشکی در تیره): متن باید کرمِ
+       خود اپبار باشد نه text-primary که در حالت روشن قهوه‌ای تیره و نامرئی می‌شود. */
+    background: color-mix(in srgb, var(--mud-palette-appbar-text) 7%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-appbar-text) 26%, transparent);
+    border-radius: 7px;
+    color: var(--mud-palette-appbar-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+    min-height: 30px;
+    padding-inline: 0.6rem;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+/* آکورد اختصاصی هر چیپ برای تمایز: سال مالی → طلایی برند، انبار → سبزآبی روشن.
+   آیکونِ ابتدای چیپ با این آکورد رنگی می‌شود و متن/فلش کرم می‌مانند. */
+.tz-fy-menu__chip--year { --tz-chip-accent: #E8C877; }
+.tz-fy-menu__chip--warehouse { --tz-chip-accent: #7EB8B0; }
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip:hover {
+    background: color-mix(in srgb, var(--tz-chip-accent, var(--mud-palette-appbar-text)) 18%, transparent) !important;
+    border-color: color-mix(in srgb, var(--tz-chip-accent, var(--mud-palette-appbar-text)) 60%, transparent);
+    color: var(--mud-palette-appbar-text);
+}
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip .mud-chip-icon {
+    color: var(--tz-chip-accent, var(--mud-palette-appbar-text));
+    font-size: 1rem;
+}
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip .mud-icon-root {
+    font-size: 1rem;
+}
+
+/* مقدارِ فشردهٔ چیپ: محدود با ellipsis تا چیپ‌ها در نوار کش نیایند */
+.tz-fy-menu .mud-chip.tz-fy-menu__chip .mud-chip-content {
+    min-width: 0;
+}
+
+.tz-fy-menu__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    max-width: min(28vw, 10rem);
+}
+
+@media (max-width: 800px) {
+    .tz-fy-menu__value {
+        max-width: min(22vw, 6.5rem);
+    }
+}
+
+/* دکمهٔ کاربر: قرص ۹۹۹px حذف شد → radius کوچک ۷px؛ hover تینت ملایم؛
+   آواتار گوشه‌دار (هم‌نشین با لوگوی گوشه‌دارِ برند). */
 .tz-user {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.4rem;
     cursor: pointer;
-    padding: 0.2rem 0.4rem 0.2rem 0.15rem;
-    border-radius: 999px;
+    padding: 3px 8px 3px 3px;
+    border-radius: 7px;
+    transition: background-color 150ms ease;
+}
+
+.tz-user:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
 }
 
 .tz-user__name {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     font-weight: 600;
+}
+
+.tz-user .mud-avatar {
+    border-radius: 8px;
+}
+
+.tz-user .mud-icon-root {
+    font-size: 1.05rem;
 }
 
 .tz-user__av {
@@ -190,11 +279,44 @@ body {
     font-weight: 700;
 }
 
+@media (max-width: 800px) {
+    /* هدف لمسی موبایل: دکمه‌های آیکونی و انتخاب‌گرها بزرگ‌تر از دسکتاپ */
+    .tz-appbar .mud-icon-button {
+        width: 40px;
+        height: 40px;
+    }
+
+    .tz-fy-menu .mud-chip.tz-fy-menu__chip {
+        min-height: 32px;
+    }
+}
+
 @media (max-width: 600px) {
     .tz-brand__text small,
     .tz-user__name,
     .tz-appbar__mod {
         display: none;
+    }
+
+    .tz-brand__mark {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+/* موبایل‌های باریک: فقط لوگو می‌ماند و چیپ‌ها فشرده‌تر می‌شوند تا نوار
+   هیچ‌وقت سرریز/هم‌پوشانی نداشته باشد. */
+@media (max-width: 480px) {
+    .tz-brand__text {
+        display: none;
+    }
+
+    .tz-fy-menu .mud-chip.tz-fy-menu__chip {
+        padding-inline: 0.5rem;
+    }
+
+    .tz-fy-menu__value {
+        max-width: min(19vw, 5.5rem);
     }
 }
 
@@ -238,45 +360,94 @@ body {
     opacity: 0.85;
 }
 
+/* ── جستجوی منوی کناری (drawer): چسبان بالای لیست تا همیشه در دسترس باشد؛
+   روی پس‌زمینهٔ تیرهٔ drawer با خط ظریف و آیکون آکورد هم‌خانواده با بقیهٔ ناوبری. ── */
+.tz-nav__search {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    margin: -0.5rem -0.65rem 0.4rem;
+    padding: 0.6rem 0.65rem 0.45rem;
+    background: color-mix(in srgb, var(--mud-palette-drawer-background, #072826) 97%, transparent);
+}
+
+.tz-nav__search .mud-input {
+    font-family: var(--tz-font) !important;
+}
+
+.tz-nav__search .mud-input input {
+    color: var(--mud-palette-drawer-text);
+}
+
+.tz-nav__search .mud-input input::placeholder {
+    color: color-mix(in srgb, var(--mud-palette-drawer-text) 55%, transparent);
+    opacity: 1;
+}
+
+.tz-nav__search .mud-icon-root {
+    color: var(--mud-palette-drawer-icon, #D4B06A);
+}
+
+.tz-nav__search .mud-input-outlined .mud-notched-outline {
+    border-color: color-mix(in srgb, var(--mud-palette-drawer-text) 30%, transparent);
+}
+
+.tz-nav__search .mud-input-outlined:hover .mud-notched-outline {
+    border-color: color-mix(in srgb, var(--mud-palette-drawer-text) 45%, transparent);
+}
+
+.tz-nav__search .mud-input-outlined:focus-within .mud-notched-outline {
+    border-color: var(--mud-palette-drawer-icon, #D4B06A);
+}
+
+.tz-nav__empty {
+    padding: 1.1rem 0.4rem;
+    text-align: center;
+    color: color-mix(in srgb, var(--mud-palette-drawer-text) 62%, transparent);
+    font-size: 0.8rem;
+}
+
+/* لینک‌های منوی کناری: هم‌خانواده با تب‌های جمع‌وجورِ زیرخطی subnav —
+   ارتفاع کم، بدون قرص/کادر؛ hover فقط تینت آکورد؛ حالت فعال = رنگ آکورد +
+   تینت ملایم + نوار باریک ۲٫۵px (هم‌ضخامت نشانگر کشویی subnav). */
 .tz-nav .mud-nav-link,
 .mud-nav-link {
     width: 100%;
     box-sizing: border-box;
     font-family: var(--tz-font) !important;
     font-weight: 500;
-    padding: 8px 10px;
+    min-height: 30px;
+    padding: 5px 10px;
     color: inherit;
-    line-height: 1.5;
+    line-height: 1.4;
     display: inline-flex;
     justify-content: flex-start;
     text-transform: inherit;
     background-color: transparent;
-    transition: background-color 250ms cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1),
-                border 250ms cubic-bezier(0.4, 0, 0.2, 1),
-                padding 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 7px;
+    margin: 1px 0;
+    transition: background-color 150ms ease, color 150ms ease;
     align-items: center;
-    border-radius: 10px;
-    margin: 2px 0;
 }
 
 .tz-nav .mud-nav-link:hover,
 .mud-nav-link:hover {
-    padding-inline: 6px;
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 7%, transparent);
+    color: var(--mud-palette-text-primary);
 }
 
 .tz-nav .mud-nav-link .mud-nav-link-text,
 .mud-nav-link .mud-nav-link-text {
     font-family: var(--tz-font) !important;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     font-weight: 500;
-    line-height: 1.5;
+    line-height: 1.4;
 }
 
 .tz-nav .mud-nav-link.active {
-    background: linear-gradient(90deg, rgba(212, 176, 106, 0.22), rgba(212, 176, 106, 0.08));
-    color: #f7f1e3;
-    box-shadow: inset 3px 0 0 var(--mud-palette-secondary, #c49a3c);
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 8%, transparent);
+    color: var(--tz-accent, var(--mud-palette-primary));
+    box-shadow: inset 2.5px 0 0 var(--tz-accent, var(--mud-palette-primary));
     font-weight: 600;
 }
 
@@ -284,16 +455,16 @@ body {
     padding-inline-start: 0.6rem;
 }
 
-/* گروه‌های ماژول در منو — عنوان بزرگ‌تر و خوانا */
+/* گروه‌های ماژول در منو — عنوان جمع‌وجورتر برای هم‌قدشدن با بقیهٔ لینک‌ها */
 .tz-nav .mud-nav-group .mud-nav-link .mud-nav-link-text,
 .tz-nav .mud-nav-group > .mud-nav-link .mud-nav-link-text {
-    font-size: 1.02rem;
+    font-size: 0.9rem;
     font-weight: 600;
 }
 
 .tz-nav .mud-nav-group .mud-nav-link .mud-nav-link-icon,
 .tz-nav .mud-nav-group > .mud-nav-link .mud-nav-link-icon {
-    font-size: 1.35rem;
+    font-size: 1.1rem;
     color: var(--mud-palette-drawer-icon, #d4b06a);
 }
 
@@ -1805,13 +1976,13 @@ body {
     }
 
     .tz-nav .mud-nav-link {
-        min-height: 42px;
+        min-height: 38px;
         align-items: center;
-        padding: 0.4rem 0.6rem;
+        padding: 0.35rem 0.6rem;
     }
 
     .tz-nav .mud-nav-group > .mud-nav-link {
-        min-height: 46px;
+        min-height: 42px;
     }
 
     .tz-subnav {

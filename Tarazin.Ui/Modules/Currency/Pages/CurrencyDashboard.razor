@@ -40,7 +40,7 @@
                     <MudTd DataLabel="مبلغ">
                         <MudText Typo="@(context.PnlKey == "net" ? Typo.subtitle1 : Typo.body2)"
                                  Color="@(context.Amount >= 0 ? Color.Success : Color.Error)">
-                            @context.Amount.ToString("N0")
+                            @TzNumericText.Format(context.Amount)
                         </MudText>
                     </MudTd>
                 </RowTemplate>
@@ -57,8 +57,8 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="ارز">@context.CurrencyCode — @context.CurrencyName</MudTd>
-                    <MudTd DataLabel="موجودی">@context.Quantity.ToString("N2")</MudTd>
-                    <MudTd DataLabel="ارزش">@context.RialValue.ToString("N0")</MudTd>
+                    <MudTd DataLabel="موجودی">@TzNumericText.Format(context.Quantity)</MudTd>
+                    <MudTd DataLabel="ارزش">@TzNumericText.Format(context.RialValue)</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><EmptyState Title="کیف پولی ثبت نشده است." /></NoRecordsContent>
             </MudTable>

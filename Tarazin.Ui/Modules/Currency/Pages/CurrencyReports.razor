@@ -45,7 +45,7 @@
                     <MudTd DataLabel="شماره">@context.TransactionNumber</MudTd>
                     <MudTd DataLabel="نوع">@TransactionTypeText(context.TransactionType)</MudTd>
                     <MudTd DataLabel="طرف">@context.PartyName</MudTd>
-                    <MudTd DataLabel="مبلغ"><b>@context.TotalRial.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="مبلغ"><b>@TzNumericText.Format(context.TotalRial)</b></MudTd>
                     <MudTd DataLabel="سند">@context.DocumentNumber</MudTd>
                     <MudTd DataLabel="پاها">@context.LegCount</MudTd>
                     <MudTd DataLabel="وضعیت">@context.Status</MudTd>
@@ -77,9 +77,9 @@
                     <MudTd DataLabel="نوع">@MovementTypeText(context.MovementType)</MudTd>
                     <MudTd DataLabel="جهت">@(context.Direction == "In" ? "ورود" : "خروج")</MudTd>
                     <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
-                    <MudTd DataLabel="مقدار">@context.Quantity.ToString("N2")</MudTd>
-                    <MudTd DataLabel="نرخ">@context.Rate.ToString("N0")</MudTd>
-                    <MudTd DataLabel="معادل">@context.AmountRial.ToString("N0")</MudTd>
+                    <MudTd DataLabel="مقدار">@TzNumericText.Format(context.Quantity)</MudTd>
+                    <MudTd DataLabel="نرخ">@TzNumericText.Format(context.Rate)</MudTd>
+                    <MudTd DataLabel="معادل">@TzNumericText.Format(context.AmountRial)</MudTd>
                     <MudTd DataLabel="طرف">@context.CounterPartyName</MudTd>
                     <MudTd DataLabel="شرح">@context.Description</MudTd>
                 </RowTemplate>
@@ -109,7 +109,7 @@
                     <MudTd DataLabel="مبلغ">
                         <MudText Typo="@(context.PnlKey == "net" ? Typo.subtitle1 : Typo.body2)"
                                  Color="@(context.Amount >= 0 ? Color.Success : Color.Error)">
-                            @context.Amount.ToString("N0")
+                            @TzNumericText.Format(context.Amount)
                         </MudText>
                     </MudTd>
                 </RowTemplate>
@@ -176,7 +176,7 @@
                     <MudTd DataLabel="آیتم">@context.ItemKey</MudTd>
                     <MudTd DataLabel="نوع">@RateKindText(context.RateKind)</MudTd>
                     <MudTd DataLabel="قبلی">@(context.PrevValue?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="جدید"><b>@context.NewValue.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="جدید"><b>@TzNumericText.Format(context.NewValue)</b></MudTd>
                     <MudTd DataLabel="تغییر">@ChangeTypeText(context.ChangeType)</MudTd>
                     <MudTd DataLabel="منبع">@context.SourceKey</MudTd>
                     <MudTd DataLabel="کاربر">@context.ChangedBy</MudTd>
@@ -391,7 +391,7 @@
             <MudTd DataLabel="شماره">@context.TransactionNumber</MudTd>
             <MudTd DataLabel="نوع">@TransactionTypeText(context.TransactionType)</MudTd>
             <MudTd DataLabel="طرف">@context.PartyName</MudTd>
-            <MudTd DataLabel="مبلغ"><b>@context.TotalRial.ToString("N0")</b></MudTd>
+            <MudTd DataLabel="مبلغ"><b>@TzNumericText.Format(context.TotalRial)</b></MudTd>
             <MudTd DataLabel="سند">@context.DocumentNumber</MudTd>
             <MudTd DataLabel="پاها">@context.LegCount</MudTd>
             <MudTd DataLabel="وضعیت">@context.Status</MudTd>
@@ -408,9 +408,9 @@
             <MudTd DataLabel="نوع">@MovementTypeText(context.MovementType)</MudTd>
             <MudTd DataLabel="جهت">@(context.Direction == "In" ? "ورود" : "خروج")</MudTd>
             <MudTd DataLabel="ارز">@context.CurrencyCode</MudTd>
-            <MudTd DataLabel="مقدار">@context.Quantity.ToString("N2")</MudTd>
-            <MudTd DataLabel="نرخ">@context.Rate.ToString("N0")</MudTd>
-            <MudTd DataLabel="معادل">@context.AmountRial.ToString("N0")</MudTd>
+            <MudTd DataLabel="مقدار">@TzNumericText.Format(context.Quantity)</MudTd>
+            <MudTd DataLabel="نرخ">@TzNumericText.Format(context.Rate)</MudTd>
+            <MudTd DataLabel="معادل">@TzNumericText.Format(context.AmountRial)</MudTd>
             <MudTd DataLabel="طرف">@context.CounterPartyName</MudTd>
             <MudTd DataLabel="شرح">@context.Description</MudTd>
         </RowTemplate>
@@ -426,7 +426,7 @@
             <MudTd DataLabel="آیتم">@context.ItemKey</MudTd>
             <MudTd DataLabel="نوع">@RateKindText(context.RateKind)</MudTd>
             <MudTd DataLabel="قبلی">@(context.PrevValue?.ToString("N0") ?? "—")</MudTd>
-            <MudTd DataLabel="جدید"><b>@context.NewValue.ToString("N0")</b></MudTd>
+            <MudTd DataLabel="جدید"><b>@TzNumericText.Format(context.NewValue)</b></MudTd>
             <MudTd DataLabel="تغییر">@ChangeTypeText(context.ChangeType)</MudTd>
             <MudTd DataLabel="منبع">@context.SourceKey</MudTd>
             <MudTd DataLabel="کاربر">@context.ChangedBy</MudTd>

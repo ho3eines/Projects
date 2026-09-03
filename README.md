@@ -112,6 +112,156 @@ dotnet publish Tarazin.Maui/Tarazin.Maui.csproj -c Release -f net8.0-ios
 # 2) رشتهٔ اتصال SQL سرور نیز باید به DNS/IP قابل‌دسترس از دستگاه اشاره کند (localhost برای خروجی موبایل معنا ندارد).
 ```
 
+## Railway deployment for `Tarazin.Web` (Web host)
+
+This section documents the supported Railway setup for the current repository. Railway hosts the **ASP.NET Core Blazor Server web host**; it does not replace the application’s SQL Server database or automatically convert SQL Server scripts to PostgreSQL/MySQL.
+
+### Current readiness status
+
+The repository currently has no root-level `Dockerfile`, `railway.json`, or `railway.toml`. Therefore Railway cannot deploy the project from the repository as-is. Before creating the Railway service, add the Dockerfile shown below and apply the production proxy settings described in this section. No business logic or database schema change is required for the container build.
+
+### 1. Add a root-level `Dockerfile`
+
+Create `Dockerfile` next to `README.md`:
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+COPY ["Tarazin.Web/Tarazin.Web.csproj", "Tarazin.Web/"]
+COPY ["Tarazin.Ui/Tarazin.Ui.csproj", "Tarazin.Ui/"]
+COPY ["Tarazin.Data/Tarazin.Data.csproj", "Tarazin.Data/"]
+COPY ["Tarazin.Share/Tarazin.Share.csproj", "Tarazin.Share/"]
+RUN dotnet restore "Tarazin.Web/Tarazin.Web.csproj"
+
+COPY . .
+RUN dotnet publish "Tarazin.Web/Tarazin.Web.csproj" \
+    --configuration Release \
+    --output /app/publish \
+    --no-restore \
+    -p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
+
+CMD ["sh", "-c", "dotnet Tarazin.Web.dll --urls http://0.0.0.0:${PORT:-8080}"]
+```
+
+The application must listen on `0.0.0.0` and on Railway’s injected `PORT`. Do not use the local development ports `65220` or `65221` in the container.
+
+### 2. Prepare a compatible SQL Server
+
+The application uses `Microsoft.Data.SqlClient`, Dapper, SQL Server schemas, T-SQL scripts, foreign keys, and SQL Server security policies. A Railway PostgreSQL or MySQL service is **not compatible** with the current data layer.
+
+Use one of these options:
+
+- Azure SQL or another managed SQL Server.
+- A company SQL Server reachable from Railway.
+- A separate SQL Server container/service on Railway, with a persistent volume mounted at `/var/opt/mssql`.
+
+For production, an externally managed SQL Server is recommended. Configure its firewall/network access for the Railway service and TCP port `1433`; do not make the database publicly accessible without network restrictions.
+
+### 3. Configure Railway variables
+
+In Railway, open the `Tarazin.Web` service → **Variables** and add the following values. Use Railway’s secret variable interface for connection strings and passwords.
+
+```text
+ASPNETCORE_ENVIRONMENT=Production
+TARAZIN_FAIL_FAST=1
+TARAZIN_SQL_CONNECTION=Server=tcp:YOUR_SQL_HOST,1433;Database=TarazinMaster;User Id=YOUR_SQL_USER;Password=YOUR_SQL_PASSWORD;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;Application Name=Tarazin
+Tarazin__BootstrapAdminUser=admin
+Tarazin__BootstrapAdminPassword=YOUR_INITIAL_ADMIN_PASSWORD
+```
+
+`TARAZIN_SQL_CONNECTION` takes precedence over the `ConnectionStrings:DefaultConnection` value in `appsettings.json`. Never put the production connection string, SQL password, or bootstrap password in the Dockerfile, source code, or committed appsettings file.
+
+Set `Tarazin__BootstrapAdminPassword` only when initializing an empty database. The startup initializer creates the bootstrap user on an empty `central.Users` table; it does not reset the password of an existing user merely because the service restarts.
+
+### 4. Apply the Railway reverse-proxy setting before deployment
+
+Railway terminates public HTTPS at its proxy and normally forwards HTTP to the container. The current local configuration contains `Tarazin:HttpsPort=65220` and always calls `UseHttpsRedirection()`, which is suitable for local HTTPS but can redirect Railway users to the local development port.
+
+Before production deployment, add a configuration switch in `Tarazin.Web/Program.cs` so HTTPS redirection is enabled only when requested:
+
+```csharp
+var enableHttpsRedirection = builder.Configuration.GetValue(
+    "Tarazin:EnableHttpsRedirection",
+    builder.Environment.IsDevelopment());
+
+if (enableHttpsRedirection)
+    app.UseHttpsRedirection();
+```
+
+Then set this Railway variable:
+
+```text
+Tarazin__EnableHttpsRedirection=false
+```
+
+Keep HTTPS enabled for local development. Railway remains the public HTTPS termination point. If forwarded headers are enabled in the application, configure them only for the trusted Railway proxy/network according to the deployment environment; never trust arbitrary client-supplied `X-Forwarded-*` headers.
+
+### 5. Create and deploy the Railway service
+
+1. Push the root `Dockerfile` and the production proxy change to the selected Git branch.
+2. In Railway, create a project and choose **Deploy from GitHub Repo**.
+3. Select this repository and the branch to deploy.
+4. Confirm that Railway uses the root `Dockerfile`.
+5. Add the variables above under the service’s **Variables** tab.
+6. Set the service health check path to:
+
+   ```text
+   /api/health
+   ```
+
+7. Deploy with one application replica initially.
+8. Generate a Railway domain or attach your own domain.
+9. Verify the deployment:
+
+   ```text
+   https://YOUR-RAILWAY-DOMAIN/api/health
+   ```
+
+A healthy response contains `"status":"ok"`. After that, verify login, company selection, one read-only report, and one controlled database operation.
+
+### 6. Database initialization behavior
+
+On first Web startup, the application performs the following server-side sequence:
+
+```text
+EnsureDatabase → TestConnection → _Ensure scripts → _Seed scripts
+→ permissions/roles sync → bootstrap admin → mobile backfill → mobile security
+```
+
+The SQL login used by `TARAZIN_SQL_CONNECTION` must have enough permission to create/initialize `TarazinMaster` on a brand-new database. For an existing prepared database, use an appropriately restricted application login and run initialization deliberately.
+
+With `TARAZIN_FAIL_FAST=1`, a database/configuration failure stops the deployment instead of allowing a running app with a broken data connection. This is recommended for production because Railway then reports the deployment as unhealthy rather than silently serving a partially configured application.
+
+### 7. Railway constraints and production checklist
+
+- **Dynamic port:** listen on `0.0.0.0:$PORT`; never hard-code `65220` or `65221`.
+- **HTTPS:** Railway provides public HTTPS; avoid an internal redirect to the local HTTPS port.
+- **Database:** use SQL Server, not Railway PostgreSQL/MySQL, unless the entire data layer is deliberately migrated.
+- **Persistent files:** the container filesystem is not a reliable permanent store. Move document attachments and other user uploads to object storage or a configured persistent volume before relying on them in production.
+- **Replicas:** start with one replica. The application currently has in-memory session services, a single-instance mutex, and background schedulers; horizontal scaling requires a distributed session/lock/scheduler design review.
+- **Reseeding:** protect or disable `POST /api/tools/reseed` in production. It executes the demo seed script and must not be publicly callable without an administrative guard.
+- **Secrets:** use Railway Variables/Secrets; rotate any password that has ever been committed or shared.
+- **Logs:** do not enable verbose initialization diagnostics (`TARAZIN_DEBUG_INIT=1`) in production because they may expose operational details.
+
+### Railway troubleshooting
+
+| Symptom | Likely cause | Check |
+|---|---|---|
+| Deployment is healthy but the domain does not open | The process is listening on localhost or a fixed port | Confirm the Docker command uses `0.0.0.0:${PORT}` |
+| Repeated redirect or wrong-port URL | Internal HTTPS redirection is active | Set `Tarazin__EnableHttpsRedirection=false` after adding the code switch |
+| `service_unavailable` or database startup failure | SQL Server is unreachable or the connection secret is invalid | Check SQL firewall, host, port `1433`, credentials, and `/api/health` logs |
+| Database cannot be created | SQL login lacks server/database creation permission | Create `TarazinMaster` first or grant initialization permission temporarily |
+| Login fails on a new database | Bootstrap password was not supplied | Set `Tarazin__BootstrapAdminPassword` before the first initialization |
+| Uploaded files disappear after redeploy | Files were stored only in the container filesystem | Use object storage or a persistent volume |
+
 * مدیریت اتصال SQL در Web است؛ رشتهٔ اتصال issuer از secret استقرار `TARAZIN_SQL_CONNECTION` می‌آید و `appsettings.json` منبع credential تولید نیست. `bootstrap password` فقط از secret استقرار می‌آید.
 * اتصال SQL با `Encrypt=true` و `TrustServerCertificate=true` ساخته می‌شود (رمزنگاری کانال فعال، اعتبارسنجی گواهی غیرفعال — تصمیم ۱۴۰۵/۰۵/۲۹؛ جزئیات در `docs/SECURITY.md`).
 * MAUI مستقیماً به `Data Source` همان رشتهٔ اتصالِ سرور وصل می‌شود؛ مقدار `localhost` فقط پیش‌فرض توسعهٔ محلیِ Windows است. برای دستگاه‌های دیگر، اتصال سرور باید به DNS/IP قابل‌دسترس از همان دستگاه اشاره کند.

@@ -40,7 +40,7 @@
                         @(context.Quantity.HasValue ? context.Quantity.Value.ToString("N2") + (context.Unit is null ? "" : " " + context.Unit) : "—")
                     </MudTd>
                     <MudTd DataLabel="نرخ">@(context.Rate?.ToString("N0") ?? "—")</MudTd>
-                    <MudTd DataLabel="ارزش"><b>@context.RialValue.ToString("N0")</b></MudTd>
+                    <MudTd DataLabel="ارزش"><b>@TzNumericText.Format(context.RialValue)</b></MudTd>
                     <MudTd DataLabel="سود/زیان">
                         @if (context.UnrealizedPnl.HasValue)
                         {
@@ -78,7 +78,7 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="تاریخ">@context.SnapshotDate.ToString("yyyy/MM/dd")</MudTd>
-                    <MudTd DataLabel="ارزش">@context.TotalRial.ToString("N0")</MudTd>
+                    <MudTd DataLabel="ارزش">@TzNumericText.Format(context.TotalRial)</MudTd>
                 </RowTemplate>
                 <NoRecordsContent><EmptyState Title="اسنپ‌شاتی ثبت نشده است." /></NoRecordsContent>
             </MudTable>

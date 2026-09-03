@@ -229,7 +229,7 @@
                                 @(context.Direction == "In" ? "دریافتی" : "پرداختی")
                             </MudChip>
                         </MudTd>
-                        <MudTd DataLabel="مبلغ">@context.Amount.ToString("N0")</MudTd>
+                        <MudTd DataLabel="مبلغ">@TzNumericText.Format(context.Amount)</MudTd>
                         <MudTd DataLabel="سررسید">@(context.DueDate?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
                         <MudTd DataLabel="مانده تا سررسید">@DueLabel(context.DaysToDue)</MudTd>
                         <MudTd DataLabel="وضعیت">@StatusLabel(context.Status)</MudTd>

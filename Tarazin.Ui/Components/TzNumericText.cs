@@ -123,9 +123,111 @@ public static class TzNumericText
         return true;
     }
 
+    /// <summary>
+    /// دلیلِ ردِ ورودی، برای نمایشِ خطای زیر فیلد (TzNumericField) — به‌جایِ اینکه
+    /// ورودیِ نامعتبر بی‌صدا نگه داشته شود. فقط بعد از false شدنِ
+    /// <see cref="TryParse"/> صدا بزنید. null یعنی ورودی معتبر است یا در
+    /// «حالتِ میانیِ تایپ» قرار دارد (مثل «-» یا «.») که نباید خطا بگیرد.
+    /// </summary>
+    public static string? RejectionReason(string? raw, CultureInfo culture, bool allowDecimal)
+    {
+        var s = NormalizeDigits(raw ?? string.Empty).Trim();
+        if (s.Length == 0 || !s.Any(c => c is >= '0' and <= '9'))
+            return null; // خالی یا میانی (مثل «-» تنها) → خطا نشان داده نشود
+
+        var decSep = culture.NumberFormat.NumberDecimalSeparator;
+
+        bool IsDecSep(char ch) =>
+            (decSep.Length == 1 && ch == decSep[0]) ||
+            Array.IndexOf(DecimalSeparators, ch) >= 0;
+
+        // جداکننده‌های گروهیِ تایپ‌شده (ویرگول و…) مثل TryParse حذف می‌شوند
+        var decChar0 = decSep.Length == 1 ? decSep[0] : '\0';
+        var sb = new StringBuilder(s.Length);
+        foreach (var ch in s)
+            if (ch == decChar0 || Array.IndexOf(BaseGroupSeparators, ch) < 0) sb.Append(ch);
+        var cleaned = sb.ToString();
+
+        if (!allowDecimal && cleaned.Any(IsDecSep))
+            return "در این فیلد فقط عدد صحیح مجاز است.";
+
+        if (cleaned.Count(IsDecSep) > 1)
+            return "ممیز تکراری — فقط یک ممیز مجاز است.";
+
+        // منهای فقط یک‌بار و در ابتدا
+        var digitsPart = cleaned.StartsWith('-') ? cleaned[1..] : cleaned;
+        if (digitsPart.Contains('-'))
+            return "فقط ارقام، ممیز و جداکنندهٔ گروه مجاز است.";
+
+        foreach (var ch in digitsPart)
+        {
+            if (ch is >= '0' and <= '9' || IsDecSep(ch)) continue;
+            return "فقط ارقام، ممیز و جداکنندهٔ گروه مجاز است.";
+        }
+
+        // شکل درست است ولی خارج از دامنهٔ decimal (سرریز)
+        return "عدد واردشده بیش از حد بزرگ است.";
+    }
+
     /// <summary>قالب نمایش استاندارد: گروه‌بندی سه‌رقمی، حداکثر چهار رقم اعشار.</summary>
     public static string Format(decimal value, CultureInfo culture)
         => value.ToString(DisplayFormat, culture);
+
+    // ── نمایش سلول‌های جدول: همان سبک TzNumericField، با فرهنگ جاری ────────────
+    // برای سلول‌های فقط‌خواندنیِ جداول (TzDataTable/MudTable) از همین overloadها
+    // استفاده کنید، نه ToString("N0")/("N2") ثابت: هیچ ارقامِ اعشاری‌ای بی‌صدا
+    // گرد یا صفرچسبانی نمی‌شود و نمایش دقیقاً با فیلدِ عددیِ فرم‌ها یکی می‌شود.
+    // null → رشتهٔ خالی (مثل `?.ToString()` قبلی).
+
+    /// <summary>نمایش با فرهنگ جاری (معادل <see cref="Format(decimal, CultureInfo)"/>).</summary>
+    public static string Format(decimal value)
+        => Format(value, CultureInfo.CurrentCulture);
+
+    /// <summary>نمایش مقدار nullable؛ null → رشتهٔ خالی.</summary>
+    public static string Format(decimal? value)
+        => value.HasValue ? Format(value.Value) : string.Empty;
+
+    /// <summary>نمایش با فرهنگ صریح؛ null → رشتهٔ خالی.</summary>
+    public static string Format(decimal? value, CultureInfo culture)
+        => value.HasValue ? Format(value.Value, culture) : string.Empty;
+
+    /// <summary>نمایش double (گروه‌بندی + حداکثر چهار رقم اعشار).</summary>
+    public static string Format(double value)
+        => value.ToString(DisplayFormat, CultureInfo.CurrentCulture);
+
+    public static string Format(double? value)
+        => value.HasValue ? Format(value.Value) : string.Empty;
+
+    public static string Format(double value, CultureInfo culture)
+        => value.ToString(DisplayFormat, culture);
+
+    public static string Format(double? value, CultureInfo culture)
+        => value.HasValue ? Format(value.Value, culture) : string.Empty;
+
+    /// <summary>نمایش عدد صحیحِ بزرگ با گروه‌بندی (شمارنده‌ها، تعداد ردیف‌ها).</summary>
+    public static string Format(int value)
+        => value.ToString("#,##0", CultureInfo.CurrentCulture);
+
+    public static string Format(int? value)
+        => value.HasValue ? Format(value.Value) : string.Empty;
+
+    public static string Format(int value, CultureInfo culture)
+        => value.ToString("#,##0", culture);
+
+    public static string Format(int? value, CultureInfo culture)
+        => value.HasValue ? Format(value.Value, culture) : string.Empty;
+
+    public static string Format(long value)
+        => value.ToString("#,##0", CultureInfo.CurrentCulture);
+
+    public static string Format(long? value)
+        => value.HasValue ? Format(value.Value) : string.Empty;
+
+    public static string Format(long value, CultureInfo culture)
+        => value.ToString("#,##0", culture);
+
+    public static string Format(long? value, CultureInfo culture)
+        => value.HasValue ? Format(value.Value, culture) : string.Empty;
 
     /// <summary>
     /// الگوی گروه‌بندی اروپایی/فارسیِ چسبیده: «1.250.000» یا «1٬250٬000» —
