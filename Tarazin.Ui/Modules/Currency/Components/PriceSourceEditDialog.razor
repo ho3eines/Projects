@@ -22,10 +22,10 @@
                               HelperText="آدرس رسمی و پایدار منبع — بدون وابستگی به HTML (§61)" />
             </MudItem>
             <MudItem xs="12" sm="4">
-                <MudNumericField T="int" Label="اولویت (§58)" @bind-Value="_priority" Variant="Variant.Outlined" Min="1" />
+                <TzNumericField T="int" Label="اولویت (§58)" @bind-Value="_priority" Variant="Variant.Outlined" Min="1" />
             </MudItem>
             <MudItem xs="12" sm="4">
-                <MudNumericField T="int" Label="فاصلهٔ بروزرسانی (ثانیه)" @bind-Value="_interval" Variant="Variant.Outlined" Min="10" />
+                <TzNumericField T="int" Label="فاصلهٔ بروزرسانی (ثانیه)" @bind-Value="_interval" Variant="Variant.Outlined" Min="10" />
             </MudItem>
             <MudItem xs="12" sm="4">
                 <MudSwitch T="bool" Label="فعال" @bind-Value="_isActive" Color="Color.Primary" />

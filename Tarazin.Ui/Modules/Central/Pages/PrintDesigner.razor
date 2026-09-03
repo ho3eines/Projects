@@ -123,12 +123,12 @@
                         </MudSelect>
                     </MudItem>
                     <MudItem xs="6">
-                        <MudNumericField T="int" Label="حاشیه (mm)" @bind-Value="_tpl.MarginMm" Min="4" Max="40"
+                        <TzNumericField T="int" Label="حاشیه (mm)" @bind-Value="_tpl.MarginMm" Min="4" Max="40"
                                          Variant="Variant.Outlined" />
                     </MudItem>
                     <MudItem xs="6">
-                        <MudNumericField T="float" Label="اندازهٔ قلم (pt)" @bind-Value="_tpl.FontSizePt"
-                                         Min="6f" Max="14f" Step="0.5f"                                          Variant="Variant.Outlined" />
+                        <TzNumericField T="float" Label="اندازهٔ قلم (pt)" @bind-Value="_tpl.FontSizePt"
+                                         Min="6f" Max="14f"                                          Variant="Variant.Outlined" />
                     </MudItem>
                 </MudGrid>
 
@@ -245,7 +245,7 @@
                                                  Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="4">
-                                <MudNumericField T="int" Label="عرض" @bind-Value="_tpl.Columns[idx].Width" Min="20" Max="500"
+                                <TzNumericField T="int" Label="عرض" @bind-Value="_tpl.Columns[idx].Width" Min="20" Max="500"
                                                  Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="4">

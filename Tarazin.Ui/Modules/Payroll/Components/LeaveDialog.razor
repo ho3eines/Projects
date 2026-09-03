@@ -30,7 +30,7 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="6">
-                <MudNumericField T="decimal" Label="تعداد روز" @bind-Value="_days" Min="0.5m" Max="365m" Variant="Variant.Outlined" />
+                <TzNumericField T="decimal" Label="تعداد روز" @bind-Value="_days" Min="0.5m" Max="365m" Variant="Variant.Outlined" />
             </MudItem>
             <MudItem xs="12">
                 <MudSwitch T="bool" @bind-Value="_isPaid" Color="Color.Success" Label="با حقوق (استحقاقی)" />

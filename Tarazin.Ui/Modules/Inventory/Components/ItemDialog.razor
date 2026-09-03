@@ -39,8 +39,8 @@
                     <MudTextField Label="واحد (متن آزاد)" @bind-Value="_model.Unit" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudNumericField T="decimal" Label="قیمت واحد (پایه)" @bind-Value="_model.UnitPrice"
-                                     Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                    <TzNumericField T="decimal" Label="قیمت واحد (پایه)" @bind-Value="_model.UnitPrice"
+                                     Min="0" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success">فعال</MudSwitch>
@@ -62,8 +62,8 @@
                                     </MudSelect>
                                 </MudItem>
                                 <MudItem xs="3" sm="3">
-                                    <MudNumericField T="decimal" Label="ضریب" @bind-Value="iu.u.Factor"
-                                                     Min="0.0001m" Format="#,##0.####" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    <TzNumericField T="decimal" Label="ضریب" @bind-Value="iu.u.Factor"
+                                                     Min="0.0001m" Variant="Variant.Outlined" Margin="Margin.Dense" />
                                 </MudItem>
                                 <MudItem xs="2" sm="3">
                                     <MudSwitch T="bool" @bind-Value="iu.u.IsDefault" Color="Color.Success" Label="پیش‌فرض" />

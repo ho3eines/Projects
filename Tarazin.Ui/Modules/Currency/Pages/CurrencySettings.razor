@@ -50,13 +50,13 @@
 
             <MudGrid>
                 <MudItem xs="12" md="6">
-                    <MudNumericField T="decimal" Label="مبلغ به ریال" @bind-Value="_rialAmount" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
+                    <TzNumericField T="decimal" Label="مبلغ به ریال" @bind-Value="_rialAmount" Variant="Variant.Outlined" Min="0" />
                     <MudText Typo="Typo.body2" Class="mt-2">
                         معادل تومان: <b>@((_rialAmount / 10).ToString("N0")) تومان</b>
                     </MudText>
                 </MudItem>
                 <MudItem xs="12" md="6">
-                    <MudNumericField T="decimal" Label="مبلغ به تومان" @bind-Value="_tomanAmount" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
+                    <TzNumericField T="decimal" Label="مبلغ به تومان" @bind-Value="_tomanAmount" Variant="Variant.Outlined" Min="0" />
                     <MudText Typo="Typo.body2" Class="mt-2">
                         معادل ریال: <b>@((_tomanAmount * 10).ToString("N0")) ریال</b>
                     </MudText>

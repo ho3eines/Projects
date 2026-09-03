@@ -17,8 +17,8 @@
                                   RequiredError="عنوان قلم الزامی است." Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudNumericField T="decimal" Label="مبلغ (ریال)" @bind-Value="_model.Amount"
-                                     Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                    <TzNumericField T="decimal" Label="مبلغ (ریال)" @bind-Value="_model.Amount"
+                                     Min="0" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudSwitch T="bool" @bind-Value="_model.IsDeduction" Color="Color.Error">

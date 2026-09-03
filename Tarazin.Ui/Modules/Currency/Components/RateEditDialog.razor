@@ -20,19 +20,19 @@
 
         <MudGrid>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="نرخ سیستم (وارد معاملات می‌شود)" @bind-Value="_systemRate" Format="#,##0.##"
+                <TzNumericField T="decimal" Label="نرخ سیستم (وارد معاملات می‌شود)" @bind-Value="_systemRate"
                                  Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateChange))" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="نرخ دستی" @bind-Value="_manualRate" Format="#,##0.##"
+                <TzNumericField T="decimal" Label="نرخ دستی" @bind-Value="_manualRate"
                                  Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateFetch))" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="نرخ خرید" @bind-Value="_buyRate" Format="#,##0.##"
+                <TzNumericField T="decimal" Label="نرخ خرید" @bind-Value="_buyRate"
                                  Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateChangeBuy))" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="نرخ فروش" @bind-Value="_sellRate" Format="#,##0.##"
+                <TzNumericField T="decimal" Label="نرخ فروش" @bind-Value="_sellRate"
                                  Variant="Variant.Outlined" Min="0" Disabled="@(!Session.HasPermission(TarazinPermissions.RateChangeSell))" />
             </MudItem>
             <MudItem xs="12">

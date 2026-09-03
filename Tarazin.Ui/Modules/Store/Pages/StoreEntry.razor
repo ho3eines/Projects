@@ -30,7 +30,7 @@
                                EmptyText="محصول انتخاب نشده است." />
         </MudItem>
         <MudItem xs="12" sm="6" md="2">
-            <MudNumericField T="decimal" Label="تعداد" @bind-Value="_qty" Variant="Variant.Outlined" Min="1" />
+            <TzNumericField T="decimal" Label="تعداد" @bind-Value="_qty" Variant="Variant.Outlined" Min="1" />
         </MudItem>
         <MudItem xs="12" sm="6" md="2">
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
@@ -101,13 +101,13 @@
     <MudText Typo="Typo.subtitle1" Class="mb-3">۴) تسویه (نقدی / بانک / چک — باقیمانده = نسیه)</MudText>
     <MudGrid>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="نقدی" @bind-Value="_payCash" Variant="Variant.Outlined" Min="0" />
+            <TzNumericField T="decimal" Label="نقدی" @bind-Value="_payCash" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="decimal" Label="بانک" @bind-Value="_payBank" Variant="Variant.Outlined" Min="0" />
+            <TzNumericField T="decimal" Label="بانک" @bind-Value="_payBank" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="4" md="2">
-            <MudNumericField T="decimal" Label="مبلغ چک" @bind-Value="_payChequeAmount" Variant="Variant.Outlined" Min="0" />
+            <TzNumericField T="decimal" Label="مبلغ چک" @bind-Value="_payChequeAmount" Variant="Variant.Outlined" Min="0" />
         </MudItem>
         <MudItem xs="12" sm="4" md="2">
             <MudTextField T="string" Label="شماره چک" @bind-Value="_payChequeNumber" Variant="Variant.Outlined" />

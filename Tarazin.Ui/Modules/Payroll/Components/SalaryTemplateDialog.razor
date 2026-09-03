@@ -29,17 +29,17 @@
                 <MudItem xs="12" sm="6">
                     @if (_model.IsPercent)
                     {
-                        <MudNumericField T="decimal?" Label="درصد (%)" @bind-Value="_model.Percentage"
+                        <TzNumericField T="decimal?" Label="درصد (%)" @bind-Value="_model.Percentage"
                                          Min="0" Max="50" Variant="Variant.Outlined" />
                     }
                     else
                     {
-                        <MudNumericField T="decimal?" Label="مبلغ ثابت (ریال)" @bind-Value="_model.FixedAmount"
-                                         Min="0" Format="N0" Variant="Variant.Outlined" />
+                        <TzNumericField T="decimal?" Label="مبلغ ثابت (ریال)" @bind-Value="_model.FixedAmount"
+                                         Min="0" Variant="Variant.Outlined" />
                     }
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_model.SortOrder"
+                    <TzNumericField T="int" Label="ترتیب نمایش" @bind-Value="_model.SortOrder"
                                      Min="0" Variant="Variant.Outlined" />
                 </MudItem>
             </MudGrid>

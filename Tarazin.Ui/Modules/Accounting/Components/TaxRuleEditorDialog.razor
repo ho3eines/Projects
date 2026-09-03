@@ -27,9 +27,8 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="نرخ (٪)" @bind-Value="_rate" Required="true"
-                                     RequiredError="نرخ الزامی است." Min="0" Max="100"
-                                     Format="#,##0.##" Variant="Variant.Outlined" />
+                    <TzNumericField T="decimal" Label="نرخ (٪)" @bind-Value="_rate" Required="true"
+                                     RequiredError="نرخ الزامی است." Min="0" Max="100" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudDatePicker Label="از تاریخ" Culture="FaCulture" @bind-Date="_effectiveFrom"

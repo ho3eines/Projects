@@ -105,27 +105,27 @@
                         }
                     </MudTd>
                     <MudTd>
-                        <MudNumericField T="decimal" Value="context.Qty" ValueChanged="v => context.Qty = v" Variant="Variant.Outlined" Min="0" />
+                        <TzNumericField T="decimal" Value="context.Qty" ValueChanged="v => context.Qty = v" Variant="Variant.Outlined" Min="0" />
                     </MudTd>
                     <MudTd>
                         @if (context.RowType == "Gold")
                         {
-                            <MudNumericField T="decimal" Value="context.Price" ValueChanged="v => context.Price = v" Variant="Variant.Outlined" Min="0" Format="#,##0.##" />
+                            <TzNumericField T="decimal" Value="context.Price" ValueChanged="v => context.Price = v" Variant="Variant.Outlined" Min="0" />
                         }
                         else
                         {
-                            <MudNumericField T="decimal" Value="context.Rate" ValueChanged="v => context.Rate = v" Variant="Variant.Outlined" Min="0" Format="#,##0.##" />
+                            <TzNumericField T="decimal" Value="context.Rate" ValueChanged="v => context.Rate = v" Variant="Variant.Outlined" Min="0" />
                             <MudText Typo="Typo.caption" Color="Color.Secondary">@RateHint(context)</MudText>
                         }
                     </MudTd>
                     @if (_mode == "Sale")
                     {
-                        <MudTd><MudNumericField T="decimal" Value="context.Workmanship" ValueChanged="v => context.Workmanship = v" Variant="Variant.Outlined" Min="0" Format="#,##0" /></MudTd>
-                        <MudTd><MudNumericField T="decimal" Value="context.Profit" ValueChanged="v => context.Profit = v" Variant="Variant.Outlined" Min="0" Format="#,##0" /></MudTd>
+                        <MudTd><TzNumericField T="decimal" Value="context.Workmanship" ValueChanged="v => context.Workmanship = v" Variant="Variant.Outlined" Min="0" /></MudTd>
+                        <MudTd><TzNumericField T="decimal" Value="context.Profit" ValueChanged="v => context.Profit = v" Variant="Variant.Outlined" Min="0" /></MudTd>
                     }
                     else
                     {
-                        <MudTd><MudNumericField T="decimal" Value="context.Workmanship" ValueChanged="v => context.Workmanship = v" Variant="Variant.Outlined" Min="0" Format="#,##0" /></MudTd>
+                        <MudTd><TzNumericField T="decimal" Value="context.Workmanship" ValueChanged="v => context.Workmanship = v" Variant="Variant.Outlined" Min="0" /></MudTd>
                     }
                     <MudTd><MudCheckBox T="bool" Value="context.TaxEnabled" ValueChanged="v => context.TaxEnabled = v" /></MudTd>
                     <MudTd><MudText Typo="Typo.body2" Class="font-weight-medium">@LineTotal(context).ToString("N0")</MudText></MudTd>
@@ -176,10 +176,10 @@
         <MudText Typo="Typo.subtitle2" Class="mb-2">نقدی و بانک</MudText>
         <MudGrid Spacing="2" Class="mb-2">
             <MudItem xs="12" sm="6" md="3">
-                <MudNumericField T="decimal" Label="نقدی (صندوق)" @bind-Value="_payCash" Format="#,##0" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="نقدی (صندوق)" @bind-Value="_payCash" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
-                <MudNumericField T="decimal" Label="پرداخت بانکی" @bind-Value="_payBank" Format="#,##0" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="پرداخت بانکی" @bind-Value="_payBank" Variant="Variant.Outlined" Min="0" />
             </MudItem>
         </MudGrid>
 
@@ -193,10 +193,10 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
-                <MudNumericField T="decimal" Label="مقدار ارز" @bind-Value="_payCurrencyQty" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="مقدار ارز" @bind-Value="_payCurrencyQty" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
-                <MudNumericField T="decimal" Label="نرخ ارز (٪ یا مبلغ)" @bind-Value="_payCurrencyRate" Format="#,##0.##" Variant="Variant.Outlined" Min="0" HelperText="کمتر از ۱۰۰ = درصد بالای نرخ سیستم" />
+                <TzNumericField T="decimal" Label="نرخ ارز (٪ یا مبلغ)" @bind-Value="_payCurrencyRate" Variant="Variant.Outlined" Min="0" HelperText="کمتر از ۱۰۰ = درصد بالای نرخ سیستم" />
             </MudItem>
         </MudGrid>
 
@@ -204,7 +204,7 @@
         <MudText Typo="Typo.subtitle2" Class="mb-2">پرداخت با طلا</MudText>
         <MudGrid Spacing="2" Class="mb-2">
             <MudItem xs="12" sm="6" md="3">
-                <MudNumericField T="decimal" Label="@(_mode == "Sale" ? "طلا (تحویل از مشتری، گرم)" : "طلا (پرداخت به تأمین‌کننده، گرم)")" @bind-Value="_payGoldGram" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="@(_mode == "Sale" ? "طلا (تحویل از مشتری، گرم)" : "طلا (پرداخت به تأمین‌کننده، گرم)")" @bind-Value="_payGoldGram" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
                 <MudTextField T="string" Label="نرخ طلا (گرم)" Value="@GoldPrice.ToString("N0")" Disabled="true" Variant="Variant.Outlined" />
@@ -224,7 +224,7 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
-                <MudNumericField T="decimal" Label="مبلغ چک" @bind-Value="_payChequeAmount" Format="#,##0" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="مبلغ چک" @bind-Value="_payChequeAmount" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
                 <MudDatePicker Label="سررسید چک" Culture="FaCulture" @bind-Date="_payChequeDueDate" Variant="Variant.Outlined" />

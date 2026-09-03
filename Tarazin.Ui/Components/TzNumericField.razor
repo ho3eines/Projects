@@ -1,0 +1,171 @@
+@namespace Tarazin.Components
+@using System.Globalization
+@typeparam T
+
+@* ─────────────────────────────────────────────────────────────────────────
+   TzNumericField<T> — فیلد عددی استاندارد ترازین (§۲.۱۴ SKILL.md)
+   جداکنندهٔ سه‌رقمی «همان لحظهٔ تایپ» (runtime)، نه فقط بعد از بلور/رندر.
+
+   چرا روی MudTextField است و نه MudNumericField؟
+   MudNumericField از `type=number` مرورگر استفاده می‌کند و نمایش
+   «12,500,000» حین تایپ ممکن نیست؛ فرمت‌بندی آن فقط هنگام commit (بلور
+   یا کلید enter) اعمال می‌شود. این کامپوننت متن را خودش parse و قالب‌بندی
+   می‌کند: ارقام فارسی/عربی نرمال، ممیز نقطه/اسلش/«،»، گروه‌بندی زنده.
+
+   همگام‌سازی دوطرفه با گارد _lastEmitted: اگر مقدارِ رسیده از بیرون همان
+   آخرین مقداری است که خودمان بالا فرستاده‌ایم (رفلکس رندر والد)، متنِ در
+   حال تایپ دست‌نخورده می‌ماند؛ فقط تغییر واقعیِ بیرونی (Reset فرم، ردیف
+   جدید، بارگذاری رکورد) متن را بازنویسی می‌کند.
+   ───────────────────────────────────────────────────────────────────────── *@
+<MudTextField T="string"
+              Label="@Label"
+              Value="_text"
+              ValueChanged="OnTextChanged"
+              Variant="@Variant"
+              Margin="@Margin"
+              Class="@Class"
+              Style="@Style"
+              UserAttributes="@_attrs"
+              Required="Required"
+              RequiredError="@RequiredError"
+              HelperText="@HelperText"
+              Placeholder="@Placeholder"
+              Adornment="@Adornment"
+              AdornmentIcon="@AdornmentIcon"
+              AdornmentText="@AdornmentText"
+              AdornmentColor="@AdornmentColor"
+              Disabled="Disabled"
+              ReadOnly="ReadOnly"
+              FullWidth="FullWidth"
+              Immediate="true" />
+
+@code {
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public T Value { get; set; } = default!;
+    [Parameter] public EventCallback<T> ValueChanged { get; set; }
+    [Parameter] public object? Min { get; set; }
+    [Parameter] public object? Max { get; set; }
+    [Parameter] public Variant Variant { get; set; } = Variant.Outlined;
+    [Parameter] public Margin Margin { get; set; } = Margin.None;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public string? RequiredError { get; set; }
+    [Parameter] public string? HelperText { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public Adornment Adornment { get; set; } = Adornment.None;
+    [Parameter] public string? AdornmentIcon { get; set; }
+    [Parameter] public string? AdornmentText { get; set; }
+    [Parameter] public Color AdornmentColor { get; set; } = Color.Default;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool FullWidth { get; set; }
+    /// <summary>شناسهٔ نوع موجودیت برای dialogهای CRUD مولد (اطلاعاتی؛ در data-type قرار می‌گیرد).</summary>
+    [Parameter] public string? DataType { get; set; }
+    /// <summary>شناسه‌ها (شماره فاکتور، شناسهٔ ردیف) گروه‌بندی نمی‌خواهند.</summary>
+    [Parameter] public bool GroupThousands { get; set; } = true;
+
+    private static readonly HashSet<Type> IntTypes = new()
+    {
+        typeof(int), typeof(int?), typeof(long), typeof(long?),
+        typeof(short), typeof(short?)
+    };
+
+    private bool IsInteger => IntTypes.Contains(typeof(T));
+
+    private string _text = "";
+
+    private string DisplayFormat => GroupThousands ? "#,##0.####" : "0.####";
+
+    // آخرین مقداری که این کامپوننت به والد فرستاده — مبنای گارد سینک
+    private decimal? _lastEmitted;
+    private bool _lastEmittedNull;
+
+    private static readonly Dictionary<string, object> _attrs = new()
+    {
+        ["inputmode"] = "decimal",
+        ["autocomplete"] = "off",
+    };
+
+    protected override void OnParametersSet()
+    {
+        var incomingNull = Value is null;
+        var incoming = incomingNull ? 0m : Convert.ToDecimal(Value, CultureInfo.InvariantCulture);
+
+        // رفلکس همان مقدار خودمان؟ → متن دست نخورد (کاربر وسط تایپ است)
+        if (incomingNull == _lastEmittedNull &&
+            (incomingNull || incoming == _lastEmitted))
+            return;
+
+        SyncTextFromValue();
+    }
+
+    private void SyncTextFromValue()
+    {
+        _lastEmittedNull = Value is null;
+        _lastEmitted = Value is null ? null : Convert.ToDecimal(Value, CultureInfo.InvariantCulture);
+        _text = Value is null
+            ? ""
+            : Convert.ToDecimal(Value, CultureInfo.InvariantCulture)
+                  .ToString(DisplayFormat, CultureInfo.CurrentCulture);
+    }
+
+    private async Task OnTextChanged(string newText)
+    {
+        var raw = newText?.Trim() ?? "";
+
+        if (raw.Length == 0)
+        {
+            _text = "";
+            await CommitAsync(default, wasEmpty: true);
+            return;
+        }
+
+        if (!TzNumericText.TryParse(raw, CultureInfo.CurrentCulture,
+                                    out var parsed, out var canonical,
+                                    allowDecimal: !IsInteger))
+            return; // ورودی ناقص/نامعتبر (مثل «12.» یا دو ممیز) → متن بماند، commit نشود
+
+        var clamped = Clamp(parsed);
+        _text = clamped != parsed
+            ? TzNumericText.Format(clamped, CultureInfo.CurrentCulture) // clamp شد → نمایش مقدار واقعی
+            : canonical;
+
+        await CommitAsync(clamped, wasEmpty: false);
+    }
+
+    private async Task CommitAsync(decimal? value, bool wasEmpty)
+    {
+        _lastEmittedNull = value is null;
+        _lastEmitted = value;
+
+        var t = typeof(T);
+        var underlying = Nullable.GetUnderlyingType(t);
+        T converted;
+        if (value is null)
+        {
+            converted = default;
+        }
+        else
+        {
+            converted = (T)(Convert.ChangeType(value.Value, underlying ?? t, CultureInfo.InvariantCulture) ?? default(T)!);
+        }
+
+        await ValueChanged.InvokeAsync(converted);
+    }
+
+    private decimal Clamp(decimal v)
+    {
+        if (Min is not null)
+        {
+            var m = Convert.ToDecimal(Min, CultureInfo.InvariantCulture);
+            if (v < m) v = m;
+        }
+        if (Max is not null)
+        {
+            var m = Convert.ToDecimal(Max, CultureInfo.InvariantCulture);
+            if (v > m) v = m;
+        }
+        return v;
+    }
+}

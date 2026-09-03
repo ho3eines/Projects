@@ -13,7 +13,7 @@
             <MudDatePicker Label="تاریخ برگشت" Culture="FaCulture" @bind-Date="_returnDate" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudNumericField T="int" Label="شماره فاکتور خرید" @bind-Value="_invoiceId" Variant="Variant.Outlined" Min="1" />
+            <TzNumericField T="int" Label="شماره فاکتور خرید" @bind-Value="_invoiceId" Variant="Variant.Outlined" Min="1" GroupThousands="false" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudSelect T="int" Label="انبار" @bind-Value="_warehouseId" Variant="Variant.Outlined">
@@ -45,7 +45,7 @@
             @foreach (var line in _lines.Select((l, i) => new { l, i }))
             {
                 <tr>
-                    <td><MudNumericField T="int" @bind-Value="line.l.InvoiceLineId" Margin="Margin.Dense" Variant="Variant.Text" /></td>
+                    <td><TzNumericField T="int" @bind-Value="line.l.InvoiceLineId" Margin="Margin.Dense" Variant="Variant.Text" GroupThousands="false" /></td>
                     <td>
                         <ItemPickerCell Items="_items"
                                        ItemId="line.l.ItemId"
@@ -54,7 +54,7 @@
                                        UnitPriceChanged="v => line.l.UnitPrice = v"
                                        Title="انتخاب کالا — برگشت خرید" />
                     </td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" /></td>
+                    <td><TzNumericField T="decimal" @bind-Value="line.l.Qty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" /></td>
                     <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
                 </tr>
             }

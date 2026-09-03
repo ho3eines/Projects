@@ -63,7 +63,7 @@
                             <MudTextField Label="آدرس تصویر" @bind-Value="Model.ImageUrl" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="4">
-                            <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="Model.SortOrder"
+                            <TzNumericField T="int" Label="ترتیب نمایش" @bind-Value="Model.SortOrder"
                                              Min="0" Variant="Variant.Outlined" />
                         </MudItem>
                         break;
@@ -126,7 +126,7 @@
                                           RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12">
-                            <MudNumericField T="decimal?" Label="عیار" @bind-Value="Model.Amount"
+                            <TzNumericField T="decimal?" Label="عیار" @bind-Value="Model.Amount"
                                              Min="0" Variant="Variant.Outlined" />
                         <MudTextField Label="کد کالای انبار مرتبط" @bind-Value="Model.ExtraText"
                                       HelperText="مثلاً GOLD-18؛ برای کاهش موجودی هنگام فروش طلا" Variant="Variant.Outlined" />
@@ -144,13 +144,13 @@
                                           RequiredError="عنوان الزامی است." Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudNumericField T="decimal?" Label="قیمت هر گرم (ریال)" @bind-Value="Model.Amount"
+                            <TzNumericField T="decimal?" Label="قیمت هر گرم (ریال)" @bind-Value="Model.Amount"
                                              Required="true" RequiredError="قیمت الزامی است."
-                                             Min="@((decimal?)0.01m)" Format="#,##0.##" Variant="Variant.Outlined" />
+                                             Min="@((decimal?)0.01m)" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudNumericField T="decimal?" Label="نرخ تبدیل به ریال" @bind-Value="Model.SecondaryAmount"
-                                             Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                            <TzNumericField T="decimal?" Label="نرخ تبدیل به ریال" @bind-Value="Model.SecondaryAmount"
+                                             Min="0" Variant="Variant.Outlined" />
                         </MudItem>
                         break;
 
@@ -170,8 +170,8 @@
                             <MudTextField Label="واحد" @bind-Value="Model.ExtraText" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12">
-                            <MudNumericField T="decimal?" Label="قیمت واحد" @bind-Value="Model.Amount"
-                                             Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                            <TzNumericField T="decimal?" Label="قیمت واحد" @bind-Value="Model.Amount"
+                                             Min="0" Variant="Variant.Outlined" />
                         </MudItem>
                         break;
 
@@ -205,8 +205,8 @@
                             <MudTextField Label="دپارتمان" @bind-Value="Model.Text" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12">
-                            <MudNumericField T="decimal?" Label="حقوق پایه" @bind-Value="Model.Amount"
-                                             Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                            <TzNumericField T="decimal?" Label="حقوق پایه" @bind-Value="Model.Amount"
+                                             Min="0" Variant="Variant.Outlined" />
                         </MudItem>
                         break;
 
@@ -223,8 +223,8 @@
                             <MudTextField Label="کد کالای انبار" @bind-Value="Model.ExtraText" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudNumericField T="decimal?" Label="قیمت" @bind-Value="Model.Amount"
-                                             Min="0" Format="#,##0.##" Variant="Variant.Outlined" />
+                            <TzNumericField T="decimal?" Label="قیمت" @bind-Value="Model.Amount"
+                                             Min="0" Variant="Variant.Outlined" />
                         </MudItem>
                         break;
 
@@ -257,9 +257,9 @@
                                           RequiredError="نام ارز الزامی است." Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudNumericField T="decimal?" Label="نرخ به ریال" @bind-Value="Model.Amount"
+                            <TzNumericField T="decimal?" Label="نرخ به ریال" @bind-Value="Model.Amount"
                                              Required="true" RequiredError="نرخ ارز الزامی است."
-                                             Min="@((decimal?)0.01m)" Format="#,##0.##" Variant="Variant.Outlined" />
+                                             Min="@((decimal?)0.01m)" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
                             <MudDatePicker Label="تاریخ نرخ" Culture="FaCulture" @bind-Date="Model.Date" />

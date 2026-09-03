@@ -36,7 +36,7 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="قیمت (ریال)" @bind-Value="_price" Required="true"
+                    <TzNumericField T="decimal" Label="قیمت (ریال)" @bind-Value="_price" Required="true"
                                      RequiredError="قیمت الزامی است" Variant="Variant.Outlined" Min="0" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
@@ -46,7 +46,7 @@
                     <MudDatePicker Label="تا تاریخ" @bind-Date="_toDate" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudNumericField T="decimal" Label="حداقل تعداد" @bind-Value="_minQty" Variant="Variant.Outlined" Min="1" />
+                    <TzNumericField T="decimal" Label="حداقل تعداد" @bind-Value="_minQty" Variant="Variant.Outlined" Min="1" />
                 </MudItem>
             </MudGrid>
         </MudForm>

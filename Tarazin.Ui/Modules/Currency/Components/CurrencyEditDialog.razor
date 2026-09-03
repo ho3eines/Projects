@@ -18,7 +18,7 @@
                 <MudTextField Label="نماد" @bind-Value="_symbol" Variant="Variant.Outlined" MaxLength="10" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="ضریب نسبت به ریال" @bind-Value="_unitFactor" Variant="Variant.Outlined"
+                <TzNumericField T="decimal" Label="ضریب نسبت به ریال" @bind-Value="_unitFactor" Variant="Variant.Outlined"
                                  Min="0.0001m" HelperText="ریال=۱، تومان=۱۰ (§35)" />
             </MudItem>
             <MudItem xs="12">

@@ -20,13 +20,13 @@
                 <MudDatePicker Label="تاریخ خرید" Culture="FaCulture" @bind-Date="_purchaseDate" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="بهای خرید (ریال)" @bind-Value="_cost" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="بهای خرید (ریال)" @bind-Value="_cost" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="int" Label="عمر مفید (ماه)" @bind-Value="_lifeMonths" Variant="Variant.Outlined" Min="1" />
+                <TzNumericField T="int" Label="عمر مفید (ماه)" @bind-Value="_lifeMonths" Variant="Variant.Outlined" Min="1" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="ارزش اسقاط (ریال)" @bind-Value="_residual" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="ارزش اسقاط (ریال)" @bind-Value="_residual" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudSelect T="string" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined">

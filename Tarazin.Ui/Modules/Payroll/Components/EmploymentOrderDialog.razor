@@ -32,27 +32,27 @@
                     <MudDatePicker Label="تاریخ پایان (اختیاری)" @bind-Date="_model.EndDate" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="حقوق پایه (ریال)" @bind-Value="_model.BaseSalary"
-                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                    <TzNumericField T="decimal" Label="حقوق پایه (ریال)" @bind-Value="_model.BaseSalary"
+                                     Min="0" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="حق مسکن (ریال)" @bind-Value="_model.HousingAllowance"
-                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                    <TzNumericField T="decimal" Label="حق مسکن (ریال)" @bind-Value="_model.HousingAllowance"
+                                     Min="0" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="حق خوراک (ریال)" @bind-Value="_model.FoodAllowance"
-                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                    <TzNumericField T="decimal" Label="حق خوراک (ریال)" @bind-Value="_model.FoodAllowance"
+                                     Min="0" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="حق حمل (ریال)" @bind-Value="_model.TransportAllowance"
-                                     Min="0" Format="N0" Variant="Variant.Outlined" />
+                    <TzNumericField T="decimal" Label="حق حمل (ریال)" @bind-Value="_model.TransportAllowance"
+                                     Min="0" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="درصد بیمه کارمند (%)" @bind-Value="_model.InsurancePct"
+                    <TzNumericField T="decimal" Label="درصد بیمه کارمند (%)" @bind-Value="_model.InsurancePct"
                                      Min="0" Max="30" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="int" Label="معافیت مالیاتی (نفر)" @bind-Value="_model.TaxExemptCount"
+                    <TzNumericField T="int" Label="معافیت مالیاتی (نفر)" @bind-Value="_model.TaxExemptCount"
                                      Min="0" Max="10" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12">

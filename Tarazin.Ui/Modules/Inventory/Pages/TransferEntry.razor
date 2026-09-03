@@ -59,7 +59,7 @@
                             }
                         </MudSelect>
                     </td>
-                    <td><MudNumericField T="decimal" @bind-Value="line.l.Qty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" /></td>
+                    <td><TzNumericField T="decimal" @bind-Value="line.l.Qty" Margin="Margin.Dense" Min="0" Variant="Variant.Text" /></td>
                     <td><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => _lines.RemoveAt(line.i))" /></td>
                 </tr>
             }

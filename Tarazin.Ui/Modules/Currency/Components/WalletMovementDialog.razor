@@ -28,10 +28,10 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="مقدار" @bind-Value="_quantity" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="مقدار" @bind-Value="_quantity" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField T="decimal" Label="نرخ (به ریال)" @bind-Value="_rate" Format="#,##0.##" Variant="Variant.Outlined" Min="0" />
+                <TzNumericField T="decimal" Label="نرخ (به ریال)" @bind-Value="_rate" Variant="Variant.Outlined" Min="0" />
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudDatePicker Label="تاریخ" Culture="FaCulture" @bind-Date="_date" />

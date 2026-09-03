@@ -32,22 +32,22 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="3">
-                    <MudNumericField T="decimal" Label="@(_discountType == "Percent" ? "درصد تخفیف" : "مبلغ تخفیف")"
+                    <TzNumericField T="decimal" Label="@(_discountType == "Percent" ? "درصد تخفیف" : "مبلغ تخفیف")"
                                      @bind-Value="_discountValue" Required="true"
                                      RequiredError="مقدار تخفیف الزامی است" Variant="Variant.Outlined" Min="0" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="سقف تخفیف (ریال — اختیاری)" @bind-Value="_maxDiscount"
+                    <TzNumericField T="decimal" Label="سقف تخفیف (ریال — اختیاری)" @bind-Value="_maxDiscount"
                                      Variant="Variant.Outlined" Min="0" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal" Label="حداقل مبلغ سفارش" @bind-Value="_minOrderTotal" Variant="Variant.Outlined" Min="0" />
+                    <TzNumericField T="decimal" Label="حداقل مبلغ سفارش" @bind-Value="_minOrderTotal" Variant="Variant.Outlined" Min="0" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudNumericField T="int?" Label="سقف کل مصرف" @bind-Value="_usageLimit" Variant="Variant.Outlined" Min="1" />
+                    <TzNumericField T="int?" Label="سقف کل مصرف" @bind-Value="_usageLimit" Variant="Variant.Outlined" Min="1" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudNumericField T="int?" Label="سقف هر مشتری" @bind-Value="_perCustomerLimit" Variant="Variant.Outlined" Min="1" />
+                    <TzNumericField T="int?" Label="سقف هر مشتری" @bind-Value="_perCustomerLimit" Variant="Variant.Outlined" Min="1" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
                     <MudText Typo="Typo.caption" Class="mt-4">

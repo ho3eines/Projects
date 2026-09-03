@@ -23,7 +23,7 @@
                     <MudTextField T="string" Label="واحد (مثلا GB، اینچ)" @bind-Value="_unit" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_sort" Variant="Variant.Outlined" Min="0" />
+                    <TzNumericField T="int" Label="ترتیب نمایش" @bind-Value="_sort" Variant="Variant.Outlined" Min="0" />
                 </MudItem>
                 <MudItem xs="12" sm="4" Class="d-flex align-center">
                     <MudSwitch T="bool" @bind-Value="_facet" Color="Color.Info">facet تنوع (رنگ/سایز)</MudSwitch>

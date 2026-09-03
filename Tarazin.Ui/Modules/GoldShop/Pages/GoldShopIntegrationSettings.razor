@@ -34,8 +34,8 @@
                 <MudText Typo="Typo.caption" Color="Color.Secondary">حساب بانکی سند حسابداری</MudText>
                 <AccountPickerField Value="_bankChartAccount" ValueChanged="OnBankChartAccountAsync" ButtonLabel="انتخاب حساب بانک" EmptyText="حساب بانک برای سند حسابداری انتخاب نشده است." PickerOptions="@_moeinOptions" />
             </MudItem>
-            <MudItem xs="12" sm="6"><MudNumericField T="decimal" Label="مالیات فروش طلا (%)" @bind-Value="_tax" Min="0" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" sm="6"><MudNumericField T="decimal" Label="مالیات اجرت (%)" @bind-Value="_laborTax" Min="0" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><TzNumericField T="decimal" Label="مالیات فروش طلا (%)" @bind-Value="_tax" Min="0" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><TzNumericField T="decimal" Label="مالیات اجرت (%)" @bind-Value="_laborTax" Min="0" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12"><MudSwitch T="bool" @bind-Value="_enabled" Color="Color.Success">فعال‌سازی یکپارچه‌سازی طلافروشی</MudSwitch></MudItem>
         </MudGrid>
     </MudForm>

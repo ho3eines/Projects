@@ -260,6 +260,15 @@ description: >
 می‌شود؛ در صفحات صدا نزن.** خودش با `!item.HideInNav && Session.HasPermission(item.Permission)`
 فیلتر و با `TarazinModules.IsActive` فعال‌سازی می‌کند و به `Session.Changed` گوش می‌دهد.
 
+**نشانگر کشویی (`tz-subnav__indicator`):** نوار باریک accent زیر تبِ فعال که با تغییر تب
+می‌لغزد. قرارداد سه‌بخشی — (۱) `wwwroot/js/subnav.js` تابع `tarazinSubnav.sync(container)`
+را دارد که جای تب فعال را اندازه می‌گیرد و نوار را با `width/transform` می‌برد زیر آن
+(بعلاوه `ResizeObserver` برای زوم/فونت دیرهنگام)؛ (۲) `ModuleSubNav` بعد از هر رندر
+در `OnAfterRenderAsync` آن را صدا می‌زند (با گارد `JSDisconnectedException`)؛ (۳) CSS نوار
+را در `app.css` تعریف می‌کند (`--tz-accent` روی ریشهٔ `.tz-subnav` است، رنگ از همان می‌آید).
+اگر جاوااسکریپت در دسترس نباشد نوار فقط پنهان می‌ماند — تب فعال هنوز با پس‌زمینهٔ tint دیده می‌شود.
+در `prefers-reduced-motion` ترنزیشن نوار هم خاموش می‌شود.
+
 ### ۲.۱۲ `PrintBrandHeader` — سربرگ چاپ
 `CompanyName` (پیش‌فرض «ترازین — سامانه یکپارچه مدیریت کسب‌وکار»)، `Title`،
 `HeaderOnly` (`true`)، `QrEnabled` (`true`)، `QrPayload?`.
@@ -267,6 +276,21 @@ description: >
 
 ### ۲.۱۳ انتخابگرها
 `EntityPickerField<T>`، `AccountPickerField`، `SelectorDialog<T>` → §۶.
+
+### ۲.۱۴ `TzNumericField<T>` — فیلد عددی استاندارد (جداکنندهٔ سه‌رقمی runtime)
+به‌جای `MudNumericField` استفاده کنید. متن را خودش parse می‌کند، پس گروه‌بندی
+سه‌رقمی «حین تایپ» اعمال می‌شود (نه فقط بعد از بلور). ارقام فارسی/عربی نرمال،
+ممیز نقطه/اسلش/«،»، clamp با `Min`/`Max`.
+
+```razor
+@* T: decimal, decimal?, int, int?, long, ... *@
+<TzNumericField T="decimal?" @bind-Value="_amount" Label="مبلغ" />
+@* شناسه‌ها (شماره فاکتور، شناسهٔ ردیف) گروه‌بندی نمی‌خواهند: *@
+<TzNumericField T="int?" @bind-Value="_refId" GroupThousands="false" />
+```
+
+مغزِ فرمت‌بندی `TzNumericText.cs` است (تست واحد: `Tarazin.Tests/TzNumericTextTests.cs`).
+هیچ‌جا `MudNumericField` جدید اضافه نکنید — حتی برای int.
 
 ---
 
