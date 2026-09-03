@@ -1,0 +1,3282 @@
+/* ترازین — Persian-first shell on top of MudBlazor.
+   Font: Vazirmatn (Google Fonts). Direction is forced RTL. */
+
+@import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap");
+
+:root {
+    --tz-font: "Vazirmatn", Tahoma, "Segoe UI", sans-serif;
+    --tz-font-size: clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem);
+    --tz-body-leading: clamp(1.55, 1.5 + 0.16vw, 1.72);
+    --tz-space-1: clamp(0.35rem, 0.3rem + 0.15vw, 0.5rem);
+    --tz-space-2: clamp(0.6rem, 0.5rem + 0.25vw, 0.85rem);
+    --tz-space-3: clamp(0.9rem, 0.75rem + 0.35vw, 1.25rem);
+    --tz-space-4: clamp(1.15rem, 0.95rem + 0.55vw, 1.75rem);
+    --tz-space-5: clamp(1.5rem, 1.1rem + 1vw, 2.5rem);
+    --tz-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --tz-duration-fast: 160ms;
+    --tz-duration: 280ms;
+    --tz-duration-slow: 520ms;
+    /* ── توکن‌های رنگ از پالت واحدِ MudTheme (TarazinTheme.cs) مشتق می‌شوند تا منبعِ
+       رنگ یکی بماند و با حالت روشن/تیره هماهنگ شود؛ مقدار ثابت فقط فالبک است اگر
+       متغیر Mud هنوز در دسترس نباشد. */
+    --tz-ink: var(--mud-palette-primary, #0e4d4a);
+    --tz-gold: var(--mud-palette-secondary, #c49a3c);
+    --tz-paper: var(--mud-palette-background, #f3eee3);
+    --tz-radius: var(--mud-default-borderradius, 10px);
+
+    /* ── مقیاس سلسله‌مراتب تایپوگرافی (تن‌ها نقطهٔ تنظیم؛ عنوان‌ها در MudTheme هم ست شده‌اند) ── */
+    --tz-h1: clamp(1.9rem, 1.4rem + 1.2vw, 2.5rem);
+    --tz-h2: clamp(1.55rem, 1.2rem + 1vw, 2rem);
+    --tz-h3: clamp(1.3rem, 1.05rem + 0.8vw, 1.6rem);
+    --tz-h4: clamp(1.15rem, 1rem + 0.5vw, 1.4rem);
+    --tz-label: 0.86rem;
+    --tz-caption: 0.78rem;
+
+    /* ── ارتفاع (elevation) و سایه‌های کنترل‌شده: از عمیق/سنگین پرهیز، فقط ظرافت ── */
+    --tz-shadow-1: 0 1px 2px rgba(20, 17, 11, 0.05), 0 1px 3px rgba(20, 17, 11, 0.06);
+    --tz-shadow-2: 0 4px 10px rgba(20, 17, 11, 0.06), 0 2px 6px rgba(20, 17, 11, 0.05);
+    --tz-shadow-3: 0 12px 28px rgba(20, 17, 11, 0.10), 0 4px 12px rgba(20, 17, 11, 0.06);
+
+    /* ── ring فوکوس کیبورد (accessibility) ── */
+    --tz-focus-ring: 0 0 0 3px color-mix(in srgb, var(--mud-palette-primary) 28%, transparent);
+
+    /* ── ردیفِ انتخاب‌شدهٔ جدول ثبت سند — متغیرمحور تا در حالت تیره هم خوانا بماند ── */
+    --tz-row-selected-bg: color-mix(in srgb, var(--mud-palette-success) 16%, var(--mud-palette-surface));
+    --tz-row-selected-edge: var(--mud-palette-success);
+
+    /* Design-system aliases: همهٔ لایه‌های UI از این توکن‌های معنایی استفاده می‌کنند.
+       مقدار واقعی از MudTheme می‌آید تا light/dark بدون رنگ‌گذاری تکراری هماهنگ بماند. */
+    --color-primary: var(--mud-palette-primary, #0e4d4a);
+    --color-secondary: var(--mud-palette-secondary, #c49a3c);
+    --color-accent: var(--tz-accent, var(--color-primary));
+    --color-background: var(--mud-palette-background, #f3eee3);
+    --color-surface: var(--mud-palette-surface, #fffbf4);
+    --color-card: var(--mud-palette-surface, #fffbf4);
+    --color-border: var(--mud-palette-divider, #e2d8c4);
+    --color-text-primary: var(--mud-palette-text-primary, #1c1914);
+    --color-text-secondary: var(--mud-palette-text-secondary, #5c5648);
+    --color-success: var(--mud-palette-success, #2e7d57);
+    --color-warning: var(--mud-palette-warning, #c49a3c);
+    --color-error: var(--mud-palette-error, #9c3b2e);
+    --color-info: var(--mud-palette-info, #2b6b7a);
+    --tz-control-height: 42px;
+    --tz-table-row-height: 48px;
+}
+
+html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    font-family: var(--tz-font) !important;
+    font-size: var(--tz-font-size);
+    line-height: var(--tz-body-leading);
+    direction: rtl;
+    text-align: right;
+    color: var(--color-text-primary);
+    background: var(--color-background);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+html {
+    background: var(--mud-palette-background, var(--tz-paper));
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+}
+
+*, *::before, *::after {
+    font-family: inherit;
+}
+
+/* MudBlazor inherits Roboto unless we push Vazirmatn everywhere */
+.mud-typography,
+.mud-button-root,
+.mud-input-slot,
+.mud-input-label,
+.mud-nav-link,
+.mud-chip,
+.mud-table-cell,
+.mud-menu-item,
+.mud-alert,
+.mud-picker,
+.mud-dialog,
+.mud-snackbar,
+.mud-tooltip {
+    font-family: var(--tz-font) !important;
+}
+
+.tz-num,
+.mud-numeric-field input,
+.mud-input-slot input[type="number"],
+.tz-numinput {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+}
+
+/* فیلد عددی استاندارد (TzNumericField): هم‌تراز با قواعد tz-num بالا؛
+   اسپینر مرورگر هم به‌خاطر type=text اصلاً وجود ندارد. */
+.tz-numinput::placeholder {
+    direction: rtl;
+    text-align: right;
+    opacity: 0.55;
+}
+
+/* ── App bar — هم‌خانواده با ناوبری: آیتم‌های جمع‌وجور، بدون قرص بزرگ؛
+   hover/فعال فقط تینت آکورد؛ radius کوچک ۷px مثل تب‌های subnav. ───── */
+.tz-appbar.mud-appbar {
+    border-bottom: 1px solid rgba(232, 200, 114, 0.18);
+    box-shadow: 0 2px 14px rgba(7, 40, 38, 0.16);
+    backdrop-filter: saturate(1.2);
+}
+
+.tz-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: inherit;
+    text-decoration: none;
+    min-width: 0;
+}
+
+.tz-brand__mark {
+    display: block;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.tz-brand__text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.tz-brand__text strong {
+    font-weight: 800;
+    font-size: 0.98rem;
+    letter-spacing: -0.02em;
+}
+
+.tz-brand__text small {
+    font-size: 0.72rem;
+    opacity: 0.65;
+    font-weight: 500;
+}
+
+/* دکمه‌های آیکونی (منو، تغییر پوسته) — کوچک‌تر برای قدِ جمع‌وجورِ نوار */
+.tz-appbar .mud-icon-button {
+    width: 34px;
+    height: 34px;
+}
+
+/* چیپ «نام ماژول»: مثل حالت فعالِ تب — تینت آکورد + متن آکورد، بدون کادر سنگین */
+.tz-appbar__mod.mud-chip {
+    margin-inline-start: 0.65rem;
+    border-radius: 7px;
+    background: color-mix(in srgb, currentColor 9%, transparent) !important;
+    font-weight: 600;
+    min-height: 26px;
+}
+
+/* انتخاب‌گرهای زمینه (سال مالی / انبار): از قرصِ توپُر به دکمهٔ نازکِ تب‌مانند —
+   پس‌زمینهٔ شفاف + خط ظریف + radius ۷px؛ hover تینت آکورد. */
+/* ریشهٔ هم‌پوشانی در موبایل: wrapper منو (inline-flex) در flexbox با min-width:auto
+   کوچک‌تر از محتوایش نمی‌شود و چیپ‌ها را به داخل برند هل می‌دهد. اجازهٔ کوچک‌شدن: */
+.tz-fy-menu {
+    min-width: 0;
+}
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip {
+    /* روی اپبار همیشه تیره (نعناییِ تیره در روشن، تقریباً مشکی در تیره): متن باید کرمِ
+       خود اپبار باشد نه text-primary که در حالت روشن قهوه‌ای تیره و نامرئی می‌شود. */
+    background: color-mix(in srgb, var(--mud-palette-appbar-text) 7%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-appbar-text) 26%, transparent);
+    border-radius: 7px;
+    color: var(--mud-palette-appbar-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+    min-height: 30px;
+    padding-inline: 0.6rem;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+/* آکورد اختصاصی هر چیپ برای تمایز: سال مالی → طلایی برند، انبار → سبزآبی روشن.
+   آیکونِ ابتدای چیپ با این آکورد رنگی می‌شود و متن/فلش کرم می‌مانند. */
+.tz-fy-menu__chip--year { --tz-chip-accent: #E8C877; }
+.tz-fy-menu__chip--warehouse { --tz-chip-accent: #7EB8B0; }
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip:hover {
+    background: color-mix(in srgb, var(--tz-chip-accent, var(--mud-palette-appbar-text)) 18%, transparent) !important;
+    border-color: color-mix(in srgb, var(--tz-chip-accent, var(--mud-palette-appbar-text)) 60%, transparent);
+    color: var(--mud-palette-appbar-text);
+}
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip .mud-chip-icon {
+    color: var(--tz-chip-accent, var(--mud-palette-appbar-text));
+    font-size: 1rem;
+}
+
+.tz-fy-menu .mud-chip.tz-fy-menu__chip .mud-icon-root {
+    font-size: 1rem;
+}
+
+/* مقدارِ فشردهٔ چیپ: محدود با ellipsis تا چیپ‌ها در نوار کش نیایند */
+.tz-fy-menu .mud-chip.tz-fy-menu__chip .mud-chip-content {
+    min-width: 0;
+}
+
+.tz-fy-menu__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    max-width: min(28vw, 10rem);
+}
+
+@media (max-width: 800px) {
+    .tz-fy-menu__value {
+        max-width: min(22vw, 6.5rem);
+    }
+}
+
+/* دکمهٔ کاربر: قرص ۹۹۹px حذف شد → radius کوچک ۷px؛ hover تینت ملایم؛
+   آواتار گوشه‌دار (هم‌نشین با لوگوی گوشه‌دارِ برند). */
+.tz-user {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    padding: 3px 8px 3px 3px;
+    border-radius: 7px;
+    transition: background-color 150ms ease;
+}
+
+.tz-user:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+}
+
+.tz-user__name {
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.tz-user .mud-avatar {
+    border-radius: 8px;
+}
+
+.tz-user .mud-icon-root {
+    font-size: 1.05rem;
+}
+
+.tz-user__av {
+    font-family: var(--tz-font) !important;
+    font-weight: 700;
+}
+
+@media (max-width: 800px) {
+    /* هدف لمسی موبایل: دکمه‌های آیکونی و انتخاب‌گرها بزرگ‌تر از دسکتاپ */
+    .tz-appbar .mud-icon-button {
+        width: 40px;
+        height: 40px;
+    }
+
+    .tz-fy-menu .mud-chip.tz-fy-menu__chip {
+        min-height: 32px;
+    }
+}
+
+@media (max-width: 600px) {
+    .tz-brand__text small,
+    .tz-user__name,
+    .tz-appbar__mod {
+        display: none;
+    }
+
+    .tz-brand__mark {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+/* موبایل‌های باریک: فقط لوگو می‌ماند و چیپ‌ها فشرده‌تر می‌شوند تا نوار
+   هیچ‌وقت سرریز/هم‌پوشانی نداشته باشد. */
+@media (max-width: 480px) {
+    .tz-brand__text {
+        display: none;
+    }
+
+    .tz-fy-menu .mud-chip.tz-fy-menu__chip {
+        padding-inline: 0.5rem;
+    }
+
+    .tz-fy-menu__value {
+        max-width: min(19vw, 5.5rem);
+    }
+}
+
+/* ── Drawer ──────────────────────────────────────────────── */
+.tz-drawer .tz-drawer__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.2rem 1.15rem 1.05rem;
+    border-bottom: 1px solid rgba(232, 200, 114, 0.16);
+    background: linear-gradient(180deg, rgba(232, 200, 114, 0.06), transparent);
+}
+
+.tz-drawer .tz-drawer__head img {
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.tz-drawer__title {
+    font-weight: 800;
+    font-size: 1.15rem;
+    color: #f4ebd4;
+}
+
+.tz-drawer__sub {
+    font-size: 0.78rem;
+    color: #c9b889;
+    opacity: 0.9;
+}
+
+.tz-nav {
+    padding: 0.5rem 0.65rem 1.5rem;
+}
+
+.tz-nav__label {
+    padding: 1.15rem 1rem 0.45rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #c9b889;
+    opacity: 0.85;
+}
+
+/* ── جستجوی منوی کناری (drawer): چسبان بالای لیست تا همیشه در دسترس باشد؛
+   روی پس‌زمینهٔ تیرهٔ drawer با خط ظریف و آیکون آکورد هم‌خانواده با بقیهٔ ناوبری. ── */
+.tz-nav__search {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    margin: -0.5rem -0.65rem 0.4rem;
+    padding: 0.6rem 0.65rem 0.45rem;
+    background: color-mix(in srgb, var(--mud-palette-drawer-background, #072826) 97%, transparent);
+}
+
+.tz-nav__search .mud-input {
+    font-family: var(--tz-font) !important;
+}
+
+.tz-nav__search .mud-input input {
+    color: var(--mud-palette-drawer-text);
+}
+
+.tz-nav__search .mud-input input::placeholder {
+    color: color-mix(in srgb, var(--mud-palette-drawer-text) 55%, transparent);
+    opacity: 1;
+}
+
+.tz-nav__search .mud-icon-root {
+    color: var(--mud-palette-drawer-icon, #D4B06A);
+}
+
+.tz-nav__search .mud-input-outlined .mud-notched-outline {
+    border-color: color-mix(in srgb, var(--mud-palette-drawer-text) 30%, transparent);
+}
+
+.tz-nav__search .mud-input-outlined:hover .mud-notched-outline {
+    border-color: color-mix(in srgb, var(--mud-palette-drawer-text) 45%, transparent);
+}
+
+.tz-nav__search .mud-input-outlined:focus-within .mud-notched-outline {
+    border-color: var(--mud-palette-drawer-icon, #D4B06A);
+}
+
+.tz-nav__empty {
+    padding: 1.1rem 0.4rem;
+    text-align: center;
+    color: color-mix(in srgb, var(--mud-palette-drawer-text) 62%, transparent);
+    font-size: 0.8rem;
+}
+
+/* لینک‌های منوی کناری: هم‌خانواده با تب‌های جمع‌وجورِ زیرخطی subnav —
+   ارتفاع کم، بدون قرص/کادر؛ hover فقط تینت آکورد؛ حالت فعال = رنگ آکورد +
+   تینت ملایم + نوار باریک ۲٫۵px (هم‌ضخامت نشانگر کشویی subnav). */
+.tz-nav .mud-nav-link,
+.mud-nav-link {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--tz-font) !important;
+    font-weight: 500;
+    min-height: 30px;
+    padding: 5px 10px;
+    color: inherit;
+    line-height: 1.4;
+    display: inline-flex;
+    justify-content: flex-start;
+    text-transform: inherit;
+    background-color: transparent;
+    border-radius: 7px;
+    margin: 1px 0;
+    transition: background-color 150ms ease, color 150ms ease;
+    align-items: center;
+}
+
+.tz-nav .mud-nav-link:hover,
+.mud-nav-link:hover {
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 7%, transparent);
+    color: var(--mud-palette-text-primary);
+}
+
+.tz-nav .mud-nav-link .mud-nav-link-text,
+.mud-nav-link .mud-nav-link-text {
+    font-family: var(--tz-font) !important;
+    font-size: 0.88rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.tz-nav .mud-nav-link.active {
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 8%, transparent);
+    color: var(--tz-accent, var(--mud-palette-primary));
+    box-shadow: inset 2.5px 0 0 var(--tz-accent, var(--mud-palette-primary));
+    font-weight: 600;
+}
+
+.tz-nav .mud-nav-group .mud-nav-link {
+    padding-inline-start: 0.6rem;
+}
+
+/* گروه‌های ماژول در منو — عنوان جمع‌وجورتر برای هم‌قدشدن با بقیهٔ لینک‌ها */
+.tz-nav .mud-nav-group .mud-nav-link .mud-nav-link-text,
+.tz-nav .mud-nav-group > .mud-nav-link .mud-nav-link-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.tz-nav .mud-nav-group .mud-nav-link .mud-nav-link-icon,
+.tz-nav .mud-nav-group > .mud-nav-link .mud-nav-link-icon {
+    font-size: 1.1rem;
+    color: var(--mud-palette-drawer-icon, #d4b06a);
+}
+
+/* ── Module sub-nav ──────────────────────────────────────── */
+.tz-subnav {
+    display: flex;
+    min-width: 0;
+    scrollbar-width: thin;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.2rem 0.9rem;
+    background: color-mix(in srgb, var(--mud-palette-surface) 88%, var(--mud-palette-primary) 12%);
+    border-bottom: 1px solid var(--mud-palette-divider);
+    overflow-x: auto;
+}
+
+.tz-subnav__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--tz-accent, var(--tz-ink));
+    font-weight: 700;
+    font-size: 0.88rem;
+    white-space: nowrap;
+    padding-inline-end: 0.7rem;
+    border-inline-end: 1px solid var(--mud-palette-divider);
+}
+
+.tz-subnav__tabs {
+    display: flex;
+    gap: 0.15rem;
+    position: relative;
+}
+
+/* نشانگر کشویی: نوارِ باریکِ آکاردیونی زیر تبِ فعال.
+   موقعیتش با JS (subnav.js) از هندسهٔ واقعی تبِ فعال خوانده می‌شود و
+   فقط با width/transform حرکت می‌کند — بدون layout thrash و در RTL هم درست. */
+.tz-subnav__indicator {
+    position: absolute;
+    bottom: -0.2rem;
+    inset-inline-start: 0;
+    height: 2.5px;
+    border-radius: 999px;
+    background: var(--tz-accent, var(--mud-palette-primary));
+    box-shadow: 0 0 6px color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 45%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform, width;
+    transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.2s ease;
+}
+
+/* تب‌های جمع‌وجورِ زیرخطی: ارتفاع کم، بدون قرص/کادر؛ حالت فعال فقط با
+   رنگ آکورد + نوار کشوییِ زیرین (tz-subnav__indicator) نمایش داده می‌شود. */
+.tz-subnav__tab {
+    --tz-tab-pad-y: 0.2rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 28px;
+    padding: var(--tz-tab-pad-y) 0.7rem;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    color: var(--mud-palette-text-secondary);
+    text-decoration: none;
+    font-size: 0.81rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tz-subnav__tab .mud-icon-root {
+    font-size: 0.95rem;
+    opacity: 0.85;
+    transition: opacity 0.15s ease, transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.tz-subnav__tab:hover {
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 7%, transparent);
+    color: var(--mud-palette-text-primary);
+}
+
+.tz-subnav__tab:hover .mud-icon-root {
+    opacity: 1;
+    transform: translateY(-1px);
+}
+
+.tz-subnav__tab.is-active {
+    color: var(--tz-accent, var(--mud-palette-primary));
+    background: color-mix(in srgb, var(--tz-accent, var(--mud-palette-primary)) 8%, transparent);
+    border-color: transparent;
+}
+
+.tz-subnav__tab.is-active .mud-icon-root {
+    opacity: 1;
+    transform: none;
+}
+
+/* ── Page chrome ─────────────────────────────────────────── */
+.tz-main {
+    min-height: 100vh;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+.tz-page {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: var(--tz-space-4) clamp(0.75rem, 0.55rem + 1.1vw, 2rem) var(--tz-space-5);
+    max-width: 100%;
+    animation: tz-page-enter var(--tz-duration) var(--tz-ease) both;
+}
+
+.tz-pagehead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: var(--tz-space-3);
+    margin-bottom: var(--tz-space-3);
+    flex-wrap: wrap;
+}
+
+.tz-pagehead__eye {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--mud-palette-primary);
+    margin-bottom: 0.2rem;
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--mud-palette-primary) 10%, transparent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.tz-pagehead__sub {
+    color: var(--mud-palette-text-secondary) !important;
+    margin-top: 0.2rem;
+}
+
+.tz-pagehead__actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.mud-typography-h4 {
+    font-family: var(--tz-font) !important;
+}
+
+/* ── PageToolbar (کامپوننت مشترک نوار ابزار) ─────────────── */
+.tz-toolbar {
+    display: flex;
+    min-width: 0;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+/* ── PageHeader: акцентная подсветка заголовка ─────────────── */
+
+/* Заголовок страницы получает мягкий акцентный градиент-подчерк:
+   не спорит с типографикой, но визуально якорит заголовок. */
+.tz-pagehead {
+    position: relative;
+    padding-bottom: 0.65rem;
+}
+
+.tz-pagehead::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    bottom: 0;
+    width: 72px;
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+        var(--mud-palette-primary),
+        color-mix(in srgb, var(--mud-palette-secondary) 65%, transparent));
+    opacity: 0.85;
+}
+
+.tz-pagehead:hover .tz-pagehead__eye {
+    background: color-mix(in srgb, var(--mud-palette-primary) 18%, transparent);
+}
+
+/* ── Stat cards ──────────────────────────────────────────── */
+.tz-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.8rem 0.9rem;
+    height: 100%;
+    border: 1px solid var(--mud-palette-divider);
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--tz-accent, var(--tz-ink)) 8%, transparent), transparent 55%),
+        var(--mud-palette-surface);
+}
+
+.tz-stat__icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--tz-accent, var(--tz-ink)) 16%, transparent);
+    color: var(--tz-accent, var(--tz-ink));
+    flex-shrink: 0;
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+/* Hover-lift + accent-glow: единая пара для всех StatCard — и линкированных,
+   и статичных. Lift через transform (без прыжка layout), glow через тень
+   в цвете акцента карточки (--tz-accent ставит StatCard/ModuleCard). */
+.tz-stat {
+    transition: transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1),
+                box-shadow 0.18s ease,
+                border-color 0.18s ease;
+}
+
+.tz-stat:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--tz-accent, var(--tz-ink)) 55%, var(--mud-palette-divider));
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.10),
+        0 2px 10px color-mix(in srgb, var(--tz-accent, var(--tz-ink)) 28%, transparent);
+}
+
+.tz-stat:hover .tz-stat__icon {
+    background: color-mix(in srgb, var(--tz-accent, var(--tz-ink)) 26%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--tz-accent, var(--tz-ink)) 14%, transparent);
+    transform: scale(1.05);
+}
+
+.tz-stat__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tz-stat__value {
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.25;
+}
+
+.tz-stat__hint {
+    font-size: 0.72rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* کارت آمار لینک‌دار — کل کارت قابل کلیک و با hover واضح */
+.tz-stat-link {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    color: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tz-stat-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.10);
+}
+
+.tz-stat-link:hover .tz-stat {
+    border-color: var(--tz-accent, var(--tz-ink));
+}
+
+.tz-stat__arrow {
+    margin-inline-start: auto;
+    color: var(--mud-palette-text-secondary);
+    opacity: 0.55;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.tz-stat-link:hover .tz-stat__arrow {
+    opacity: 1;
+    transform: translateX(-3px);
+}
+
+/* ── Motion (единая система анимаций) ────────────────────── */
+
+/* Вход страницы: контейнер плавно поднимается. Один кадр — без прыжка
+   layout (старт-значения смещены только transform'ом, не padding'ом). */
+@keyframes tz-page-enter {
+    from { opacity: 0; transform: translate3d(0, 12px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+
+
+/* Карточки модулей на доме: каскадный вход. Задержка через nth-child —
+   без JS, без re-render, работает и при добавлении новых карточек. */
+@keyframes tz-card-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.tz-modgrid .tz-modcard {
+    animation: tz-card-in 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.tz-modgrid .tz-modcard:nth-child(1) { animation-delay: 0.02s; }
+.tz-modgrid .tz-modcard:nth-child(2) { animation-delay: 0.06s; }
+.tz-modgrid .tz-modcard:nth-child(3) { animation-delay: 0.10s; }
+.tz-modgrid .tz-modcard:nth-child(4) { animation-delay: 0.14s; }
+.tz-modgrid .tz-modcard:nth-child(5) { animation-delay: 0.18s; }
+.tz-modgrid .tz-modcard:nth-child(6) { animation-delay: 0.22s; }
+.tz-modgrid .tz-modcard:nth-child(7) { animation-delay: 0.26s; }
+.tz-modgrid .tz-modcard:nth-child(8) { animation-delay: 0.30s; }
+.tz-modgrid .tz-modcard:nth-child(n+9) { animation-delay: 0.34s; }
+
+/* Hero: заголовок и CTA входят с лёгким подъёмом, орб пульсирует. */
+@keyframes tz-hero-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tz-orb-pulse {
+    0%, 100% { transform: scale(1);    opacity: 0.85; }
+    50%      { transform: scale(1.08); opacity: 1; }
+}
+
+.tz-hero__copy > * {
+    animation: tz-hero-in 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.tz-hero__copy > *:nth-child(2) { animation-delay: 0.05s; }
+.tz-hero__copy > *:nth-child(3) { animation-delay: 0.10s; }
+.tz-hero__copy > *:nth-child(4) { animation-delay: 0.15s; }
+
+.tz-hero__orb {
+    animation: tz-orb-pulse 5.5s ease-in-out infinite;
+}
+
+/* Stat-карты: каскадный вход на дашбордах (nth-child по MudItem внутри grid). */
+@keyframes tz-stat-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.mud-grid > .mud-item > .tz-stat-link,
+.mud-grid > .mud-item > .tz-stat {
+    animation: tz-stat-in 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.mud-grid > .mud-item:nth-child(2) > .tz-stat-link,
+.mud-grid > .mud-item:nth-child(2) > .tz-stat { animation-delay: 0.05s; }
+.mud-grid > .mud-item:nth-child(3) > .tz-stat-link,
+.mud-grid > .mud-item:nth-child(3) > .tz-stat { animation-delay: 0.10s; }
+.mud-grid > .mud-item:nth-child(4) > .tz-stat-link,
+.mud-grid > .mud-item:nth-child(4) > .tz-stat { animation-delay: 0.15s; }
+
+/* Кнопки: лёгкий lift на hover (MudBlazor уже даёт тень — усиливаем только
+   transform'ом, без смены цвета, чтобы не спорить с темой). */
+.mud-button-root {
+    transition: transform var(--tz-duration-fast) var(--tz-ease), box-shadow var(--tz-duration-fast) ease, filter var(--tz-duration-fast) ease;
+}
+
+.mud-button-root {
+    min-height: 34px;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9px;
+    font-size: 0.82rem;
+}
+
+.mud-button-root:hover {
+    transform: translateY(-1px);
+    filter: saturate(1.06);
+}
+
+.mud-button-root:active {
+    transform: translateY(0) scale(0.99);
+}
+
+/* Диалоги: плавное появление поверх системной анимации MudBlazor. */
+.mud-dialog {
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* ── Phase 4: dialog / backdrop / table chrome + dark-mode contrast ── */
+
+/* Backdrop: 加深遮罩并轻微模糊,弹窗层级感更清晰。
+   MudBlazor 的 .mud-overlay 使用 palette 的 OverlayDark;这里统一增强。 */
+.mud-overlay.mud-overlay-dark {
+    background: var(--mud-palette-overlay-dark, rgba(0, 0, 0, 0.6));
+    backdrop-filter: blur(2px);
+}
+
+/* Dialog chrome: 纸面质感 + 明确层级边框;标题与内容留白统一。 */
+.mud-dialog {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: var(--mud-default-borderradius, 14px);
+    box-shadow:
+        0 18px 50px rgba(0, 0, 0, 0.22),
+        0 4px 14px rgba(0, 0, 0, 0.10);
+}
+
+.mud-dialog .mud-dialog-title {
+    padding-bottom: 0.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.mud-dialog .mud-dialog-actions {
+    padding-top: 0.4rem;
+    gap: 0.5rem;
+}
+
+/* Dialog 内表格与 pager 与页面表格同一套 chrome(去双线、统一圆角)。 */
+.mud-dialog .mud-table,
+.mud-dialog .mud-table-container {
+    border-radius: calc(var(--mud-default-borderradius, 14px) - 6px);
+    overflow: hidden;
+}
+
+.mud-dialog .mud-table-pagination {
+    border-top: 1px solid var(--mud-palette-divider);
+}
+
+/* 暗色模式对比度修正:
+   - 暗色下 surface 与 background 接近,dialog/table 用更高一级 surface 提层级;
+   - 文本次级色在暗色下提升亮度,保证 ≥4.5:1;
+   - 表头与 striped 行在暗色下使用带透明度的金色,避免发灰。 */
+.mud-theme-dark .mud-dialog,
+.mud-theme-dark .mud-card,
+.mud-theme-dark .mud-paper {
+    background: var(--mud-palette-surface);
+    border-color: var(--mud-palette-divider);
+}
+
+.mud-theme-dark .mud-table-header,
+.mud-theme-dark .mud-table-head {
+    background: color-mix(in srgb, var(--mud-palette-secondary) 8%, var(--mud-palette-surface));
+}
+
+.mud-theme-dark .mud-table-striped > tbody > tr:nth-child(2n) {
+    background: var(--mud-palette-table-striped);
+}
+
+.mud-theme-dark .mud-table-row:hover {
+    background: var(--mud-palette-table-hover);
+}
+
+.mud-theme-dark .mud-dialog .mud-dialog-title,
+.mud-theme-dark .mud-card-header-title {
+    color: var(--mud-palette-text-primary);
+}
+
+.mud-theme-dark .tz-stat__label,
+.mud-theme-dark .tz-stat__hint,
+.mud-theme-dark .mud-input-label,
+.mud-theme-dark .mud-caption {
+    color: var(--mud-palette-text-secondary);
+    opacity: 1; /* MudBlazor 暗色下会叠 0.7 透明度 → 二次压暗,这里钉住 */
+}
+
+.mud-theme-dark .tz-stat {
+    border-color: color-mix(in srgb, var(--tz-accent, var(--tz-gold)) 30%, var(--mud-palette-divider));
+}
+
+.mud-theme-dark .tz-stat__icon {
+    background: color-mix(in srgb, var(--tz-accent, var(--tz-gold)) 22%, transparent);
+    color: var(--tz-accent, var(--tz-gold));
+}
+
+.mud-theme-dark .mud-input > input,
+.mud-theme-dark .mud-input > textarea,
+.mud-theme-dark .mud-input-slot {
+    color: var(--mud-palette-text-primary);
+    caret-color: var(--mud-palette-primary);
+}
+
+.mud-theme-dark .mud-table-pagination,
+.mud-theme-dark .mud-select,
+.mud-theme-dark .mud-picker {
+    color: var(--mud-palette-text-primary);
+}
+
+/* 焦点可见性:暗色下 focus ring 用金色,亮度足够。 */
+.mud-theme-dark :focus-visible {
+    outline: 2px solid var(--mud-palette-secondary);
+    outline-offset: 2px;
+}
+
+/* Skeleton 与 EmptyState 在暗色下同样可读。 */
+.mud-theme-dark .tz-skeleton-table__cell {
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 14%, transparent);
+}
+
+.mud-theme-dark .tz-empty-state {
+    background: var(--mud-palette-surface);
+}
+
+.mud-theme-dark .tz-empty-state__icon {
+    color: var(--mud-palette-secondary);
+    opacity: 0.85;
+}
+
+.mud-theme-dark .tz-empty-state__desc {
+    color: var(--mud-palette-text-secondary);
+}
+
+/* Snackbar: лёгкий подъём при появлении. */
+.mud-snackbar {
+    animation: tz-card-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Таблицы: hover-строка с плавным фоном (MudBlazor уже красит — сглаживаем). */
+.mud-table-row {
+    transition: background-color var(--tz-duration-fast) ease, transform var(--tz-duration-fast) ease;
+}
+
+.mud-paper,
+.mud-card,
+.mud-dialog,
+.mud-menu-paper,
+.mud-popover {
+    animation: tz-surface-in var(--tz-duration) var(--tz-ease) both;
+}
+
+@keyframes tz-surface-in {
+    from { opacity: 0; transform: translate3d(0, 6px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.mud-input-control,
+.mud-select,
+.mud-autocomplete,
+.mud-picker {
+    transition: transform var(--tz-duration-fast) var(--tz-ease), filter var(--tz-duration-fast) ease;
+}
+
+.mud-input-control,
+.mud-select,
+.mud-autocomplete,
+.mud-picker {
+    font-size: 0.84rem;
+}
+
+.mud-input-control:focus-within,
+.mud-select:focus-within,
+.mud-autocomplete:focus-within,
+.mud-picker:focus-within {
+    transform: translateY(-1px);
+    filter: brightness(1.015);
+}
+
+/* Доступность: вся система анимаций выключается при reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+    .tz-page,
+    .tz-modgrid .tz-modcard,
+    .tz-hero__copy > *,
+    .tz-hero__orb,
+    .mud-grid > .mud-item > .tz-stat-link,
+    .mud-grid > .mud-item > .tz-stat,
+    .mud-snackbar {
+        animation: none !important;
+    }
+    .mud-button-root,
+    .mud-dialog,
+    .mud-menu-paper,
+    .mud-popover,
+    .mud-paper,
+    .mud-card,
+    .mud-table-row,
+    .mud-input-control,
+    .mud-select,
+    .mud-autocomplete,
+    .mud-picker,
+    .tz-stat,
+    .tz-stat__icon,
+    .tz-bi-kpi,
+    .tz-bi-insight {
+        transition: none !important;
+    }
+    .tz-subnav__indicator {
+        transition: none !important;
+    }
+}
+
+/* ── Home ────────────────────────────────────────────────── */
+.tz-hero {
+    display: grid;
+    grid-template-columns: 1.4fr 0.8fr;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1.75rem;
+    border-radius: 18px;
+    background:
+        radial-gradient(1200px 280px at 100% 0%, rgba(196, 154, 60, 0.22), transparent 55%),
+        linear-gradient(135deg, #0b3a38 0%, #0e4d4a 55%, #163a4a 100%);
+    color: #f7f1e3;
+    overflow: hidden;
+    position: relative;
+}
+
+.tz-hero__title {
+    margin: 0.25rem 0 0.55rem;
+    line-height: 1.3;
+}
+
+.tz-hero__desc {
+    margin: 0 0 1.1rem;
+    max-width: 38rem;
+    opacity: 0.88;
+    line-height: 1.85;
+    color: rgba(247, 241, 227, 0.85) !important;
+}
+
+.tz-kicker {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: #e8c872;
+}
+
+.tz-hero__cta {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.tz-hero__aside {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 160px;
+}
+
+.tz-hero__orb {
+    position: absolute;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(232, 200, 114, 0.28), transparent 68%);
+}
+
+.tz-section-label {
+    color: var(--mud-palette-text-secondary) !important;
+    margin-bottom: 0.75rem !important;
+}
+
+.tz-modgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.85rem;
+}
+
+.tz-modcard {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    text-align: right;
+    padding: 0.75rem 0.8rem;
+    border-radius: 16px;
+    border: 1px solid var(--mud-palette-divider);
+    background: var(--mud-palette-surface);
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    width: 100%;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.tz-modcard:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--tz-accent) 45%, var(--mud-palette-divider));
+    box-shadow: 0 10px 24px rgba(14, 77, 74, 0.08);
+}
+
+.tz-modcard__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--tz-accent) 16%, transparent);
+    color: var(--tz-accent);
+    flex-shrink: 0;
+}
+
+.tz-modcard__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.tz-modcard__body h3 {
+    margin: 0 0 0.15rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.tz-modcard__body p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--mud-palette-text-secondary);
+    line-height: 1.55;
+}
+
+.tz-modcard__go {
+    opacity: 0.35;
+}
+
+.tz-home-meta {
+    margin-top: 1.75rem;
+    font-size: 0.78rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+@media (max-width: 800px) {
+    .tz-hero {
+        grid-template-columns: 1fr;
+        padding: 1.2rem 1.15rem;
+    }
+    .tz-hero__aside {
+        display: none;
+    }
+}
+
+/* ── Login ───────────────────────────────────────────────── */
+.tz-auth {
+    min-height: 100vh;
+    display: flex;
+    background:
+        radial-gradient(900px 400px at 100% 0%, rgba(196, 154, 60, 0.16), transparent 50%),
+        var(--mud-palette-background, var(--tz-paper));
+}
+
+.tz-login {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: min(1040px, 100%);
+    margin: auto;
+    min-height: min(640px, 100vh);
+    background: var(--mud-palette-surface);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(11, 58, 56, 0.16);
+}
+
+.tz-login__brand {
+    background:
+        radial-gradient(600px 260px at 0% 100%, rgba(232, 200, 114, 0.2), transparent 60%),
+        linear-gradient(160deg, #0b3a38, #0e4d4a 60%, #163a4a);
+    color: #f7f1e3;
+    padding: 3rem 2.4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.tz-login__brand h1 {
+    margin: 1rem 0 0.2rem;
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
+.tz-login__tag {
+    margin: 0 0 1.6rem;
+    color: #e8c872;
+    font-weight: 600;
+}
+
+.tz-login__points {
+    margin: 0;
+    padding: 0 1.1rem 0 0;
+    line-height: 2;
+    opacity: 0.9;
+}
+
+.tz-login__panel {
+    padding: 3rem 2.4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.tz-login__lead {
+    color: var(--mud-palette-text-secondary) !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.tz-login__hint {
+    font-size: 0.82rem;
+}
+
+@media (max-width: 800px) {
+    .tz-login {
+        grid-template-columns: 1fr;
+        border-radius: 0;
+        min-height: 100vh;
+        box-shadow: none;
+    }
+    .tz-login__brand {
+        padding: 2rem 1.4rem 1.4rem;
+    }
+    .tz-login__points {
+        display: none;
+    }
+    .tz-login__panel {
+        padding: 1.6rem 1.3rem 2.4rem;
+    }
+}
+
+/* ── Init error ──────────────────────────────────────────── */
+.tz-init-error {
+    position: fixed;
+    inset-inline: 1rem;
+    bottom: 1rem;
+    z-index: 2000;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    background: #9c3b2e;
+    color: #fff8f3;
+    box-shadow: 0 12px 32px rgba(156, 59, 46, 0.35);
+    max-width: 720px;
+    margin-inline: auto;
+}
+
+.tz-init-error p {
+    margin: 0.2rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    opacity: 0.92;
+}
+
+/* ── Shared component polish ─────────────────────────────── */
+.tz-empty-state {
+    min-height: clamp(8rem, 20vw, 11rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mud-palette-text-secondary);
+    background: color-mix(in srgb, var(--mud-palette-surface) 92%, var(--mud-palette-primary) 8%);
+}
+
+/* آیکون محصور در یک‌ظرف قرصی — حالت «empty» را معنادارتر و premium می‌کند */
+.tz-empty-state__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--mud-palette-secondary) 14%, transparent);
+    color: var(--mud-palette-secondary);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-secondary) 22%, transparent);
+}
+
+.tz-empty-state__icon .mud-icon-root {
+    font-size: 2.1rem;
+}
+
+.tz-empty-state__desc {
+    max-width: 34rem;
+    margin-inline: auto;
+    line-height: 1.75;
+}
+
+.tz-empty-state__actions .mud-button-root {
+    flex-shrink: 0;
+}
+
+.tz-form-section {
+    padding: var(--tz-space-3);
+    overflow: hidden;
+}
+
+.tz-form-section__header {
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+
+.tz-form-section__description {
+    margin-bottom: 0.9rem;
+}
+
+.tz-form-section__content {
+    min-width: 0;
+}
+
+/* ── Tables / papers ─────────────────────────────────────── */
+.mud-table-head .mud-table-cell {
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+    color: var(--mud-palette-text-secondary) !important;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+/* جدول استاندارد: سطح مستقل، مرز نرم و فضای تنفس ثابت؛
+   این کلاس روی TzDataTable قرار می‌گیرد تا صفحات قدیمیِ خارج از آن
+   بدون تغییر رفتار باقی بمانند. */
+.tz-data-table {
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--tz-shadow-1);
+}
+
+.tz-data-table__table {
+    min-width: 0;
+    background: transparent;
+}
+
+.tz-data-table__table .mud-table-container {
+    min-width: 0;
+    border-radius: 10px;
+}
+
+.tz-data-table__table .mud-table-head .mud-table-cell {
+    min-height: var(--tz-table-row-height);
+    padding: 0.8rem 0.85rem;
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+    color: var(--color-text-secondary) !important;
+}
+
+.tz-data-table__table .mud-table-body .mud-table-cell {
+    min-height: var(--tz-table-row-height);
+    padding: 0.7rem 0.85rem;
+    color: var(--color-text-primary);
+    vertical-align: middle;
+}
+
+.tz-data-table__table .mud-table-row {
+    transition: background-color var(--tz-duration-fast) ease;
+}
+
+.tz-data-table__table .mud-table-row:hover {
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+}
+
+.tz-data-table__table .mud-table-pagination {
+    min-height: 48px;
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-primary) 2%, var(--color-surface));
+}
+
+.mud-paper {
+    border: 1px solid var(--mud-palette-divider);
+}
+
+/* ارتفاع سطح‌ها یکدست و بدون کلنگ روی page */
+.mud-paper.elevation-1,
+.mud-paper.mud-elevation-1 {
+    box-shadow: var(--tz-shadow-1);
+}
+
+/* هدر جدول چسبان برای جدول‌های بلند (کلاس بر روی خود جدول فعال می‌شود) */
+.mud-table-sticky-header .mud-table-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--mud-palette-surface);
+    box-shadow: 0 1px 0 var(--mud-palette-divider);
+}
+
+/* ردیف انتخاب‌شدهٔ جدول — پُررنگ‌تر از hover با حاشیهٔ لبهٔ راست */
+.mud-table-row.mud-table-row-selected,
+.mud-table-row.selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent) !important;
+    box-shadow: inset 3px 0 0 var(--mud-palette-primary);
+}
+
+/* سلول عددی جدول — اعداد را راست‌چین/LTR و با tabular-nums می‌کند */
+.mud-table-cell.tz-num, .tz-table-num {
+    font-variant-numeric: tabular-nums;
+}
+
+/* جمع/خطوط بین ردیف‌ها ظریف‌تر وقتی striped خاموش است */
+.mud-table:not(.mud-table-hover) .mud-table-body .mud-table-row + .mud-table-row .mud-table-cell {
+    border-top: 1px solid color-mix(in srgb, var(--mud-palette-divider) 60%, transparent);
+}
+
+/* کامپوننت صفحه‌بندی MudTablePager — فشرده و با بالان جدول هم‌تراز */
+.mud-table-pagination.toolbar {
+    min-height: 52px;
+}
+
+.mud-table-pagination.toolbar .mud-table-pagination-toolbar {
+    min-height: 0;
+    padding-block: 0.4rem;
+}
+
+.mud-input > input,
+.mud-input > textarea {
+    text-align: start;
+}
+
+/* ── Snackbar / Dialog / Popover ──────────────────────────── */
+.mud-snackbar {
+    border-radius: 12px;
+    box-shadow: var(--tz-shadow-3);
+    font-weight: 500;
+}
+
+.mud-dialog-container .mud-dialog {
+    border: 1px solid var(--mud-palette-divider);
+    box-shadow: var(--tz-shadow-3);
+}
+
+.mud-dialog-title {
+    font-weight: 700 !important;
+}
+
+/* پاپ‌آورهای رنگ/منو/تاریخ — حاشیهٔ ظریف و ارتفاع یکدست */
+.mud-popover .mud-list,
+.mud-popover .mud-paper {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 10px;
+}
+
+/* فرم‌ها: چسبیدن یکدست فاصلهٔ بین آیتم‌های grid */
+.mud-grid.mud-grid-spacing-3 .mud-grid-item {
+    margin-bottom: 0.35rem;
+}
+
+/* ── Blazor error UI ─────────────────────────────────────── */
+#blazor-error-ui {
+    background: #f7e7b0;
+    color: #1c1914;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.15);
+    display: none;
+    inset-inline: 0;
+    padding: 0.7rem 1.25rem;
+    position: fixed;
+    z-index: 1000;
+    font-family: var(--tz-font);
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    inset-inline-end: 0.75rem;
+    top: 0.5rem;
+}
+
+/* ── ماژول جداول پایه (Chart of Accounts) ───────────────────── */
+
+/* درخت حساب‌ها */
+.tz-charttree {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 14px;
+    background: var(--mud-palette-surface);
+    min-height: 60vh;
+    overflow: hidden;
+}
+
+.tz-charttree__scroll {
+    max-height: calc(100vh - 280px);
+    min-height: 50vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.5rem 0.4rem 2rem;
+    outline: none;
+}
+
+.tz-charttree__node {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.32rem 0.6rem 0.32rem 0.35rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.tz-charttree__node:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+}
+
+.tz-charttree__node.is-selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--mud-palette-primary) 30%, transparent);
+}
+
+.tz-charttree__node.is-matched {
+    box-shadow: inset 3px 0 0 var(--mud-palette-warning);
+}
+
+.tz-charttree__leaf {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+}
+
+.tz-charttree__icon {
+    width: 22px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tz-charttree__row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.tz-charttree__code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
+    padding: 0.05rem 0.45rem;
+    border-radius: 5px;
+    flex-shrink: 0;
+    direction: ltr;
+}
+
+/* کد کوتاهِ خودِ گره — ثانویه، کنار کد حساب */
+.tz-charttree__own {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.7rem;
+    color: var(--mud-palette-text-disabled);
+    direction: ltr;
+    flex-shrink: 0;
+}
+
+.tz-charttree__title {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Account Picker */
+.tz-accpicker {
+    border-radius: 12px;
+    transition: border-color 0.12s ease;
+}
+
+.tz-accpicker:hover {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 40%, var(--mud-palette-divider));
+}
+
+.tz-accpicker--disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.tz-pickertree {
+    border-radius: 12px;
+    background: var(--mud-palette-surface);
+    min-height: 380px;
+    overflow: hidden;
+}
+
+.tz-pickertree__scroll {
+    max-height: 60vh;
+    min-height: 360px;
+    overflow-y: auto;
+    padding: 0.25rem 0;
+    outline: none;
+}
+
+.tz-pickertree__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    border-radius: 6px;
+    margin: 1px 0.25rem;
+    transition: background 0.1s ease;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.tz-pickertree__row:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
+}
+
+.tz-pickertree__row.is-selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 15%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--mud-palette-primary) 35%, transparent);
+}
+
+.tz-pickertree__row.is-highlighted {
+    box-shadow: inset 3px 0 0 var(--mud-palette-info);
+}
+
+.tz-pickertree__row.is-invalid {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.tz-pickertree__icon {
+    width: 20px;
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: var(--mud-palette-text-secondary);
+}
+
+.tz-pickertree__code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 13%, transparent);
+    padding: 0.05rem 0.45rem;
+    border-radius: 5px;
+    flex-shrink: 0;
+    direction: ltr;
+}
+
+.tz-pickertree__title {
+    flex: 1;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tz-pickertree__acc {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: var(--mud-palette-text-secondary);
+    direction: ltr;
+    flex-shrink: 0;
+}
+
+/* ── Drawer: hover، منوی باز، و اسکرول‌بار یکدست ─────────────── */
+.tz-drawer .mud-nav-link:not(.active):hover {
+    background: color-mix(in srgb, var(--mud-palette-drawer-text) 7%, transparent);
+    color: var(--mud-palette-drawer-text);
+}
+
+.tz-drawer .mud-nav-group .mud-nav-link.active {
+    background: linear-gradient(90deg, rgba(212, 176, 106, 0.22), rgba(212, 176, 106, 0.08));
+    color: #f7f1e3;
+}
+
+/* اسکرول‌بار تم‌دار برای کل صفحه و کشو — ظریف و هماهنگ با پالت */
+::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 26%, transparent);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 42%, transparent);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+}
+
+
+/* ── BI: کارت‌های KPI، هشدارها و تب‌ها — هماهنگ با StatCard ──── */
+.tz-bi-kpi {
+    height: 100%;
+    border: 1px solid var(--mud-palette-divider);
+    background:
+        linear-gradient(135deg, rgba(94, 53, 177, 0.05), transparent 55%),
+        var(--mud-palette-surface);
+    transition: transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1),
+                box-shadow 0.18s ease,
+                border-color 0.18s ease;
+}
+
+.tz-bi-kpi:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 45%, var(--mud-palette-divider));
+    box-shadow: 0 10px 24px rgba(20, 17, 11, 0.08);
+}
+
+/* حالت وضعیت: لبهٔ رنگی خودش را دارد (border-top در markup ست می‌شود) —
+   این‌ها فقط پس‌زمینهٔ ملایم روی لبه اضافه می‌کنند تا وضعیت خوانا باشد. */
+.tz-bi-kpi--bad {
+    background:
+        linear-gradient(135deg, rgba(198, 40, 40, 0.05), transparent 58%),
+        var(--mud-palette-surface);
+}
+
+.tz-bi-kpi--good {
+    background:
+        linear-gradient(135deg, rgba(46, 125, 87, 0.05), transparent 58%),
+        var(--mud-palette-surface);
+}
+
+/* پنل «تحلیل هوشمند» و هشدارهای داخل آن */
+.tz-bi-insights,
+.tz-bi-insight {
+    border-radius: 14px;
+}
+
+.tz-bi-insight:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+}
+
+/* تب‌های متعدد BI — هدر چسبان و خوانا هنگام اسکرول */
+.tz-bi-tabs .mud-tabs-panels {
+    padding-top: 0.5rem;
+}
+
+.tz-bi-tabs .mud-tab {
+    min-height: 46px;
+    font-weight: 600;
+}
+
+
+/* ── قفل محیط، اسکلتون، دسترس‌پذیری، موبایل ───────────────────── */
+
+/* پوشش «ایجاد شرکت» — استایل به‌جای inline در MainLayout اینجا متمرکز شد. */
+.tz-context-lock {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--mud-palette-overlay-dark, rgba(0, 0, 0, 0.8));
+    padding: 1rem;
+}
+
+.tz-context-lock__card {
+    width: 100%;
+    max-width: 450px;
+    direction: rtl;
+}
+
+/* اسکلتون جدول (کامپوننت TableSkeleton) */
+.tz-skeleton-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.75rem 0.25rem;
+}
+
+.tz-skeleton-table__row {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.tz-skeleton-table__cell {
+    flex: 1;
+    border-radius: 6px;
+}
+
+/* دسترس‌پذیری: نمایان‌بودن فوکوسِ کیبورد روی عناصر تعاملیِ سفارشی (که MudBlazor نیستند) */
+.tz-modcard:focus-visible,
+.tz-subnav__tab:focus-visible,
+.tz-fy-menu__chip:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+/* ── Global keyboard-focus ring (accessibility + حرکت کیبورد) ──
+   فقط زمانی دیده می‌شود که کاربر با کیبورد ناوبری کند (focus-visible)، نه کلیک/تاچ.
+   از box-shadow به‌جای outline استفاده شد چون با rounded گوشه‌ها بهتر می‌نشیند
+   و در حالت تیره هم با color-mix روی primary خوانا می‌ماند. ورودی‌های متنی excluded
+   هستند چون کادر خارجشان با قاعدهٔ notched-outline همرنگ می‌شود. */
+.mud-button-root:focus-visible,
+.mud-icon-button:focus-visible,
+.mud-nav-link:focus-visible,
+.mud-chip:focus-visible,
+.mud-menu-item:focus-visible,
+.mud-switch:focus-visible .mud-switch-base,
+.mud-table-sort-label:focus-visible,
+.tz-modcard:focus-visible,
+.tz-subnav__tab:focus-visible,
+.tz-stat-link:focus-visible,
+.tz-user .mud-avatar:focus-visible {
+    outline: none;
+    box-shadow: var(--tz-focus-ring);
+}
+
+/* ورودی‌های Outlined هنگام فوکوس: خط کانتور را با رنگ primary هماهنگ می‌کنیم
+   تا chart-of-accounts و فرم‌های ثبت حالتی «premium» و یکپارچه داشته باشند. */
+.mud-input-outlined:focus-within .mud-notched-outline,
+.mud-input-outlined:hover .mud-notched-outline {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 70%, var(--mud-palette-lines-inputs));
+}
+
+/* رنگ انتخاب متن — هماهنگ با پالت (جزئیات premium) */
+::selection {
+    background: color-mix(in srgb, var(--mud-palette-primary) 22%, transparent);
+    color: var(--mud-palette-text-primary);
+}
+
+/* موبایل: چیپ «سال مالی» جمع‌وجورتر و بدون سرریز در عرض کم */
+@media (min-width: 1400px) {
+    .tz-page {
+        padding-inline: clamp(2rem, 4vw, 4rem);
+    }
+
+    .tz-pagehead .mud-typography-h4 {
+        font-size: clamp(1.35rem, 1.1rem + 0.4vw, 1.75rem);
+    }
+}
+
+@media (max-width: 800px) {
+    .tz-pagehead .mud-typography-h4 {
+        font-size: clamp(1.1rem, 0.98rem + 0.7vw, 1.35rem);
+    }
+
+    .tz-pagehead__actions,
+    .tz-toolbar {
+        width: 100%;
+    }
+
+    .tz-pagehead__actions > .mud-button-root,
+    .tz-toolbar > .mud-button-root {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .mud-button-root {
+        min-height: 32px;
+        padding-inline: 0.6rem;
+        font-size: 0.78rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .tz-page {
+        padding-inline: 0.75rem;
+    }
+
+    .tz-fy-menu__chip {
+        max-width: 46vw;
+        min-height: 32px;
+    }
+
+    .tz-appbar.mud-appbar {
+        padding-inline: 0.35rem;
+    }
+
+    .tz-appbar__menu {
+        margin-inline: 0;
+    }
+    .tz-empty-state {
+        min-height: 8rem;
+        padding: var(--tz-space-3) !important;
+    }
+
+    .tz-form-section {
+        padding: var(--tz-space-2);
+    }
+
+    .tz-fy-menu__chip .mud-chip-content {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* ── Mobile interaction layer ────────────────────────────── */
+@media (max-width: 800px) {
+    /* پهنای drawer موبایل را با متغیرِ خودِ MudBlazor ست می‌کنیم، نه با width.
+       در MudBlazor 9 هم پهنای حالت باز و هم آفستِ حالت بسته از یک عبارت واحد
+       می‌آیند:  width: var(--mud-drawer-width, var(--mud-drawer-width-right))
+                 right: calc(-1 * var(--mud-drawer-width, var(--mud-drawer-width-right)))
+       اگر فقط width را override کنیم (رفتار قبلی)، drawer به پهنای
+       min(86vw,320px) رندر می‌شود ولی فقط ۳۰۰px (مقدار DrawerWidthRight در
+       TarazinTheme) به بیرون کشیده می‌شود؛ تفاضلِ این دو (تا ۲۰px) به‌صورت
+       یک باریکهٔ باقی‌مانده در لبهٔ صفحه دیده می‌شد. با ست‌کردن متغیر، هر دو
+       مقدار همیشه یکی‌اند و drawer بسته کامل از دید خارج می‌شود. */
+    .tz-drawer--mobile {
+        --mud-drawer-width: min(86vw, 320px);
+    }
+
+    .tz-drawer--mobile .mud-drawer-content {
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+
+    .tz-drawer__head {
+        padding: 0.85rem !important;
+    }
+
+    .tz-nav {
+        padding: 0.25rem 0.4rem 1rem;
+    }
+
+    .tz-nav .mud-nav-link {
+        min-height: 38px;
+        align-items: center;
+        padding: 0.35rem 0.6rem;
+    }
+
+    .tz-nav .mud-nav-group > .mud-nav-link {
+        min-height: 42px;
+    }
+
+    .tz-subnav {
+        gap: 0.35rem;
+        padding: 0.18rem 0.6rem;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x;
+    }
+
+    .tz-subnav__brand {
+        font-size: 0.82rem;
+        padding-inline-end: 0.45rem;
+    }
+
+    .tz-subnav__tab {
+        min-height: 28px;
+        padding-block: var(--tz-tab-pad-y, 0.2rem);
+        padding-inline: 0.6rem;
+        font-size: 0.8rem;
+    }
+
+    .tz-subnav__indicator {
+        bottom: -0.18rem;
+    }
+
+    .tz-page {
+        padding-top: 1rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .mud-paper {
+        max-width: 100%;
+    }
+
+    /* جدول‌ها باید در مرز محتوای صفحه بمانند؛ در RTL سرریزِ سمت چپ نباید
+       با عرض ثابت یا calc مبتنی بر viewport باعث بریده‌شدن ستون‌ها شود. */
+    .mud-table-container {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+    }
+
+    .mud-table,
+    .mud-table-root,
+    .mud-table.mud-table-sticky-header {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .tz-data-table {
+        padding: 0.55rem !important;
+        border-radius: 12px;
+    }
+
+    .tz-data-table__table .mud-table-head .mud-table-cell,
+    .tz-data-table__table .mud-table-body .mud-table-cell {
+        padding: 0.55rem 0.65rem;
+    }
+
+    .mud-table-cell {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .mud-table-cell[data-label="کد"],
+    .mud-table-cell[data-label="شماره"],
+    .mud-table-cell[data-label="مبلغ"] {
+        overflow-wrap: normal;
+        word-break: normal;
+    }
+
+    .mud-table-cell[data-label="شرح"],
+    .mud-table-cell[data-label="توضیح"],
+    .mud-table-cell[data-label="خلاصه"] {
+        white-space: normal;
+        min-width: 0;
+    }
+
+    .mud-tabs,
+    .mud-tabs-tabbar,
+    .mud-tabs-tabbar-content,
+    .mud-tabs-tabbar-inner,
+    .mud-tabs-panels {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .mud-tabs-tabbar-wrapper {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+    .tz-pagehead__actions,
+    .tz-toolbar {
+        gap: 0.35rem;
+    }
+
+    .tz-pagehead__actions > .mud-button-root,
+    .tz-toolbar > .mud-button-root {
+        flex: 1 1 140px;
+    }
+}
+
+@media (max-width: 480px) {
+    .tz-page {
+        padding-inline: 0.55rem;
+    }
+
+    .tz-pagehead {
+        gap: 0.55rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.45rem;
+    }
+
+    .tz-pagehead__actions > .mud-button-root,
+    .tz-toolbar > .mud-button-root {
+        flex-basis: 100%;
+    }
+
+    .mud-paper.pa-4 {
+        padding: 0.7rem !important;
+    }
+
+    .mud-grid-item {
+        min-width: 0;
+    }
+
+    .tz-hero {
+        margin-bottom: 1rem;
+        padding: 0.9rem;
+        border-radius: 14px;
+    }
+
+    .tz-modgrid {
+        grid-template-columns: 1fr;
+        gap: 0.55rem;
+    }
+
+    .tz-modcard {
+        min-height: 52px;
+    }
+
+    .mud-dialog {
+        width: calc(100vw - 1rem) !important;
+        max-width: calc(100vw - 1rem) !important;
+        margin: 0.5rem;
+    }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   چاپ رسمی — قوانین @page + هدر/فوتر تکرارشونده (لوگو + شماره صفحه)
+   این قوانین فقط روی خروجی چاپ/PDF مرورگر اثر دارند (window.print).
+   کلاس‌های gp-print-* (فاکتور طلا) و cq-print-* (گزارش چک‌ها) هر دو
+   از همین الگو استفاده می‌کنند.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── صفحه‌های چاپ نام‌دار ──
+   هر چاپ‌گر (print-area) با ویژگی page: به یکی از این صفحات وصل می‌شود:
+   - پیش‌فرض (A4 portrait) → فاکتور طلا
+   - gp-a5 (A5 portrait) → فاکتور طلا در اندازهٔ A5
+   - cq-landscape (A4 landscape) → گزارش چک‌ها
+   - cq-a5-landscape (A5 landscape) → گزارش چک‌ها در اندازهٔ A5  */
+
+/* A4 portrait — پیش‌فرض (فاکتور) */
+@page {
+    size: A4;
+    margin: 24mm 10mm 20mm 10mm;
+}
+
+/* A4 portrait سند حسابداری — حاشیهٔ فشرده‌تر و متناسب با جدول سند */
+@page gp-doc {
+    size: A4;
+    margin: 14mm 8mm 14mm 8mm;
+}
+
+/* A5 portrait (فاکتور و سند) */
+@page gp-a5 {
+    size: A5;
+    margin: 14mm 8mm 14mm 8mm;
+}
+
+/* A4 landscape (گزارش چک‌ها) */
+@page cq-landscape {
+    size: A4 landscape;
+    margin: 24mm 10mm 20mm 10mm;
+}
+
+/* A5 landscape (گزارش چک‌ها) */
+@page cq-a5-landscape {
+    size: A5 landscape;
+    margin: 18mm 8mm 16mm 8mm;
+}
+
+/* شماره صفحه در مرورگرهای دارای پشتیبانی margin-box (@bottom-center) */
+@page {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #555;
+    }
+}
+
+@page gp-a5 {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #555;
+    }
+}
+
+@page gp-doc {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #555;
+    }
+}
+
+@page cq-landscape {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #555;
+    }
+}
+
+@page cq-a5-landscape {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #555;
+    }
+}
+
+/* اتصال چاپ‌گرها به صفحهٔ نام‌دار (فقط در چاپ اثر دارد) */
+/* سند حسابداری: ناحیهٔ چاپ عادی = A4 پرتره با حاشیهٔ مناسب سند؛ --a5 = A5 پرتره */
+.gp-print-area {
+    page: gp-doc;
+}
+.gp-print-area--a5 {
+    page: gp-a5;
+}
+.cq-print-area {
+    page: cq-landscape;
+}
+.cq-print-area--a5 {
+    page: cq-a5-landscape;
+}
+
+/* فقط ناحیهٔ چاپ در خروجی دیده شود */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .gp-print-area, .gp-print-area *,
+    .cq-print-area, .cq-print-area * {
+        visibility: visible;
+    }
+
+    /* ── رها کردن ناحیهٔ چاپ از قیدهای مودال MudBlazor ──
+       چون ناحیهٔ چاپ داخل MudDialog است (overlay + .mud-dialog + .mud-dialog-content)،
+       و .mud-dialog transform دارد، در حالت چاپ این transform و overflow:auto
+       ناحیهٔ مطلق‌شده را درون باکس دیالوگ می‌فشارند و محتوای چندصفحه‌ای و
+       هدر/فوتر position:fixed را می‌بُرند. این قوانین در چاپ آن‌ها را خنثی می‌کنند
+       تا ناحیهٔ چاپ روی تمام عرض/ارتفاع صفحهٔ A4 پخش شود. */
+    .mud-dialog-container,
+    .mud-focus-trap,
+    .mud-focus-trap-child-container,
+    .mud-dialog,
+    .mud-dialog-content {
+        position: static !important;
+        transform: none !important;
+        overflow: visible !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+    .mud-overlay {
+        display: none !important;
+    }
+
+    .gp-print-area,
+    .cq-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        width: auto;
+    }
+
+    /* هدر رسمی: با position:fixed روی همهٔ صفحات تکرار می‌شود */
+    .gp-print-header,
+    .cq-print-header {
+        position: fixed;
+        top: -20mm;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 4px;
+        border-bottom: 2px solid #1a237e;
+    }
+    .gp-print-header img,
+    .cq-print-header img {
+        height: 30px;
+    }
+
+    /* فوتر رسمی: با position:fixed روی همهٔ صفحات تکرار می‌شود */
+    .gp-print-footer,
+    .cq-print-footer {
+        position: fixed;
+        bottom: -16mm;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 8.5pt;
+        color: #777;
+        border-top: 1px solid #ccc;
+        padding-top: 3px;
+    }
+
+    /* A5: حاشیهٔ کوچک‌تر → هدر/فوتر بالاتر می‌نشینند (درون margin صفحه) */
+    .gp-print-area--a5 .gp-print-header {
+        top: -13mm;
+    }
+    .gp-print-area--a5 .gp-print-footer {
+        bottom: -11mm;
+    }
+    .cq-print-area--a5 .cq-print-header {
+        top: -13mm;
+    }
+    .cq-print-area--a5 .cq-print-footer {
+        bottom: -11mm;
+    }
+
+    /* جلوگیری از شکستن ردیف‌ها/کارت‌ها بین دو صفحه */
+    .gp-page-break,
+    .cq-page-break {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* ظاهر چاپی دیالوگ بدون سایه/حاشیه */
+    .gp-print-area .mud-dialog,
+    .cq-print-area .mud-dialog {
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    /* عناصر فقط-چاپی */
+    .print-only {
+        display: flex !important;
+    }
+
+    /* ── رفع حالت موبایل/توده‌ایِ MudTable در چاپ: چیدمان ستونی بازگردانده می‌شود ──
+       گزارش‌های جدولی Breakpoint=Sm دارند؛ در چاپ مرورگر عرض صفحه را باریک می‌بیند
+       و جدول به حالت «هر ردیف = کارت» با برچسب بالای هر سلول درمی‌آید.
+       این قواعد آن را در چاپ به جدول واقعی برمی‌گردانند. */
+    .gp-print-area table, .cq-print-area table {
+        display: table !important;
+        width: 100% !important;
+        border-collapse: collapse !important;
+        table-layout: auto !important;
+    }
+    .gp-print-area thead, .cq-print-area thead,
+    .gp-print-area tbody, .cq-print-area tbody {
+        display: table-header-group !important;
+    }
+    .gp-print-area tbody, .cq-print-area tbody {
+        display: table-row-group !important;
+    }
+    .gp-print-area tr, .cq-print-area tr {
+        display: table-row !important;
+    }
+    .gp-print-area th, .gp-print-area td,
+    .cq-print-area th, .cq-print-area td {
+        display: table-cell !important;
+    }
+    .gp-print-area td::before, .cq-print-area td::before {
+        content: none !important;
+        display: none !important;
+    }
+}
+
+/* در صفحه (غیرچاپ): هدر/فوتر رسمی دیده نشود */
+.print-only {
+    display: none !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   پیش‌نمایش چاپ — شبیه‌سازی برگهٔ A4 قبل از ارسال به پرینتر
+   (state پیش‌نمایش داخل دیالوگ‌های چاپ: gp-print-dialog.gp-previewing)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* وقتی دیالوگ در حالت پیش‌نمایش است: هدر/فوتر رسمی روی صفحه هم دیده شوند
+   (فقط در حالت عادی؛ داخل برگهٔ پیش‌نمایش هدر/فوتر شبیه‌سازی‌شدهٔ خودش را دارد) */
+.gp-print-dialog.gp-previewing .print-only,
+.cq-print-dialog.gp-previewing .print-only {
+    display: flex !important;
+}
+
+/* داخل برگهٔ پیش‌نمایش، هدر/فوتر رسمی بدنه (print-only) دیده نشود —
+   چون برگه هدر/فوتر شبیه‌سازی‌شدهٔ خودش را دارد.
+   (specificity بالاتر از قاعدهٔ .gp-previewing .print-only تا برنده شود) */
+.gp-print-dialog.gp-previewing .gp-preview-sheet__body .print-only,
+.cq-print-dialog.gp-previewing .gp-preview-sheet__body .print-only {
+    display: none !important;
+}
+
+/* پس‌زمینهٔ پیش‌نمایش (مثل نمایانگر مرورگرها: خاکستری + برگهٔ سفید) */
+.gp-preview-stage {
+    background: #3e454b;
+    border-radius: 8px;
+    padding: 20px 12px;
+    overflow: auto;
+    max-height: 62vh;
+    overscroll-behavior: contain;
+}
+
+/* در موبایل، برگه نباید به عرض دیالوگ فشرده شود؛ فشرده‌سازی باعث می‌شود
+   کدها و نوع سند حرف‌به‌حرف شکسته شوند. خود stage اسکرول افقی را نگه می‌دارد. */
+@media (max-width: 800px) {
+    .gp-preview-stage .gp-preview-sheet,
+    .tpl-print-stage .tpl-sheet-shell {
+        max-width: none;
+        flex: 0 0 auto;
+        margin-inline: 0;
+    }
+
+    .gp-preview-stage .gp-preview-sheet {
+        width: 210mm;
+    }
+
+    .gp-preview-stage .gp-preview-sheet--landscape {
+        width: 297mm;
+    }
+
+    .gp-preview-stage .gp-preview-sheet--a5 {
+        width: 148mm;
+    }
+
+    .gp-preview-stage .gp-preview-sheet--landscape.gp-preview-sheet--a5 {
+        width: 210mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell {
+        width: 210mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell .tpl-sheet {
+        max-width: none;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell--landscape {
+        width: 297mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell--a5 {
+        width: 148mm;
+    }
+
+    .tpl-print-stage .tpl-sheet-shell--landscape.tpl-sheet-shell--a5 {
+        width: 210mm;
+    }
+}
+
+/* شناسه‌ها، تاریخ‌ها و مبالغ باید یک واحد بمانند؛ شرح آزاد می‌تواند wrap شود. */
+.gp-preview-sheet .mud-table-cell,
+.gp-print-area .mud-table-cell,
+.tpl-sheet .tpl-th,
+.tpl-sheet .tpl-td {
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.gp-preview-sheet .mud-table-cell[data-label="کد"],
+.gp-preview-sheet .mud-table-cell[data-label="کد حساب"],
+.gp-preview-sheet .mud-table-cell[data-label="شماره"],
+.gp-preview-sheet .mud-table-cell[data-label="تاریخ"],
+.gp-preview-sheet .mud-table-cell[data-label="مبلغ"],
+.gp-print-area .mud-table-cell[data-label="کد"],
+.gp-print-area .mud-table-cell[data-label="کد حساب"],
+.gp-print-area .mud-table-cell[data-label="شماره"],
+.gp-print-area .mud-table-cell[data-label="تاریخ"],
+.gp-print-area .mud-table-cell[data-label="مبلغ"] {
+    white-space: nowrap;
+}
+
+/* برگهٔ چاپ مستقل از تم برنامه است: dark mode فقط chrome دیالوگ را تغییر می‌دهد.
+   این قرارداد روی پیش‌نمایش، سند عادی و گزارش چک اعمال می‌شود. */
+.gp-print-area,
+.gp-preview-sheet,
+.tpl-sheet-shell,
+.tpl-sheet {
+    --tz-print-ink: #1f2937;
+    --tz-print-muted: #667085;
+    --tz-print-border: #d7dde5;
+    --tz-print-header-bg: #f3f6f8;
+    --tz-print-group-bg: #e8eef8;
+    --tz-print-sub-bg: #f7f9fb;
+    color-scheme: light;
+    color: var(--tz-print-ink);
+    background: #ffffff;
+}
+
+.gp-print-area .mud-paper,
+.gp-preview-sheet .mud-paper {
+    color: var(--tz-print-ink, #1f2937);
+    background: #ffffff;
+    border-color: var(--tz-print-border, #d7dde5) !important;
+}
+
+.gp-print-area .mud-typography,
+.gp-preview-sheet .mud-typography,
+.gp-print-area .mud-table,
+.gp-preview-sheet .mud-table {
+    color: var(--tz-print-ink, #1f2937);
+}
+
+.gp-print-area .mud-table-head .mud-table-cell,
+.gp-preview-sheet .mud-table-head .mud-table-cell {
+    color: var(--tz-print-muted, #667085) !important;
+    background: var(--tz-print-header-bg, #f3f6f8);
+    border-color: var(--tz-print-border, #d7dde5);
+}
+
+.gp-print-area .mud-table-body .mud-table-cell,
+.gp-preview-sheet .mud-table-body .mud-table-cell {
+    color: var(--tz-print-ink, #1f2937);
+    border-color: var(--tz-print-border, #d7dde5);
+}
+
+.gp-print-area .mud-table-striped > tbody > tr:nth-child(2n),
+.gp-preview-sheet .mud-table-striped > tbody > tr:nth-child(2n) {
+    background: #fafbfc;
+}
+
+.gp-print-area .mud-table-row:hover,
+.gp-preview-sheet .mud-table-row:hover {
+    background: #eef4f6;
+}
+
+.gp-print-header__title {
+    color: #173f4d;
+    font-size: 13pt;
+    font-weight: 700;
+}
+
+.gp-print-header__meta {
+    color: #667085;
+    font-size: 9pt;
+}
+
+.gp-preview-stage .gp-preview-sheet,
+.tpl-print-stage .tpl-sheet-shell,
+.tpl-print-stage .tpl-sheet-shell .tpl-sheet {
+    color-scheme: light;
+}
+
+.mud-theme-dark .gp-print-area,
+.mud-theme-dark .gp-preview-sheet,
+.mud-theme-dark .tpl-sheet-shell,
+.mud-theme-dark .tpl-sheet {
+    color: #1f2937;
+    background: #ffffff;
+}
+
+.mud-theme-dark .gp-print-area .mud-paper,
+.mud-theme-dark .gp-preview-sheet .mud-paper {
+    color: #1f2937;
+    background: #ffffff;
+}
+
+.mud-theme-dark .gp-print-area .mud-table-head .mud-table-cell,
+.mud-theme-dark .gp-preview-sheet .mud-table-head .mud-table-cell {
+    color: #667085 !important;
+    background: #f3f6f8;
+}
+
+.mud-theme-dark .gp-print-area .mud-table-body .mud-table-cell,
+.mud-theme-dark .gp-preview-sheet .mud-table-body .mud-table-cell {
+    color: #1f2937;
+}
+
+/* برگهٔ A4 شبیه‌سازی‌شده (ابعاد دقیقاً هم‌اندازهٔ کاغذ واقعی تا PDF تمام‌صفحه باشد) */
+.gp-preview-sheet {
+    width: 210mm;
+    min-height: 297mm;
+    max-width: 100%;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+    border-radius: 2px;
+    padding: 22mm 10mm 18mm 10mm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.gp-preview-sheet--landscape {
+    width: 297mm;
+    min-height: 210mm;
+}
+
+/* A5 پرتره (فاکتور) */
+.gp-preview-sheet--a5 {
+    width: 148mm;
+    min-height: 210mm;
+}
+
+/* A5 landscape (گزارش چک‌ها) */
+.gp-preview-sheet--landscape.gp-preview-sheet--a5 {
+    width: 210mm;
+    min-height: 148mm;
+}
+
+/* هدر رسمی داخل برگهٔ پیش‌نمایش */
+.gp-preview-sheet .gp-print-header {
+    position: static;
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #1a237e;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.gp-preview-sheet .gp-print-header img {
+    height: 30px;
+}
+
+/* بدنهٔ برگه */
+.gp-preview-sheet__body {
+    flex: 1;
+}
+
+/* فوتر رسمی داخل برگهٔ پیش‌نمایش */
+.gp-preview-sheet .gp-print-footer {
+    position: static;
+    margin-top: 14px;
+    padding-top: 6px;
+    border-top: 1px solid #ccc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8.5pt;
+    color: #777;
+}
+
+/* برچسب «صفحه N از M» داخل فوتر پیش‌نمایش */
+.gp-preview-sheet .gp-print-footer .gp-page-no {
+    font-weight: 700;
+    color: #1a237e;
+}
+
+/* در حالت پیش‌نمایش، جدول‌ها بدون سایه/کادر اضافی دیالوگ دیده شوند */
+.gp-print-dialog.gp-previewing .gp-print-area .mud-dialog,
+.cq-print-dialog.gp-previewing .cq-print-area .mud-dialog {
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* در حالت پیش‌نمایش، هدر/فوتر داخل بدنهٔ برگه (که از RenderBody می‌آیند) مخفی شوند
+   تا با هدر/فوتر رسمی خود برگه تداخل نکنند — فقط هدر/فوتر بالای برگه دیده شوند */
+.gp-preview-sheet__body .gp-print-header,
+.gp-preview-sheet__body .cq-print-header,
+.gp-preview-sheet__body .gp-print-footer,
+.gp-preview-sheet__body .cq-print-footer {
+    display: none !important;
+}
+
+/* رفع حالت موبایلِ MudTable در برگهٔ پیش‌نمایش چاپ (همان مشکل چاپ):
+   داخل برگهٔ پیش‌نمایش هم جدول باید ستونی باشد نه کارتی. */
+.gp-preview-sheet__body table {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+}
+.gp-preview-sheet__body thead {
+    display: table-header-group !important;
+}
+.gp-preview-sheet__body tbody {
+    display: table-row-group !important;
+}
+.gp-preview-sheet__body tr {
+    display: table-row !important;
+}
+.gp-preview-sheet__body th, .gp-preview-sheet__body td {
+    display: table-cell !important;
+}
+.gp-preview-sheet__body td::before {
+    content: none !important;
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   موتور چاپ عمومی (قالبمحور) — TemplatePrintDialog / PrintSheetRenderer
+   باندها: هدر اطلاعات شرکت، هدر گزارش (عنوان + هدر داده)، جدول دیتیل،
+   فوتر گزارش (جمعها)، فوتر صفحه. برگه HTML خالص RTL است (بدون Mud).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* برگهٔ چاپی روی صفحه (پیشنمایش داخل دیالوگ) */
+.tpl-print-stage {
+    background: #525659;
+    border-radius: 8px;
+    padding: 14px;
+    overflow: auto;
+    max-height: 62vh;
+}
+
+.tpl-sheet-shell {
+    width: 210mm;              /* A4 portrait */
+    max-width: 100%;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .3);
+    border-radius: 2px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* پیش‌نمایش باید اندازهٔ کاغذ را دقیق نشان دهد */
+.tpl-sheet-shell--landscape {
+    width: 297mm;              /* A4 landscape */
+}
+
+.tpl-sheet-shell--a5 {
+    width: 148mm;              /* A5 portrait */
+}
+
+.tpl-sheet-shell--landscape.tpl-sheet-shell--a5 {
+    width: 210mm;              /* A5 landscape */
+}
+
+.tpl-sheet {
+    font-family: Vazirmatn, Tahoma, sans-serif;
+    color: #1f2937;
+    line-height: 1.5;
+    direction: rtl;
+    text-align: right;
+    padding: 12mm;
+    box-sizing: border-box;
+    min-height: 277mm;     /* A4 portrait = 297mm − 2×12mm padding */
+    max-width: 100%;
+    overflow: hidden;      /* جلوگیری از بیرون‌زدن محتوا از صفحه */
+}
+
+.tpl-sheet--landscape {
+    width: 297mm;
+    min-height: 190mm;
+}
+
+.tpl-sheet--a5 {
+    width: 148mm;
+    min-height: 186mm;
+    padding: 10mm;
+}
+
+.tpl-sheet--landscape.tpl-sheet--a5 {
+    width: 210mm;
+    min-height: 128mm;
+}
+
+/* ── باند ۱: هدر اطلاعات شرکت ── */
+.tpl-company-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #0f766e;
+    margin-bottom: 8px;
+}
+
+.tpl-company-header .tpl-logo {
+    height: 30px;
+    width: auto;
+}
+
+.tpl-brand-name {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #1a237e;
+}
+
+.tpl-brand-address {
+    font-size: 8pt;
+    color: #6b7280;
+}
+
+.tpl-qr qr-fill {
+    width: 44px;
+    height: 44px;
+    overflow: hidden;
+}
+
+/* QRCode مستقل (وقتی هدر شرکت خاموش است) — گوشهٔ بالای راست */
+.tpl-standalone-qr {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
+
+.tpl-standalone-qr qr-fill {
+    width: 44px;
+    height: 44px;
+    overflow: hidden;
+}
+
+/* SVG تولیدشدهٔ QR نباید از قاب ۴۴px بیرون بزند (در هر دو حالت) */
+qr-fill svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* ── باند ۲: هدر گزارش ── */
+.tpl-report-header {
+    margin-bottom: 8px;
+}
+
+.tpl-title {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #111827;
+}
+
+.tpl-subtitle,
+.tpl-range {
+    font-size: 1em;
+    color: #6b7280;
+    margin-top: 1px;
+}
+
+.tpl-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px 14px;
+    margin-top: 6px;
+    border: .8px solid #d1d5db;
+    border-radius: 6px;
+    padding: 5px 8px;
+}
+
+.tpl-meta-item {
+    font-size: 1em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tpl-meta-label {
+    color: #6b7280;
+}
+
+.tpl-meta-value {
+    color: #111827;
+}
+
+/* ── باند ۳+۴: جدول دیتیل ── */
+.tpl-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: inherit;
+    margin-top: 2px;
+}
+
+.tpl-table .tpl-th {
+    background: #f3f4f6;
+    border: .8px solid #d1d5db;
+    padding: 3px 6px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tpl-table .tpl-td {
+    border: .8px solid #d1d5db;
+    padding: 2px 6px;
+    vertical-align: top;
+    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tpl-table .tpl-tr:nth-child(even) .tpl-td {
+    background: #fafafa;
+}
+
+.tpl-start { text-align: right; }
+.tpl-center { text-align: center; }
+.tpl-end { text-align: left; }
+
+.tpl-empty {
+    text-align: center !important;
+    color: #9ca3af;
+    padding: 12px !important;
+}
+
+/* ── باند ۵: فوتر گزارش (جمعها) ── */
+.tpl-report-footer {
+    margin-top: 8px;
+    border: .8px solid #d1d5db;
+    border-radius: 6px;
+    padding: 5px 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 2px 14px;
+    font-size: 1em;
+}
+
+/* ── باند ۶: فوتر صفحه ── */
+.tpl-page-footer {
+    margin-top: 10px;
+    padding-top: 5px;
+    border-top: 1px solid #d1d5db;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: .9em;
+    color: #9ca3af;
+}
+
+.tpl-page-no {
+    font-weight: 700;
+    color: #0f766e;
+}
+
+/* ── صفحات نامدار چاپ (اندازه و جهت از قالب) ── */
+@page tpl-a4 {
+    size: A4;
+    margin: 16mm 8mm 14mm 8mm;
+}
+
+@page tpl-a5 {
+    size: A5;
+    margin: 14mm 7mm 12mm 7mm;
+}
+
+@page tpl-a4-landscape {
+    size: A4 landscape;
+    margin: 14mm 10mm 12mm 10mm;
+}
+
+@page tpl-a5-landscape {
+    size: A5 landscape;
+    margin: 12mm 8mm 10mm 8mm;
+}
+
+@page tpl-a4 {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #6b7280;
+    }
+}
+
+@page tpl-a5 {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #6b7280;
+    }
+}
+
+@page tpl-a4-landscape {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #6b7280;
+    }
+}
+
+@page tpl-a5-landscape {
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        font-size: 8pt;
+        color: #6b7280;
+    }
+}
+
+/* اتصال برگه به صفحهٔ نامدار */
+.tpl-sheet { page: tpl-a4; }
+.tpl-sheet--a5 { page: tpl-a5; }
+.tpl-sheet--landscape { page: tpl-a4-landscape; }
+.tpl-sheet--landscape.tpl-sheet--a5 { page: tpl-a5-landscape; }
+
+/* ── چاپ: فقط برگه، هدر شرکت و فوتر صفحه تکرارشونده ── */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .tpl-sheet,
+    .tpl-sheet * {
+        visibility: visible;
+    }
+
+    .mud-overlay {
+        display: none !important;
+    }
+    .mud-dialog-container,
+    .mud-focus-trap,
+    .mud-focus-trap-child-container,
+    .mud-dialog,
+    .mud-dialog-content {
+        position: static !important;
+        transform: none !important;
+        overflow: visible !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .tpl-sheet {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        width: auto;
+        background: #fff;
+        padding: 0 !important; /* حاشیه توسط @page تأمین میشود */
+        min-height: 0;
+    }
+
+    .tpl-company-header {
+        position: fixed;
+        top: -14mm;
+        left: 0;
+        right: 0;
+        background: #fff;
+        z-index: 10;
+    }
+
+    .tpl-page-footer {
+        position: fixed;
+        bottom: -12mm;
+        left: 0;
+        right: 0;
+        background: #fff;
+        z-index: 10;
+    }
+
+    /* تیتر جدول روی هر صفحه تکرار شود و ردیفها نشکنند */
+    .tpl-table thead {
+        display: table-header-group;
+    }
+    .tpl-table tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+    .tpl-sheet .tpl-meta,
+    .tpl-sheet .tpl-report-footer {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+}
+
+/* خروجی بازسازی دادهٔ نمونه (تب «داده نمونه» در تنظیمات انبار) */
+.reseed-output {
+    max-height: 320px;
+    overflow: auto;
+    background: rgba(127, 127, 127, 0.08);
+    border: 1px solid rgba(127, 127, 127, 0.25);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: var(--mud-typography-default-family);
+    font-size: 0.8rem;
+    direction: ltr;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ── Shared UI contract v2: polished surfaces, controls and responsive shells ──
+   این بخش عمداً فقط presentation است؛ query، state و رفتار کامپوننت‌ها تغییر نمی‌کند. */
+.tz-shell,
+.tz-main,
+.tz-page,
+.tz-page > *,
+.tz-form-section__content,
+.mud-grid,
+.mud-grid-item {
+    min-width: 0;
+}
+
+.tz-page > .mud-container,
+.tz-page > .mud-paper,
+.tz-page > .mud-card,
+.tz-page > .mud-table-container {
+    max-width: 100%;
+}
+
+.mud-input-control,
+.mud-select,
+.mud-autocomplete,
+.mud-picker,
+.mud-button-root,
+.mud-icon-button,
+.mud-chip,
+.mud-dialog-actions {
+    min-width: 0;
+}
+
+.mud-input-control .mud-input-label,
+.mud-input-control .mud-input-slot,
+.mud-input-control .mud-input-helper-text {
+    line-height: 1.55;
+}
+
+.mud-input-control .mud-input-helper-text {
+    color: var(--color-text-secondary);
+    font-size: var(--tz-caption);
+}
+
+.mud-input-control.mud-input-error .mud-input-helper-text,
+.mud-input-control.mud-input-error .mud-input-label {
+    color: var(--color-error);
+}
+
+.mud-button-root:focus-visible,
+.mud-icon-button:focus-visible,
+.mud-chip:focus-visible,
+.mud-nav-link:focus-visible,
+.mud-tab:focus-visible,
+.mud-menu-item:focus-visible,
+.mud-input-control:focus-within {
+    outline: none;
+    box-shadow: var(--tz-focus-ring);
+}
+
+.mud-button-root:disabled,
+.mud-icon-button:disabled,
+.mud-chip.mud-disabled {
+    filter: none;
+    opacity: 0.58;
+    cursor: not-allowed;
+}
+
+.tz-pagehead__actions,
+.tz-toolbar {
+    min-width: 0;
+}
+
+.tz-pagehead__actions > .mud-button-root,
+.tz-toolbar > .mud-button-root {
+    white-space: nowrap;
+}
+
+.tz-data-table .mud-table-head .mud-table-cell:first-child,
+.tz-data-table .mud-table-body .mud-table-cell:first-child {
+    border-start-start-radius: 8px;
+    border-end-start-radius: 8px;
+}
+
+.tz-data-table .mud-table-head .mud-table-cell:last-child,
+.tz-data-table .mud-table-body .mud-table-cell:last-child {
+    border-start-end-radius: 8px;
+    border-end-end-radius: 8px;
+}
+
+.tz-data-table__table .mud-table-body .mud-table-row + .mud-table-row {
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
+}
+
+.tz-data-table__table .mud-table-body .mud-table-cell[data-label="عملیات"] {
+    white-space: nowrap;
+    text-align: center;
+}
+
+.mud-dialog-container .mud-dialog {
+    width: min(100% - 2rem, 760px);
+    max-width: min(100% - 2rem, 760px);
+}
+
+.mud-dialog-container .mud-dialog .mud-dialog-content {
+    min-width: 0;
+}
+
+.mud-dialog-container .mud-dialog-actions {
+    flex-wrap: wrap;
+}
+
+.mud-dialog-container .mud-dialog-actions .mud-button-root {
+    min-height: 38px;
+}
+
+.mud-menu-paper,
+.mud-popover .mud-paper,
+.mud-picker-calendar-container {
+    border: 1px solid var(--color-border);
+    box-shadow: var(--tz-shadow-2);
+}
+
+.mud-table-pagination.toolbar {
+    color: var(--color-text-secondary);
+}
+
+.mud-table-pagination.toolbar .mud-select,
+.mud-table-pagination.toolbar .mud-input-control {
+    font-size: var(--tz-caption);
+}
+
+.mud-theme-dark .tz-data-table,
+.mud-theme-dark .mud-table,
+.mud-theme-dark .mud-table-container,
+.mud-theme-dark .mud-table-pagination.toolbar {
+    color: var(--color-text-primary);
+}
+
+.mud-theme-dark .tz-data-table__table .mud-table-head .mud-table-cell {
+    background: color-mix(in srgb, var(--color-secondary) 9%, var(--color-surface));
+}
+
+.mud-theme-dark .tz-data-table__table .mud-table-body .mud-table-row:hover {
+    background: color-mix(in srgb, var(--color-secondary) 10%, var(--color-surface));
+}
+
+@media (max-width: 800px) {
+    .tz-pagehead {
+        align-items: stretch;
+    }
+
+    .tz-pagehead__actions,
+    .tz-toolbar {
+        justify-content: stretch;
+    }
+
+    .tz-pagehead__actions > .mud-button-root,
+    .tz-toolbar > .mud-button-root {
+        flex: 1 1 11rem;
+    }
+
+    .mud-dialog-container .mud-dialog {
+        width: calc(100% - 1rem);
+        max-width: calc(100% - 1rem);
+        margin: 0.5rem;
+    }
+
+    .mud-dialog-container .mud-dialog-actions {
+        gap: 0.35rem;
+    }
+
+    .mud-dialog-container .mud-dialog-actions .mud-button-root {
+        flex: 1 1 9rem;
+    }
+
+    .tz-data-table .mud-table-pagination.toolbar {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 480px) {
+    .tz-pagehead__actions > .mud-button-root,
+    .tz-toolbar > .mud-button-root {
+        flex-basis: 100%;
+    }
+
+    .tz-data-table__table .mud-table-body .mud-table-cell[data-label="عملیات"] {
+        text-align: start;
+    }
+}
