@@ -118,11 +118,11 @@ This section documents the supported Railway setup for the current repository. R
 
 ### Current readiness status
 
-The repository currently has no root-level `Dockerfile`, `railway.json`, or `railway.toml`. Therefore Railway cannot deploy the project from the repository as-is. Before creating the Railway service, add the Dockerfile shown below and apply the production proxy settings described in this section. No business logic or database schema change is required for the container build.
+The repository now contains a root-level `Dockerfile` and `railway.json`, so Railway can select the Docker builder. The deployment still requires the Railway variables and a compatible SQL Server described below. No business logic or database schema change is required for the container build.
 
 ### 1. Add a root-level `Dockerfile`
 
-Create `Dockerfile` next to `README.md`:
+The repository already contains `Dockerfile` next to `README.md`. Its effective content is:
 
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -185,7 +185,7 @@ Set `Tarazin__BootstrapAdminPassword` only when initializing an empty database. 
 
 Railway terminates public HTTPS at its proxy and normally forwards HTTP to the container. The current local configuration contains `Tarazin:HttpsPort=65220` and always calls `UseHttpsRedirection()`, which is suitable for local HTTPS but can redirect Railway users to the local development port.
 
-Before production deployment, add a configuration switch in `Tarazin.Web/Program.cs` so HTTPS redirection is enabled only when requested:
+The production switch is now present in `Tarazin.Web/Program.cs`; it enables HTTPS redirection by default in Development and allows Railway to disable it:
 
 ```csharp
 var enableHttpsRedirection = builder.Configuration.GetValue(
@@ -206,7 +206,7 @@ Keep HTTPS enabled for local development. Railway remains the public HTTPS termi
 
 ### 5. Create and deploy the Railway service
 
-1. Push the root `Dockerfile` and the production proxy change to the selected Git branch.
+1. Push the root `Dockerfile`, `railway.json`, and the production proxy change to the selected Git branch.
 2. In Railway, create a project and choose **Deploy from GitHub Repo**.
 3. Select this repository and the branch to deploy.
 4. Confirm that Railway uses the root `Dockerfile`.

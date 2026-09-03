@@ -3,6 +3,9 @@ obj/
 **/bin/
 **/obj/
 *.user
+node_modules/
+package-lock.json
+package.json
 artifacts/
 **/appsettings.Development.json
 .git/

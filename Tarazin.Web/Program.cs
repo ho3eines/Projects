@@ -42,6 +42,9 @@ var builder = WebApplication.CreateBuilder(args);
 // headers from arbitrary clients: broker HTTPS checks and IP rate limits depend
 // on these values being authentic.
 var reverseProxyEnabled = builder.Configuration.GetValue<bool>("ReverseProxy:Enabled");
+var enableHttpsRedirection = builder.Configuration.GetValue(
+    "Tarazin:EnableHttpsRedirection",
+    builder.Environment.IsDevelopment());
 if (reverseProxyEnabled)
 {
     var configuredProxies = builder.Configuration
@@ -75,7 +78,9 @@ builder.Services.AddServerSideBlazor();
 
 // مشخص‌کردن صریحِ پورت HTTPS (از پیکربندی) تا redirect پایدار باشد حتی اگر
 // هاست هم‌زمان هر دو بایند شود یا launchSettings/ASPNETCORE_URLS ناهماهنگ باشند.
-if (builder.Configuration.GetValue<int?>("Tarazin:HttpsPort") is int httpsPort)
+// در Railway، HTTPS در reverse proxy خاتمه می‌یابد و کانتینر HTTP دریافت می‌کند؛
+// بنابراین با EnableHttpsRedirection=false از redirect به پورت محلی جلوگیری می‌شود.
+if (enableHttpsRedirection && builder.Configuration.GetValue<int?>("Tarazin:HttpsPort") is int httpsPort)
     builder.Services.AddHttpsRedirection(options =>
     {
         options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
@@ -168,9 +173,10 @@ if (!app.Environment.IsDevelopment())
 }
 
 
-// HTTP → HTTPS: پیکربندیِ redirect (پورت/کد) قبلاً از طریق AddHttpsRedirection
-// بالای همین فایل اعمال شده؛ اینجا فقط میان‌افزار را نصب می‌کنیم.
-app.UseHttpsRedirection();
+// HTTP → HTTPS: در محیط توسعه فعال است؛ Railway با HTTPS عمومیِ خودش
+// درخواست را terminate می‌کند و باید redirect داخلی خاموش باشد.
+if (enableHttpsRedirection)
+    app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();

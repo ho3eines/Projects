@@ -9,6 +9,8 @@ obj/
 *.DS_Store
 Thumbs.db
 *.log
+node_modules/
+package-lock.json
 appsettings.Development.json
 *.nupkg
 project.lock.json
