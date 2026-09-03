@@ -52,26 +52,26 @@
 
             <!-- اطلاعات مالی -->
             <MudItem xs="12" sm="4">
-                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(13,110,253,.06);border-radius:8px">
+                <MudPaper Elevation="0" Class="pa-3 text-center tz-tile">
                     <MudText Typo="Typo.caption" Color="Color.Primary">وزن</MudText>
                     <MudText Typo="Typo.h6" Color="Color.Primary">@WeightGram.ToString("N3") <small>گرم</small></MudText>
                 </MudPaper>
             </MudItem>
             <MudItem xs="12" sm="4">
-                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(25,135,84,.08);border-radius:8px">
+                <MudPaper Elevation="0" Class="pa-3 text-center tz-tile tz-tile--ok">
                     <MudText Typo="Typo.caption" Color="Color.Success">اجرت + سود</MudText>
                     <MudText Typo="Typo.h6" Color="Color.Success">@((Workmanship + Profit).ToString("N0")) <small>ریال</small></MudText>
                 </MudPaper>
             </MudItem>
             <MudItem xs="12" sm="4">
-                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: rgba(255,193,7,.10);border-radius:8px">
+                <MudPaper Elevation="0" Class="pa-3 text-center tz-tile tz-tile--warn">
                     <MudText Typo="Typo.caption" Color="Color.Warning">مالیات</MudText>
                     <MudText Typo="Typo.h6" Color="Color.Warning">@Tax.ToString("N0") <small>ریال</small></MudText>
                 </MudPaper>
             </MudItem>
 
             <MudItem xs="12">
-                <MudPaper Elevation="0" Class="pa-4 text-center" Style="background: rgba(33,150,243,.08);border-radius:8px">
+                <MudPaper Elevation="0" Class="pa-4 text-center tz-tile">
                     <MudText Typo="Typo.h5" Color="Color.Primary"><b>@TotalAmount.ToString("N0") ریال</b></MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">جمع کل فاکتور</MudText>
                 </MudPaper>

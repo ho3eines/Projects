@@ -539,10 +539,14 @@ body {
 }
 
 .tz-stat__value {
-    font-size: 1.15rem;
+    font-size: clamp(1rem, 0.85rem + 0.5vw, 1.25rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1.25;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .tz-stat__hint {
@@ -709,11 +713,16 @@ body {
     gap: 0.5rem;
 }
 
-/* Dialog 内表格与 pager 与页面表格同一套 chrome(去双线、统一圆角)。 */
+/* جدول داخل دیالوگ: همان گوشه‌های نرم، ولی جدول‌های پهن باید داخلِ
+   همان ظرف اسکرول شوند نه اینکه از دیالوگ بیرون بزنند. */
 .mud-dialog .mud-table,
 .mud-dialog .mud-table-container {
     border-radius: calc(var(--mud-default-borderradius, 14px) - 6px);
-    overflow: hidden;
+}
+
+.mud-dialog .mud-table-container {
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .mud-dialog .mud-table-pagination {
@@ -964,7 +973,9 @@ body {
     cursor: pointer;
     font: inherit;
     color: inherit;
+    text-decoration: none;
     width: 100%;
+    box-sizing: border-box;
     transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
@@ -1004,7 +1015,10 @@ body {
 }
 
 .tz-modcard__go {
+    display: inline-flex;
+    align-items: center;
     opacity: 0.35;
+    flex-shrink: 0;
 }
 
 .tz-home-meta {
@@ -1170,6 +1184,52 @@ body {
     flex-shrink: 0;
 }
 
+/* ── Tile / Callout / Note — جعبه‌های جمع‌بندیِ رنگی و یادداشت ──────────
+   جایگزین رنگ‌های hard-code (bootstrap blue/green/amber و rgba مشابه) در
+   صفحات: رنگ تایل از توکن تم می‌آید (--mud-palette-*) تا در حالت روشن/تیره
+   و چاپ (بخش پایین) هماهنگ بماند. سه قرارداد:
+     .tz-tile        → کاشی جمع‌بندی مالی (default = primary tint)
+     .tz-tile--ok    → موفق/کل (success)
+     .tz-tile--warn  → هشدار/مالیات (warning)
+     .tz-tile--info  → اطلاعات (info)
+     .tz-callout     → کادر هشدار/توجه (داشبورد خط‌چین، default = info)
+     .tz-note        → پنل خاکستری خنثی برای پیام‌های پس‌ازعملیات */
+.tz-tile {
+    --tz-tile: var(--mud-palette-primary);
+    background: color-mix(in srgb, var(--tz-tile) 9%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--tz-tile) 26%, transparent);
+    border-radius: 12px;
+}
+
+.tz-tile--ok { --tz-tile: var(--mud-palette-success); }
+.tz-tile--warn { --tz-tile: var(--mud-palette-warning); }
+.tz-tile--info { --tz-tile: var(--mud-palette-info); }
+
+.tz-callout {
+    --tz-callout: var(--mud-palette-info);
+    background: color-mix(in srgb, var(--tz-callout) 7%, var(--color-surface));
+    border: 1px dashed color-mix(in srgb, var(--tz-callout) 45%, transparent);
+    border-radius: 12px;
+}
+
+.tz-callout--warn { --tz-callout: var(--mud-palette-warning); }
+.tz-callout--error { --tz-callout: var(--mud-palette-error); }
+
+.tz-note {
+    background: color-mix(in srgb, var(--color-text-secondary) 6%, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+}
+
+/* حالت تیره: تایل‌ها باید روی سطح تیره کمی پررنگ‌تر از رنگ متن نیایند
+   (mud-palette-* در تیره روشن‌تر است و ۹٪ آن کافی است — فقط border را شفاف
+   نگه می‌داریم تا هالهٔ زرد/سبز تند ساخته نشود). */
+.mud-theme-dark .tz-tile,
+.mud-theme-dark .tz-callout {
+    background: color-mix(in srgb, var(--tz-tile, var(--tz-callout)) 12%, var(--color-surface));
+}
+
+
 .tz-form-section {
     padding: var(--tz-space-3);
     overflow: hidden;
@@ -1297,6 +1357,16 @@ body {
 .mud-input > input,
 .mud-input > textarea {
     text-align: start;
+}
+
+/* جدول‌های پهن (دسکتاپ): اگر مجموع ستون‌ها از ظرف بگذرد، جدول باید داخلِ
+   همان ظرف اسکرول افقی شود نه اینکه ستون‌ها له شوند یا از صفحه بیرون بزنند
+   (در موبایل همین قاعده با جزئیات بیشتر در مدیاکوئری پایین تکرار می‌شود). */
+.mud-table-container {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
 }
 
 /* ── Snackbar / Dialog / Popover ──────────────────────────── */
@@ -2421,6 +2491,50 @@ body {
     color: #1f2937;
 }
 
+/* کاشی‌های جمع‌بندی داخل برگهٔ چاپ/پیش‌نمایش: برگه از تم برنامه مستقل است،
+   پس رنگ تایل‌ها هم باید ثابت و جوهرِ چاپی باشد (نه متغیر پالت که در حالت
+   تیره عوض می‌شود). */
+.gp-print-area .tz-tile,
+.gp-preview-sheet .tz-tile {
+    --tz-tile: #1e4b73;
+    background: rgba(30, 75, 115, 0.06);
+    border-color: rgba(30, 75, 115, 0.28);
+}
+
+.gp-print-area .tz-tile--ok,
+.gp-preview-sheet .tz-tile--ok {
+    --tz-tile: #2e7d57;
+    background: rgba(46, 125, 87, 0.07);
+    border-color: rgba(46, 125, 87, 0.3);
+}
+
+.gp-print-area .tz-tile--warn,
+.gp-preview-sheet .tz-tile--warn {
+    --tz-tile: #b8860b;
+    background: rgba(184, 134, 11, 0.08);
+    border-color: rgba(184, 134, 11, 0.32);
+}
+
+.gp-print-area .tz-callout,
+.gp-preview-sheet .tz-callout {
+    --tz-callout: #2b6b7a;
+    background: rgba(43, 107, 122, 0.05);
+    border-color: rgba(43, 107, 122, 0.35);
+}
+
+.gp-print-area .tz-note,
+.gp-preview-sheet .tz-note {
+    background: rgba(31, 41, 55, 0.03);
+    border-color: var(--tz-print-border, #d7dde5);
+}
+
+/* برگهٔ چاپ/پیش‌نمایش مستقل از اسکرول ظرف جدول است — محتوای جدول باید
+   آزادانه در عرض برگه پخش شود (در چاپ و در پیش‌نمایش A4). */
+.gp-print-area .mud-table-container,
+.gp-preview-sheet .mud-table-container {
+    overflow: visible;
+}
+
 /* برگهٔ A4 شبیه‌سازی‌شده (ابعاد دقیقاً هم‌اندازهٔ کاغذ واقعی تا PDF تمام‌صفحه باشد) */
 .gp-preview-sheet {
     width: 210mm;
@@ -3018,8 +3132,12 @@ qr-fill svg {
 }
 
 .mud-dialog-container .mud-dialog {
-    width: min(100% - 2rem, 760px);
-    max-width: min(100% - 2rem, 760px);
+    /* سقفِ پهنای دیالوگ‌ها: باید به‌اندازهٔ کافی بلند باشد تا دیالوگ‌های
+       MaxWidth.Large (انتخابگر حساب، گزارش‌ها، پیش‌نمایش چاپ A4) واقعاً
+       «بزرگ» دیده شوند؛ دیالوگ‌های کوچک/متوسط همچنان با کلاس عرضِ خودشان
+       (max-width از MudBlazor) کوچک‌تر می‌مانند. */
+    width: min(100% - 2rem, 1060px);
+    max-width: min(100% - 2rem, 1060px);
 }
 
 .mud-dialog-container .mud-dialog .mud-dialog-content {

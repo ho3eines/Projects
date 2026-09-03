@@ -1,0 +1,124 @@
+# گزارش بازبینی و اصلاح UI/UX — «ترازین»
+
+> تاریخ: ۱۴۰۵/۰۶/۱۲ (2026-09-03) — شاخهٔ کاری `arena/01a06626-projects`
+> دامنه: پوستهٔ مشترک `Tarazin.Ui` (RCL — وب Blazor Server + MAUI Blazor Hybrid)
+> اصل طلایی: **هیچ منطق تجاری/داده/API/احراز هویت تغییر نکرده است** — همهٔ تغییرات presentation-only (CSS + markup کامپوننت‌های مشترک و چند attribute).
+
+---
+
+## ۱. ساختار و وضعیت فعلی (خلاصهٔ آنالیز)
+
+پروژه یک ERP فارسی (حسابداری، خزانه، انبار، حقوق، طلا، فروشگاه، ارز، BI، پلتفرم مشترک) روی **Blazor Server (.NET 8) + MudBlazor 9.8.0** با RCL مشترک `Tarazin.Ui` است:
+
+| لایه | فایل‌ها | نقش |
+|---|---|---|
+| صفحات | ۱۰۸ صفحهٔ `Modules/*/Pages` | همه با `PageHeader` شروع می‌شوند؛ الگوی ثابت هر ماژول: `Home / Dashboard / Entry / Special / Reports / Settings` |
+| کامپوننت‌های مشترک | ۲۹ فایل `Components/` | `PageHeader`, `PageToolbar`, `TzDataTable`, `TableSkeleton`, `EmptyState`, `StatCard(+Skeleton)`, `ModuleCard`, `ModuleSubNav`, `StatusChip`, `EntityActions`, `FormSection`, `TzNumericField`, `EntityEditorDialog`, ... |
+| دیالوگ‌ها | ~۵۰ فایل `Modules/*/Components` | الگوی یکدست `MudDialog` + `ValidateAsync` + `_busy` + `Snackbar` |
+| Design System | `Theme/TarazinTheme.cs` (پالت روشن/تیره + تایپوگرافی Vazirmatn)، `Theme/TarazinAccents.cs` (۱۳ آکسانت)، `wwwroot/css/app.css` (~۳۲۰۰ خط) | توکن‌های `--color-*`، `--tz-shadow-*`، `--tz-focus-ring`، انیمیشن‌های transform/opacity، `prefers-reduced-motion`، قواعد چاپ A4/A5، اسکرول‌بار، فوکوس کیبورد |
+| JS | `subnav.js` (نشانگر کشویی)، `print-pdf.js`، `qrcode.js`، `brand.js` | فقط جایی که CSS کافی نیست |
+| هر دو هاست | `_Host.cshtml` + `index.html` MAUI | اسپلش پیش از Blazor + فونت + CSS یکسان |
+
+**نتیجهٔ کلی آنالیز:** پروژه از یک «تم پایهٔ MudBlazor» فاصلهٔ زیادی گرفته و یک سیستم طراحی یکپارچهٔ فارسی دارد (پالت کاغذی-سبز-طلایی، RTL واقعی، Dark Mode مستقل، skeleton/empty-state مشترک، زیرمنوی کشویی با نشانگر accent، جدول استاندارد `TzDataTable`، فوکوس کیبورد، reduced-motion). نقاط ضعف باقی‌مانده پراکنده‌اند، نه بنیادی — این پاس روی همان «ناهماهنگی‌های پراکنده» متمرکز شد (فهرست در §۳).
+
+### شاخص‌های کمّی (اسکن سراسری)
+- ۱۰۸ صفحه: **همه** `PageHeader` دارند؛ ~۹۰٪ سلول‌های جدول `DataLabel` دارند (چیدمان موبایلی)؛ ۷۸۴ `MudTd` / ۷۷۸ `MudTh`.
+- ۰ فایل CSS Isolation — همهٔ استایل در `app.css` متمرکز است (طبق قرارداد پروژه).
+- `TzDataTable` در ۱۰ صفحهٔ لیستی استفاده شده؛ بقیهٔ لیست/گزارش‌ها `MudTable` خام با همان الگو (Hover/Dense/Striped/EmptyState).
+- `FormSection` ساخته شده ولی در هیچ صفحه‌ای استفاده نشده (فرم‌ها از `MudPaper` + هدر دستی استفاده می‌کنند).
+- ۱۵ مورد رنگ hard-code در markup (بیشتر در دیالوگ‌های چاپ که عمداً مستقل از تم‌اند) + ۱۲ مورد `rgba` از پالت قدیمی Bootstrap/Material در تایل‌های جمع‌بندی (رفع شد — §۳-ب).
+
+---
+
+## ۲. ارزیابی نسبت به خواسته‌ها (۲۹ بند)
+
+| # | بند | وضعیت | یادداشت |
+|---|---|---|---|
+| ۱ | بررسی کامل پیش از تغییر | ✅ | آنالیز در §۱؛ رعایت «کامپوننت مشترک را اول اصلاح کن» |
+| ۲ | حس SaaS/Enterprise مدرن | 🟡 | تا حد زیادی محقق؛ داشبوردهای ماژول KPI-محورند و چارت ندارند (→ P2) |
+| ۳ | Typography | ✅ | Vazirmatn + سلسله‌مراتب h1–h6/caption/label در تم و توکن‌ها |
+| ۴ | Color System | ✅ | توکن‌های `--color-*` + پالت واحد در `TarazinTheme.cs`؛ hard-codeهای باقی‌مانده رفع شد |
+| ۵ | Dark/Light | ✅ | پالت تیرهٔ مستقل (نه inversion)؛ hover/focus/disabled/table/dialog هماهنگ |
+| ۶ | Layout (Sidebar/Header) | ✅ | Drawer گروه‌بندی‌شده از `TarazinModules` + هدر با شرکت/سال مالی/انبار/کاربر/تم |
+| ۷ | Dashboard | 🟡 | KPI + هشدار + فعالیت اخیر در BI؛ چارت فقط در BI (→ P2) |
+| ۸ | Tables | 🟡 | `TzDataTable` (skeleton/empty/pager) کامل؛ ~۵۰ لیست هنوز `MudTable` خام با تجربهٔ مشابه ولی نه‌یکسان (→ P1) |
+| ۹ | Forms | 🟡 | الگوی فرم یکدست است؛ `FormSection` بدون مصرف‌کننده (→ P1) |
+| ۱۰ | Buttons | ✅ | حالت‌های Primary/Outlined/Text + hover/active/focus/disabled سراسری در CSS |
+| ۱۱ | Cards | ✅ | کنترل‌شده: border ظریف + hover-lift کم‌جان |
+| ۱۲ | Animation | ✅ | page-enter، سطح‌ها، snackbar، نشانگر subnav؛ همه transform/opacity |
+| ۱۳ | Animation Performance | ✅ | بدون JS برای انیمیشن؛ فقط `subnav.js` هندسی (ResizeObserver) |
+| ۱۴ | Accessibility | 🟡 | فوکوس کیبورد + focus-visible ring + aria-label در اکشن‌ها؛ نقاط باقی‌مانده در §۳ (h1/اسکرول/کارت ماژول) — **این پاس اصلاح شد** |
+| ۱۵ | Responsive | ✅ | بریک‌پوینت‌های 800/600/480 + جدول کارتی موبایل + drawer تمام‌صفحه |
+| ۱۶ | Empty States | ✅ | `EmptyState` مشترک با آیکون/توضیح/اکشن؛ در `TzDataTable` خودکار |
+| ۱۷ | Error States | 🟡 | خطای UI سراسری + `Db.Describe`؛ صفحهٔ خطای کامل (تصویر/توضیح/retry) وجود ندارد (→ P2) |
+| ۱۸ | Toast | ✅ | `MudSnackbarProvider` + انیمیشن ورود |
+| ۱۹ | Dialog | ✅ | سایه/گردی/close/backdrop/محدودیت عرض موبایل؛ سقف عرض ۷۶۰px برای دیالوگ‌های Large اشتباه بود → **اصلاح شد (۱۰۶۰px)** |
+| ۲۰ | Icons | ✅ | یک خانوادهٔ آیکون (Material Filled) با سایز یکدست |
+| ۲۱ | RTL/فارسی | ✅ | `MudRTLProvider` + جزئیات (شماره‌ها `tz-num`، آیکون «برو» = `West`) |
+| ۲۲ | حفظ Business Logic | ✅ | هیچ تغییر منطقی در این پاس |
+| ۲۳ | CSS تمیز | 🟡 | توکن‌محور است؛ برخی کامنت‌های app.css به زبان خارجی‌اند (نویسه‌های روسی/چینی — زبالهٔ ابزار ترجمه) (→ P2) |
+| ۲۴ | مقایسهٔ Before/After | ✅ | در §۴ |
+| ۲۵ | پرهیز از Overdesign | ✅ | گرادیان/سایه محدود و کنترل‌شده |
+| ۲۶ | Performance | ✅ | CSS-only؛ بدون رندر/JS اضافه؛ ری‌رندر صفحات بدون تغییر |
+| ۲۷ | اجرای مرحله‌ای | 🟡 | پاس‌های قبلی فاز ۲–۶ را ساخته‌اند؛ این پاس = پاس «یکپارچه‌سازی + شکاف‌ها» |
+| ۲۸ | کامپوننت مشترک اول | ✅ | اصلاحات روی `PageHeader`/`ModuleCard`/`StatCard`/CSS سراسری انجام شد |
+| ۲۹ | خروجی نهایی | 🟡 | مسیر روشن است؛ موارد P1/P2 باقی‌مانده در §۵ |
+
+---
+
+## ۳. مهم‌ترین مشکلات یافت‌شده و اولویت‌بندی
+
+### P0 — خطاهای محسوس (این پاس رفع شد)
+| # | مشکل | شواهد | اصلاح |
+|---|---|---|---|
+| P0-1 | **رنگ‌های باقی‌مانده از پالت Bootstrap/Material** (آبی `0d6efd`، سبز `198754`، کهربا `ffc1937`، آبی Material `1976d2/2196f3`، خاکستری `rgba(0,0,0,.04)`) در تایل‌های جمع‌بندی فاکتور طلا، دیالوگ جزئیات/چاپ، کادر «ثبت در سال بسته» و پنل نتیجهٔ بروزرسانی نرخ؛ در Dark Mode با متن‌های طلایی/پالت هم‌رنگ‌شده برخورد رنگی می‌کردند | `GoldShopEntry.razor:141-153`، `GoldInvoiceDetailDialog.razor:55-74`، `GoldInvoicePrintDialog.razor:255-267`، `AccountingEntry.razor:153`، `CurrencyPrices.razor:32` | کلاس‌های معنایی `tz-tile`/`tz-callout`/`tz-note` با رنگ از توکن پالت (color-mix) + اورراید ثابت برای برگهٔ چاپ |
+| P0-2 | **فوکوس ناوبری (`FocusOnNavigate`) بی‌اثر بود** چون هیچ صفحه‌ای `<h1>` نداشت (عنوان‌ها `h4` بودند) → کاربر کیبوردی/صفحه‌خوان بعد از هر ناوبری فوکوس را از دست می‌داد | `App.razor` (`Selector="h1"`)، همهٔ صفحات | `PageHeader` عنوان را با `HtmlTag="h1"` (با تایپوگرافی h4) رندر می‌کند؛ قهرمان خانه هم `h1`. سلسله‌مراتب سند درست شد بدون تغییر ظاهر |
+| P0-3 | **اسکرول بین صفحات حفظ می‌شد** — ناوبری داخلی Blazor اسکرول قبلی را نگه می‌دارد و کاربر از ته یک گزارش بلند، وسط صفحهٔ بعدی می‌افتاد | `MainLayout.razor` (بدون مدیریت اسکرول) | پس از تغییر مسیر/محیط فعال (کلید `_pageKey`)، `window.scrollTo(0,0)` با گارد استثنا |
+| P0-4 | **کارت‌های ماژول (`ModuleCard`) با کیبورد باز نمی‌شدند** — `MudPaper` با `@onclick` + `@onkeydown` بدون `tabindex`/`role`؛ صفحهٔ خانه برای کاربر کیبوردی بن‌بست بود | `Components/ModuleCard.razor` | تبدیل به `<a href>` واقعی (focus/keyboard/middle-click native) |
+| P0-5 | **سقف ۷۶۰px سراسری دیالوگ**، دیالوگ‌های `MaxWidth.Large` (انتخابگر حساب، ردیابی سند، پیش‌نمایش چاپ A4، جزئیات فاکتور طلا) را له می‌کرد — ۳۱ فراخوانی Large با سقف ۷۶۰ تناقض داشت | `app.css:3020`؛ فراخوانی‌های `MaxWidth.Large` | سقف به `min(100% - 2rem, 1060px)` |
+| P0-6 | **متن قدیمی صفحهٔ ورود**: «یک حساب برای هر هفت ماژول» (۹ ماژول فعلی) | `Login.razor` | متن به‌روز و فهرست کامل شد |
+
+### P1 — یکدست‌سازی (پیشنهاد فازهای بعد — خارج از این پاس)
+| # | مشکل | پیشنهاد |
+|---|---|---|
+| P1-1 | ۵۰+ لیست/گزارش هنوز `MudTable` خام‌اند؛ skeleton/empty/pager آن‌ها با `TzDataTable` فرق دارد | مهاجرت تدریجی لیست‌ها به `TzDataTable` (الگوی آماده در `tarazin-ui-ux` §۲.۳) |
+| P1-2 | `FormSection` (کامپوننت مشترک فرم) هیچ مصرف‌کننده‌ای ندارد — فرم‌های بزرگ (ثبت سند/فاکتور) هدر‌های دستی دارند | در فرم‌های چندبخشی به‌کار گرفته شود |
+| P1-3 | تفاوت رفتار «لودینگ»: صفحات `TzDataTable` اسکلتون و صفحات `MudTable` خام اسپینر داخلی نشان می‌دهند | پس از P1-1 خودکار حل می‌شود |
+| P1-4 | جدول‌های پهن در دسکتاپ قبلاً له می‌شدند (page-level `overflow-x:hidden`) | **این پاس**: `.mud-table-container` در همهٔ عرض‌ها اسکرول افقی می‌گیرد (همراه برگه‌های چاپ که مستثنا شدند) — یکدستی ظاهری باقی‌مانده: هدر چسبان در همهٔ جدول‌ها فعال شود |
+
+### P2 — ارتقا (پیشنهادی برای دورهای بعدی)
+- داشبوردهای ماژول: افزودن ۱–۲ نمودار روند/ترکیب (امروز فقط KPI؛ BI تنها نمودار را دارد).
+- صفحهٔ خطای سراسری (`ErrorBoundary`) با ظاهر premiumتر (آیکون + توضیح + دکمهٔ تلاش دوباره).
+- کامنت‌های خارجی (روسی/چینی) داخل `app.css` به فارسی بازنویسی شود (زبالهٔ ابزار ترجمه — بدون اثر بصری).
+- بک‌دراپ‌های `context-lock` و «دسترسی ندارید» یک «Empty State» کامل بگیرند.
+- Lazy-load ماژول‌ها در `TarazinModules` اگر تعداد صفحات زیاد شود.
+
+---
+
+## ۴. تغییرات این پاس — Before / After
+
+| فایل | Before | After |
+|---|---|---|
+| `wwwroot/css/app.css` | تایل‌های رنگی با hex/rgba قدیمی؛ دیالوگ‌ها تا ۷۶۰px؛ ظرف جدول فقط در موبایل اسکرول می‌شد؛ مقدار StatCard بدون محافظ سرریز | + کلاس‌های `tz-tile(--ok/--warn/--info)`/`tz-callout(--warn/--error)`/`tz-note` (رنگ از توکن پالت؛ در چاپ جوهر ثابت)؛ سقف دیالوگ ۱۰۶۰px؛ `mud-table-container` اسکرول افقی امن در همهٔ عرض‌ها (به‌جز برگه‌های چاپ)؛ `tz-stat__value` با clamp + ellipsis |
+| `Components/PageHeader.razor` | عنوان `h4` (بدون h1 در کل اپ) | `HtmlTag="h1"` با همان تایپوگرافی h4 → سلسله‌مراتب درست + فوکوس ناوبری مؤثر |
+| `Components/ModuleCard.razor` | `MudPaper` کلیکی بدون قابلیت کیبورد | `<a href>` واقعی — Enter/Space/تب جدید/صفحه‌خوان |
+| `Layout/MainLayout.razor` | اسکرول بین مسیرها حفظ می‌شد | اسکرول به بالای صفحه بعد از تغییر مسیر/محیط |
+| `GoldShopEntry.razor`, `GoldInvoiceDetailDialog.razor`, `GoldInvoicePrintDialog.razor` | پس‌زمینهٔ Bootstrap blue/green/amber | تایل‌های `tz-tile` معنایی (در چاپ: جوهر ثابت آبی/سبز/برنزی) |
+| `AccountingEntry.razor` | کادر «سال بسته» با آبی Material و border خط‌چین | `tz-callout` (رنگ info از توکن) |
+| `CurrencyPrices.razor` | پنل نتیجه با خاکستری `rgba(0,0,0,.04)` | `tz-note` (توکن‌محور، Dark-safe) |
+| `Login.razor` | «هفت ماژول» + فهرست ۶‌تایی | «همهٔ ماژول‌ها» + فهرست کامل ۹‌گانه |
+
+**تأثیر:** بدون تغییر هیچ منطقی، (۱) هماهنگی رنگی کامل با پالت در هر دو تم، (۲) کیبورد/فوکوس/سلسله‌مراتب درست، (۳) اسکرول قابل‌پیش‌بینی، (۴) دیالوگ‌های بزرگ واقعاً بزرگ، (۵) جدول‌های پهن دیگر له نمی‌شوند.
+
+---
+
+## ۵. نکتهٔ محیطی — Build/Test
+
+در محیط فعلی ابزارهای بیلد (SDK دات‌نت) در دسترس نیست و **هیچ تغییری در این پاس به‌صورت محلی کامپایل/تست نشده است**. همهٔ تغییرات presentation-only و کم‌ریسک انتخاب شده‌اند، ولی پیش از merge باید زنجیرهٔ استاندارد اجرا شود:
+
+```bash
+bash tools/run-checks.sh      # اسکن + تست + بیلد وب + گاردها
+dotnet build Tarazin.Web/Tarazin.Web.csproj --nologo
+```
+
+توجه: `MudText HtmlTag` (پارامتر دیرپای MudBlazor) در `PageHeader`/`Home` استفاده شده — اگر بیلد در نسخهٔ 9.8.0 هشدار/خطا داد، سریع‌ترین جایگزین حذف همین attribute است (بقیهٔ تغییرات مستقل‌اند).

@@ -4,7 +4,10 @@
         {
             <div class="tz-pagehead__eye">@Eyebrow</div>
         }
-        <MudText Typo="Typo.h4">@Title</MudText>
+        @* HtmlTag=h1 فقط برای سلسله‌مراتب سند/دسترس‌پذیری است؛ ظاهر همچنان
+           با تایپوگرافی h4 (مقیاس طراحی) کنترل می‌شود و FocusOnNavigate
+           (selector پیش‌فرض h1) بعد از هر ناوبری همین عنوان را فوکوس می‌کند. *@
+        <MudText Typo="Typo.h4" HtmlTag="h1">@Title</MudText>
         @if (!string.IsNullOrWhiteSpace(Subtitle))
         {
             <MudText Typo="Typo.body2" Class="tz-pagehead__sub">@Subtitle</MudText>

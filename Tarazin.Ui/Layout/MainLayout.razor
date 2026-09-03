@@ -10,6 +10,7 @@
 @inject DbService Db
 @inject AccountingContextService Context
 @inject InventoryContextService InvCtx
+@inject IJSRuntime JS
 
 <MudLayout Class="tz-shell">
     <MudAppBar Elevation="0" Class="tz-appbar" Dense="false">
@@ -268,6 +269,31 @@
     }
 
     private void OnPrefsChanged() => InvokeAsync(StateHasChanged);
+
+    private string _scrollKey = "";
+
+    // ناوبری داخلی Blazor اسکرول قبلی صفحه را حفظ می‌کند؛ اگر کاربر از ته یک
+    // گزارش بلند به صفحهٔ دیگر برود، وسطِ صفحهٔ جدید می‌افتد. بعد از هر تغییر
+    // مسیر یا محیط فعال (شرکت/سال مالی/انبار — همان @key کانتینر صفحه)،
+    // پنجره به بالای صفحه برمی‌گردد. بدون جاوااسکریپتِ اضافه و بدون رندر اضافه.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) return;
+        if (_pageKey == _scrollKey) return;
+        _scrollKey = _pageKey;
+        try
+        {
+            await JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+        }
+        catch (JSDisconnectedException)
+        {
+            // قطع circuit وسط فراخوانی — اسکرول کاری ندارد.
+        }
+        catch (JSException)
+        {
+            // محیط بدون JS (پیش‌نمایش/تست) — نادیده.
+        }
+    }
 
     private void OnSessionChanged()
     {

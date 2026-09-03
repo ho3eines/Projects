@@ -72,7 +72,7 @@ description: >
 | پارامتر | نوع | پیش‌فرض |
 |---|---|---|
 | `Eyebrow` | `string?` | — (بالای عنوان، ریز) |
-| `Title` | `string` | `""` (با `Typo.h4`) |
+| `Title` | `string` | `""` (با `Typo.h4` اما **`HtmlTag="h1"`** — ظاهر h4، سلسله‌مراتب h1؛ `FocusOnNavigate` پیش‌فرض h1 همین عنوان را فوکوس می‌کند) |
 | `Subtitle` | `string?` | — |
 | `ChildContent` | `RenderFragment?` | — (داخل `tz-pagehead__actions`) |
 
@@ -242,6 +242,8 @@ description: >
 | `Url` | `string` | `"#"` |
 | `Accent` | `string` | `TarazinAccents.Ink` |
 
+> ⚠️ خودِ کامپوننت یک **`<a href>` واقعی** رندر می‌کند (نه div کلیکی) — کیبورد/تب جدید/screen-reader native است؛ کلاس `tz-modcard` همان ظاهر را می‌سازد. آن را به div/کلیک‌دستی برنگردان.
+
 `ModuleCardSpec(string Icon, string Title, string Lead, string Url, string Accent)` +
 `ModuleCardSpec.FromModule(TarazinModule m)` — برای ساختن گرید از کاتالوگ ماژول‌ها:
 
@@ -277,7 +279,21 @@ description: >
 ### ۲.۱۳ انتخابگرها
 `EntityPickerField<T>`، `AccountPickerField`، `SelectorDialog<T>` → §۶.
 
-### ۲.۱۴ `TzNumericField<T>` — فیلد عددی استاندارد (جداکنندهٔ سه‌رقمی runtime)
+### ۲.۱۴ «رنگ‌های معناییِ کادر» (قرارداد CSS در app.css)
+
+برای کادرهای جمع‌بندی رنگی و پیام‌های توجه، **hex/rgba دستی نزن** — این کلاس‌ها رنگ را از توکن پالت (MudTheme) با `color-mix` می‌گیرند تا در روشن/تیره/چاپ هماهنگ بمانند:
+
+| کلاس | معنا |
+|---|---|
+| `tz-tile` | کاشی جمع‌بندی مالی (پیش‌فرض: tint پرایمری) |
+| `tz-tile--ok` / `--warn` / `--info` | موفق/کل، هشدار/مالیات، اطلاعات |
+| `tz-callout` (+ `--warn`/`--error`) | کادر توجه با border خط‌چین |
+| `tz-note` | پنل خنثی پیام پس از عملیات |
+
+داخل برگهٔ چاپ (`gp-print-area`/`gp-preview-sheet`) این کلاس‌ها خودکار جوهرِ چاپیِ ثابت می‌گیرند؛ روی صفحه همیشه همراه `MudPaper Elevation="0"` استفاده می‌شوند:
+`<MudPaper Elevation="0" Class="pa-3 text-center tz-tile tz-tile--ok">...`.
+
+### ۲.۱۵ `TzNumericField<T>` — فیلد عددی استاندارد (جداکنندهٔ سه‌رقمی runtime)
 به‌جای `MudNumericField` استفاده کنید. متن را خودش parse می‌کند، پس گروه‌بندی
 سه‌رقمی «حین تایپ» اعمال می‌شود (نه فقط بعد از بلور). ارقام فارسی/عربی نرمال،
 ممیز نقطه/اسلش/«،»، clamp با `Min`/`Max`.

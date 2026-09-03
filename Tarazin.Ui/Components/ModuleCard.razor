@@ -1,21 +1,22 @@
 @namespace Tarazin.Components
-@* کارت ماژول یکدست MudBlazor — در صفحهٔ خانه و مرکز مشترک استفاده می‌شود.
-   به‌جای <button> خام از MudPaper + کلیک استفاده می‌کند تا با بقیهٔ UI یکدست بماند
-   و در هر دو حالت روشن/تیره و ریسپانسیو خوب دیده شود.
+@* کارت ماژول — یک <a> واقعی (نه div کلیکی): با کیبورد (Tab/Enter)، کلیک وسط،
+   بازکردن در تب جدید و screen reader به‌صورت native کار می‌کند؛ ظاهر با
+   کلاس tz-modcard (app.css) در هر دو حالت روشن/تیره و ریسپانسیو یکدست است.
    با (Icon, Title, Lead, Url, Accent) پارامتری شده تا هم از TarazinModule و هم
    از کارت‌های داخلی (مثل مرکز مشترک) قابل‌استفاده باشد. *@
 
-<MudPaper Elevation="0" Class="tz-modcard" Style="@CardStyle"
-          @onclick="Navigate" @onkeydown="OnKeyDown">
-    <div class="tz-modcard__icon">
+<a href="@Url" class="tz-modcard" style="@CardStyle" aria-label="ورود به ماژول @Title">
+    <div class="tz-modcard__icon" aria-hidden="true">
         <MudIcon Icon="@Icon" />
     </div>
     <div class="tz-modcard__body">
         <h3>@Title</h3>
         <p>@Lead</p>
     </div>
-    <MudIcon Icon="@Icons.Material.Filled.West" Class="tz-modcard__go" />
-</MudPaper>
+    <span class="tz-modcard__go" aria-hidden="true">
+        <MudIcon Icon="@Icons.Material.Filled.West" />
+    </span>
+</a>
 
 @code {
     [Parameter] public string Icon { get; set; } = "";
@@ -25,16 +26,4 @@
     [Parameter] public string Accent { get; set; } = TarazinAccents.Ink;
 
     private string CardStyle => "--tz-accent:" + Accent;
-
-    private void Navigate() => Nu.NavigateTo(Url);
-
-    private void OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or " ")
-        {
-            Navigate();
-        }
-    }
-
-    [Inject] private NavigationManager Nu { get; set; } = default!;
 }
