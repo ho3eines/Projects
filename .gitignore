@@ -10,6 +10,9 @@ obj/
 Thumbs.db
 *.log
 node_modules/
+.env
+.env.*
+!.env.example
 package-lock.json
 appsettings.Development.json
 *.nupkg
@@ -45,3 +48,5 @@ tools/_*.py
 tools/_*.png
 Tarazin.Tests/TestResults/
 docs/screens/
+
+docker-data/

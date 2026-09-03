@@ -1,0 +1,44 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sql2022
+    hostname: sql2022
+    environment:
+      ACCEPT_EULA: "Y"
+      # Keep the password in .env/Railway Variables, never in Git.
+      SA_PASSWORD: "${SA_PASSWORD:?Set SA_PASSWORD in .env}"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:?Set SA_PASSWORD in .env}"
+      MSSQL_AGENT_ENABLED: "True"
+    ports:
+      - "${SQL_PORT:-1433}:1433"
+    volumes:
+      # Override these with /root/database and /root/backup on a Linux host if desired.
+      - "${SQL_DATA_DIR:-./docker-data/database}:/var/opt/mssql"
+      - "${SQL_BACKUP_DIR:-./docker-data/backup}:/var/opt/mssql/backup"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${SA_PASSWORD}\" -C -b -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: always
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      PORT: "8080"
+      TARAZIN_FAIL_FAST: "1"
+      Tarazin__EnableHttpsRedirection: "false"
+      TARAZIN_SQL_CONNECTION: "Server=tcp:sqlserver,1433;Database=TarazinMaster;User Id=sa;Password=${SA_PASSWORD:?Set SA_PASSWORD in .env};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;Application Name=Tarazin"
+      Tarazin__BootstrapAdminUser: "admin"
+      # Set this separately when initializing an empty database.
+      Tarazin__BootstrapAdminPassword: "${BOOTSTRAP_ADMIN_PASSWORD:-}"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    restart: on-failure

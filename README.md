@@ -157,6 +157,71 @@ The application must listen on `0.0.0.0` and on Railway’s injected `PORT`. Do 
 
 The application uses `Microsoft.Data.SqlClient`, Dapper, SQL Server schemas, T-SQL scripts, foreign keys, and SQL Server security policies. A Railway PostgreSQL or MySQL service is **not compatible** with the current data layer.
 
+#### اجرای SQL Server با Docker Compose (محلی یا روی سرور لینوکس)
+
+برای اجرای SQL Server جدا از کانتینر Web، فایل `compose.yaml` در ریشهٔ پروژه آماده شده است. این روش معادل امن‌ترِ اجرای `docker run` است و SQL Server را داخل همان `web` image قرار نمی‌دهد:
+
+```bash
+cp .env.example .env
+# مقدار SA_PASSWORD و در صورت دیتابیس خالی مقدار BOOTSTRAP_ADMIN_PASSWORD را در .env تنظیم کن.
+docker compose up -d sqlserver
+# صبر کن تا healthcheck سرویس healthy شود، سپس Web را بالا بیاور:
+docker compose up -d web
+```
+
+متغیرهای اصلی Compose:
+
+```text
+SA_PASSWORD                 رمز کاربر sa در SQL Server
+BOOTSTRAP_ADMIN_PASSWORD    رمز کاربر admin در خود برنامهٔ Tarazin
+SQL_DATA_DIR                مسیر persistent دیتابیس، پیش‌فرض ./docker-data/database
+SQL_BACKUP_DIR              مسیر backup، پیش‌فرض ./docker-data/backup
+```
+
+تنظیمات SQL Server در Compose شامل این موارد است:
+
+```text
+ACCEPT_EULA=Y
+MSSQL_SA_PASSWORD=${SA_PASSWORD}
+MSSQL_AGENT_ENABLED=True
+پورت 1433
+volume داده در /var/opt/mssql
+volume backup در /var/opt/mssql/backup
+restart=always
+```
+
+اگر روی Linux می‌خواهی دقیقاً مسیرهای دستور نمونهٔ خودت استفاده شود، پیش از اجرا این متغیرها را تنظیم کن:
+
+```bash
+export SQL_DATA_DIR=/root/database
+export SQL_BACKUP_DIR=/root/backup
+docker compose up -d sqlserver
+```
+
+دستور معادل مستقیم، فقط برای اجرا روی همان سرور Docker (نه داخل Dockerfile) چنین است:
+
+```bash
+docker run -e ACCEPT_EULA=Y \
+  -e MSSQL_SA_PASSWORD='رمز-قوی-خودت' \
+  -e SA_PASSWORD='رمز-قوی-خودت' \
+  -p 1433:1433 --name sql2022 --hostname sql2022 \
+  -v /root/database:/var/opt/mssql \
+  -v /root/backup:/var/opt/mssql/backup \
+  -e MSSQL_AGENT_ENABLED=True \
+  --restart always \
+  -d mcr.microsoft.com/mssql/server:2022-latest
+```
+
+> ⚠️ مقدار واقعی رمز را در README یا Dockerfile ننویس. در SQL Serverهای جدید `MSSQL_SA_PASSWORD` نام رسمی‌تر متغیر است؛ Compose هر دو نام را از یک secret محلی تغذیه می‌کند.
+
+اگر Web و SQL Server در یک Compose هستند، Web نباید از `localhost` استفاده کند؛ نام سرویس شبکه‌ای آن `sqlserver` است:
+
+```text
+Server=tcp:sqlserver,1433;Database=TarazinMaster;User Id=sa;Password=${SA_PASSWORD};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;Application Name=Tarazin
+```
+
+در Railway نیز همین دو سرویس باید جدا باشند: یک سرویس Web با Dockerfile و یک سرویس SQL Server با volume پایدار. در متغیر `TARAZIN_SQL_CONNECTION` برای Web از hostname خصوصی سرویس SQL استفاده کن، نه `localhost`.
+
 Use one of these options:
 
 - Azure SQL or another managed SQL Server.
