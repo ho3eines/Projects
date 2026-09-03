@@ -33,9 +33,15 @@
             </MudChip>
         }
 
-        @if (Session.IsAuthenticated && Session.ActiveCompanyId != null && Session.ActiveFiscalYearId != null)
+        @* ── زمینهٔ کاری (شرکت/سال مالی + انبار فعال) ──
+           در دسکتاپ کنار برند می‌نشیند؛ در موبایل با CSS جمع‌وجور می‌شود
+           (آیکون‌ها مخفی، پهنای سقف‌دار با ellipsis) تا نوار بالا سرریز نکند. *@
+        @if (Session.IsAuthenticated && Session.ActiveCompanyId != null)
         {
-            @* کلیک روی چیپ «شرکت | سال مالی» منوی تمام سال‌های مالی مجاز را باز می‌کند. *@
+            <div class="tz-context">
+            @if (Session.ActiveFiscalYearId != null)
+            {
+                @* کلیک روی چیپ «شرکت | سال مالی» منوی تمام سال‌های مالی مجاز را باز می‌کند. *@
             <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Class="tz-fy-menu">
                 <ActivatorContent>
                     @* در MudBlazor 9 کلیک روی ActivatorContent خودکار نیست؛ باید خودمان آن را
@@ -69,10 +75,10 @@
                     }
                 </ChildContent>
             </MudMenu>
-        }
+            }
 
-        @if (Session.IsAuthenticated && Session.ActiveCompanyId != null && _warehouses.Count > 0)
-        {
+            @if (_warehouses.Count > 0)
+            {
             <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Class="tz-fy-menu">
                 <ActivatorContent>
                     <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled"
@@ -93,6 +99,8 @@
                     }
                 </ChildContent>
             </MudMenu>
+            }
+            </div>
         }
 
         <MudSpacer />
@@ -146,13 +154,13 @@
                ClipMode="DrawerClipMode.Always" Anchor="Anchor.Start" Class="tz-drawer tz-drawer--mobile"
                Elevation="0" Breakpoint="Breakpoint.Md"
                @ontouchstart="OnDrawerTouchStart" @ontouchend="OnDrawerTouchEnd">
-@*         <div class="tz-drawer__head">
+        <div class="tz-drawer__head">
             <img src="_content/Tarazin.Ui/brand/logo.svg" alt="" width="40" height="40" />
             <div>
                 <div class="tz-drawer__title">ترازین</div>
-                <div class="tz-drawer__sub">نه ماژول، یک میز کار</div>
+                <div class="tz-drawer__sub">یک میز کار یکپارچه</div>
             </div>
-        </div> *@
+        </div>
         <NavMenu CurrentPath="@_path" />
     </MudDrawer>
 
