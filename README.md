@@ -220,7 +220,48 @@ docker run -e ACCEPT_EULA=Y \
 Server=tcp:sqlserver,1433;Database=TarazinMaster;User Id=sa;Password=${SA_PASSWORD};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;Application Name=Tarazin
 ```
 
-در Railway نیز همین دو سرویس باید جدا باشند: یک سرویس Web با Dockerfile و یک سرویس SQL Server با volume پایدار. در متغیر `TARAZIN_SQL_CONNECTION` برای Web از hostname خصوصی سرویس SQL استفاده کن، نه `localhost`.
+در Railway نیز همین دو سرویس باید جدا باشند: یک سرویس Web با Dockerfile و یک سرویس SQL Server با volume پایدار. برای رفع خطای `/.system Access Denied`، image آمادهٔ SQL Server در مسیر `railway-sqlserver/Dockerfile` قرار دارد و فقط SQL Server را با `USER root` اجرا می‌کند؛ Web همچنان image مستقل خودش را دارد.
+
+#### ساخت سرویس SQL Server سفارشی در Railway
+
+اگر سرویس SQL Server با image رسمی و Volume خطای زیر می‌دهد:
+
+```text
+The system directory [/.system] could not be created
+Access Denied
+```
+
+در Railway یک Service جدا از همین repository بساز:
+
+1. روی **New → GitHub Repo** بزن و همین repository را انتخاب کن.
+2. در تنظیمات Service، مقدار **Root Directory** را بگذار:
+   ```text
+   /railway-sqlserver
+   ```
+3. مطمئن شو فایل `railway-sqlserver/Dockerfile` انتخاب می‌شود؛ این Dockerfile از `mcr.microsoft.com/mssql/server:2022-latest` استفاده می‌کند و برای مجوز Volume، SQL Server را با root اجرا می‌کند.
+4. در **Variables** این مقادیر را اضافه کن:
+   ```text
+   ACCEPT_EULA=Y
+   MSSQL_SA_PASSWORD=یک-رمز-قوی-جدید
+   MSSQL_PID=Developer
+   MSSQL_AGENT_ENABLED=True
+   ```
+5. در **Volumes** یک Volume بساز و Mount path را دقیقاً قرار بده:
+   ```text
+   /var/opt/mssql
+   ```
+6. Service را Deploy کن و در log منتظر این پیام بمان:
+   ```text
+   SQL Server is now ready for client connections
+   ```
+
+> این image عمداً فقط برای رفع محدودیت مجوز Volume در Railway با root اجرا می‌شود. SQL Server را روی اینترنت عمومی expose نکن؛ Web باید از private hostname همان Service و پورت داخلی `1433` استفاده کند. اگر Volume قبلی دادهٔ مهم دارد، آن را حذف نکن.
+
+در سرویس Web، مقدار `TARAZIN_SQL_CONNECTION` را با private hostname سرویس SQL تنظیم کن، نه `localhost`:
+
+```text
+Server=tcp:PRIVATE_SQL_HOST,1433;Database=TarazinMaster;User Id=sa;Password=همان-رمز-MSSQL_SA_PASSWORD;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;Application Name=Tarazin
+```
 
 Use one of these options:
 

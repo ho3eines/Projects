@@ -1,6 +1,10 @@
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    # Custom image runs SQL Server as root to avoid Railway volume permission
+    # failures while creating /.system. The Web container remains non-root.
+    build:
+      context: .
+      dockerfile: railway-sqlserver/Dockerfile
     container_name: sql2022
     hostname: sql2022
     environment:
