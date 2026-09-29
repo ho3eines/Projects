@@ -8,20 +8,23 @@ description: ""
 researchBrief: null
 assignedAgentId: null
 workflowId: "4766712f-b054-4bff-805f-f3ad7179fab6"
-status: "created"
+status: "failed"
 agentType: null
 parentTaskId: null
 priority: "medium"
-error: null
+error: "Error: Assigned models for Research Agent are missing or disabled; refusing unrelated providers or simulation"
 input: {}
 result: null
 createdAt: "2026-09-29T20:50:32.490Z"
-updatedAt: "2026-09-29T20:50:32.490Z"
+updatedAt: "2026-09-29T20:50:36.601Z"
 ---
 
 # Run Project WorkFlow
 
-> Status: **created** · Unit: `auto` · Priority: medium
+> Status: **failed** · Unit: `auto` · Priority: medium
 
 ## Request
 _(no description)_
+
+## Error
+Error: Assigned models for Research Agent are missing or disabled; refusing unrelated providers or simulation
