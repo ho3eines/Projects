@@ -16,7 +16,7 @@ error: "Error: Assigned models for Research Agent are missing or disabled; refus
 input: {}
 result: null
 createdAt: "2026-09-29T20:50:32.490Z"
-updatedAt: "2026-09-29T20:50:47.229Z"
+updatedAt: "2026-09-29T20:50:58.165Z"
 ---
 
 # Run Project WorkFlow
